@@ -38,8 +38,79 @@ namespace {
 
 namespace drachtio {
 
+	/* headers that are allowed to be set by the client in responses to sip requests */
 	SipDialogMaker::mapHdr2Tag SipDialogMaker::m_mapHdr2Tag = boost::assign::map_list_of
 		( string("user_agent"), siptag_user_agent_str ) 
+        ( string("subject"), siptag_subject_str ) 
+        ( string("max_forwards"), siptag_max_forwards_str ) 
+        ( string("proxy_require"), siptag_proxy_require_str ) 
+        ( string("request_disposition"), siptag_request_disposition_str ) 
+        ( string("accept_contact"), siptag_accept_contact_str ) 
+        ( string("reject_contact"), siptag_reject_contact_str ) 
+        ( string("expires"), siptag_expires_str ) 
+        ( string("date"), siptag_date_str ) 
+        ( string("retry_after"), siptag_retry_after_str ) 
+        ( string("timestamp"), siptag_timestamp_str ) 
+        ( string("min_expires"), siptag_min_expires_str ) 
+        ( string("priority"), siptag_priority_str ) 
+        ( string("call_info"), siptag_call_info_str ) 
+        ( string("organization"), siptag_organization_str ) 
+        ( string("server"), siptag_server_str ) 
+        ( string("in_reply_to"), siptag_in_reply_to_str ) 
+        ( string("accept"), siptag_accept_str ) 
+        ( string("accept_encoding"), siptag_accept_encoding_str ) 
+        ( string("accept_language"), siptag_accept_language_str ) 
+        ( string("allow"), siptag_allow_str ) 
+        ( string("require"), siptag_require_str ) 
+        ( string("supported"), siptag_supported_str ) 
+        ( string("unsupported"), siptag_unsupported_str ) 
+        ( string("event"), siptag_event_str ) 
+        ( string("allow_events"), siptag_allow_events_str ) 
+        ( string("subscription_state"), siptag_subscription_state_str ) 
+        ( string("proxy_authenticate"), siptag_proxy_authenticate_str ) 
+        ( string("proxy_authentication_info"), siptag_proxy_authentication_info_str ) 
+        ( string("proxy_authorization"), siptag_proxy_authorization_str ) 
+        ( string("authorization"), siptag_authorization_str ) 
+        ( string("www_authenticate"), siptag_www_authenticate_str ) 
+        ( string("authentication_info"), siptag_authentication_info_str ) 
+        ( string("error_info"), siptag_error_info_str ) 
+        ( string("warning"), siptag_warning_str ) 
+        ( string("refer_to"), siptag_refer_to_str ) 
+        ( string("referred_by"), siptag_referred_by_str ) 
+        ( string("replaces"), siptag_replaces_str ) 
+        ( string("session_expires"), siptag_session_expires_str ) 
+        ( string("min_se"), siptag_min_se_str ) 
+        ( string("path"), siptag_path_str ) 
+        ( string("service_route"), siptag_service_route_str ) 
+        ( string("reason"), siptag_reason_str ) 
+        ( string("security_client"), siptag_security_client_str ) 
+        ( string("security_server"), siptag_security_server_str ) 
+        ( string("security_verify"), siptag_security_verify_str ) 
+        ( string("privacy"), siptag_privacy_str ) 
+        ( string("etag"), siptag_etag_str ) 
+        ( string("if_match"), siptag_if_match_str ) 
+        ( string("mime_version"), siptag_mime_version_str ) 
+        ( string("content_type"), siptag_content_type_str ) 
+        ( string("content_encoding"), siptag_content_encoding_str ) 
+        ( string("content_language"), siptag_content_language_str ) 
+        ( string("content_disposition"), siptag_content_disposition_str ) 
+        ( string("error"), siptag_error_str ) 
+		;
+
+	/* headers that are not allowed to be set by the client in responses to sip requests */
+	SipDialogMaker::setHdr SipDialogMaker::m_setImmutableHdrs = boost::assign::list_of
+		( string("from") ) 
+		( string("to") ) 
+		( string("call_id") ) 
+		( string("cseq") ) 
+        ( string("via") ) 
+        ( string("route") ) 
+        ( string("contact") ) 
+        ( string("rseq") ) 
+        ( string("rack") ) 
+        ( string("record_route") ) 
+        ( string("content_length") ) 
+        ( string("payload") ) 
 		;
 
 
@@ -90,6 +161,7 @@ namespace drachtio {
             /* iterate through data.opts.headers, adding headers to the response */
             json_spirit::mObject obj ;
             if( pMsg->get<json_spirit::mObject>("data.opts.headers", obj) ) {
+                vector<string> vecUnknownStr ;
             	int nHdrs = obj.size() ;
             	tagi_t *tags = new tagi_t[nHdrs+1] ;
             	int i = 0; 
@@ -100,23 +172,44 @@ namespace drachtio {
 					tags[i].t_value = (tag_value_t) 0 ;            			
 
             		string hdr = boost::to_lower_copy( boost::replace_all_copy( it->first, "-", "_" ) );
-            		mapHdr2Tag::const_iterator itTag = SipDialogMaker::m_mapHdr2Tag.find( hdr ) ;
-            		if( itTag != SipDialogMaker::m_mapHdr2Tag.end() ) {
-	            		try {
-		            		string value = it->second.get_str() ;
-			           		DR_LOG(log_debug) << "Adding header '" << hdr << "' with value '" << value << "'" << endl ;
 
-			           		tags[i].t_tag = itTag->second ;
-			           		tags[i].t_value = (tag_value_t) value.c_str() ;
- 
+                    /* check to make sure this isn't a header that is not client-editable */
+                    if( SipDialogMaker::m_setImmutableHdrs.end() != SipDialogMaker::m_setImmutableHdrs.find( hdr ) ) {
+                        DR_LOG(log_error) << "Error: client provided a value for header '" << it->first << "' which is not modfiable by client" << endl;
+                        continue ;                       
+                    }
 
-	            		} catch( std::runtime_error& err ) {
-	            			DR_LOG(log_error) << "Error attempting to read string value for header " << hdr << ": " << err.what() << endl;
-	            		}            			
-            		} 
-            		else {
-            			DR_LOG(log_error) << "Error attempting to set a value for header '" << it->first << "': this header can not be overwritten by client" << endl;
-            		}
+                    try {
+                        string value = it->second.get_str() ;
+                        DR_LOG(log_debug) << "Adding header '" << hdr << "' with value '" << value << "'" << endl ;
+
+                        mapHdr2Tag::const_iterator itTag = SipDialogMaker::m_mapHdr2Tag.find( hdr ) ;
+                        if( itTag != SipDialogMaker::m_mapHdr2Tag.end() ) {
+                            /* known header */
+                            tags[i].t_tag = itTag->second ;
+                            tags[i].t_value = (tag_value_t) value.c_str() ;
+
+                        }
+                        else {
+                            /* custom header */
+
+                            if( string::npos != it->first.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
+                               DR_LOG(log_error) << "Error: client supplied invalid custom header name '" << it->first << "'" << endl;
+                               continue ;
+                            }
+                            else if( string::npos != value.find("\r\n") ) {
+                              DR_LOG(log_error) << "Error: client supplied invalid custom header value (contains CR or LF) for header '" << it->first << "'" << endl;
+                               continue ;
+                            }
+                            ostringstream o ;
+                            o << it->first << ": " <<  value.c_str()  ;
+                            vecUnknownStr.push_back( o.str() ) ;
+                            tags[i].t_tag = siptag_unknown_str ;
+                            tags[i].t_value = (tag_value_t) vecUnknownStr.back().c_str() ;
+                        }
+                    } catch( std::runtime_error& err ) {
+                        DR_LOG(log_error) << "Error attempting to read string value for header " << hdr << ": " << err.what() << endl;
+                    }                       
             	}
 
             	tags[nHdrs].t_tag = tag_null ;

@@ -136,6 +136,7 @@ namespace drachtio {
             }
         }
         else {
+#pragma mark TODO: need to deal with reading more than one message
             DR_LOG(log_debug) << "Read partial message; read " << m_buffer.size() << " of " << m_nMessageLength << " bytes" << endl ;
         }
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),

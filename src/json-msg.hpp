@@ -105,7 +105,7 @@ namespace drachtio {
 			json = json_spirit::write( m_value ) ;
 			ostringstream o ;
 			o << json.length() << "#" << json ;
-			json = o .str() ;
+			json = o.str() ;
 			return ;
 		}
 		bool isNull() const { return m_value.is_null(); }

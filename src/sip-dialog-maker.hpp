@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include <boost/shared_ptr.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/nta.h>
@@ -107,6 +108,9 @@ namespace drachtio {
 
         typedef boost::unordered_map<string,tag_type_t> mapHdr2Tag ;
         static mapHdr2Tag m_mapHdr2Tag ;
+
+        typedef boost::unordered_set<string> setHdr ;
+        static setHdr m_setImmutableHdrs ;
 
 
 	} ;
