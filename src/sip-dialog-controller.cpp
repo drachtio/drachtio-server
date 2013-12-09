@@ -25,6 +25,7 @@ THE SOFTWARE.
 #include <sofia-sip/nta.h>
 
 #include "controller.hpp"
+#include "sofia-msg.hpp"
 #include "sip-dialog-controller.hpp"
 
 namespace {

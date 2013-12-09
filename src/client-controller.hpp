@@ -37,7 +37,6 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 #include "client.hpp"
-#include "sip-msg-matcher.hpp"
 
 using namespace std ;
 

@@ -2,7 +2,7 @@ INCLUDES= -I/usr/local/include -I${srcdir}/deps/boost_1_52_0 -I${srcdir}/deps/so
 AM_LDFLAGS= -L/usr/local/lib  
 LDADD= -lboost_thread -lpthread -lssl
 bin_PROGRAMS= drachtio
-drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/sofia-msg.cpp src/drachtio.cpp src/sip-msg-matcher.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp
+drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/sofia-msg.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp
 drachtio_CPPFLAGS=-D_REENTRANT
 drachtio_LDADD= ${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_52_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_52_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_52_0/stage/lib/libboost_log.a ${srcdir}/deps/json-spirit/debug/libjson_spirit.a -lpthread -lssl -lcrypto
 
