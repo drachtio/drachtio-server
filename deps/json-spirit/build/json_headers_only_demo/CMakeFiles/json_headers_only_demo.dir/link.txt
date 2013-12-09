@@ -1,0 +1,1 @@
+/usr/bin/c++    -Wl,-search_paths_first -Wl,-headerpad_max_install_names   CMakeFiles/json_headers_only_demo.dir/json_headers_only_demo.cpp.o  -o json_headers_only_demo  ../json_spirit/libjson_spirit.a 

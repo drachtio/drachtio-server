@@ -30,7 +30,7 @@ THE SOFTWARE.
 #include <boost/property_tree/ptree.hpp>
 #include <boost/foreach.hpp>
 
-#include <boost/log/filters.hpp>
+//#include <boost/log/filters.hpp>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/log/core.hpp>
@@ -349,9 +349,10 @@ namespace drachtio {
             
             logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
             
-            logging::core::get()->set_filter(
-               filters::attr<severity_levels>("Severity") <= m_current_severity_threshold
-            ) ;
+            //logging::core::get()->set_filter(
+             //  filters::attr<severity_levels>("Severity") <= m_current_severity_threshold
+            //) ;
+            //m_sink->set_filter( severity <= log_debug /*m_current_severity_threshold*/ ) ;
 
             // Add the sink to the core
             logging::core::get()->add_sink(m_sink);

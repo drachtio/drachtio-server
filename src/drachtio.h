@@ -34,34 +34,30 @@ THE SOFTWARE.
 #include <boost/scoped_ptr.hpp>
 
 #include <boost/log/common.hpp>
-#include <boost/log/filters.hpp>
-#include <boost/log/formatters.hpp>
+//#include <boost/log/filters.hpp>
+//#include <boost/log/formatters.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/syslog_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
-//#include <boost/tokenizer.hpp>
+#include <boost/tokenizer.hpp>
 #include <boost/thread.hpp>
 
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
 #include <boost/uuid/uuid_io.hpp>         // streaming operato
-
+#include <boost/lexical_cast.hpp>
 #include <sofia-sip/sip_protos.h>
 #include <sofia-sip/sip_tag.h>
 #include <sofia-sip/sip_extra.h>
 #include <sofia-sip/msg_types.h>
 
-
-
 namespace logging = boost::log;
-namespace attrs = boost::log::attributes;
-namespace src = boost::log::sources;
 namespace sinks = boost::log::sinks;
-namespace fmt = boost::log::formatters;
+namespace src = boost::log::sources;
+namespace expr = boost::log::expressions;
+namespace attrs = boost::log::attributes;
 namespace keywords = boost::log::keywords;
-namespace filters = boost::log::filters ;
-
 
 namespace drachtio {
     
@@ -76,6 +72,8 @@ namespace drachtio {
 	    log_info,
 	    log_debug
 	};
+
+BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	enum agent_role {
 		uac_role

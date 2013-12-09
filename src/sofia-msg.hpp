@@ -28,6 +28,8 @@ THE SOFTWARE.
 #include <sofia-sip/sip_protos.h>
 #include <sofia-sip/sip_extra.h>
 
+#include <boost/algorithm/string/replace.hpp>
+
 #include "drachtio.h"
 #include "json-msg.hpp"
 
