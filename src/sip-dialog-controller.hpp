@@ -136,6 +136,12 @@ namespace drachtio {
 		bool sendRequestOutsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& transactionId ) ;
 		void doSendRequestOutsideDialog( SipMessageData* pData ) ;
 
+		int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) ;
+		void doSendRequestInsideDialog( SipMessageData* pData ) ;
+
+		bool sendCancelRequest( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) ;
+		void doSendCancelRequest( SipMessageData* pData ) ;
+
         int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
         int processResponseOutsideDialog( nta_outgoing_t* request, sip_t const* sip )  ;
@@ -146,14 +152,12 @@ namespace drachtio {
 	    	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;
 	    }
 
-		int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) ;
-		void doSendRequestInsideDialog( SipMessageData* pData ) ;
-
 		void addDialog( boost::shared_ptr<SipDialog> dlg ) ;
 
 		bool findDialogByLeg( nta_leg_t* leg, boost::shared_ptr<SipDialog>& dlg ) ;
 		bool findDialogById(  const string& strDialogId, boost::shared_ptr<SipDialog>& dlg ) ;
 		bool findIIPByIrq( nta_incoming_t* irq, boost::shared_ptr<IIP>& iip ) ;
+		bool findIIPByTransactionId( const string& transactionId, boost::shared_ptr<IIP>& iip ) ;
 
 	protected:
 		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;

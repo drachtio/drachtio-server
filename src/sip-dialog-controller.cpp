@@ -39,6 +39,11 @@ namespace {
         drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
         pController->getDialogController()->doSendRequestOutsideDialog( d ) ;
     }
+    void cloneSendSipCancelRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
+        drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
+        drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
+        pController->getDialogController()->doSendCancelRequest( d ) ;
+    }
     int uacLegCallback( nta_leg_magic_t* p, nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         return pController->getDialogController()->processRequestInsideDialog( leg, irq, sip) ;
@@ -69,10 +74,150 @@ namespace drachtio {
 	}
 	SipDialogController::~SipDialogController() {
 	}
+    int SipDialogController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) {
+       DR_LOG(log_debug) << "SipDialogController::sendSipRequestInsideDialog thread id: " << boost::this_thread::get_id() << endl ;
+
+        su_msg_r msg = SU_MSG_R_INIT ;
+        int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequestInsideDialog, 
+            sizeof( SipDialogController::SipMessageData ) );
+        if( rv < 0 ) {
+            return  false;
+        }
+        void* place = su_msg_data( msg ) ;
+
+        /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
+        string transactionId ;
+        string dialogId = dlg->getDialogId() ;
+        SipMessageData* msgData = new(place) SipMessageData( dialogId, transactionId, rid, pMsg ) ;
+        rv = su_msg_send(msg);  
+        if( rv < 0 ) {
+            return  false;
+        }
+        return true ;
+    }
+
+    void SipDialogController::doSendRequestInsideDialog( SipMessageData* pData ) {
+        boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
+        ostringstream o ;
+        string rid( pData->getRequestId() ) ;
+        string dialogId( pData->getDialogId() ) ;
+        boost::shared_ptr<SipDialog> dlg ;
+        nta_outgoing_t* orq = NULL ;
+
+        try {
+
+            if( !findDialogById( dialogId, dlg ) ) {
+                assert(false) ;
+                throw std::runtime_error("unable to find dialog for dialog id provided") ;
+            }
+
+            nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
+            if( !leg ) {
+                assert( leg ) ;
+                throw std::runtime_error("unable to find active leg for dialog") ;
+            }
+
+            DR_LOG(log_debug) << "SipDialogController::doSendSipRequestInsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
+
+            string strBody ;
+            pMsg->get<string>("data.msg.body", strBody) ;
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog body is " << strBody << endl ;
+ 
+            string strMethod ;
+            if( !pMsg->get<string>("data.method", strMethod) ) {
+                throw std::runtime_error("method is required") ;
+            }
+
+            sip_method_t mtype = methodType( strMethod ) ;
+            if( sip_method_unknown == mtype ) {
+                throw std::runtime_error("unknown method") ;
+            }
+
+            json_spirit::mObject obj ;
+            if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
+                tagi_t* tags = this->makeTags( obj ) ;
+
+                orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
+                                                            NULL,
+                                                            mtype, strMethod.c_str(),
+                                                            NULL,
+                                                            TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
+                                                            TAG_NEXT(tags),
+                                                            TAG_END() ) ;
+                delete[] tags ;
+            }
+            else {
+                orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
+                                                            NULL,
+                                                            mtype, strMethod.c_str(),
+                                                            NULL,
+                                                            TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
+                                                            TAG_END() ) ;
+            }
+           if( NULL == orq ) throw std::runtime_error("internal error attempting to create sip transaction") ;               
+            
+            msg_t* m = nta_outgoing_getrequest(orq) ;
+            sip_t* sip = sip_object( m ) ;
+
+            string transactionId ;
+            generateUuid( transactionId ) ;
+
+            boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid ) ;
+            m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,p)) ;
+
+            SofiaMsg req( orq, sip ) ;
+            o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"message\": " << req.str() << "}" ;
+            m_pController->getClientController()->sendResponseToClient( rid, o.str(), transactionId ) ; 
+
+       } catch( std::runtime_error& err ) {
+            DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - Error " << err.what() << endl;
+            o << "{\"success\": false, \"reason\": \"" << err.what() << "\"}" ;
+            m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+       }                       
+
+        /* we must explicitly delete an object allocated with placement new */
+        pData->~SipMessageData() ;
+    }
+   
+    bool SipDialogController::sendCancelRequest( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
+       su_msg_r msg = SU_MSG_R_INIT ;
+        int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipCancelRequest, 
+            sizeof( SipDialogController::SipMessageData ) );
+        if( rv < 0 ) {
+            return  false;
+        }
+        void* place = su_msg_data( msg ) ;
+
+        /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
+        string transactionId ;
+        pMsg->get<string>("data.transactionId",transactionId) ;
+        SipMessageData* msgData = new(place) SipMessageData( transactionId, rid, pMsg ) ;
+        rv = su_msg_send(msg);  
+        if( rv < 0 ) {
+            return  false;
+        }
+        return true ;
+    }
+    void SipDialogController::doSendCancelRequest( SipMessageData* pData ) {
+        string rid( pData->getRequestId() ) ;
+        string transactionId( pData->getTransactionId() ) ;
+        boost::shared_ptr<IIP> iip ;
+        ostringstream o ;
+
+        if( findIIPByTransactionId( transactionId, iip ) ) {
+            int rc = nta_outgoing_cancel( iip->orq() ) ;
+            o << "{\"success\": true }" ;
+        }
+        else {
+           DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - unknown transaction id " << transactionId << endl;
+            o << "{\"success\": false, \"reason\": \"request could not be found for transaction id " << transactionId << "\"}" ;
+        }
+        m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+
+        pData->~SipMessageData() ;
+   }
 
     bool SipDialogController::sendRequestOutsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
-        DR_LOG(log_debug) << "sendSipRequest thread id: " << boost::this_thread::get_id() << endl ;
-
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequest, 
             sizeof( SipDialogController::SipMessageData ) );
@@ -104,12 +249,6 @@ namespace drachtio {
 
         try {
 
-            if( !pMsg->get<string>("data.request_uri", strRequestUri ) )  {
-                o << "{\"success\": false, \"reason\": \"request_uri is required\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
-                throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - request_uri is required") ;
-
-            }
             if( !pMsg->get<string>("data.method", strMethod) ) {
                 o << "{\"success\": false, \"reason\": \"method is required\"}" ;
                 m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
@@ -121,6 +260,13 @@ namespace drachtio {
                 o << "{\"success\": false, \"reason\": \"unknown method\"}" ;
                 m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - unknown method") ;
+            }
+
+            if( !pMsg->get<string>("data.request_uri", strRequestUri ) )  {
+                o << "{\"success\": false, \"reason\": \"request_uri is required\"}" ;
+                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+                throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - request_uri is required") ;
+
             }
 
             /* if body was provided, content-type is required */
@@ -396,110 +542,6 @@ namespace drachtio {
         }
         return rc ;
     }
-	int SipDialogController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) {
-       DR_LOG(log_debug) << "SipDialogController::sendSipRequestInsideDialog thread id: " << boost::this_thread::get_id() << endl ;
-
-        su_msg_r msg = SU_MSG_R_INIT ;
-        int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequestInsideDialog, 
-            sizeof( SipDialogController::SipMessageData ) );
-        if( rv < 0 ) {
-            return  false;
-        }
-        void* place = su_msg_data( msg ) ;
-
-        /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        string transactionId ;
-        string dialogId = dlg->getDialogId() ;
-        SipMessageData* msgData = new(place) SipMessageData( dialogId, transactionId, rid, pMsg ) ;
-        rv = su_msg_send(msg);  
-        if( rv < 0 ) {
-            return  false;
-        }
-        return true ;
-	}
-
-    void SipDialogController::doSendRequestInsideDialog( SipMessageData* pData ) {
-        boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
-        ostringstream o ;
-        string rid( pData->getRequestId() ) ;
-        string dialogId( pData->getDialogId() ) ;
-        boost::shared_ptr<SipDialog> dlg ;
-		nta_outgoing_t* orq = NULL ;
-
-        try {
-
-			if( !findDialogById( dialogId, dlg ) ) {
-				assert(false) ;
-				throw std::runtime_error("unable to find dialog for dialog id provided") ;
-			}
-
-			nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
-			if( !leg ) {
-				assert( leg ) ;
-				throw std::runtime_error("unable to find active leg for dialog") ;
-			}
-
-			DR_LOG(log_debug) << "SipDialogController::doSendSipRequestInsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
-
-            string strBody ;
-            pMsg->get<string>("data.msg.body", strBody) ;
-            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog body is " << strBody << endl ;
- 
-            string strMethod ;
-            if( !pMsg->get<string>("data.method", strMethod) ) {
-                throw std::runtime_error("method is required") ;
-            }
-
-			sip_method_t mtype = methodType( strMethod ) ;
-			if( sip_method_unknown == mtype ) {
-			    throw std::runtime_error("unknown method") ;
-			}
-
-			json_spirit::mObject obj ;
-			if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-				tagi_t* tags = this->makeTags( obj ) ;
-
-			    orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
-                                                            NULL,
-                                                            mtype, strMethod.c_str(),
-                                                            NULL,
-                                                            TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
-                                                            TAG_NEXT(tags),
-                                                            TAG_END() ) ;
-				delete[] tags ;
-			}
-			else {
-			    orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
-                                                            NULL,
-                                                            mtype, strMethod.c_str(),
-                                                            NULL,
-                                                            TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
-                                                            TAG_END() ) ;
-			}
-           if( NULL == orq ) throw std::runtime_error("internal error attempting to create sip transaction") ;               
-            
-            msg_t* m = nta_outgoing_getrequest(orq) ;
-            sip_t* sip = sip_object( m ) ;
-
-            string transactionId ;
-            generateUuid( transactionId ) ;
-
-            boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid ) ;
-            m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,p)) ;
-
-            SofiaMsg req( orq, sip ) ;
-            o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"message\": " << req.str() << "}" ;
-            m_pController->getClientController()->sendResponseToClient( rid, o.str(), transactionId ) ; 
-
-       } catch( std::runtime_error& err ) {
-            DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - Error " << err.what() << endl;
-			o << "{\"success\": false, \"reason\": \"" << err.what() << "\"}" ;
-			m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
-       }                       
-
-        /* we must explicitly delete an object allocated with placement new */
-        pData->~SipMessageData() ;
-    }
     int SipDialogController::processResponseInsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
     	ostringstream o ;
 
@@ -647,6 +689,12 @@ namespace drachtio {
     bool SipDialogController::findIIPByIrq( nta_incoming_t* irq, boost::shared_ptr<IIP>& iip ) {
         mapIrq2IIP::iterator it = m_mapIrq2IIP.find( irq ) ;
         if( m_mapIrq2IIP.end() == it ) return false ;
+        iip = it->second ;
+        return true ;
+    }
+    bool SipDialogController::findIIPByTransactionId( const string& transactionId, boost::shared_ptr<IIP>& iip ) {
+        mapTransactionId2IIP::iterator it = m_mapTransactionId2IIP.find( transactionId ) ;
+        if( m_mapTransactionId2IIP.end() == it ) return false ;
         iip = it->second ;
         return true ;
     }

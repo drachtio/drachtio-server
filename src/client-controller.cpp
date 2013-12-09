@@ -197,11 +197,11 @@ namespace drachtio {
 
     } 
     bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
+        ostringstream o ;
         m_mapRequests.insert( mapRequests::value_type( rid, client)) ;   
         string strDialogId ;
         if( pMsg->get<string>("data.dialogId", strDialogId) ) {
             if( m_pController->sendRequestInsideDialog( pMsg, rid ) < 0 ) {
-                ostringstream o ;
                 o << "{\"success\": false, \"reason\": \"unknown sip dialog\"}" ;
                 client->sendResponse( rid, o.str() ) ;
                 return false ;
@@ -209,6 +209,17 @@ namespace drachtio {
             return true ;
         }
         else {
+            string method ;
+            string transactionId ;
+            pMsg->get<string>("data.method", method ) ;
+            if( 0 == method.compare("CANCEL")  ) {
+                if( !pMsg->get<string>("data.transactionId", transactionId) ) {
+                    o << "{\"success\": false, \"reason\": \"cancel request is missing transaction id\"}" ;
+                    client->sendResponse( rid, o.str() ) ;
+                    return false ;
+                }
+                return m_pController->getDialogController()->sendCancelRequest( pMsg, rid ) ;
+            }
             return m_pController->getDialogController()->sendRequestOutsideDialog( pMsg, rid ) ;        
         }
     }
