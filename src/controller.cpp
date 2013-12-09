@@ -42,6 +42,8 @@ THE SOFTWARE.
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/attributes/scoped_attribute.hpp>
 
+#include <sofia-sip/msg_addr.h>
+
 #define DEFAULT_CONFIG_FILENAME "/etc/drachtio.conf.xml"
 #define MAXLOGLEN (8192)
 /* from sofia */
@@ -380,7 +382,7 @@ namespace drachtio {
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
         if( 0 != adminPort ) {
-            m_clientController.reset( new ClientController( this, adminAddress, adminPort )) ;
+            m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
         string url ;
@@ -416,8 +418,14 @@ namespace drachtio {
            DR_LOG(log_error) << "Error calling su_clone_start" << endl ;
             return  ;
         }
-        m_pDialogMaker = boost::make_shared<SipDialogMaker>( this, &m_clone ) ;
+        m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         
+        /* enable extended headers */
+        if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
+            DR_LOG(log_error) << "Error calling sip_update_default_mclass" << endl ;
+            return  ;
+        }
+
         /* create our agent */
         char str[URL_MAXLEN] ;
         memset(str, 0, URL_MAXLEN) ;
@@ -473,11 +481,12 @@ namespace drachtio {
         switch (sip->sip_request->rq_method ) {
             case sip_method_invite:
             {
-                string msgId ;
-                if( !m_clientController->route_request( sip, msgId ) )  {
-                    DR_LOG(log_error) << "No providers available for invite" << endl ;
-                    return 503 ;
-                }
+                /* TODO:  should support optional config to only allow invites from defined addresses */
+
+                /* TODO: should add support for optionally generating CDRs */
+
+                string transactionId ;
+                generateUuid( transactionId ) ;
 
                 nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
                 nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
@@ -491,14 +500,24 @@ namespace drachtio {
                     return 500 ;
                 }
 
+                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
+
+                if( !m_pClientController->route_request_outside_dialog( irq, sip, transactionId ) )  {
+                    DR_LOG(log_error) << "No providers available for invite" << endl ;
+                    return 503 ;
+                }
+
+                dlg->setTransactionId( transactionId ) ;
+
                 string contactStr ;
                 generateOutgoingContact( sip->sip_contact, contactStr ) ;
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
-                m_pDialogMaker->addIncomingInviteTransaction( leg, irq, msgId ) ;
+                m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
             }
             break ;
-              case sip_method_ack:
+            
+            case sip_method_ack:
                 /* success case: call has been established */
                 nta_incoming_destroy( irq ) ;
                 return 0 ;               
@@ -507,7 +526,7 @@ namespace drachtio {
                 return 481 ;
                 
             default:
-                DR_LOG(log_error) << "Received unsupported method type: " << sip->sip_request->rq_method_name << ": " << sip->sip_call_id->i_id << endl ;
+                DR_LOG(log_error) << "DrachtioController::processRequestOutsideDialog - unsupported method type: " << sip->sip_request->rq_method_name << ": " << sip->sip_call_id->i_id << endl ;
                 return 501 ;
                 break ;
                 
@@ -515,8 +534,59 @@ namespace drachtio {
         
         return 0 ;
     }
-    int DrachtioController::processRequestInsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
+    int DrachtioController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
+        DR_LOG(log_debug) << "DrachtioController::processRequestInsideDialog" << endl ;
+        int rc = 0 ;
+        boost::shared_ptr<SipDialog> dlg ;
+         
+        if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
+            return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
+        }
+        assert(false) ;
+
         return 0 ;
+    }
+    int DrachtioController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
+        string strDialogId ;
+        boost::shared_ptr<SipDialog> dlg ;
+        
+        pMsg->get<string>("data.dialogId", strDialogId) ;
+        if( !m_pDialogController->findDialogById( strDialogId, dlg ) ) {
+            //DO I need to look in dialog maker also ?  What about an UPDATE sent during an INVITE transaction?
+            return -1;
+        }
+        m_pDialogController->sendRequestInsideDialog( pMsg, rid, dlg ) ;
+
+        return 0 ;
+    }
+    void DrachtioController::notifyDialogConstructionComplete( boost::shared_ptr<SipDialog> dlg ) {
+        DR_LOG(log_debug) << "notifyDialogConstructionComplete: final sip status " << dlg->getSipStatus() << endl ;
+        int finalStatus =  dlg->getSipStatus() ;
+        if( 200 == finalStatus ) {
+            /* hand stable dialogs over to this guy for further management */
+            m_pDialogController->addDialog( dlg ) ;
+        }
+        else {
+            /* the rest are destroyed at this point */
+            DR_LOG(log_debug) << "notifyDialogConstructionComplete: dialog with call-id " << dlg->getCallId() << 
+                " has final sip status of " << finalStatus << " and will be destroyed" << endl ;
+        }
+    }
+    sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
+        return nta_incoming_received( irq, NULL ) ;
+    }
+    void DrachtioController::getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) {
+        su_sockaddr_t su[1];
+        socklen_t sulen = sizeof su;
+        msg_t* msg = nta_incoming_getrequest( irq ) ;
+        if( 0 != msg_get_address(msg, su, &sulen) ) {
+            throw std::runtime_error("Failed trying to retrieve socket associated with incoming sip message") ;             
+        }
+        char h[256], s[256] ;
+        su_getnameinfo(su, sulen, h, 256, s, 256, NI_NUMERICHOST | NI_NUMERICSERV);
+
+        host = h ;
+        port = ::atoi( s ) ;
     }
 
     void DrachtioController::generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) {
@@ -542,6 +612,89 @@ namespace drachtio {
         DR_LOG(log_debug) << "generated Contact: " << o.str() << endl ;
         
         strContact = o.str() ;
+    }
+
+    void DrachtioController::printStats() {
+       usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
+       usize_t irq_used = -1, orq_used = -1, leg_used = -1 ;
+       usize_t recv_msg = -1, sent_msg = -1;
+       usize_t recv_request = -1, recv_response = -1;
+       usize_t bad_message = -1, bad_request = -1, bad_response = -1;
+       usize_t drop_request = -1, drop_response = -1;
+       usize_t client_tr = -1, server_tr = -1, dialog_tr = -1;
+       usize_t acked_tr = -1, canceled_tr = -1;
+       usize_t trless_request = -1, trless_to_tr = -1, trless_response = -1;
+       usize_t trless_200 = -1, merged_request = -1;
+       usize_t sent_request = -1, sent_response = -1;
+       usize_t retry_request = -1, retry_response = -1, recv_retry = -1;
+       usize_t tout_request = -1, tout_response = -1;
+
+       nta_agent_get_stats(m_nta,
+                                NTATAG_S_IRQ_HASH_REF(irq_hash),
+                                NTATAG_S_ORQ_HASH_REF(orq_hash),
+                                NTATAG_S_LEG_HASH_REF(leg_hash),
+                                NTATAG_S_IRQ_HASH_USED_REF(irq_used),
+                                NTATAG_S_ORQ_HASH_USED_REF(orq_used),
+                                NTATAG_S_LEG_HASH_USED_REF(leg_used),
+                                NTATAG_S_RECV_MSG_REF(recv_msg),
+                                NTATAG_S_SENT_MSG_REF(sent_msg),
+                                NTATAG_S_RECV_REQUEST_REF(recv_request),
+                                NTATAG_S_RECV_RESPONSE_REF(recv_response),
+                                NTATAG_S_BAD_MESSAGE_REF(bad_message),
+                                NTATAG_S_BAD_REQUEST_REF(bad_request),
+                                NTATAG_S_BAD_RESPONSE_REF(bad_response),
+                                NTATAG_S_DROP_REQUEST_REF(drop_request),
+                                NTATAG_S_DROP_RESPONSE_REF(drop_response),
+                                NTATAG_S_CLIENT_TR_REF(client_tr),
+                                NTATAG_S_SERVER_TR_REF(server_tr),
+                                NTATAG_S_DIALOG_TR_REF(dialog_tr),
+                                NTATAG_S_ACKED_TR_REF(acked_tr),
+                                NTATAG_S_CANCELED_TR_REF(canceled_tr),
+                                NTATAG_S_TRLESS_REQUEST_REF(trless_request),
+                                NTATAG_S_TRLESS_TO_TR_REF(trless_to_tr),
+                                NTATAG_S_TRLESS_RESPONSE_REF(trless_response),
+                                NTATAG_S_TRLESS_200_REF(trless_200),
+                                NTATAG_S_MERGED_REQUEST_REF(merged_request),
+                                NTATAG_S_SENT_REQUEST_REF(sent_request),
+                                NTATAG_S_SENT_RESPONSE_REF(sent_response),
+                                NTATAG_S_RETRY_REQUEST_REF(retry_request),
+                                NTATAG_S_RETRY_RESPONSE_REF(retry_response),
+                                NTATAG_S_RECV_RETRY_REF(recv_retry),
+                                NTATAG_S_TOUT_REQUEST_REF(tout_request),
+                                NTATAG_S_TOUT_RESPONSE_REF(tout_response),
+                           TAG_END()) ;
+       
+       DR_LOG(log_debug) << "size of hash table for server-side transactions                  " << irq_hash << endl ;
+       DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash << endl ;
+       DR_LOG(log_info) << "size of hash table for dialogs                                   " << leg_hash << endl ;
+       DR_LOG(log_info) << "number of server-side transactions in the hash table             " << irq_used << endl ;
+       DR_LOG(log_info) << "number of client-side transactions in the hash table             " << orq_used << endl ;
+       DR_LOG(log_info) << "number of dialogs in the hash table                              " << leg_used << endl ;
+       DR_LOG(log_info) << "number of sip messages received                                  " << recv_msg << endl ;
+       DR_LOG(log_info) << "number of sip messages sent                                      " << sent_msg << endl ;
+       DR_LOG(log_info) << "number of sip requests received                                  " << recv_request << endl ;
+       DR_LOG(log_info) << "number of sip requests sent                                      " << sent_request << endl ;
+       DR_LOG(log_debug) << "number of bad sip messages received                              " << bad_message << endl ;
+       DR_LOG(log_debug) << "number of bad sip requests received                              " << bad_request << endl ;
+       DR_LOG(log_debug) << "number of bad sip requests received                              " << drop_request << endl ;
+       DR_LOG(log_debug) << "number of bad sip reponses dropped                               " << drop_response << endl ;
+       DR_LOG(log_debug) << "number of client transactions created                            " << client_tr << endl ;
+       DR_LOG(log_debug) << "number of server transactions created                            " << server_tr << endl ;
+       DR_LOG(log_info) << "number of in-dialog server transactions created                  " << dialog_tr << endl ;
+       DR_LOG(log_debug) << "number of server transactions that have received ack             " << acked_tr << endl ;
+       DR_LOG(log_debug) << "number of server transactions that have received cancel          " << canceled_tr << endl ;
+       DR_LOG(log_debug) << "number of requests that were processed stateless                 " << trless_request << endl ;
+       DR_LOG(log_debug) << "number of requests converted to transactions by message callback " << trless_to_tr << endl ;
+       DR_LOG(log_debug) << "number of responses without matching request                     " << trless_response << endl ;
+       DR_LOG(log_debug) << "number of successful responses missing INVITE client transaction " << trless_200 << endl ;
+       DR_LOG(log_debug) << "number of requests merged by UAS                                 " << merged_request << endl ;
+       DR_LOG(log_info) << "number of SIP requests sent by stack                             " << sent_request << endl ;
+       DR_LOG(log_info) << "number of SIP responses sent by stack                            " << sent_response << endl ;
+       DR_LOG(log_info) << "number of SIP requests retransmitted by stack                    " << retry_request << endl ;
+       DR_LOG(log_info) << "number of SIP responses retransmitted by stack                   " << retry_response << endl ;
+       DR_LOG(log_info) << "number of retransmitted SIP requests received by stack           " << recv_retry << endl ;
+       DR_LOG(log_debug) << "number of SIP client transactions that has timeout               " << tout_request << endl ;
+       DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response << endl ;
     }
 
 }

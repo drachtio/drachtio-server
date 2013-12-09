@@ -25,17 +25,12 @@ THE SOFTWARE.
 #include <boost/tokenizer.hpp>
 #include <boost/foreach.hpp>
 
-
 #include "sofia-msg.hpp"
 #include "client-controller.hpp"
 #include "controller.hpp"
 
 namespace drachtio {
-    
-    bool ClientController::RequestSpecifier::matches( sip_t const *sip ) {
-        return false ;
-    }
- 
+     
     ClientController::ClientController( DrachtioController* pController, string& address, unsigned int port ) :
         m_pController( pController ),
         m_endpoint(  boost::asio::ip::tcp::v4(), port ),
@@ -93,21 +88,18 @@ namespace drachtio {
         }
         start_accept(); 
     }
-    void ClientController::wants_invites( client_ptr client, const string& matchId, const string& strMatch ) {
-        RequestSpecifier spec( client, matchId, strMatch ) ;
+    bool ClientController::wants_requests( client_ptr client, const string& verb ) {
+        RequestSpecifier spec( client ) ;
         boost::lock_guard<boost::mutex> l( m_lock ) ;
-        m_request_types.insert( map_of_request_types::value_type("invite", spec)) ;    
+        m_request_types.insert( map_of_request_types::value_type(verb, spec)) ;  
+        DR_LOG(log_debug) << "Added client for " << verb << " requests" << endl ;
+        //TODO: validate the verb is supported
+        return true ;  
     }
 
-    bool ClientController::route_request( sip_t const *sip, string& msgId ) {
+    bool ClientController::route_request_outside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
 
-        //TODO: search invite list, applying regex until we find one that matches.
-        //Note: we should also round robin through these, so need to keep previous used distance
-        //Note: need to clear out entries with weak pointers that give null
-        //return false if no session found, true otherwise
-        //stash the leg so we can later use it when we message the controller about how to answer (or not) this leg
-        //Q: should we be creating / referencing a SipDialog class here, so we don't pile a lot of code into controller?
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( sip ) ;
+        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
 
         string method_name = sip->sip_request->rq_method_name ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
@@ -127,44 +119,147 @@ namespace drachtio {
                 m_request_types.erase(it++) ;
                 continue ;
             }
-            /* does the client want all invites? */
-            if( !spec.getMatcher() ) {
-                DR_LOG(log_debug) << "Sending invite to app that registered to take all invites" << endl ;
-                matchId = spec.getMatchId() ;
-                client = spec.client() ;
-                break ;
-            }
-
-            /* does the client have a regex that matches this invite */
-            if( spec.getMatcher()->eval( sm ) ) {
-               DR_LOG(log_debug) << "Sending invite to app that registered to take certain invites" << endl ;
-                client = spec.client() ;
-                matchId = spec.getMatchId() ;
-                break;
-            } 
-
-            ++it ;
-
+            client = spec.client() ;
+            break ;
         }
+
         if( !client ) {
-            DR_LOG(log_info) << "No clients found to handle incoming " << sip->sip_request->rq_method_name << " request" << endl ;
+            DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request" << endl ;
            return false ;
         }
 
         /* we've selected a client for this message */
         string json = sm->str() ;
 
-        DR_LOG(log_debug) << "Sending request to client: " << json << endl; 
         JsonMsg jmsg( json ) ;
 
-        generateUuid( msgId ) ;
+        m_mapTransactions.insert( mapTransactions::value_type(transactionId,client)) ;
 
-        m_ioservice.post( boost::bind(&Client::sendServiceRequest, client, matchId, msgId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendRequestOutsideDialog, client, transactionId, json) ) ;
  
         return true ;
     }
-    void ClientController::respondToSipRequest( const string& msgId, boost::shared_ptr<JsonMsg> pMsg ) {
-         m_pController->getDialogMaker()->respondToSipRequest( msgId, pMsg ) ;
+    void ClientController::respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) {
+         m_pController->getDialogController()->respondToSipRequest( transactionId, pMsg ) ;
+    }
+
+    bool ClientController::route_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& dialogId ) {
+        client_ptr client = this->findClientForDialog( dialogId );
+        if( !client ) {
+            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
+            return false ;
+        }
+
+        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
+        string json = sm->str() ;
+        JsonMsg jmsg( json ) ;
+
+        m_ioservice.post( boost::bind(&Client::sendRequestWithinDialog, client, dialogId, json) ) ;
+
+        return true ;
+    }
+    bool ClientController::route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId ) {
+        client_ptr client = this->findClientForTransaction( transactionId );
+        if( !client ) {
+            DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId << endl ;
+            return false ;
+        }
+
+        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( orq, sip ) ;
+        string json = sm->str() ;
+        JsonMsg jmsg( json ) ;
+
+        m_ioservice.post( boost::bind(&Client::sendResponseWithinTransaction, client, transactionId, json) ) ;
+
+        return true ;
+    }
+    void ClientController::addDialogForTransaction( const string& transactionId, const string& dialogId ) {
+        mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
+        if( m_mapTransactions.end() != it ) {
+            m_mapDialogs.insert( mapDialogs::value_type(dialogId, it->second ) ) ;
+        }
+        else {
+            DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found" << endl ;
+            assert(false) ;
+        }
+        DR_LOG(log_debug) << "ClientController::addDialogForTransaction - transaction id " << transactionId << 
+            " has associated dialog " << dialogId << endl ;
+
+        client_ptr client = this->findClientForDialog( dialogId );
+        if( !client ) {
+            m_mapDialogs.erase( dialogId ) ;
+            m_mapTransactions.erase( transactionId ) ;
+            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - client managing dialog has disconnected: " << dialogId << endl ;
+            return  ;
+        }
+
+        m_ioservice.post( boost::bind(&Client::sendDialogInfo, client, dialogId, transactionId) ) ;
+
+    } 
+    bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
+        m_mapRequests.insert( mapRequests::value_type( rid, client)) ;   
+        string strDialogId ;
+        if( pMsg->get<string>("data.dialogId", strDialogId) ) {
+            if( m_pController->sendRequestInsideDialog( pMsg, rid ) < 0 ) {
+                ostringstream o ;
+                o << "{\"success\": false, \"reason\": \"unknown sip dialog\"}" ;
+                client->sendResponse( rid, o.str() ) ;
+                return false ;
+            }
+            return true ;
+        }
+        else {
+            return m_pController->getDialogController()->sendRequestOutsideDialog( pMsg, rid ) ;        
+        }
+    }
+    void ClientController::sendResponseToClient( const string& rid, const string& strData ) {
+        string null;
+        sendResponseToClient( rid, strData, null) ;
+    }
+    void ClientController::sendResponseToClient( const string& rid, const string& strData, const string& transactionId ) {
+        client_ptr client = findClientForRequest( rid ) ;
+        if( !client ) {
+            DR_LOG(log_warning) << "ClientController::sendResponseToClient - client that sent the request has disconnected: " << rid << endl ;
+            return ;
+        }
+        m_ioservice.post( boost::bind(&Client::sendResponse, client, rid, strData) ) ;   
+        if( !transactionId.empty() ) {
+            m_mapTransactions.insert( mapTransactions::value_type( transactionId, client) ) ; //TODO: need to think about when this gets cleared
+        }     
+    }
+    bool ClientController::route_cancel_transaction( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
+        client_ptr client = findClientForTransaction( transactionId ) ;
+        if( !client ) {
+            DR_LOG(log_warning) << "ClientController::route_cancel_transaction - client that was sent the transaction has disconnected: " << transactionId << endl ;
+            return false;            
+        }
+        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
+        string json = sm->str() ;
+        JsonMsg jmsg( json ) ;
+
+        m_ioservice.post( boost::bind(&Client::sendCancelTransaction, client, transactionId, json) ) ;
+
+        return true ;
+       
+    }
+    client_ptr ClientController::findClientForDialog( const string& dialogId ) {
+        client_ptr client ;
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
+        if( m_mapDialogs.end() != it ) client = it->second.lock() ;
+        return client ;
+    }
+    client_ptr ClientController::findClientForRequest( const string& rid ) {
+        client_ptr client ;
+        mapRequests::iterator it = m_mapRequests.find( rid ) ;
+        if( m_mapRequests.end() != it ) client = it->second.lock() ;
+        return client ;
+    }
+    client_ptr ClientController::findClientForTransaction( const string& transactionId ) {
+        client_ptr client ;
+        mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
+        if( m_mapTransactions.end() != it ) client = it->second.lock() ;
+        return client ;
     }
 
     void ClientController::stop() {

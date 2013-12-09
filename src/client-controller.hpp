@@ -54,21 +54,30 @@ namespace drachtio {
         void join( client_ptr client ) ;
         void leave( client_ptr client ) ;
 
-        void wants_invites( client_ptr client, const string& matchId, const string& strMatch ) ;
+        bool wants_requests( client_ptr client, const string& verb ) ;
 
+        bool route_request_outside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) ;
+ 
+        bool route_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& dialogId ) ;
 
-        bool route_request( sip_t const *sip, string& msgId ) ;
+        bool route_cancel_transaction( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) ;
+
+        bool route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId ) ; 
         
-        void respondToSipRequest( const string& msgId, boost::shared_ptr<JsonMsg> pMsg ) ;
+        void respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) ;
+
+        bool sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) ;
+
+        void sendResponseToClient( const string& rid, const string& strData ) ;
+        void sendResponseToClient( const string& rid, const string& strData, const string& transactionId ) ;
+
+        void addDialogForTransaction( const string& transactionId, const string& dialogId ) ;
 
     protected:
 
         class RequestSpecifier {
         public:
-            RequestSpecifier( client_ptr client, const string& matchId ) : m_client(client), m_matchId(matchId) {}
-            RequestSpecifier( client_ptr client, const string& matchId, const string& strMatch ) : m_client(client), m_matchId(matchId) {
-                if( !strMatch.empty() ) m_matcher = boost::make_shared<SipMsgMatcher>( strMatch ) ;
-            }
+            RequestSpecifier( client_ptr client ) : m_client(client) {}
             ~RequestSpecifier() {}
 
             client_ptr client() {
@@ -76,22 +85,18 @@ namespace drachtio {
                 return p ;
             }
 
-            bool matches( sip_t const *sip ) ;
-
-            const string& getMatchId(void) { return m_matchId; }
-
-            boost::shared_ptr<SipMsgMatcher> getMatcher(void)  { return m_matcher; }
-
         protected:
             client_weak_ptr m_client ;
-            string m_matchId ;
-            boost::shared_ptr<SipMsgMatcher> m_matcher ;
         } ;
  
 
     private:
         void accept_handler( client_ptr session, const boost::system::error_code& ec) ;
-         void stop() ;
+        void stop() ;
+
+        client_ptr findClientForDialog( const string& dialogId ) ;
+        client_ptr findClientForRequest( const string& rid ) ;
+        client_ptr findClientForTransaction( const string& transactionId ) ;
 
         DrachtioController*         m_pController ;
         boost::thread               m_thread ;
@@ -110,7 +115,14 @@ namespace drachtio {
         typedef boost::unordered_multimap<string,RequestSpecifier> map_of_request_types ;
         map_of_request_types m_request_types ;
 
-
+        typedef boost::unordered_map<string,client_weak_ptr> mapDialogs ;
+        mapDialogs m_mapDialogs ;
+        
+        typedef boost::unordered_map<string,client_weak_ptr> mapTransactions ;
+        mapTransactions m_mapTransactions ;
+        
+       typedef boost::unordered_map<string,client_weak_ptr> mapRequests ;
+        mapDialogs m_mapRequests ;
         
     } ;
 

@@ -1,0 +1,33 @@
+.DS_Store
+Makefile.in
+autom4te.cache/*
+debug/config.*
+debug/Makefile
+release/config.*
+release/Makefile
+drachtio-alt.conf.xml
+drachtio.xcodeproj/
+aclocal.m4
+config.guess
+config.h.in
+config.h.in~
+config.sub
+configure
+depcomp
+
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.Po
+*.Plo
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a

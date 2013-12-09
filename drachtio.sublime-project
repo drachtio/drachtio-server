@@ -1,0 +1,53 @@
+{
+	"folders":
+	[
+		{
+			"name": "source"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/src"
+		}
+		,{
+			"name": "build"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/build"
+		}
+		,{
+			"name": "docs"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/docs"
+		}
+		,{
+			"name": "toplevel"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/"
+			,"folder_exclude_patterns": ["src","*.cache","build","deps","docs","*.xcodeproj"]
+			,"file_exclude_patterns":["aclocal.m4","install-sh","Makefile.in","config.guess","config.*","configure","depcomp","missing"]
+		}
+		,{
+			"name": "sofia - sip"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/sofia-sip-1.12.11/libsofia-sip-ua/sip"
+			,"folder_exclude_patterns": [".*","images"]
+			,"file_exclude_patterns":["aclocal.m4","install-sh","Makefile.in","config.guess","config.*","configure","depcomp","missing"]
+		}
+		,{
+			"name": "sofia - nta"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/sofia-sip-1.12.11/libsofia-sip-ua/nta"
+			,"folder_exclude_patterns": [".*","images"]
+		}
+		,{
+			"name": "sofia - msg"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/sofia-sip-1.12.11/libsofia-sip-ua/msg"
+			,"folder_exclude_patterns": [".*","images"]
+		}
+		,{
+			"name": "all dependencies"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps"
+		}
+	]
+	,"settings": {
+
+	}
+	,"build_systems": [
+		{
+			"name": "Drachtio C++"
+			,"cmd": ["make"]
+			,"working_dir": "${project_path}/build/debug"
+		}
+	]
+}

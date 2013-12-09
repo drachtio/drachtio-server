@@ -57,6 +57,11 @@ namespace drachtio {
                     m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 8022) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
+
+                    m_sipUrl = pt.get<string>("drachtio.sip.contact", "sip:*") ;
+
+
+
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
                 

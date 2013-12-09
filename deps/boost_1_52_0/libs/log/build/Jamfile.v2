@@ -1,0 +1,134 @@
+#
+#          Copyright Andrey Semashev 2007 - 2012.
+# Distributed under the Boost Software License, Version 1.0.
+#    (See accompanying file LICENSE_1_0.txt or copy at
+#          http://www.boost.org/LICENSE_1_0.txt)
+#
+
+import os ;
+import feature ;
+
+lib psapi ;
+lib ws2_32 ;
+
+local rule default_logapi ( )
+{
+    local api = unix ;
+    if [ os.name ] = "NT" { api = winnt ; }
+    return $(api) ;
+}
+
+feature.feature logapi : unix winnt : propagated ;
+feature.set-default logapi : [ default_logapi ] ;
+
+project boost/log
+    : source-location ../src
+    : requirements
+        <link>shared:<define>BOOST_LOG_DLL
+        <logapi>unix:<define>BOOST_LOG_USE_NATIVE_SYSLOG=1
+        <toolset>msvc:<define>_SCL_SECURE_NO_WARNINGS
+        <toolset>msvc:<define>_SCL_SECURE_NO_DEPRECATE
+        <toolset>msvc:<define>_CRT_SECURE_NO_WARNINGS
+        <toolset>msvc:<define>_CRT_SECURE_NO_DEPRECATE
+        <toolset>intel-win:<define>_SCL_SECURE_NO_WARNINGS
+        <toolset>intel-win:<define>_SCL_SECURE_NO_DEPRECATE
+        <toolset>intel-win:<define>_CRT_SECURE_NO_WARNINGS
+        <toolset>intel-win:<define>_CRT_SECURE_NO_DEPRECATE
+        <toolset>gcc:<cxxflags>-fno-strict-aliasing  # avoids strict aliasing violations in other Boost components
+        <toolset>gcc-mingw:<linkflags>-Wl,--enable-auto-import
+        <toolset>gcc-cygwin:<linkflags>-Wl,--enable-auto-import
+        <library>/boost/date_time//boost_date_time
+        <library>/boost/filesystem//boost_filesystem
+        <library>/boost/system//boost_system
+        <threading>single:<define>BOOST_LOG_NO_THREADS
+        <threading>multi:<library>/boost/thread//boost_thread
+    ;
+
+DEPENDS event_log_backend.cpp : simple_event_log.mc ;
+
+local BOOST_LOG_COMMON_SRC =
+    attribute_name.cpp
+    attribute_set.cpp
+    attribute_values_view.cpp
+    code_conversion.cpp
+    core.cpp
+    record_ostream.cpp
+    severity_level.cpp
+    global_logger_storage.cpp
+    named_scope.cpp
+    process_id.cpp
+    thread_id.cpp
+    timer.cpp
+    exceptions.cpp
+    default_sink.cpp
+    text_ostream_backend.cpp
+    text_file_backend.cpp
+    syslog_backend.cpp
+    thread_specific.cpp
+    once_block.cpp
+    timestamp.cpp
+    threadsafe_queue.cpp
+    event.cpp
+    trivial.cpp
+    ;
+
+lib boost_log
+    : ## sources ##
+        $(BOOST_LOG_COMMON_SRC)
+      ## winnt sources ##
+        simple_event_log.mc
+        event_log_backend.cpp
+        debug_output_backend.cpp
+        light_rw_mutex.cpp
+        psapi
+        ws2_32
+    : ## requirements ##
+        <define>BOOST_LOG_BUILDING_THE_LIB=1
+        <define>BOOST_THREAD_DONT_USE_CHRONO=1 # Don't introduce false dependency on Boost.Chrono
+        <logapi>winnt
+    ;
+
+lib boost_log
+    : ## sources ##
+        $(BOOST_LOG_COMMON_SRC)
+      ## unix sources ##
+    : ## requirements ##
+        <define>BOOST_LOG_BUILDING_THE_LIB=1
+        <define>BOOST_THREAD_DONT_USE_CHRONO=1 # Don't introduce false dependency on Boost.Chrono
+        <logapi>unix
+    ;
+
+
+local BOOST_LOG_SETUP_COMMON_SRC =
+    parser_utils.cpp
+    init_from_stream.cpp
+    init_from_settings.cpp
+    filter_parser.cpp
+    formatter_parser.cpp
+    default_filter_factory.cpp
+    ;
+
+lib boost_log_setup
+    : ## sources ##
+        $(BOOST_LOG_SETUP_COMMON_SRC)
+      ## winnt sources ##
+        ws2_32
+    : ## requirements ##
+        <link>shared:<define>BOOST_LOG_SETUP_DLL
+        <define>BOOST_LOG_SETUP_BUILDING_THE_LIB=1
+        <define>BOOST_THREAD_DONT_USE_CHRONO=1 # Don't introduce false dependency on Boost.Chrono
+        <library>boost_log
+        <logapi>winnt
+    ;
+
+lib boost_log_setup
+    : ## sources ##
+        $(BOOST_LOG_SETUP_COMMON_SRC)
+      ## unix sources ##
+    : ## requirements ##
+        <link>shared:<define>BOOST_LOG_SETUP_DLL
+        <define>BOOST_LOG_SETUP_BUILDING_THE_LIB=1
+        <define>BOOST_THREAD_DONT_USE_CHRONO=1 # Don't introduce false dependency on Boost.Chrono
+        <library>boost_log
+        <logapi>unix
+    ;

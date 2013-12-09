@@ -1,0 +1,124 @@
+[/
+              Copyright Andrey Semashev 2007 - 2012.
+     Distributed under the Boost Software License, Version 1.0.
+        (See accompanying file LICENSE_1_0.txt or copy at
+              http://www.boost.org/LICENSE_1_0.txt)
+
+    This document is a part of Boost.Log library documentation.
+/]
+
+[section:changelog Changelog]
+
+[heading 2.0]
+
+[*General changes:]
+
+* The library is now compatible with Boost 1.48 or newer.
+* The `BOOST_LOG_NO_COMPILER_TLS` configuration macro has been replaced with `BOOST_LOG_USE_COMPILER_TLS` with the opposite meaning. The support for compiler intrinsics for TLS is now disabled by default.
+* The library now uses __boost_xpressive__ instead of __boost_regex__ internally, which makes it unnecessary to build the latter in order to use the library. __boost_regex__ is still supported on the user's side.
+* Made some internal code to detect Windows NT6 API availability at run time, if not explicitly enabled by the `BOOST_LOG_USE_WINNT6_API` macro. The code compiled without the macro defined will still be able run on NT5, but when run on NT6 it will be more efficient. With the macro defined the resulting code will not run on NT5, but will be a little more efficient on NT6 than without the macro.
+* Added a concept of a default sink. The default sink is used when there are no sinks configured in the logging core. The sink is synchronous and thread-safe, it requires no configuration and is overridden by any sinks configured in the core by user. The default sink will write log messages on the console, prepending with a timestamp, thread id and severity.
+* Trivial logging no longer implicitly initializes the library. Instead, the default sink is used to display log messages, unless the library is configured otherwise. It is now safe to use both trivial and advanced logging.
+* Made a lot of improvements to speedup code compilation.
+
+[*Attributes:]
+
+* Fixed compilation problems with `BOOST_LOG_WFUNCTION`.
+* Changed the interface and the way of handling attribute values. The value is now a pimpl wrapper around the value holder. The `attribute_value` class in various components of the library is no longer pointed to with `shared_ptr`s but instead is handled by value. This allowed to simplify attribute value handling in simple cases.
+* Similarly to attribute values, the interface of attributes has been reworked in the pimpl fashion. All attributes now derive from the [class_log_attribute] base class, which holds the reference to the implementation. All attributes now have to be created by value rather than wrapped into `shared_ptr` by user, which makes the code more concise.
+* Added support for casting attributes from the base class [class_log_attribute] to the actual attribute type. This can be useful when the concrete attribute factory provides additional interfaces.
+* The attribute value no longer has the `get` method. Use the `extract` function as a replacement.
+* The key type of attribute sets and attribute values view has been changed. The new key type is called `attribute_name` (`wattribute_name` for wide-character logging). It is convertible from strings, so in most cases users won't need to change the code. See [link log.detailed.attributes.related_components.attribute_name here] for more information.
+* Attribute sets and attribute values views no longer maintain order of elements. Although it wasn't stated explicitly, the containers used to be ordered associative containers. Now the order of elements is unspecified. The implementation has been reworked to speed up insertion/removal of attributes, as well as attribute lookup and values view construction. The drawback is that memory footprint may get increased in some cases.
+* Attribute sets now use small memory pools to speed up element insertion/removal.
+* The header `scoped_attribute.hpp` moved from `utility` to the `attributes` directory. The header `attribute_value_extractor.hpp` in `utility` has been replaced with headers `value_extraction.hpp` and `value_visitation.hpp` in the `attributes` directory. The two new headers define the revised API of attribute value extraction and visitation, respectively. See [link log.detailed.attributes.related_components.extractors here] for more details.
+* The `current_thread_id` attribute no longer uses `boost::thread::id` type for thread identification. An internal type is used instead, the type is accessible as `current_thread_id::value_type`. The new thread ids are taken from the underlying OS API and thus more closely correlate to what may be displayed by debuggers and system diagnostic tools.
+
+[*Logging sources:]
+
+* Fixed compilation problems with exception handling logger feature.
+* Global logger storage made more friendly to the setups in which hidden visibility is set by default.
+* Added the macros for separated global logger declaration and definition. Old macros have been renamed to better reflect their effect (`BOOST_LOG_DECLARE_GLOBAL_LOGGER_INIT` to `BOOST_LOG_INLINE_GLOBAL_LOGGER_INIT`, `BOOST_LOG_DECLARE_GLOBAL_LOGGER` to `BOOST_LOG_INLINE_GLOBAL_LOGGER_DEFAULT`, `BOOST_LOG_DECLARE_GLOBAL_LOGGER_CTOR_ARGS` to `BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS`). Also, the macros no longer define the `get_logger` free function for logger acquisition. Use `logger::get` instead. See [link log.detailed.sources.global_storage here] for more information.
+* The channel logger now supports changing the channel name after construction. The channel name can be set either by calling the modifier method or by specifying the name in the logging statement. Added `BOOST_LOG_STREAM_CHANNEL` and `BOOST_LOG_STREAM_CHANNEL_SEV` (as well as their shorthands `BOOST_LOG_CHANNEL` and `BOOST_LOG_CHANNEL_SEV`) macros that allow to specify channel name for the log record.
+
+[*Logging sinks:]
+
+* Types for integral constants for syslog and event log were renamed to drop the `_t` suffix.
+* Formatting functionality moved to sink frontends. Sink backends that support record formatting derive from the `basic_formatting_sink_backend` class template, which indicates to the frontend that record formatting is required. This breaks user-side API of the library: the formatter and locale has to be set to the frontend rather than backend.
+* Formatting support no longer makes frontend thread synchronization mandatory. Formatting is done prior to locking for processing the record in the backend and can be performed concurrently in multiple threads.
+* Added support for flushing sinks. A sink backend that supports flushing has to define public method with the following signature: `void flush()`.
+* Asynchronous sink frontend reworkerd, ordering asynchronous sink removed. The `asynchronous_sink` class template now allows to specify record queueing strategy. Several strategies provided, including `unbounded_fifo_queue` (the default) and `unbounded_ordering_queue` which cover the functionality of asynchronous sink frontends in 1.x releases.
+* Lock-free FIFO record queueing in asynchronous sinks reworked to reduce log record processing stalls.
+* Added `Append` configuration file parameter for text file sinks. If this parameter is set to `true`, the sink will append log records to the existing log file instead of overwriting it.
+* Added bounded variants of asynchronous sink frontends. Implemented two strategies to handle queue overflows: either log records are dropped or logging threads are blocked until there is space in the queue.
+
+[*Documentation changes:]
+
+* Most code examples from the docs have been extracted into compilable standalone examples, which can be used for testing and experimenting with the library.
+* Added a lot of cross-references to the documentation, which should simplify navigation.
+
+[*Miscellaneous:]
+
+* Fixed a bug: the logging core could enter an infinite loop inside `push_record` if a sink throws and the exception is suppressed by the exception handler set in the core.
+* Changed the type dispatching implementation to reduce the usage of virtual functions. This greatly reduced the library size.
+* Type dispatchers made more friendly to the setups in which hidden visibility is set by default.
+* The interface of type dispatchers changed. The dispatcher now returns `type_visitor` instance by value, and the visitor is no longer a base for the actual receiver of the dispatched value. Instead, the visitor now refers to the receiver, if one is capable to consume the value. The `visit` method has been renamed to `operator ()`. The static type dispatcher now requires a reference to the receiver on construction, it doesn't imply that the receiver derives from the dispatcher anymore.
+* The `slim_string` utility has been removed. There is no replacement.
+* Added support for move construction and assignment to many library components.
+
+[heading 1.1, 02 December 2011]
+
+This release mostly fixes bugs in the code and documentation.
+
+* Added support for __boost_filesystem__ v3.
+* A number of bugs fixed.
+* Corrections in the documentation.
+
+[heading 1.0, 09 May 2010]
+
+This release mostly fixes bugs in the code and documentation. The next major release (2.0) will contain breaking changes and feature additions. The 1.0 branch will not receive any feature updates.
+
+* Added some optimization for thread local storage. In Windows setups, if you dynamically load Boost.Log binaries during the application run time, this optimization may lead to crashes. In that case, you may disable it by defining `BOOST_LOG_NO_COMPILER_TLS` during the library build process. The macro also affects other platforms, which may be useful if your compiler does not support TLS.
+* Added a few public accessors and convenience constructors to severity and channel loggers.
+* Added ability to rotate log files at the specified time points. The `rotation_interval` keyword is no longer available. The same functionality is achieved with the new `time_based_rotation` keyword and the `rotation_at_time_interval` predicate. See [link log.detailed.sink_backends.text_file here] for more details.
+* Improved support for MinGW and Cygwin.
+* A number of bugs fixed. Added workarounds to compile on GCC 4.2.
+* Lots of corrections in the documentation.
+
+[heading Release Candidate 4, 08 Jan 2010]
+
+* Substantial documentation improvement. The tutorial section has been reorganized.
+* Library headers have been reorganized. Some other Boost libraries that were previously included by headers have been made optional. Such dependencies have been extracted into separate headers in the `support` directory. Top level library headers now mostly include nested headers.
+* Keywords have moved into a dedicated `keywords` namespace. There are no longer nested `keywords` namespaces in `sinks`, `attributes`, etc. All keywords have been extracted into separate headers in the `keywords` directory.
+* Removed rotating file stream. As a replacement, a [link log.detailed.sink_backends.text_file new file sink] has been added, which allows to achieve the same results ans adds a few more features.
+* Added a new [link log.detailed.sink_backends.text_multifile multifile] sink backend.
+* Added a new [link log.detailed.sink_frontends.ordering_async ordering asynchronous] sink frontend.
+* The [link log.detailed.sink_backends.syslog syslog] sink backend is now supported on Windows, too. The sink no longer requires native support for POSIX API for syslog, but is able to send syslog packets to a remote server over UDP.
+* Loggers implementation has been improved. Feature composition mechanism has been cleaned up.
+* Added support for scoped logging. There is now a distinct [link log.detailed.core.record log record entity], which is returned by the core as a result of filtering. It is possible to fill in the record message in any way the user wants, not necessarilly with a streaming expression. The record object is now processed by sinks and formatters.
+* Added support for exception control. User can register exception handlers at one of the three layers: for a particular sink, at the core layer, and for a particular logger (given that it has the appropriate feature). Sinks and core will not suppress exceptions by default. Filter and formatters will throw if the requested attribute value is not found.
+* Added a few new formatters, called [link log.detailed.formatters.decorators character decorators]. These can be useful to post-process the formatted output before passing it on to the sink.
+* Added attributes for thread and process identifiers. These identifiers are automatically added after the call to `add_common_attributes`.
+* Helper initialization functions, such as `init_log_to_file` now accept more customization options as named arguments.
+* A new [link log.detailed.utilities.init.settings initialization interface] has been exposed. One can fill a settings container and use it to initialize the library.
+* The library setup support code has beed extracted into a separate binary. Further on, this binary will be made optional to build.
+* Added a new mode of logging, called trivial logging. In this mode the library requires no initialization at all, however it does not offer many ways of customization.
+* A number of bugs fixed.
+* A few optimizations added to improve multithreaded applications performance.
+* Removed some bug workarounds for older Boost releases. The library now requires Boost 1.39 or newer.
+
+[heading Release Candidate 3, 08 Feb 2009]
+
+* Substantial documentation improvement.
+* Added several Windows-specific sinks: Event Log (simplified and advanced), Windows debugger and experimental Event Trace for Windows Vista and later.
+* Loggers now consist of a number of independent features that can be composed the way the user needs. User-defined features can be developed and injected into the mix.
+* Attribute value extractors improved. With the new extract function attribute values can be extracted from the attribute values view by employing lambda functors.
+* Some files and classes were moved or renamed to improve code clarity and shorten names.
+* A number of bugs fixed.
+* Added tests.
+
+[heading Release Candidate 2]
+
+Noone really remembers these dark ages...
+
+[endsect]

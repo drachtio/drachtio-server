@@ -1,0 +1,215 @@
+===================================
+Release notes for Sofia-SIP 1.12.11
+===================================
+
+Changes since last release
+--------------------------
+
+- su_close() implemented using DisconnectEx() on Win32 (available on XP
+  or later Windows). The su_close() semantics on Win32 are now similar
+  to Unix/BSD.
+
+- Application can feed hashed passwords (HA1) instead of plain text
+  password to the iptsec authentication library
+
+- Using NTATAG_EXTRA_100() with server transactions. Applications can now
+  control whether stack sends extra 100 Trying responses after N1 timer
+  or retransmissions.
+
+- nta_leg_tag(leg, NULL) now always returns the tag (old or new).
+
+- SOA uses addresses present in SDP if they are local.
+
+- Deferrable timers were added.
+
+- Timing out forked INVITE client transactions is now done by stack.
+  The stack generates a 408 response to each INVITE transaction fork that
+  has not received a final response within 32 seconds (or 64 times SIP T1)
+  after first final response to the INVITE was received.
+
+- An INVITE transaction that has been timed out with stack timer C is now
+  CANCELed automatically. Previously, such INVITE client transactions
+  were restarted instead of timing out under certain circumstances.
+
+- Timing out forked INVITE client transactions is now done by stack.
+  The stack generates a 408 response to each INVITE transaction fork that
+  has not received a final response within 32 seconds (or 64 times SIP T1)
+  after first final response to the INVITE was received.
+
+- Added s2check library for writing check-based module tests for network protocols.
+
+- User Via header with NULL host and port gets filled automatically
+
+API/ABI changes and versioning
+------------------------------
+
+New features in API are marked with Doxytag macro @VERSION_1_12_11 or
+@NEW_1_12_11.
+
+libsofia-sip-ua:
+- Added functions auth_digest_ha1(), auc_save_credentials(), and
+  auc_copy_credentials()
+- Added function msg_fragment_clear_chain().
+- Added tag SOATAG_DELAYED_OFFER_ENABLE().
+- Added tags NUTAG_AUTO302(), NUTAG_AUTO305().
+- Added functions nta_outgoing_magic(), nta_agent_tports(),
+  nta_leg_client_reroute().
+- Added functions su_home_parent(), su_root_clone(),
+  su_root_set_max_defer(), su_root_get_max_defer(),
+  su_timer_deferrable(), su_timer_is_set(), su_timer_latest(),
+  su_task_deferrable(), su_task_wakeup().
+- Added locale-independent, NULL-safe string comparison, matching and
+  searching functions:
+    su_strcmp(), su_strncmp(), su_strcasecmp(), su_strncasecmp(),
+    su_strmatch(), su_strnmatch(), su_casematch(), su_casenmatch(),
+    su_strncspn(), su_strnspn(), su_strcasestr(), su_memspn() and
+    su_memcspn().
+- The mp_len type was changed from usize_t to unsigned.
+  The change is binary-incompatible on 64-bit platforms when compiled with
+  the configure option --disable-size-compat
+- Removed globals which should have been static in first place:
+  - su_t64_to_time()
+  - mutex_trylocker()
+  - su_port_set_system_preferences()
+  - t_null_next(), t_null_move(), t_null_dup(), t_null_copy(), t_null_find()
+  - t_skip_next(), t_skip_move(), t_skip_len(), t_skip_dup(), t_skip_filter()
+  - t_next_next(), t_next_move(), t_next_len(), t_next_dup(), t_next_filter()
+  - t_filter_with(), t_any_filter()
+  - sres_record_class(), urandom
+  - u2s_alloc()
+  - memmem (on platforms that do not support memmem)
+- This release is ABI/API compatible with applications linked against
+  any 1.12.x release. However, applications built against this release won't
+  work against an older library. The ABI has been tested with the nua module
+  unit test (test_nua) built against original 1.12.0 release.
+
+libsofia-sip-ua-glib:
+- No ABI/API changes, compatible with 1.12.0. Note, libsofia-sip-ua-glib
+  interface is not considered stable and may change in a future 1.12.x
+  release.
+
+Contributors to this release
+----------------------------
+
+Mikhail Zabaluev (numerous patches)
+Michael Jerris (numerous patches)
+Jarod Neuner (patches to TLS tport)
+Stas Maximov (patch user Via processing) 
+Paulo Pizarro (fixes to NTA protocol engine, add SOATAG_DELAYED_OFFER_ENABLE)
+Della Betta Filippo (tport fixes, etc.)
+Aleksander Morgado (patch for using NTATAG_EXTRA_100)
+Kai Samposalo (Symbian build dixes)
+Mathieu Rene (fix openssl build, fix stun encoding)
+Stephan Knoblich (build fixes)
+Bernhard Suttner (fix to 484 respinse processing)
+Fabio Margarido (multipart parsing fix)
+Lee Verberne (fix parsing /etc/resolv.conf)
+Stefano Sabatini (mingw build fix)
+Bernd Wachter (doxygen generation patch)
+Inca Rose (patch adding TPTAG_TLS_PASSPHRASE)
+
+See the AUTHORS file in the distribution package.
+
+
+Notes on TLS certificate validation
+-----------------------------------
+
+Jarod Neuner has improved certificate validation facilities of TLS
+transport. Significant changes include:
+
+1) The TLS handshake is no longer handled via transparent negotiation.
+Certain static methods from tport.c were exposed to make this possible.
+
+2) Certificate subjects are copied out of the peer certificate before
+the first message is sent.  The stack can reject messages sent to an
+untrusted peer.
+
+3) The tport module can now report whether a secondary has a verified
+certificate chain and the subjects of the peer certificate.
+
+Added functions tport_is_verified(), tport_delivered_from_subjects(),
+tport_subject_search().
+
+Added tags TPTAG_TLS_PASSPHRASE(), TPTAG_TLS_VERIFY_POLICY(),
+TPTAG_TLS_VERIFY_DEPTH(), TPTAG_TLS_VERIFY_DATE(), and
+TPTAG_TLS_VERIFY_SUBJECTS().
+
+Deprecated tag TPTAG_TLS_VERIFY_PEER().
+
+Bugs fixed in this release
+--------------------------
+
+
+- **template**: #9499652 sf.net bug item .title
+- Fixed sf.net bug#3146414: process expired contact entries are correctly.
+  Patches by Mikhail Zabaluev
+- Fixed termination problem in url_query_as_header_string().
+- Fixed problem in nua O/A when answer was sent in PRACK. 
+- Fixed soa, allow a=recvonly in user SDP. Initial patch by Filippo
+  Della Betta.
+- Fixed problem responding to request with a Via header with multiple
+  header fields.
+- Fixed FreesWitch bug FSCORE-551: crash encoding STUN messages.
+- Fixed fallback to other DNS servers. Initial patch by Timo Bruhn. 
+- Fixed problem searching OpenSSL CA.
+- Fixed FreesWitch bug SFSIP-152: parsing /etc/resolv.conf with
+  comments.
+- Fixed auc_has_authorization() looping forever with multiple challenges.
+- Fixed auc_credentials: accepting realm with quotes or semicolons.
+  Initial patch by Jerry Richards.
+- Fixed sf.net #1292657: resolve NAPTR records for SIPS.
+- Fixed FreesWitch bug FSCORE-338: crash with forked transactions.
+  Bug reported by Gabriel Kuri.
+- Fixed FreesWitch bug SFSIP-125: do not requre 100rel unless it is
+  also supported by nua.
+- Fixed possible security hole caching non-matching DNS response.
+  Patch by Mikhail Zabaluev.
+- Fixed sf.net bug #2531152. CNAMEs are now resolved by sres (when appropriate).
+  Patch by Mikhail Zabaluev.
+- Fixed FreesWitch bug SFSIP-148: Subscription-State header parameter
+  "reason" had its name missing. Patch by Mike Jerris.
+- Fixed numerous bugs detected with Coverity.
+- Fixed SDP syntax problem with rejected m= lines.
+- Fixed Auto-ACK when SOA is disabled in NUA.
+- Include Session-Expires in session refresh requests.
+  Bug reported by Linus Surguy.
+- Shutdown half-closed idle connection if there are no queued messages.
+  Bug reported by Arsen Chaloyan.
+- Fixed FreesWitch bugs SFSIP-135 and SFSIP-137: not restarting
+  transactions waiting after a 5XX response with Retry-After header.
+- Fixed FreesWitch bug SFSIP-134: CANCEL got restarted if response to
+  contained Retry-After header.  Bug reported by vile, initial patch by
+  Mike Jerris.
+- Now using random key when generating branch and tag values in nta.
+- Fixed retry over UDP after TCP server does not accept connection in SIP
+  T4 (5 seconds).
+- Fixed crash with random() in case libsofia-sip-ua.so gets unloaded.
+- Report correct errno from tport_listen() and tport_connect()
+- Fixed tport_queuelen() when queue is full.
+- Accept empty port number in URLs
+- Fixed timing out CANCELed INVITE client transactions. Timing out is
+  now done with timer D.  Previously, the INVITE client transactions
+  were restarted instead of timing out under certain circumstances.
+- Fixed handling INVITE transaction that has been timed out with stack
+  timer C. It is now CANCELed automatically. Previously, such an INVITE
+  client transaction was restarted instead of timing out under certain
+  circumstances.
+- Fixed ACK and BYE orphan 200 OK matching with destroyed client transaction.
+  Patch by Paulo Pizarro.
+- Modifying the route set after initial transaction is now prevented.
+  Modifying the route set while dialog is in early state is now allowed.
+- Use To header from response when sending ACK to error response.
+  Bug reported by Paulo Pizarro.
+- Fix 484 respose to REFER in sip_response_terminates_dialog().
+  Patch submitted by Bernhard Suttner.
+- Answer is now sent in ACK by nua if offer was received in 200 OK to
+  re-INVITE.
+  Bug reported by Liu Yang.
+- Allow authentication even if some authentication schemes are not 
+  supported.
+- Fixed crash with unknown authentication schemes.
+- Fix mutex leak on Windows
+- Accept multiple WWW-Authenticate and Authorization headers.
+  Bug reported by Andrew Rechenberg.
+
+Numerous compilation and build system problems were fixed, too.

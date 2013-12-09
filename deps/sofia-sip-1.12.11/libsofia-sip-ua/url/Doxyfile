@@ -1,0 +1,14 @@
+PROJECT_NAME         = "url"
+OUTPUT_DIRECTORY     = ../docs/html/url
+
+INPUT 		     = ./url.docs ./sofia-sip/url.h ./url.c
+INPUT		    += ./url_tag.c
+
+@INCLUDE_PATH = . .
+@INCLUDE = ../docs/Doxyfile.conf
+
+TAGFILES             += ../docs/su.doxytags=../su
+
+GENERATE_TAGFILE     = ../docs/url.doxytags
+
+PREDEFINED += "URL_DLL"

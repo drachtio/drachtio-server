@@ -1,0 +1,658 @@
+[/
+              Copyright Andrey Semashev 2007 - 2012.
+     Distributed under the Boost Software License, Version 1.0.
+        (See accompanying file LICENSE_1_0.txt or copy at
+              http://www.boost.org/LICENSE_1_0.txt)
+
+    This document is a part of Boost.Log library documentation.
+/]
+
+[section:utilities Utilities]
+
+[section:string_literal String literals]
+
+    #include <``[boost_log_utility_string_literal_hpp]``>
+
+String literals are used in several places throughout the library. However, this component can be successfully used outside of the library in users' code. It is header-only and does not require linking with the library binary. String literals can improve performance significantly if there is no need to modify stored strings. What is also important, since string literals do not dynamically allocate memory, it is easier to maintain exception safety when using string literals instead of regular strings.
+
+The functionality is implemented in the [class_log_basic_string_literal] class template, which is parametrized with the character and character traits, similar to `std::basic_string`. There are also two convenience typedefs provided: `string_literal` and `wstring_literal`, for narrow and wide character types, respectively. In order to ease string literal construction in generic code there is also a `str_literal` function template that accepts a string literal and returns a [class_log_basic_string_literal] instance for the appropriate character type.
+
+String literals support interface similar to STL strings, except for string modification functions. However, it is possible to assign to or clear string literals, as long as only string literals involved. Relational and stream output operators are also supported.
+
+[endsect]
+
+[section:type_info_wrapper Type information wrapper]
+
+    #include <``[boost_log_utility_type_info_wrapper_hpp]``>
+
+The language support for run time type information is essential for the library. But partially because of limitations that the C++ Standard imposes on this feature, partially because of differences of implementation of different compilers, there was a need for a lightweight wrapper around the `std::type_info` class to fill the gaps. The table below briefly shows the differences between the `std::type_info` and [class_log_type_info_wrapper] classes.
+
+[table Type information classes comparison
+    [[Feature]                                  [`std::type_info`]              [`type_info_wrapper`]]
+    [[Is default-constructable]                 [No]                            [Yes. The default-constructed wrapper is in an empty state.]]
+    [[Is copy-constructable]                    [No]                            [Yes]]
+    [[Is assignable]                            [No]                            [Yes]]
+    [[Is swappable]                             [No]                            [Yes]]
+    [[Life time duration]                       [Static, until the application terminates] [Dynamic]]
+    [[Has an empty state]                       [No]                            [Yes. In empty state the type info wrapper is never equal to other non-empty type info wrappers. It is equal to other empty type info wrappers and can be ordered with them.]]
+    [[Supports equality comparison]             [Yes]                           [Yes]]
+    [[Supports ordering]                        [Yes, partial ordering with the `before` method.] [Yes, partial ordering with the complete set of comparison operators. The semantics of ordering is similar to the `std::type_info::before` method.]]
+    [[Supports printable representation of type] [Yes, with the `name` function.] [Yes, with `pretty_name` function. The function does its best to print the type name in a human-readable form. On some platforms it does better than `std::type_info::name`.]]
+]
+
+Given the distinctions above, using type information objects becomes much easier. For example, the ability to copy and order with regular operators allows using [class_log_type_info_wrapper] with containers. The ability to default-construct and assign allows using type information as a regular object and not to resort to pointers which may be unsafe.
+
+[endsect]
+
+[section:type_dispatch Type dispatchers]
+
+    #include <``[boost_log_utility_type_dispatch_type_dispatcher_hpp]``>
+
+Type dispatchers are used throughout the library in order to work with attribute values. Dispatchers allow acquiring the actual typed attribute value using the Visitor concept. The most notable places where the functionality is used are filters and formatters. However, this mechanism is orthogonal to attributes and can be used for other purposes as well. Most of the time users won't need to dig into the details of type dispatchers, but this information may be useful for those who intend to extend the library and wants to understand what's under the hood.
+
+Every type dispatcher supports the [class_log_type_dispatcher] interface. When an attribute value needs to be extracted, this interface is passed to the attribute value object, which then tries to acquire the callback for the actual type of the value. All callbacks are objects of the [class_type_dispatcher_callback] class template, instantiated on the actual type of the value. If the dispatcher is able to consume the value of the requested type, it must return a non-empty callback object. When (and if) the corresponding callback is acquired, the attribute value object only has to pass the contained value to its `operator ()`.
+
+Happily, there is no need to write type dispatchers from scratch. The library provides two kinds of type dispatchers that implement the [class_log_type_dispatcher] and [class_type_dispatcher_callback] interfaces and encapsulate the callback lookup.
+
+[heading Static type dispatcher]
+
+    #include <``[boost_log_utility_type_dispatch_static_type_dispatcher_hpp]``>
+
+TODO: Update usage description.
+
+Static type dispatchers are used when the set of types that needs to be supported for extraction is known at compile time. The [class_log_static_type_dispatcher] class template is parametrized with a MPL type sequence of types that need to be supported. The dispatcher inherits from `type_dispatcher` and `type_visitor` instances for all types in the MPL sequence. All you need to do is derive your class from the dispatcher and implement the `visit` methods for all supported types, like this:
+
+    // A simple attribute value
+    template< typename T >
+    struct my_value :
+        public logging::attribute_value
+    {
+        T m_Value;
+
+        explicit my_value(T const& value) : m_Value(value) {}
+
+        // The function passes the contained type into the dispatcher
+        bool dispatch(logging::type_dispatcher& dispatcher)
+        {
+            logging::type_visitor< T >* visitor = dispatcher.get_visitor< T >();
+            if (visitor)
+            {
+                visitor->visit(m_Value);
+                return true;
+            }
+            else
+                return false;
+        }
+
+        // Other functions omitted for brevity...
+    };
+
+    // Type dispatcher for the supported types
+    struct my_dispatcher :
+        public logging::static_type_dispatcher<
+            boost::mpl::vector< int, double, std::string >
+        >
+    {
+        // Implement visitation logic for all supported types
+        void visit(int const& value)
+        {
+            std::cout << "Received int value = " << value << std::endl;
+        }
+        void visit(double const& value)
+        {
+            std::cout << "Received double value = " << value << std::endl;
+        }
+        void visit(std::string const& value)
+        {
+            std::cout << "Received string value = " << value << std::endl;
+        }
+    };
+
+    int main(int, char*[])
+    {
+        my_dispatcher disp;
+
+        // These two attributes are supported by the dispatcher
+        my_value< std::string > val1("Hello world!");
+        assert(val1.dispatch(disp));
+
+        my_value< double > val2(1.2);
+        assert(val2.dispatch(disp));
+
+        // This one is not
+        my_value< float > val3(-4.3);
+        assert(!val3.dispatch(disp));
+
+        return 0;
+    }
+
+[tip In the example above we implemented a reduced attribute value object. Since in most cases this implementation is always the same, the library provides a ready-to-go attribute value, the [class_attributes_basic_attribute_value] class template.]
+
+The static type dispatcher also supports another way of use which allows avoidance of code duplication if values of several types have to be processed in a similar manner. In the example above we wanted to print the dispatched value on the console, whatever it is. The same can be achieved with templated metafunction class which is injected into the dispatcher as a visitor.
+
+    // The templated visitor will be instantiated on every type supported by the dispatcher
+    template< typename T >
+    struct my_visitor :
+        public logging::type_visitor< T >
+    {
+        void visit(T const& value)
+        {
+            std::cout << "Received " << typeid(T).name() << " value = " << value << std::endl;
+        }
+    };
+
+    // Type dispatcher for the supported types
+    typedef logging::static_type_dispatcher<
+        boost::mpl::vector< int, double, std::string >,
+        boost::mpl::quote1< my_visitor >
+    > my_dispatcher;
+
+This dispatcher can be used in precisely the same way as the previously defined one. Note also that __boost_mpl__ lambda expressions are supported as visitor generators.
+
+[tip See also [link log.detailed.attributes.related_components.extractors attribute value extractors] for an even simpler solution if all you want is to get an attribute value.]
+
+[heading Dynamic type dispatcher]
+
+    #include <``[boost_log_utility_type_dispatch_dynamic_type_dispatcher_hpp]``>
+
+If the set of types that have to be supported is not available at compile time, the [class_log_dynamic_type_dispatcher] class is there to help. One can use its `register_type` method to add support for a particular type. The user has to pass a function object along with the type, this functor will be called when a visitor for the specified type is invoked. Considering the `my_value` from the code sample for static type dispatcher is intact, the code can be rewritten as follows:
+
+    // Implement visitation logic for all supported types
+    void on_int(int const& value)
+    {
+        std::cout << "Received int value = " << value << std::endl;
+    }
+    void on_double(double const& value)
+    {
+        std::cout << "Received double value = " << value << std::endl;
+    }
+    void on_string(std::string const& value)
+    {
+        std::cout << "Received string value = " << value << std::endl;
+    }
+
+    int main(int, char*[])
+    {
+        logging::dynamic_type_dispatcher disp;
+
+        // Register type visitors
+        disp.register_type< int >(&on_int);
+        disp.register_type< double >(&on_double);
+        disp.register_type< std::string >(&on_string);
+
+        // These two attributes are supported by the dispatcher
+        my_value< std::string > val1("Hello world!");
+        assert(val1.dispatch(disp));
+
+        my_value< double > val2(1.2);
+        assert(val2.dispatch(disp));
+
+        // This one is not
+        my_value< float > val3(-4.3);
+        assert(!val3.dispatch(disp));
+
+        return 0;
+    }
+
+Of course, complex function objects, like those provided by __boost_bind__, are also supported.
+
+[endsect]
+
+[section:predef_types Predefined type sequences]
+
+    #include <``[boost_log_utility_type_dispatch_standard_types_hpp]``>
+    #include <``[boost_log_utility_type_dispatch_date_time_types_hpp]``>
+
+One may notice that when using type dispatchers and defining filters and formatters it may be convenient to have some predefined type sequences to designate frequently used sets of types. The library provides several such sets.
+
+[table Standard types (standard_types.hpp)
+    [[Type sequence]                            [Meaning]]
+    [[`integral_types`]                         [All integral types, including `bool`, character and 64 bit integral types, if available]]
+    [[`floating_point_types`]                   [Floating point types]]
+    [[`numeric_types`]                          [Includes `integral_types` and `floating_point_types`]]
+    [[`string_types` and `wstring_types`]       [Narrow or wide string types. Currently only includes STL string types and [link log.detailed.utilities.string_literal string literals].]]
+]
+
+There are also a number of time-related type sequences available:
+
+[table Time-related types (date_time_types.hpp)
+    [[Type sequence]                            [Meaning]]
+    [[`native_date_time_types`]                 [All types defined in C/C++ standard that have both date and time portions]]
+    [[`boost_date_time_types`]                  [All types defined in __boost_date_time__ that have both date and time portions]]
+    [[`date_time_types`]                        [Includes `native_date_time_types` and `boost_date_time_types`]]
+    [[`native_date_types`]                      [All types defined in C/C++ standard that have date portion. Currently equivalent to `native_date_time_types`.]]
+    [[`boost_date_types`]                       [All types defined in __boost_date_time__ that have date portion]]
+    [[`date_types`]                             [Includes `native_date_types` and `boost_date_types`]]
+    [[`native_time_types`]                      [All types defined in C/C++ standard that have time portion. Currently equivalent to `native_date_time_types`.]]
+    [[`boost_time_types`]                       [All types defined in __boost_date_time__ that have time portion. Currently equivalent to `boost_date_time_types`.]]
+    [[`time_types`]                             [Includes `native_time_types` and `boost_time_types`]]
+    [[`native_time_duration_types`]             [All types defined in C/C++ standard that are used to represent time duration. Currently only includes `double`, as the result type of the `difftime` standard function.]]
+    [[`boost_time_duration_types`]              [All time duration types defined in __boost_date_time__]]
+    [[`time_duration_types`]                    [Includes `native_time_duration_types` and `boost_time_duration_types`]]
+    [[`boost_time_period_types`]                [All time period types defined in __boost_date_time__]]
+    [[`time_period_types`]                      [Currently equivalent to `boost_time_period_types`]]
+]
+
+[endsect]
+
+[section:record_ordering Log record ordering]
+
+    #include <``[boost_log_utility_record_ordering_hpp]``>
+
+There are cases when log records need to be ordered. One possible use case is storing records in a container or a priority queue. The library provides two types of record ordering predicates out of the box:
+
+[heading Opaque handle ordering]
+
+The [class_log_handle_ordering] class allows application of a quick opaque ordering. The result of this ordering is not stable between different runs of the application, however it provides the best performance. The [class_log_handle_ordering] class is a template that is specialized with an optional predicate function that will be able to compare `void*` pointers. By default a `std::less` equivalent is used.
+
+    // A set of unique records
+    std::set< logging::record, logging::handle_ordering< > > m_Records;
+
+[heading Attribute value based ordering]
+
+This kind of ordering is implemented with the [class_log_attribute_value_ordering] class and is based on the attribute values attached to the record. The predicate will seek for an attribute value with the specified name in both records being ordered and attempt to compare the attribute values.
+
+    // Ordering type definition
+    typedef logging::attribute_value_ordering<
+        char,   // character type that is used by Boost.Log
+        int     // attribute value type
+    > ordering;
+
+    // Records organized into a queue based on the "Severity" attribute value
+    std::priority_queue<
+        logging::record,
+        std::vector< logging::record >,
+        ordering
+    > m_Records(ordering("Severity"));
+
+Like the [class_log_handle_ordering], [class_log_attribute_value_ordering] also accepts the third optional template parameter, which should be the predicate to compare attribute values (`int`s in the example above). By default, a `std::less` equivalent is used.
+
+You can also use the `make_attr_ordering` generator function to automatically generate the [class_log_attribute_value_ordering] instance based on the attribute value name and the ordering function. This might be useful if the ordering function has a non-trivial type, like the ones __boost_bind__ provides.
+
+[endsect]
+
+[section:exception_handlers Exception handlers]
+
+    #include <``[boost_log_utility_exception_handler_hpp]``>
+
+The library provides exception handling hooks in different places. Tools, defined in this header, provide an easy way of implementing function objects suitable for such hooks.
+
+An exception handler is a function object that accepts no arguments. The result of the exception handler is ignored and thus should generally be `void`. Exception handlers are called from within `catch` sections by the library, therefore in order to reacquire the exception object it has to rethrow it. The header defines an [class_log_exception_handler] template functor that does just that and then forwards the exception object to an unary user-defined functional object. The `make_exception_handler` function can be used to simplify the handler construction. All expected exception types should be specified explicitly in the call, in the order they would appear in the `catch` sections (i.e. from most specific ones to the most general ones).
+
+[example_utility_exception_handler]
+
+As you can see, you can either suppress the exception by returning normally from `operator()` in the user-defined handler functor, or rethrow the exception, in which case it will propagate further. If it appears that the exception handler is invoked for an exception type that cannot be caught by any of the specified types, the exception will be propagated without any processing. In order to catch such situations, there exists the [class_log_nothrow_exception_handler] class. It invokes the user-defined functor with no arguments if it cannot determine the exception type.
+
+[example_utility_exception_handler_nothrow]
+
+It is sometimes convenient to completely suppress all exceptions at a certain library level. The `make_exception_suppressor` function creates an exception handler that simply does nothing upon exception being caught. For example, this way we can disable all exceptions from the logging library:
+
+    void init_logging()
+    {
+        boost::shared_ptr< logging::core > core = logging::core::get();
+
+        // Disable all exceptions
+        core->set_exception_handler(logging::make_exception_suppressor());
+    }
+
+[endsect]
+
+[section:init Simplified library initialization tools]
+
+This part of the library is provided in order to simplify logging initialization and provide basic tools to develop user-specific initialization mechanisms. It is known that setup capabilities and preferences may vary widely from application to application, therefore the library does not attempt to provide a universal solution for this task. The provided tools are mostly intended to serve as a quick drop-in support for logging setup and a set of instruments to implement something more elaborate and more fitting users' needs.
+
+Some of the features described in this section will require the separate library binary, with name based on "boost_log_setup" substring. This binary depends on the main library binary.
+
+[section:convenience Convenience functions]
+
+    #include <``[boost_log_utility_init_to_console_hpp]``>
+    #include <``[boost_log_utility_init_to_file_hpp]``>
+    #include <``[boost_log_utility_init_common_attributes_hpp]``>
+
+The library provides a number of functions that simplify some common initialization procedures, like sink and commonly used attributes registration. This is not much functionality. However, it saves a couple of minutes of learning the library for a newcomer.
+
+Logging to the application console is the simplest way to see the logging library in action. To achieve this, one can initialize the library with a single function call, like this:
+
+    int main(int, char*[])
+    {
+        // Initialize logging to std::clog
+        logging::init_log_to_console();
+
+        // Here we go, we can write logs right away
+        src::logger lg;
+        BOOST_LOG(lg) << "Hello world!";
+
+        return 0;
+    }
+
+Pretty easy, isn't it? There is `winit_log_to_console` function for wide-character logging. If you want to put logs to some other standard stream, you can pass the stream to the `init_log_to_console` function as an argument. E.g. enabling logging to `std::cout` instead of `std::clog` would look like this:
+
+    logging::init_log_to_console(std::cout);
+
+What's important, is that you can further manage the console sink if you save the `shared_ptr` to the sink that this function returns. This allows you to set up things like filter, formatter and auto-flush flag.
+
+    int main(int, char*[])
+    {
+        // Initialize logging to std::clog
+        boost::shared_ptr<
+            sinks::synchronous_sink< sinks::text_ostream_backend >
+        > sink = logging::init_log_to_console();
+
+        sink->set_filter(flt::attr< int >("Severity") >= 3);
+        sink->locked_backend()->auto_flush(true);
+
+        // Here we go, we can write logs right away
+        src::logger lg;
+        BOOST_LOG(lg) << "Hello world!";
+
+        return 0;
+    }
+
+Similarly to console, one can use a single function call to enable logging to a file. All you have to do is to provide the file name:
+
+    int main(int, char*[])
+    {
+        // Initialize logging to the "test.log" file
+        logging::init_log_to_file("test.log");
+
+        // Here we go, we can write logs right away
+        src::logger lg;
+        BOOST_LOG(lg) << "Hello world!";
+
+        return 0;
+    }
+
+Like with `init_log_to_console`, the `init_log_to_file` function has its wide-character counterpart `winit_log_to_file` and returns the `shared_ptr` to the registered sink. The functions do not conflict and may be combined freely, so it is possible to set up logging to the console and a couple of files, including filtering and formatting, in about 10 lines of code.
+
+Lastly, there is an `add_common_attributes` function that registers two frequently used attributes: "LineID" and "TimeStamp". The former counts log record being made and has attribute value `unsigned int`. The latter, as its name implies, provides the current time for each log record, in the form of `boost::posix_time::ptime` (see __boost_date_time__). These two attributes are registered globally, so they will remain available in all threads and loggers. This makes the final version of our code sample look something like this:
+
+    int main(int, char*[])
+    {
+        // Initialize sinks
+        logging::init_log_to_console()->set_filter(flt::attr< int >("Severity") >= 4);
+
+        boost::function< void (std::ostream&, logging::record const&) > formatter =
+            fmt::stream
+                << fmt::attr< unsigned int >("LineID", "[% 9u] ")
+                << fmt::date_time< boost::posix_time::ptime >("TimeStamp") << " *"
+                << fmt::attr< int >("Severity") << "* " << fmt::message();
+
+        logging::init_log_to_file("complete.log")->locked_backend()->set_formatter(formatter);
+
+        boost::shared_ptr<
+            sinks::synchronous_sink< sinks::text_ostream_backend >
+        > sink = logging::init_log_to_file("essential.log");
+        sink->locked_backend()->set_formatter(formatter);
+        sink->set_filter(flt::attr< int >("Severity") >= 1);
+
+        // Register common attributes
+        logging::add_common_attributes();
+
+        // Here we go, we can write logs
+        src::logger lg;
+        BOOST_LOG(lg) << "Hello world!";
+
+        return 0;
+    }
+
+[endsect]
+
+[section:filter_formatter Filter and formatter parsers]
+
+    #include <``[boost_log_utility_init_filter_parser_hpp]``>
+    #include <``[boost_log_utility_init_formatter_parser_hpp]``>
+
+Filter and formatter parsers allow constructing filters and formatters from a descriptive string. The function `parse_filter` is responsible for recognizing filters and `parse_formatter` - for recognizing formatters.
+
+In the case of filters the string is formed of a sequence of condition expressions, interconnected with boolean operations. There are two operations supported: conjunction (designated as "&" or "and") and disjunction ("|" or "or"). Each condition itself may be either a single condition or a sub-filter, taken in round brackets. Each condition can be negated with the "!" sign or "not" keyword. The condition, if it's not a sub-filter, usually consists of an attribute name enclosed in percent characters ("%"), a relation keyword and an operand. The relation and operand may be omitted, in which case the condition is assumed to be the requirement of the attribute presence (with any type).
+
+[teletype]
+
+    filter:
+        condition { op condition }
+
+    op:
+        &
+        and
+        |
+        or
+
+    condition:
+        !condition
+        not condition
+        (filter)
+        %attribute_name%
+        %attribute_name% relation operand
+
+    relation:
+        >
+        <
+        =
+        !=
+        >=
+        <=
+        begins_with
+        ends_with
+        contains
+        matches
+
+[c++]
+
+Below are some examples of filters:
+
+[table Examples of filters
+[[Filter string]                    [Description]]
+[[`%Severity%`]                     [The filter returns `true` if an attribute value with name "Severity" is found in a log record.]]
+[[`%Severity% > 3`]                 [The filter returns `true` if an attribute value with name "Severity" is found and it is greater than 3. The attribute value must be of one of the [link log.detailed.utilities.predef_types integral types].]]
+[[!(`%Ratio% > 0.0 & %Ratio% <= 0.5)`] [The filter returns `true` if an attribute value with name "Ratio" of one of the [link log.detailed.utilities.predef_types floating point types] is not found or it is not between 0 and 0.5.]]
+[[`%Tag% contains "net" or %Tag% contains "io" and not %StatFlow%`] [The filter returns `true` if an attribute value with name "Tag" is found and contains words "net" or "io" and if an attribute value "StatFlow" is not found. The "Tag" attribute value must be of one of the [link log.detailed.utilities.predef_types string types], the "StatFlow" attribute value type is not considered.]]
+]
+
+The formatter string syntax is even simpler and pretty much resembles __boost_format__ format string syntax. The string must contain attribute names enclosed in percent signs ("%"), the corresponding attribute value will replace these placeholders. The placeholder "%\_%" is special, it will be replaced with the log record text. For instance, `[%TimeStamp%] *%Severity%* %_%` formatter string will make log records look like this: `[2008-07-05 13:44:23] *0* Hello world`.
+
+It must be noted, though, that by default the library only supports those attribute value types [link log.detailed.utilities.predef_types which are known] at the library build time. User-defined types will not work properly in parsed filters and formatters until registered in the library. More on this is available in the [link log.extension.settings Extending the library] section.
+
+[note The parsed formatters and filters are generally less optimal than the equivalent ones written in code. This is because of two reasons: (\*) the programmer usually knows more about types of the attribute values that may be involved in formatting or filtering and (\*) the compiler has a better chance to optimize the formatter or filter if it is known in compile time. Therefore, if the performance matters, it is advised to avoid parsed filters and formatters.]
+
+[endsect]
+
+[section:settings Library initialization from a settings container]
+
+    #include <``[boost_log_utility_init_from_settings_hpp]``>
+
+The header defines components for library initialization from settings container. The settings container is basically a set of named parameters divided into sections. The container is implemented with the [class_log_basic_settings] class template. There are several constraints on how parameters are stored in the container:
+
+* Every parameter must reside in a section. There can be no parameters that do not belong to a section.
+* Parameters must have names unique within the section they belong to. Parameters from different sections may have the same name.
+* Sections cannot nest. Only one layer of sections is permitted.
+* Sections must have names unique throughout the whole container.
+
+So basically, settings container is a two-layer associative container, with two string keys. The parameter values are stored as __boost_any__ values. Each parameter supported by the library must have the according type within the `any` variant value. The supported parameters, their types and meaning is described below.
+
+[tip In the tables below, the `CharT` type denotes the character type that is used with the library.]
+
+[table Section "Core". Logging core settings.
+[[Parameter]             [Type]                                                               [Description]]
+[[Filter]                [`std::basic_string< CharT >` or [class_log_basic_core]`< CharT >::filter_type`]
+    [Global filter to be installed to the core. If specified in string form, it should conform to the rules described [link log.detailed.utilities.init.filter_formatter here]. If not specified, the global filter is not set.]
+]
+[[DisableLogging]        [`bool`]
+    [If `true`, results in calling `set_logging_enabled(false)` on the core. By default, value `false` is assumed.]
+]
+]
+
+Sink settings are divided into separate sections - one section for each sink. The section names should begin with the "Sink:" prefix, while the rest of the section name should denote a user-defined sink name. For example, "Sink:MyFile".
+
+[table Sections with names beginning with "Sink:". Common sink settings.
+[[Parameter]             [Type]                                                               [Description]]
+[[Destination]           [`std::basic_string< CharT >`]
+    [Sink backend type. Mandatory parameter. May have one of these values: [link log.detailed.sink_backends.text_ostream Console], [link log.detailed.sink_backends.text_file TextFile], [link log.detailed.sink_backends.syslog Syslog]. On Windows the following values are additionally supported: [link log.detailed.sink_backends.event_log SimpleEventLog], [link log.detailed.sink_backends.debugger Debugger]. Also, user-defined sink names may also be supported if registered by calling `register_sink_factory`.]
+]
+[[Filter]                [`std::basic_string< CharT >` or [class_sinks_sink]`< CharT >::filter_type`]
+    [Sink-specific filter. If specified in string form, it should conform to the rules described [link log.detailed.utilities.init.filter_formatter here]. If not specified, the filter is not set.]
+]
+[[Asynchronous]          [`bool`]
+    [If `true`, the [link log.detailed.sink_frontends.async asynchronous sink frontend] will be used. Otherwise the [link log.detailed.sink_frontends.sync synchronous sink frontend] will be used. By default, value `false` is assumed. In single-threaded builds this parameter is not used, as [link log.detailed.sink_frontends.unlocked unlocked sink frontend] is always used.]
+]
+]
+
+Besides the common settings that all sinks support, some sink backends also accept a number of specific parameters. These parameters should be specified in the same section.
+
+[table "Console" sink settings
+[[Parameter]             [Type]                                                               [Description]]
+[[Formatter]             [`std::basic_string< CharT >` or [class_sinks_basic_text_ostream_backend]`< CharT >::formatter_type`]
+    [Log record formatter to be used by the sink. If specified in string form, it should conform to the rules described [link log.detailed.utilities.init.filter_formatter here]. If not specified, the default formatter is used.]
+]
+[[AutoFlush]             [`bool`]
+    [Enables or disables the auto-flush feature of the backend. If not specified, the default value `false` is assumed.]
+]
+]
+
+[table "TextFile" sink settings
+[[Parameter]             [Type]                                                               [Description]]
+[[FileName]              [`std::basic_string< CharT >` or `filesystem::basic_path< CharT >`]
+    [The file name pattern for the sink backend. This parameter is mandatory.]
+]
+[[Formatter]             [`std::basic_string< CharT >` or [class_sinks_basic_text_file_backend]`< CharT >::formatter_type`]
+    [Log record formatter to be used by the sink. If specified in string form, it should conform to the rules described [link log.detailed.utilities.init.filter_formatter here]. If not specified, the default formatter is used.]
+]
+[[AutoFlush]             [`bool`]
+    [Enables or disables the auto-flush feature of the backend. If not specified, the default value `false` is assumed.]
+]
+[[RotationSize]          [Any fundamental integer type]
+    [File size, in bytes, upon which file rotation will be performed. If not specified, no size-based rotation will be made.]
+]
+[[RotationInterval]      [Any fundamental integer type]
+    [Time interval, in seconds, upon which file rotation will be performed. See also the RotationTimePoint parameter and the note below.]
+]
+[[RotationTimePoint]     [`std::basic_string< CharT >` or [class_sinks_basic_text_file_backend]`< CharT >::time_based_rotation_predicate`]
+    [Time point or a predicate that detects at what moment of time to perform log file rotation. See also the RotationInterval parameter and the note below.]
+]
+[[Target]                [`std::basic_string< CharT >` or `filesystem::basic_path< CharT >`]
+    [Target directory name, in which the rotated files will be stored. If this parameter is specified, rotated file collection is enabled. Otherwise the feature is not enabled, and all corresponding parameters are ignored.]
+]
+[[MaxSize]               [Any fundamental integer type]
+    [Total size of files in the target directory, in bytes, upon which the oldest file will be deleted. If not specified, no size-based file cleanup will be performed.]
+]
+[[MinFreeSpace]          [Any fundamental integer type]
+    [Minimum free space in the target directory, in bytes, upon which the oldest file will be deleted. If not specified, no space-based file cleanup will be performed.]
+]
+[[ScanForFiles]          [`std::basic_string< CharT >` or `sinks::file::scan_method`]
+    [Mode of scanning for old files in the target directory. If specified in string form, the following values are permitted: "All", "Matching". If not specified, no scanning will be performed.]
+]
+]
+
+The time-based rotation can be set up with one of the two parameters: RotationInterval or RotationTimePoint. Not more than one of these parameters should be specified for a given sink. If none is specified, no time-based rotation will be performed.
+
+The RotationTimePoint can be specified in two forms: a predicate or a string. The predicate form is convenient if the settings container is filled by the user's code. In this case, the predicate should take no arguments and return `bool`, which is `true` when the file rotation should take place. A good example of such predicate is the [class_file_rotation_at_time_point] class, which is described in [link log.detailed.sink_backends.text_file this] section.
+
+If the parameter is supplied in the string form, it should have one of the following formats, according to the __boost_date_time_format__ format notation:
+
+* "%H:%M:%S". In this case, file rotation will be performed on a daily basis, at the specified time. For example, "12:00:00".
+* "%a %H:%M:%S" or "%A %H:%M:%S". File rotation takes place every week, on the weekday specified in the long or short form, at the specified time. For example, "Saturday 09:00:00".
+* "%d %H:%M:%S". File rotation takes place every month, on the specified day of month, at the specified time. For example, "01 23:30:00".
+
+In case if the settings are loaded from a [link log.detailed.utilities.init.settings_file settings file], the string form is the only way to set up the file rotation at a certain time point.
+
+[table "Syslog" sink settings
+[[Parameter]             [Type]                                                               [Description]]
+[[LocalAddress]          [`std::basic_string< CharT >` or `asio::ip_address`]
+    [Local address to initiate connection to the syslog server. If not specified, the default local address will be used.]
+]
+[[TargetAddress]         [`std::basic_string< CharT >` or `asio::ip_address`]
+    [Remote address of the syslog server. If not specified, the local address will be used.]
+]
+]
+
+[table "SimpleEventLog" sink settings
+[[Parameter]             [Type]                                                               [Description]]
+[[LogName]               [`std::basic_string< CharT >`]
+    [Log name to write events into. If not specified, the default log name will be used.]
+]
+[[LogSource]             [`std::basic_string< CharT >`]
+    [Log source to write events from. If not specified, the default source will be used.]
+]
+[[Registration]          [`std::basic_string< CharT >` or `sinks::event_log::registration_mode`]
+    [Mode of log source registration in Windows registry. If specified in string form, the following values are supported: "Never", "OnDemand", "Forced". If not specified, on-demand registration will be performed.]
+]
+]
+
+The user is free to fill the settings container from whatever settings source he needs. The usage example is below:
+
+    void init_logging()
+    {
+        logging::settings setts;
+
+        setts["Core"]["Filter"] = "%Severity% >= warning";
+        setts["Core"]["DisableLogging"] = false;
+
+        setts["Sink:Console"]["Destination"] = "Console";
+        setts["Sink:Console"]["Filter"] = "%Severity% >= fatal";
+        setts["Sink:Console"]["AutoFlush"] = true;
+
+        setts["Sink:File"]["Destination"] = "TextFile";
+        setts["Sink:File"]["FileName"] = "MyApp_%3N.log";
+        setts["Sink:File"]["AutoFlush"] = true;
+        setts["Sink:File"]["RotationSize"] = 10 * 1024 * 1024; // 10 MiB
+
+        logging::init_from_settings(setts);
+    }
+
+The settings reader also allows to be extended to support custom sink types. See the [link log.extension.settings Extending the library] section for more information.
+
+[endsect]
+
+[section:settings_file Library initialization from a settings file]
+
+    #include <``[boost_log_utility_init_from_stream_hpp]``>
+
+Support for configuration files is a frequently requested feature of the library. And despite the fact there is no ultimately convenient and flexible format of the library settings, the library provides preliminary support for this feature. The functionality is implemented with a simple function `init_from_stream`, which accepts an STL input stream and reads the library settings from it. The function then passes on the read settings to the `init_from_settings` function, described [link log.detailed.utilities.init.settings above]. Therefore the parameter names and their meaning is the same as for the `init_from_settings` function.
+
+The settings format is quite simple and widely used. Below is the description of syntax and parameters.
+
+[teletype]
+
+    # Comments are allowed. Comment line begins with the '#' character
+    # and spans until the end of the line.
+
+    # Logging core settings section. May be omitted if no parameters specified within it.
+    [Core]
+    DisableLogging=false
+    Filter="%Severity% > 3"
+
+    # Sink settings sections
+    [Sink:MySink1]
+
+    # Sink destination type
+    Destination=Console
+
+    # Sink-specific filter. Optional, by default no filter is applied.
+    Filter="%Target% contains \"MySink1\""
+
+    # Formatter string. Optional, by default only log record message text is written.
+    Format="<%TimeStamp%> - %_%"
+
+    # The flag shows whether the sink should be asynchronous
+    Asynchronous=false
+
+    # Enables automatic stream flush after each log record.
+    AutoFlush=true
+
+[c++]
+
+Here's the usage example:
+
+    int main(int, char*[])
+    {
+        // Read logging settings from a file
+        std::ifstream file("settings.ini");
+        logging::init_from_stream(file);
+
+        return 0;
+    }
+
+[endsect]
+
+[endsect]
+
+[endsect]

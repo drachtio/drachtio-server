@@ -47,6 +47,11 @@ THE SOFTWARE.
 #include <boost/uuid/uuid_generators.hpp> // generators
 #include <boost/uuid/uuid_io.hpp>         // streaming operato
 
+#include <sofia-sip/sip_protos.h>
+#include <sofia-sip/sip_tag.h>
+#include <sofia-sip/sip_extra.h>
+#include <sofia-sip/msg_types.h>
+
 
 
 namespace logging = boost::log;
@@ -72,9 +77,29 @@ namespace drachtio {
 	    log_debug
 	};
 
+	enum agent_role {
+		uac_role
+		,uas_role
+	}; 
+
 	void generateUuid(std::string& uuid) ;
-    
+
+	void parseGenericHeader( msg_common_t* p, std::string& hvalue) ;
+
+	bool isImmutableHdr( const std::string& hdr ) ;
+
+	bool getTagTypeForHdr( const std::string& hdr, tag_type_t& tag ) ;
+
+	void normalizeSipUri( std::string& uri ) ;
+  
+	void replaceHostInUri( std::string& uri, const std::string& hostport )  ;
+
+	sip_method_t methodType( const std::string& method ) ;
+
+	bool isLocalSipUri( const std::string& uri ) ;
  }
+
+typedef boost::tokenizer<boost::char_separator<char> > tokenizer ;
 
 #ifdef DRACHTIO_MAIN
 drachtio::DrachtioController* theOneAndOnlyController = NULL ;

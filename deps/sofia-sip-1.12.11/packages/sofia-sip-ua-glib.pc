@@ -1,0 +1,14 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+libexecdir=${exec_prefix}/libexec
+includedir=${prefix}/include
+include_sofiadir=${includedir}/sofia-sip-1.12
+gobject=@HAVE_GOBJECT@
+
+Name: sofia-sip-ua-glib
+Description: Sofia-SIP library bindings for glib
+Version: 1.12.11
+Requires: sofia-sip-ua, glib-2.0
+Libs: -L${libdir} -lsofia-sip-ua-glib
+Cflags: -I${includedir}/sofia-sip-1.12

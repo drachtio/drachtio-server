@@ -43,10 +43,20 @@ namespace drachtio {
 
 		} 
 		JsonMsg( const string& strMsg ) : m_strRaw(strMsg) {
-			set( strMsg ) ;
+			try {
+				set( strMsg ) ;
+			} catch( std::runtime_error& e) {
+				cerr << "error: " << e.what() << " json - " << strMsg << endl ;
+				throw e ;
+			}
 		}
 		template<typename InputIterator> JsonMsg( InputIterator begin, InputIterator end ) {
-			set( begin, end ) ;
+			try {
+				set( begin, end ) ;
+			} catch( std::runtime_error& e) {
+				cerr << "error: " << e.what() << endl ;
+				throw e ;
+			}
 		}
 		~JsonMsg() {}
 

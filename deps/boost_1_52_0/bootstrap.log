@@ -1,0 +1,363 @@
+###
+### Using 'darwin' toolset.
+###
+rm -rf bootstrap
+mkdir bootstrap
+cc -o bootstrap/jam0 command.c compile.c constants.c debug.c function.c glob.c hash.c hdrmacro.c headers.c jam.c jambase.c jamgram.c lists.c make.c make1.c object.c option.c output.c parse.c pathunix.c regexp.c rules.c scan.c search.c subst.c timestamp.c variable.c modules.c strings.c filesys.c builtins.c pwd.c class.c native.c md5.c w32_getreg.c modules/set.c modules/path.c modules/regex.c modules/property-set.c modules/sequence.c modules/order.c execunix.c fileunix.c
+function.c:3109:31: warning: format specifies type 'char *' but the argument has type 'OBJECT *' (aka 'struct _object *') [-Wformat]
+                printf( "%s", formal_arg->arg_name );
+                         ~~   ^~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+make.c:273:37: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:273:37: note: use array indexing to silence this warning
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:280:37: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:280:37: note: use array indexing to silence this warning
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:351:17: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+                spaces( depth ), object_str( t->name ), object_str( t->boundname ) );
+                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:351:17: note: use array indexing to silence this warning
+                spaces( depth ), object_str( t->name ), object_str( t->boundname ) );
+                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:359:17: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+                spaces( depth ), object_str( t->name ), target_bind[ (int) t->binding ] );
+                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:359:17: note: use array indexing to silence this warning
+                spaces( depth ), object_str( t->name ), target_bind[ (int) t->binding ] );
+                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:364:17: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+                spaces( depth ), object_str( t->name ), ctime( &t->time ) );
+                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:364:17: note: use array indexing to silence this warning
+                spaces( depth ), object_str( t->name ), ctime( &t->time ) );
+                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:645:13: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+            spaces( depth ), object_str( t->name ) );
+            ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:645:13: note: use array indexing to silence this warning
+            spaces( depth ), object_str( t->name ) );
+            ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+6 warnings generated.
+./bootstrap/jam0 -f build.jam --toolset=darwin --toolset-root= clean
+...found 1 target...
+...updating 1 target...
+[DELETE] clean
+...updated 1 target...
+./bootstrap/jam0 -f build.jam --toolset=darwin --toolset-root=
+...found 50 targets...
+...updating 2 targets...
+[COMPILE] bin.macosxx86_64/b2
+function.c:3109:31: warning: format specifies type 'char *' but the argument has type 'OBJECT *' (aka 'struct _object *') [-Wformat]
+                printf( "%s", formal_arg->arg_name );
+                         ~~   ^~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+make.c:273:37: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:273:37: note: use array indexing to silence this warning
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:280:37: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:280:37: note: use array indexing to silence this warning
+        printf( "make\t--\t%s%s\n", spaces( depth ), object_str( t->name ) );
+                                    ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:351:17: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+                spaces( depth ), object_str( t->name ), object_str( t->boundname ) );
+                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:351:17: note: use array indexing to silence this warning
+                spaces( depth ), object_str( t->name ), object_str( t->boundname ) );
+                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:359:17: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+                spaces( depth ), object_str( t->name ), target_bind[ (int) t->binding ] );
+                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:359:17: note: use array indexing to silence this warning
+                spaces( depth ), object_str( t->name ), target_bind[ (int) t->binding ] );
+                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:364:17: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+                spaces( depth ), object_str( t->name ), ctime( &t->time ) );
+                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:364:17: note: use array indexing to silence this warning
+                spaces( depth ), object_str( t->name ), ctime( &t->time ) );
+                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:645:13: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+            spaces( depth ), object_str( t->name ) );
+            ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:645:13: note: use array indexing to silence this warning
+            spaces( depth ), object_str( t->name ) );
+            ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:682:39: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "->%s%2d Name: %s\n", spaces( depth ), depth, target_name( t ) );
+                                      ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:682:39: note: use array indexing to silence this warning
+        printf( "->%s%2d Name: %s\n", spaces( depth ), depth, target_name( t ) );
+                                      ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:685:39: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s%2d Name: %s\n", spaces( depth ), depth, target_name( t ) );
+                                      ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:685:39: note: use array indexing to silence this warning
+        printf( "  %s%2d Name: %s\n", spaces( depth ), depth, target_name( t ) );
+                                      ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:690:38: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s    Loc: %s\n", spaces( depth ), object_str( t->boundname ) );
+                                     ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:690:38: note: use array indexing to silence this warning
+        printf( "  %s    Loc: %s\n", spaces( depth ), object_str( t->boundname ) );
+                                     ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:695:42: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Stable\n", spaces( depth ) );
+                                         ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:695:42: note: use array indexing to silence this warning
+        printf( "  %s       : Stable\n", spaces( depth ) );
+                                         ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:698:41: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Newer\n", spaces( depth ) );
+                                        ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:698:41: note: use array indexing to silence this warning
+        printf( "  %s       : Newer\n", spaces( depth ) );
+                                        ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:701:56: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Up to date temp file\n", spaces( depth ) );
+                                                       ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:701:56: note: use array indexing to silence this warning
+        printf( "  %s       : Up to date temp file\n", spaces( depth ) );
+                                                       ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:704:65: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Temporary file, to be updated\n", spaces( depth ) );
+                                                                ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:704:65: note: use array indexing to silence this warning
+        printf( "  %s       : Temporary file, to be updated\n", spaces( depth ) );
+                                                                ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:707:61: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Been touched, updating it\n", spaces( depth ) );
+                                                            ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:707:61: note: use array indexing to silence this warning
+        printf( "  %s       : Been touched, updating it\n", spaces( depth ) );
+                                                            ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:710:56: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Missing, creating it\n", spaces( depth ) );
+                                                       ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:710:56: note: use array indexing to silence this warning
+        printf( "  %s       : Missing, creating it\n", spaces( depth ) );
+                                                       ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:713:57: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Outdated, updating it\n", spaces( depth ) );
+                                                        ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:713:57: note: use array indexing to silence this warning
+        printf( "  %s       : Outdated, updating it\n", spaces( depth ) );
+                                                        ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:716:56: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Rebuild, updating it\n", spaces( depth ) );
+                                                       ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:716:56: note: use array indexing to silence this warning
+        printf( "  %s       : Rebuild, updating it\n", spaces( depth ) );
+                                                       ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:719:47: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Updating it\n", spaces( depth ) );
+                                              ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:719:47: note: use array indexing to silence this warning
+        printf( "  %s       : Updating it\n", spaces( depth ) );
+                                              ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:722:51: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Can not find it\n", spaces( depth ) );
+                                                  ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:722:51: note: use array indexing to silence this warning
+        printf( "  %s       : Can not find it\n", spaces( depth ) );
+                                                  ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:725:47: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Can make it\n", spaces( depth ) );
+                                              ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:725:47: note: use array indexing to silence this warning
+        printf( "  %s       : Can make it\n", spaces( depth ) );
+                                              ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:731:34: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : ", spaces( depth ) );
+                                 ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:731:34: note: use array indexing to silence this warning
+        printf( "  %s       : ", spaces( depth ) );
+                                 ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+make.c:743:52: warning: adding 'int' to a string does not append to the string [-Wstring-plus-int]
+        printf( "  %s       : Depends on %s (%s)", spaces( depth ),
+                                                   ^~~~~~~~~~~~~~~
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+make.c:743:52: note: use array indexing to silence this warning
+        printf( "  %s       : Depends on %s (%s)", spaces( depth ),
+                                                   ^
+make.c:102:45: note: expanded from macro 'spaces'
+# define spaces(x) ( "                    " + ( x > 20 ? 0 : 20-x ) )
+                                            ^
+22 warnings generated.
+[COPY] bin.macosxx86_64/bjam
+...updated 2 targets...

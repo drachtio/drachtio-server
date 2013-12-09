@@ -55,19 +55,24 @@ namespace drachtio {
 
 	    std::vector<string> getServices(void) { return m_vecServices; }
 
-	    void sendServiceRequest( const string& msg, const string& matchId, const string& msgId ) ;
+	    void sendRequestOutsideDialog( const string& transactionId, const string& msg ) ;
+	    void sendRequestWithinDialog( const string& dialogId, const string& msg ) ;
+	    void sendResponseWithinTransaction( const string& transactionId, const string& msg ) ;
+	    void sendCancelTransaction( const string& transactionId, const string& msg ) ;
+	    void sendDialogInfo( const string& dialogId, const string& transactionId) ;
+	    void sendResponse( const string& rid, const string& strData) ;
 	    	    
 	protected:
 
 		enum state {
 			initial = 0,
 			authenticated,
-			registered
 		} ;
 
 		bool processAuthentication(boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
 		bool processRegistration( boost::shared_ptr<JsonMsg> pMsg,  JsonMsg& msgResponse ) ;
 		void processMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
+		void processNotify( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
 		void processRequest( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
 		void processResponse( boost::shared_ptr<JsonMsg> pMsg,  JsonMsg& msgResponse, bool& bDisconnect ) ;
 	    

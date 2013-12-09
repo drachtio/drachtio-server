@@ -57,7 +57,8 @@ THE SOFTWARE.
 #include "drachtio.h"
 #include "drachtio-config.hpp"
 #include "client-controller.hpp"
-#include "sip-dialog-maker.hpp"
+#include "sip-dialog-controller.hpp"
+#include "sip-dialog.hpp"
 
 using namespace std ;
 
@@ -71,71 +72,93 @@ namespace drachtio {
 	class DrachtioController {
 	public:
 
-		DrachtioController( int argc, char* argv[]  ) ;
-		~DrachtioController() ;
+        	DrachtioController( int argc, char* argv[]  ) ;
+        	~DrachtioController() ;
 
-		void handleSigHup( int signal ) ;
-		void run() ;
-		src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
-        src::severity_logger_mt< severity_levels >* createLogger() ;
-      
-        boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
+        	void handleSigHup( int signal ) ;
+        	void run() ;
+        	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
+                src::severity_logger_mt< severity_levels >* createLogger() ;
+              
+                boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
+                boost::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
+                boost::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
+                su_root_t* getRoot(void) { return m_root; }
+                
+                enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
 
-        boost::shared_ptr<SipDialogMaker> getDialogMaker(void) { return m_pDialogMaker ; }
-        su_root_t* getRoot(void) { return m_root; }
-        
-        enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
+                /* network --> client messages */
+                int processRequestOutsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
+                int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
-        int processRequestOutsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
-        int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
+                /* client --> network messages */
+                int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) ;
 
+                /* called by dialog maker when a dialog has been produced */
+                void notifyDialogConstructionComplete( boost::shared_ptr<SipDialog> dlg ) ;
 
-        bool isSecret( const string& secret ) {
-        	return m_Config->isSecret( secret ) ;
-        }
+                bool isSecret( const string& secret ) {
+                	return m_Config->isSecret( secret ) ;
+                }
+
+                nta_agent_t* getAgent(void) { return m_nta; }
+                su_home_t* getHome(void) { return m_home; }
+
+                const sip_contact_t* getMyContact(void) { return m_my_contact; }
+                void getMyHostport( string& str ) {
+                	str = m_my_contact->m_url->url_host ;
+                	if( m_my_contact->m_url->url_port ) {
+                		str.append(":") ;
+                		str.append( m_my_contact->m_url->url_port ) ;
+                	}
+                }
+
+                void printStats(void) ;
+
+                sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
+                void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
 
 	private:
-		DrachtioController() ;
+        	DrachtioController() ;
 
-		bool parseCmdArgs( int argc, char* argv[] ) ;
-		void usage() ;
+        	bool parseCmdArgs( int argc, char* argv[] ) ;
+        	void usage() ;
 
-		void generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) ;
-		
-		void daemonize() ;
-		void initializeLogging() ;
-		void deinitializeLogging() ;
-		bool installConfig() ;
-		void logConfig() ;
-	
-		scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
-		boost::mutex m_mutexGlobal ;
-		boost::shared_mutex m_mutexConfig ; 
-		bool m_bLoggingInitialized ;
-		string m_configFilename ;
-        
-        string  m_user ;    //system user to run as
+        	void generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) ;
+        	
+        	void daemonize() ;
+        	void initializeLogging() ;
+        	void deinitializeLogging() ;
+        	bool installConfig() ;
+        	void logConfig() ;
 
-        shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sink ;
-        shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
-        int m_bDaemonize ;
-		severity_levels m_current_severity_threshold ;
+        	scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
+        	boost::mutex m_mutexGlobal ;
+        	boost::shared_mutex m_mutexConfig ; 
+        	bool m_bLoggingInitialized ;
+        	string m_configFilename ;
+                
+                string  m_user ;    //system user to run as
 
-        shared_ptr< ClientController > m_clientController ;
+                shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sink ;
+                shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
+                int m_bDaemonize ;
+        		severity_levels m_current_severity_threshold ;
 
-        boost::shared_ptr<SipDialogMaker> m_pDialogMaker ;
+                shared_ptr< ClientController > m_pClientController ;
 
-        su_home_t* 	m_home ;
-        su_root_t* 	m_root ;
-        su_timer_t* m_timer ;
-        nta_agent_t*	m_nta ;
-		nta_leg_t*      m_defaultLeg ;
-        string          m_my_via ;
-        sip_contact_t*  m_my_contact ;
+                boost::shared_ptr<SipDialogController> m_pDialogController ;
+ 
+                su_home_t* 	m_home ;
+                su_root_t* 	m_root ;
+                su_timer_t* m_timer ;
+                nta_agent_t*	m_nta ;
+                nta_leg_t*      m_defaultLeg ;
+                string          m_my_via ;
+                sip_contact_t*  m_my_contact ;
 
-		su_clone_r 	m_clone ;
-	} ;
-
+        	su_clone_r 	m_clone ;
+        } ;
 
 } ;
 

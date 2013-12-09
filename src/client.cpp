@@ -106,17 +106,9 @@ namespace drachtio {
                         }     
                         else bDisconnect = true ;    
                         break ;              
-
-                    case authenticated:
-                       if( this->processRegistration( pMsg, msgResponse ) ) {
-                            m_state = registered ;
-                        }    
-                        else bDisconnect = true ;                   
-                    break ;
-
                     default:
                         this->processMessage( pMsg, msgResponse, bDisconnect ) ;
-                    break ;
+                        break ;
                 }
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_debug) << "Error: " << err.what() << endl ;
@@ -129,10 +121,10 @@ namespace drachtio {
                 msgResponse.stringify(strJson) ;
                 DR_LOG(log_info) << "Sending " << strJson << endl ;
                 boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
-                if( bDisconnect ) {
-                    m_controller.leave( shared_from_this() ) ;
-                    return ;
-                }
+            }
+            if( bDisconnect ) {
+                m_controller.leave( shared_from_this() ) ;
+                return ;
             }
         }
         else {
@@ -193,9 +185,27 @@ namespace drachtio {
         bDisconnect = false ;
 
         string type = pMsg->get_or_default<string>("type","") ;
-        if( 0 == type.compare("request") ) this->processRequest( pMsg, msgResponse, bDisconnect ) ;
+        if( 0 == type.compare("notify") ) this->processNotify( pMsg, msgResponse, bDisconnect ) ;
+        else if( 0 == type.compare("request") ) this->processRequest( pMsg, msgResponse, bDisconnect ) ;
 
 
+    }
+    void Client::processNotify( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
+       bDisconnect = false ;
+
+        string command = pMsg->get_or_default<string>("command","") ;
+        string id = pMsg->get_or_default<string>("rid","") ;
+        ostringstream o ;
+
+        if( 0 == command.compare("respondToSipRequest") ) {
+            int code ;
+            string transactionId = pMsg->get_or_default<string>("data.transactionId","") ;
+            m_controller.respondToSipRequest( transactionId, pMsg ) ;
+        }
+        else {
+            DR_LOG(log_error) << "Unknown notify: " << command << endl ;
+            bDisconnect = true ;
+        }
     }
     void Client::processRequest( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
        bDisconnect = false ;
@@ -204,34 +214,89 @@ namespace drachtio {
         string id = pMsg->get_or_default<string>("rid","") ;
         ostringstream o ;
 
-        if( 0 == command.compare("invite") ) {
-            string matchId = pMsg->get_or_default<string>("data.matchId","") ;
-            string matches = pMsg->get_or_default<string>("data.matches","") ;
-
-#pragma mark TODO: handle regex
-            
-            m_controller.wants_invites( shared_from_this(), matchId, matches ) ;  
+        if( 0 == command.compare("route") ) {
+            string verb ;
+            if( !pMsg->get<string>("data.verb", verb) ) {
+               DR_LOG(log_error) << "Route request must include verb " << endl ;   
+               bDisconnect = true ;
+               return ;         
+            }
+ 
+            if( !m_controller.wants_requests( shared_from_this(), verb ) ) {
+               DR_LOG(log_error) << "Route request includes unsupported verb: " << verb << endl ;   
+               bDisconnect = true ;       
+               return ;        
+            }
             o << "{\"type\": \"response\", \"rid\": \"" << id << "\",\"data\": {\"success\":true}}" ;     
             msgResponse.set( o.str() ) ;
     
         }
-        else if( 0 == command.compare("respondToSipRequest") ) {
-            int code ;
-            string msgId = pMsg->get_or_default<string>("data.msgId","") ;
-            m_controller.respondToSipRequest( msgId, pMsg ) ;
-        }
+        else if( 0 == command.compare("sendSipRequest") ) {
+            m_controller.sendSipRequest( shared_from_this(), pMsg, id ) ;
+        }   
         else {
-            DR_LOG(log_error) << "Unknown command: " << command << endl ;
+            DR_LOG(log_error) << "Unknown request: " << command << endl ;
             bDisconnect = true ;
         }
     }
     void Client::processResponse( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
+        throw std::runtime_error("Client::processResponse not implemented") ;
     }
-    void Client::sendServiceRequest( const string& matchId, const string& msgId, const string& msg ) {
+    void Client::sendRequestOutsideDialog( const string& transactionId, const string& msg ) {
 
         ostringstream o ;
-        this->pushMsgData( o, "request", "invite") ;
-        o << ", \"data\": {\"matchId\": \"" << matchId << "\", \"msgId\": \"" << msgId << "\",\"message\": " << msg << "}" << "}" ;
+        this->pushMsgData( o, "notify", "sip") ;
+        o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"message\": " << msg << "}" << "}" ;
+        DR_LOG(log_debug) << "sending " << o.str() << endl ;
+        JsonMsg jsonMsg(o.str()) ;
+        string strJson ;
+        jsonMsg.stringify(strJson) ;
+        boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
+    }
+    void Client::sendRequestWithinDialog( const string& dialogId, const string& msg ) {
+        ostringstream o ;
+        this->pushMsgData( o, "notify", "sip") ;
+        o << ", \"data\": {\"dialogId\": \"" << dialogId << "\",\"message\": " << msg << "}" << "}" ;
+        DR_LOG(log_debug) << "sending " << o.str() << endl ;
+        JsonMsg jsonMsg(o.str()) ;
+        string strJson ;
+        jsonMsg.stringify(strJson) ;
+        boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
+    }
+    void Client::sendResponseWithinTransaction( const string& transactionId, const string& msg ) {
+       ostringstream o ;
+        this->pushMsgData( o, "notify", "sip") ;
+        o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"message\": " << msg << "}" << "}" ;
+        DR_LOG(log_debug) << "sending " << o.str() << endl ;
+        JsonMsg jsonMsg(o.str()) ;
+        string strJson ;
+        jsonMsg.stringify(strJson) ;
+        boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
+    }
+    void Client::sendDialogInfo( const string& dialogId, const string& transactionId) {
+        ostringstream o ;
+        this->pushMsgData( o, "notify", "dialogCreated") ;
+        o << ", \"data\": {\"dialogId\": \"" << dialogId << "\",\"transactionId\": \"" << transactionId << "\"}" << "}" ;
+        DR_LOG(log_debug) << "sending " << o.str() << endl ;
+        JsonMsg jsonMsg(o.str()) ;
+        string strJson ;
+        jsonMsg.stringify(strJson) ;
+        boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
+    }
+    void Client::sendResponse( const string& rid, const string& strData) {
+        ostringstream o ;
+        this->pushMsgData( o, "response", NULL, rid.c_str() ) ;
+        o << ", \"data\": " << strData.c_str() << "}" ;
+        DR_LOG(log_debug) << "sending " << o.str() << endl ;
+        JsonMsg jsonMsg(o.str()) ;
+        string strJson ;
+        jsonMsg.stringify(strJson) ;
+        boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;        
+    }
+    void Client::sendCancelTransaction( const string& transactionId, const string& msg ) {
+        ostringstream o ;
+        this->pushMsgData( o, "notify", "sip") ;
+        o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"message\": " << msg << "}" << "}" ;
         DR_LOG(log_debug) << "sending " << o.str() << endl ;
         JsonMsg jsonMsg(o.str()) ;
         string strJson ;
