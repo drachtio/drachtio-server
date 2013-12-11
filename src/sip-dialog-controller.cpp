@@ -135,7 +135,8 @@ namespace drachtio {
 
             json_spirit::mObject obj ;
             if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-                tagi_t* tags = this->makeTags( obj ) ;
+                vector<string> vecUnknownStr ;
+                tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
                                                             NULL,
@@ -317,7 +318,8 @@ namespace drachtio {
 
             if( pMsg->get<json_spirit::mObject>("data.headers", obj) ) {
 
-                tagi_t* tags = this->makeTags( obj ) ;
+                vector<string> vecUnknownStr ;
+                tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     NULL, mtype, strMethod.c_str()
@@ -460,13 +462,15 @@ namespace drachtio {
             /* iterate through data.opts.headers, adding headers to the response */
             json_spirit::mObject obj ;
             if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-            	tagi_t* tags = this->makeTags( obj ) ;
-
-	            nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                vector<string> vecUnknownStr ;
+            	tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
+   
+	            int rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                     ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
                     ,TAG_NEXT(tags) ) ;           	
 
-            	delete[] tags ;
+                DR_LOG(log_debug) << "done sending reply " << rc << endl;
+             	delete[] tags ;
             }
             else {
 	            nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
@@ -475,7 +479,7 @@ namespace drachtio {
             }
           }
         else {
-            DR_LOG(log_warning) << "Unable to find invite-in-progress with transactionId " << transactionId << endl ;
+            DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
         }
 
         /* we must explicitly delete an object allocated with placement new */
@@ -716,8 +720,7 @@ namespace drachtio {
         m_mapTransactionId2IIP.erase( itTransaction ) ;
         return dlg ;
     }
-	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs ) {
-       vector<string> vecUnknownStr ;
+	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
         int nHdrs = hdrs.size() ;
         tagi_t *tags = new tagi_t[nHdrs+1] ;
         int i = 0; 
@@ -737,13 +740,13 @@ namespace drachtio {
 
             try {
                 string value = it->second.get_str() ;
-                DR_LOG(log_debug) << "Adding header '" << hdr << "' with value '" << value << "'" << endl ;
 
                 tag_type_t tt ;
                 if( getTagTypeForHdr( hdr, tt ) ) {
                 	/* well-known header */
                     tags[i].t_tag = tt;
                     tags[i].t_value = (tag_value_t) value.c_str() ;
+                    DR_LOG(log_debug) << "Adding well-known header '" << it->first << "' with value '" << value << "'" << endl ;
                 }
                 else {
                     /* custom header */
@@ -760,6 +763,7 @@ namespace drachtio {
                     vecUnknownStr.push_back( o.str() ) ;
                     tags[i].t_tag = siptag_unknown_str ;
                     tags[i].t_value = (tag_value_t) vecUnknownStr.back().c_str() ;
+                    DR_LOG(log_debug) << "Adding custom header '" << it->first << "' with value '" << value << "'" << endl ;
                 }
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "SipDialogController::makeTags - Error attempting to read string value for header " << hdr << ": " << err.what() << endl;

@@ -164,7 +164,7 @@ namespace drachtio {
 		void clearDialog( const string& strDialogId ) ;
 		void clearDialog( nta_leg_t* leg ) ;
 
-		tagi_t* makeTags( json_spirit::mObject&  hdrs ) ;
+		tagi_t* makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) ;
 
 	private:
 		DrachtioController* m_pController ;
