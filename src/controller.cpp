@@ -484,8 +484,6 @@ namespace drachtio {
             {
                 /* TODO:  should support optional config to only allow invites from defined addresses */
 
-                /* TODO: should add support for optionally generating CDRs */
-
                 string transactionId ;
                 generateUuid( transactionId ) ;
 
@@ -517,6 +515,23 @@ namespace drachtio {
                 m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
             }
             break ;
+
+            case sip_method_register:
+            case sip_method_message:
+            case sip_method_options:
+            case sip_method_notify:
+            {
+                string transactionId ;
+                generateUuid( transactionId ) ;
+
+                if( !m_pClientController->route_request_outside_dialog( irq, sip, transactionId ) )  {
+                    DR_LOG(log_error) << "No providers available for register" << endl ;
+                    return 503 ;
+                }
+
+                m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
+                return 0 ;
+            }
             
             case sip_method_ack:
                 /* success case: call has been established */

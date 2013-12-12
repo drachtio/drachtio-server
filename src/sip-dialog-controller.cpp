@@ -445,6 +445,18 @@ namespace drachtio {
 
         DR_LOG(log_debug) << "responding to sip request in thread " << boost::this_thread::get_id() << " with transactionId " << transactionId << endl ;
 
+        int code ;
+        string status ;
+        pMsg->get<int>("data.code", code ) ;
+        pMsg->get<string>("data.status", status);
+
+        json_spirit::mObject obj ;
+        tagi_t* tags = NULL ;
+        if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
+            vector<string> vecUnknownStr ;
+            tags = this->makeTags( obj, vecUnknownStr ) ;
+        }
+
         mapTransactionId2IIP::iterator it = m_mapTransactionId2IIP.find( transactionId ) ;
         if( m_mapTransactionId2IIP.end() != it ) {
             boost::shared_ptr<IIP> iip = it->second ;
@@ -452,35 +464,41 @@ namespace drachtio {
             nta_incoming_t* irq = iip->irq() ;
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
-            int code ;
-            string status ;
-            pMsg->get<int>("data.code", code ) ;
-            pMsg->get<string>("data.status", status);
-
             dlg->setSipStatus( code ) ;
 
             /* iterate through data.opts.headers, adding headers to the response */
-            json_spirit::mObject obj ;
-            if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-                vector<string> vecUnknownStr ;
-            	tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
-   
-	            int rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+            if( tags ) {
+                int rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                     ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
-                    ,TAG_NEXT(tags) ) ;           	
-
-                DR_LOG(log_debug) << "done sending reply " << rc << endl;
-             	delete[] tags ;
+                    ,TAG_NEXT(tags) ) ;                             
             }
             else {
-	            nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                     ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
-                    ,TAG_END() ) ;           	
+                    ,TAG_END() ) ;              
+
             }
-          }
-        else {
-            DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
         }
+        else {
+            nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
+            if( irq ) {
+                if( tags ) {
+                    int rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                        ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
+                        ,TAG_NEXT(tags) ) ;                                 
+                }
+                else {
+                   nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                        ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
+                        ,TAG_END() ) ;                                  
+                }
+            }
+            else {
+                DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
+            }
+        }
+
+        if( tags ) delete[] tags ;
 
         /* we must explicitly delete an object allocated with placement new */
         pData->~SipMessageData() ;

@@ -37,6 +37,7 @@ THE SOFTWARE.
 using namespace std ;
 
 namespace {
+
 	inline stringstream& JSONAPPEND( const char* szName, const char* szValue, stringstream& o, bool comma = true ) {
 		if( szValue ) {
 			if( comma ) o << ",\"" << szName << "\": " ; 
@@ -72,6 +73,9 @@ namespace {
 }
 
 namespace drachtio {
+	
+	const std::string doublequote("\"");
+	const std::string slashquote("\\\"");
 
 	class SofiaMsg {
 	public:
@@ -122,7 +126,9 @@ namespace drachtio {
 					int i = 0 ;
 					for (const msg_param_t* p = params; *p; p++, i++) {
 						if( i > 0 ) o << "," ;
-						o << "\"" << *p << "\""; 
+						string val = *p ;
+						boost::replace_all( val, doublequote, slashquote) ;
+						o << "\"" << val << "\""; 
 					}			
 				}
 				o << "]" ;	
@@ -350,7 +356,10 @@ namespace drachtio {
 		} ;
 		struct expires_parser {
 			static stringstream& toJson( sip_expires_t* p, stringstream& o) {
-				o << "\"" << p->ex_date << "\"" ;
+				o << "{" ;
+				JSONAPPEND("date", p->ex_date,o, false)  ;
+				JSONAPPEND("delta", p->ex_delta,o)  ;
+				o << "}" ;
 				return o ;				
 			}
 		} ;
@@ -859,8 +868,6 @@ namespace drachtio {
 		} ;
 		struct payload_parser {
 			static stringstream& toJson( sip_payload_t* p, stringstream& o) {
-				const std::string doublequote("\"");
-				const std::string slashquote("\\\"");
 				string payload( p->pl_data, p->pl_len ) ;
 				boost::replace_all( payload, "\r\n","\n") ;
 				boost::replace_all( payload, doublequote, slashquote) ;

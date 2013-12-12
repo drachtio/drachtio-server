@@ -130,6 +130,19 @@ namespace drachtio {
 		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) ;
 		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) ;
 
+		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
+			m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
+		}
+		nta_incoming_t* findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) {
+			nta_incoming_t* irq = NULL ;
+			mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
+			if( m_mapTransactionId2Irq.end() != it ) {
+				irq = it->second ;
+				m_mapTransactionId2Irq.erase( it ) ;
+			}
+			return irq ;
+		}
+
         void respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) ;		//called from worker thread, posts message into main thread
         void doRespondToSipRequest( SipMessageData* pData ) ;	//does the actual sip messaging, within main thread
 
@@ -199,6 +212,9 @@ namespace drachtio {
         /* we need to lookup responses to requests sent by the client inside a dialog */
        typedef boost::unordered_map<nta_outgoing_t*, boost::shared_ptr<RIP> > mapOrq2RIP ;
         mapOrq2RIP m_mapOrq2RIP ;
+
+        typedef boost::unordered_map<string, nta_incoming_t*> mapTransactionId2Irq ;
+        mapTransactionId2Irq m_mapTransactionId2Irq ;
 
 
 	} ;
