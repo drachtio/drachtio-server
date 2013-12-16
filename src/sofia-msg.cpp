@@ -37,7 +37,7 @@ namespace drachtio {
 		sip_time_t recv = theOneAndOnlyController->getTransactionTime( irq ) ;
 		theOneAndOnlyController->getTransactionSender( irq, host, port ) ;
 
-		o << "\"source_address\":\"" << host << "\",\"source_port\":" << port << ",\"time\":" << recv ;
+		o << "\"source_address\":\"" << host << "\",\"source_port\":" << port << ",\"time\":" << recv << ", \"source\": \"network\"" ;
 
 		if( sip->sip_request ) {
 			o << ",\"request_uri\": ";
@@ -59,7 +59,7 @@ namespace drachtio {
 
 		su_time_t tv = su_now() ;
 
-		o << "{\"time\":" << tv.tv_sec  ;
+		o << "{\"time\":" << tv.tv_sec << ", \"source\": \"application\"" ;
 
 		if( sip->sip_request ) {
 			o << ",\"request_uri\": ";

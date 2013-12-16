@@ -121,7 +121,7 @@ namespace drachtio {
 
             string strBody ;
             pMsg->get<string>("data.msg.body", strBody) ;
-            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog body is " << strBody << endl ;
+            //DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog body is " << strBody << endl ;
  
             string strMethod ;
             if( !pMsg->get<string>("data.method", strMethod) ) {
