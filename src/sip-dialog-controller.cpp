@@ -508,6 +508,7 @@ namespace drachtio {
                         ,TAG_END() ) ;                                  
                 }
                 assert( 0 == rc ) ; 
+                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq << endl ;
                 nta_incoming_destroy(irq) ;                           
             }
             else {
@@ -522,7 +523,7 @@ namespace drachtio {
     }
 
     int SipDialogController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
-        DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: " << sip->sip_request->rq_method_name << endl ;
+        DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: " << sip->sip_request->rq_method_name << " irq " << irq << endl ;
         int rc = 0 ;
         switch (sip->sip_request->rq_method ) {
             case sip_method_ack:
