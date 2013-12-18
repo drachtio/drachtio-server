@@ -1,5 +1,0 @@
-/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/json-spirit/build/json_demo/CMakeFiles/json_demo.dir
-/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/json-spirit/build/json_headers_only_demo/CMakeFiles/json_headers_only_demo.dir
-/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/json-spirit/build/json_map_demo/CMakeFiles/json_map_demo.dir
-/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/json-spirit/build/json_spirit/CMakeFiles/json_spirit.dir
-/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/json-spirit/build/json_test/CMakeFiles/json_test.dir
