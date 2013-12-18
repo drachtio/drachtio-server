@@ -493,7 +493,6 @@ namespace drachtio {
                     ,TAG_END() ) ;              
             }
             if( 0 != rc ) {
-                cout << "rc: " << rc << endl ;
                 assert(false) ;
             }
         }
@@ -508,7 +507,8 @@ namespace drachtio {
                    rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                         ,TAG_END() ) ;                                  
                 }
-                assert( 0 == rc ) ;                            
+                assert( 0 == rc ) ; 
+                nta_incoming_destroy(irq) ;                           
             }
             else {
                 DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
