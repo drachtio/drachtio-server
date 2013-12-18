@@ -69,6 +69,11 @@ namespace {
     void clone_destroy( su_root_t* root, drachtio::DrachtioController* pController ) {
         return ;
     }
+    void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
+        //theOneAndOnlyController->processWatchdogTimer() ;
+        cout << "timer goes" << endl ;
+    }
+
 }
 
 
@@ -368,16 +373,15 @@ namespace drachtio {
 
     void DrachtioController::run() {
         
-        if( m_bDaemonize ) {
-            daemonize() ;
-        }
+        //if( m_bDaemonize ) {
+         //   daemonize() ;
+        //}
 
 		/* now we can initialize logging */
 		m_logger.reset( this->createLogger() );
 		this->logConfig() ;
 
         DR_LOG(log_debug) << "Main thread id: " << boost::this_thread::get_id() << endl ;
-
 
        /* open stats connection */
         string adminAddress ;
@@ -417,8 +421,9 @@ namespace drachtio {
         rv = su_clone_start( m_root, m_clone, this, clone_init, clone_destroy ) ;
         if( rv < 0 ) {
            DR_LOG(log_error) << "Error calling su_clone_start" << endl ;
-            return  ;
+           return  ;
         }
+
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         
         /* enable extended headers */
@@ -426,8 +431,8 @@ namespace drachtio {
             DR_LOG(log_error) << "Error calling sip_update_default_mclass" << endl ;
             return  ;
         }
-
-        /* create our agent */
+ 
+         /* create our agent */
         char str[URL_MAXLEN] ;
         memset(str, 0, URL_MAXLEN) ;
         strncpy( str, url.c_str(), url.length() ) ;
@@ -464,6 +469,12 @@ namespace drachtio {
         /* sofia event loop */
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id() << endl ;
 
+        /* start a timer */
+        m_timer = su_timer_create( su_root_task(m_root), 10000) ;
+        int rc = su_timer_set_for_ever(m_timer, watchdogTimerHandler, this) ;
+        rc = su_timer_deferrable(m_timer, 1) ;
+        DR_LOG(log_notice) << "watchdog timer started with rc " << rc  << endl ;
+
         su_root_run( m_root ) ;
         DR_LOG(log_notice) << "Sofia event loop ended" << endl ;
         
@@ -488,6 +499,12 @@ namespace drachtio {
                 generateUuid( transactionId ) ;
 
                 nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
+ 
+                 if( !m_pClientController->route_request_outside_dialog( irq, sip, transactionId ) )  {
+                    DR_LOG(log_error) << "No providers available for invite" << endl ;
+                    return 503 ;
+                }
+
                 nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
                                                    SIPTAG_CALL_ID(sip->sip_call_id),
                                                    SIPTAG_CSEQ(sip->sip_cseq),
@@ -496,16 +513,10 @@ namespace drachtio {
                                                    TAG_END());
                 if( NULL == leg ) {
                     DR_LOG(log_error) << "Error creating a leg for  origination" << endl ;
+                    //TODO: we got a client out there with a dead INVITE now...
                     return 500 ;
                 }
-
                 boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
-
-                if( !m_pClientController->route_request_outside_dialog( irq, sip, transactionId ) )  {
-                    DR_LOG(log_error) << "No providers available for invite" << endl ;
-                    return 503 ;
-                }
-
                 dlg->setTransactionId( transactionId ) ;
 
                 string contactStr ;
@@ -513,9 +524,16 @@ namespace drachtio {
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
                 m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
+
+
             }
             break ;
 
+            case sip_method_ack:
+
+                /* success case: call has been established */
+                nta_incoming_destroy( irq ) ;
+                return 0 ;               
             case sip_method_register:
             case sip_method_message:
             case sip_method_options:
@@ -533,12 +551,9 @@ namespace drachtio {
                 return 0 ;
             }
             
-            case sip_method_ack:
-                /* success case: call has been established */
-                nta_incoming_destroy( irq ) ;
-                return 0 ;               
             case sip_method_bye:
-                DR_LOG(log_error) << "Received BYE for unknown dialog: " << sip->sip_call_id->i_id << endl ;
+            case sip_method_cancel:
+                DR_LOG(log_error) << "Received BYE or CANCEL for unknown dialog: " << sip->sip_call_id->i_id << endl ;
                 return 481 ;
                 
             default:
@@ -692,7 +707,7 @@ namespace drachtio {
        DR_LOG(log_info) << "number of sip requests sent                                      " << sent_request << endl ;
        DR_LOG(log_debug) << "number of bad sip messages received                              " << bad_message << endl ;
        DR_LOG(log_debug) << "number of bad sip requests received                              " << bad_request << endl ;
-       DR_LOG(log_debug) << "number of bad sip requests received                              " << drop_request << endl ;
+       DR_LOG(log_debug) << "number of bad sip requests dropped                               " << drop_request << endl ;
        DR_LOG(log_debug) << "number of bad sip reponses dropped                               " << drop_response << endl ;
        DR_LOG(log_debug) << "number of client transactions created                            " << client_tr << endl ;
        DR_LOG(log_debug) << "number of server transactions created                            " << server_tr << endl ;
@@ -711,6 +726,11 @@ namespace drachtio {
        DR_LOG(log_info) << "number of retransmitted SIP requests received by stack           " << recv_retry << endl ;
        DR_LOG(log_debug) << "number of SIP client transactions that has timeout               " << tout_request << endl ;
        DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response << endl ;
+    }
+    void DrachtioController::processWatchdogTimer() {
+        DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer" << endl ;
+        this->printStats() ;
+        m_pDialogController->logStorageCount() ;
     }
 
 }

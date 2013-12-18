@@ -72,6 +72,8 @@ namespace drachtio {
 
         void addDialogForTransaction( const string& transactionId, const string& dialogId ) ;
 
+        void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
+
     protected:
 
         class RequestSpecifier {

@@ -47,10 +47,10 @@ namespace drachtio {
 	class IIP {
 	public:
 		IIP( nta_leg_t* leg, nta_incoming_t* irq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
-			m_leg(leg), m_irq(irq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role) {}
+			m_leg(leg), m_irq(irq), m_orq(NULL), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role) {}
 
 		IIP( nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
-			m_leg(leg), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role) {}
+			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role) {}
 
 		~IIP() {}
 
@@ -159,7 +159,7 @@ namespace drachtio {
 
         int processResponseOutsideDialog( nta_outgoing_t* request, sip_t const* sip )  ;
         int processResponseInsideDialog( nta_outgoing_t* request, sip_t const* sip ) ;
-        int processCancel( nta_incoming_t* irq, sip_t const *sip ) ;
+        int processCancelOrAck( nta_incoming_t* irq, sip_t const *sip ) ;
 
 	    bool isManagingTransaction( const string& transactionId ) {
 	    	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;
@@ -172,6 +172,8 @@ namespace drachtio {
 		bool findIIPByIrq( nta_incoming_t* irq, boost::shared_ptr<IIP>& iip ) ;
 		bool findIIPByTransactionId( const string& transactionId, boost::shared_ptr<IIP>& iip ) ;
 
+		void logStorageCount(void)  ;
+
 	protected:
 		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;
 		void clearDialog( const string& strDialogId ) ;
@@ -182,6 +184,8 @@ namespace drachtio {
 	private:
 		DrachtioController* m_pController ;
 		su_clone_r*			m_pClone ;
+       	//boost::mutex 		m_mutex ;
+ 
  
  		/* we need to lookup invites in progress that we've received by nta_incoming_t* when we get a CANCEL from the network */
         typedef boost::unordered_map<nta_incoming_t*, boost::shared_ptr<IIP> > mapIrq2IIP ;
@@ -202,7 +206,7 @@ namespace drachtio {
         mapLeg2IIP m_mapLeg2IIP ;
 
   		/* we need to lookup dialogs by leg when we get a request from the network */
-       typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<SipDialog> > mapLeg2Dialog ;
+        typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<SipDialog> > mapLeg2Dialog ;
         mapLeg2Dialog m_mapLeg2Dialog ;
 
  		/* we need to lookup dialogs by dialog  idwhen we get a request from the client  */

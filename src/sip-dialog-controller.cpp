@@ -48,9 +48,9 @@ namespace {
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         return pController->getDialogController()->processRequestInsideDialog( leg, irq, sip) ;
     }
-    int uasCancel( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
+    int uasCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
-        return pController->getDialogController()->processCancel( irq, sip) ;
+        return pController->getDialogController()->processCancelOrAck( irq, sip) ;
     }
    int response_to_request_outside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {   
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
@@ -65,6 +65,7 @@ namespace {
         drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
         pController->getDialogController()->doSendRequestInsideDialog( d ) ;
     }
+
 }
 
 
@@ -77,6 +78,7 @@ namespace drachtio {
     int SipDialogController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) {
        DR_LOG(log_debug) << "SipDialogController::sendSipRequestInsideDialog thread id: " << boost::this_thread::get_id() << endl ;
 
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequestInsideDialog, 
             sizeof( SipDialogController::SipMessageData ) );
@@ -96,13 +98,15 @@ namespace drachtio {
         return true ;
     }
 
-    void SipDialogController::doSendRequestInsideDialog( SipMessageData* pData ) {
+    void SipDialogController::doSendRequestInsideDialog( SipMessageData* pData ) {                
+        vector<string> vecUnknownStr ;
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
         ostringstream o ;
         string rid( pData->getRequestId() ) ;
         string dialogId( pData->getDialogId() ) ;
         boost::shared_ptr<SipDialog> dlg ;
         nta_outgoing_t* orq = NULL ;
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         try {
 
@@ -135,7 +139,6 @@ namespace drachtio {
 
             json_spirit::mObject obj ;
             if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-                vector<string> vecUnknownStr ;
                 tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
@@ -170,6 +173,10 @@ namespace drachtio {
             o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"message\": " << req.str() << "}" ;
             m_pController->getClientController()->sendResponseToClient( rid, o.str(), transactionId ) ; 
 
+            if( sip_method_bye == mtype ) {
+                this->clearDialog( dialogId ) ;
+            }
+
        } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - Error " << err.what() << endl;
             o << "{\"success\": false, \"reason\": \"" << err.what() << "\"}" ;
@@ -181,7 +188,8 @@ namespace drachtio {
     }
    
     bool SipDialogController::sendCancelRequest( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
-       su_msg_r msg = SU_MSG_R_INIT ;
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipCancelRequest, 
             sizeof( SipDialogController::SipMessageData ) );
         if( rv < 0 ) {
@@ -200,6 +208,7 @@ namespace drachtio {
         return true ;
     }
     void SipDialogController::doSendCancelRequest( SipMessageData* pData ) {
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         string rid( pData->getRequestId() ) ;
         string transactionId( pData->getTransactionId() ) ;
         boost::shared_ptr<IIP> iip ;
@@ -219,6 +228,7 @@ namespace drachtio {
    }
 
     bool SipDialogController::sendRequestOutsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequest, 
             sizeof( SipDialogController::SipMessageData ) );
@@ -237,6 +247,8 @@ namespace drachtio {
         return true ;
     }
     void SipDialogController::doSendRequestOutsideDialog( SipMessageData* pData ) {
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        vector<string> vecUnknownStr ;
         nta_leg_t* leg = NULL ;
         nta_outgoing_t* orq = NULL ;
         string rid( pData->getRequestId() ) ;
@@ -318,7 +330,6 @@ namespace drachtio {
 
             if( pMsg->get<json_spirit::mObject>("data.headers", obj) ) {
 
-                vector<string> vecUnknownStr ;
                 tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
@@ -367,6 +378,7 @@ namespace drachtio {
     }
 
     int SipDialogController::processResponseOutsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         mapOrq2IIP::iterator it = m_mapOrq2IIP.find( orq ) ;
         if( m_mapOrq2IIP.end() == it ) {
             DR_LOG(log_error) << "SipDialogController::processResponse - unable to match response with callid " << sip->sip_call_id->i_id << endl ;
@@ -421,7 +433,7 @@ namespace drachtio {
     }
 
     void SipDialogController::respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg  ) {
-       DR_LOG(log_debug) << "respondToSipRequest thread id: " << boost::this_thread::get_id() << endl ;
+        DR_LOG(log_debug) << "respondToSipRequest thread id: " << boost::this_thread::get_id() << endl ;
 
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneRespondToSipRequest, 
@@ -440,6 +452,7 @@ namespace drachtio {
         }
     }
     void SipDialogController::doRespondToSipRequest( SipMessageData* pData ) {
+        vector<string> vecUnknownStr ; //this needs to exist for as long as we access tags below
         string transactionId( pData->getTransactionId() ) ;
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
 
@@ -453,45 +466,49 @@ namespace drachtio {
         json_spirit::mObject obj ;
         tagi_t* tags = NULL ;
         if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-            vector<string> vecUnknownStr ;
             tags = this->makeTags( obj, vecUnknownStr ) ;
         }
 
+        nta_incoming_t* irq = NULL ;
+        int rc = -1 ;
         mapTransactionId2IIP::iterator it = m_mapTransactionId2IIP.find( transactionId ) ;
         if( m_mapTransactionId2IIP.end() != it ) {
             boost::shared_ptr<IIP> iip = it->second ;
             nta_leg_t* leg = iip->leg() ;
-            nta_incoming_t* irq = iip->irq() ;
+            irq = iip->irq() ;
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
             dlg->setSipStatus( code ) ;
 
             /* iterate through data.opts.headers, adding headers to the response */
             if( tags ) {
-                int rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                     ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
-                    ,TAG_NEXT(tags) ) ;                             
+                    ,TAG_NEXT(tags)
+                    ,TAG_END() ) ; 
             }
             else {
-                nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                     ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
                     ,TAG_END() ) ;              
-
+            }
+            if( 0 != rc ) {
+                cout << "rc: " << rc << endl ;
+                assert(false) ;
             }
         }
         else {
             nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
             if( irq ) {
                 if( tags ) {
-                    int rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
-                        ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
-                        ,TAG_NEXT(tags) ) ;                                 
-                }
+                    rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                        ,TAG_NEXT(tags), TAG_END() ) ;                                 
+                    }
                 else {
-                   nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
-                        ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
+                   rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                         ,TAG_END() ) ;                                  
                 }
+                assert( 0 == rc ) ;                            
             }
             else {
                 DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
@@ -505,7 +522,7 @@ namespace drachtio {
     }
 
     int SipDialogController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
-        DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog" << endl ;
+        DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: " << sip->sip_request->rq_method_name << endl ;
         int rc = 0 ;
         switch (sip->sip_request->rq_method ) {
             case sip_method_ack:
@@ -565,6 +582,7 @@ namespace drachtio {
         return rc ;
     }
     int SipDialogController::processResponseInsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
     	ostringstream o ;
 
     	mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
@@ -579,11 +597,18 @@ namespace drachtio {
 
 		return 0 ;
     }
-    int SipDialogController::processCancel( nta_incoming_t* irq, sip_t const *sip ) {
+    int SipDialogController::processCancelOrAck( nta_incoming_t* irq, sip_t const *sip ) {
+        if( !sip ) {
+            DR_LOG(log_warning) << "SipDialogController::processCancelOrAck - received null sip message, irq is " << irq << endl ;
+            return -1 ;
+        }
+        DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name << endl ;
         if( !sip ) {
             DR_LOG(log_debug) << "SipDialogController::processCancel called with null sip pointer" << endl ;
             return -1 ;
         }
+
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         if( sip->sip_request->rq_method == sip_method_cancel ) {
             boost::shared_ptr<IIP> iip ;
             if( !findIIPByIrq( irq, iip ) ) {
@@ -599,6 +624,9 @@ namespace drachtio {
 
             DR_LOG(log_debug) << "Received CANCEL for call-id " << sip->sip_call_id->i_id << ", sending to client" << endl ;
             m_pController->getClientController()->route_cancel_transaction( irq, sip, dlg->getTransactionId() ) ;
+            this->clearIIP( iip->leg() ) ;
+            DR_LOG(log_debug) << "After clearing UAS IIP for CANCEL, there are " << m_mapLeg2IIP.size() << " invites in progress" << endl ;
+
 
         }
         else if( sip->sip_request->rq_method == sip_method_ack ) {
@@ -626,6 +654,7 @@ namespace drachtio {
 		nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
 		assert( leg ) ;
 
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
         m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
 
@@ -700,7 +729,7 @@ namespace drachtio {
         m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
         m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   
 
-        nta_incoming_bind( irq, uasCancel, (nta_incoming_magic_t *) m_pController ) ;
+        nta_incoming_bind( irq, uasCancelOrAck, (nta_incoming_magic_t *) m_pController ) ;
     }
     void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) {        
         boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, transactionId, dlg) ;
@@ -724,6 +753,8 @@ namespace drachtio {
         mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
         assert( it != m_mapLeg2IIP.end() ) ;
         boost::shared_ptr<IIP> iip = it->second ;
+        nta_incoming_t* irq = iip->irq() ;
+        nta_outgoing_t* orq = iip->orq() ;
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
         mapIrq2IIP::iterator itIrq = m_mapIrq2IIP.find( iip->irq() ) ;
         mapOrq2IIP::iterator itOrq = m_mapOrq2IIP.find( iip->orq() ) ;
@@ -736,6 +767,9 @@ namespace drachtio {
         if( itIrq != m_mapIrq2IIP.end() ) m_mapIrq2IIP.erase( itIrq ) ;
         if( itOrq != m_mapOrq2IIP.end() ) m_mapOrq2IIP.erase( itOrq ) ;
         m_mapTransactionId2IIP.erase( itTransaction ) ;
+
+        if( irq ) nta_incoming_destroy( irq ) ;
+        if( orq ) nta_outgoing_destroy( orq ) ;
         return dlg ;
     }
 	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
@@ -793,5 +827,16 @@ namespace drachtio {
 
         return tags ;	//NB: caller responsible to delete after use to free memory      
 	}
+
+    void SipDialogController::logStorageCount(void)  {
+        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
+
+        DR_LOG(log_debug) << "m_mapIrq2IIP size " << m_mapIrq2IIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapOrq2IIP size " << m_mapOrq2IIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapTransactionId2IIP size " << m_mapTransactionId2IIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapLeg2Dialog size " << m_mapLeg2Dialog.size() << endl ;
+        DR_LOG(log_debug) << "m_mapId2Dialog size " << m_mapId2Dialog.size() << endl ;
+        DR_LOG(log_debug) << "m_mapOrq2RIP size " << m_mapOrq2RIP.size() << endl ;
+    }
 
 }

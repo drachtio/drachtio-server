@@ -114,6 +114,7 @@ namespace drachtio {
                 }
 
                 void printStats(void) ;
+                void processWatchdogTimer(void) ;
 
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
@@ -143,7 +144,7 @@ namespace drachtio {
                 shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sink ;
                 shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
                 int m_bDaemonize ;
-        		severity_levels m_current_severity_threshold ;
+                severity_levels m_current_severity_threshold ;
 
                 shared_ptr< ClientController > m_pClientController ;
 
@@ -151,13 +152,14 @@ namespace drachtio {
  
                 su_home_t* 	m_home ;
                 su_root_t* 	m_root ;
-                su_timer_t* m_timer ;
+                su_timer_t*     m_timer ;
                 nta_agent_t*	m_nta ;
                 nta_leg_t*      m_defaultLeg ;
                 string          m_my_via ;
                 sip_contact_t*  m_my_contact ;
 
         	su_clone_r 	m_clone ;
+
         } ;
 
 } ;

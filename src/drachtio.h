@@ -95,6 +95,7 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 	sip_method_t methodType( const std::string& method ) ;
 
 	bool isLocalSipUri( const std::string& uri ) ;
+ 
  }
 
 typedef boost::tokenizer<boost::char_separator<char> > tokenizer ;
