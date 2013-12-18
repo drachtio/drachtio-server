@@ -10,6 +10,9 @@ Currently, you must build the dependencies by hand.  This will be fixed in a fut
 
 ```bash
 cd ${srcdir}/deps/sofia-sip-1.12.11
+./configure CPPFLAGS=-DNDEBUG 
+..or..
+./configure CPPFLAGS=-DDEBUG CXXFLAGS='-g -O0'
 make
 make install
 ```

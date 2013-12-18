@@ -10,7 +10,8 @@ timer_CPPFLAGS=-D_REENTRANT
 timer_LDADD=${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a -lpthread -lssl -lcrypto
 
 if LINUX
-#drachtio_LDADD += -lrt
+drachtio_LDADD += -lrt
+timer_LDADD += -lrt
 endif
 
 #clean-local:
