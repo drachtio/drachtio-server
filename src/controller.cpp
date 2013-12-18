@@ -70,8 +70,7 @@ namespace {
         return ;
     }
     void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
-        //theOneAndOnlyController->processWatchdogTimer() ;
-        cout << "timer goes" << endl ;
+        theOneAndOnlyController->processWatchdogTimer() ;
     }
 
 }
@@ -373,9 +372,9 @@ namespace drachtio {
 
     void DrachtioController::run() {
         
-        //if( m_bDaemonize ) {
-         //   daemonize() ;
-        //}
+        if( m_bDaemonize ) {
+            daemonize() ;
+        }
 
 		/* now we can initialize logging */
 		m_logger.reset( this->createLogger() );
@@ -470,11 +469,9 @@ namespace drachtio {
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id() << endl ;
 
         /* start a timer */
-        m_timer = su_timer_create( su_root_task(m_root), 10000) ;
-        int rc = su_timer_set_for_ever(m_timer, watchdogTimerHandler, this) ;
-        rc = su_timer_deferrable(m_timer, 1) ;
-        DR_LOG(log_notice) << "watchdog timer started with rc " << rc  << endl ;
-
+        m_timer = su_timer_create( su_root_task(m_root), 30000) ;
+        su_timer_set_for_ever(m_timer, watchdogTimerHandler, this) ;
+ 
         su_root_run( m_root ) ;
         DR_LOG(log_notice) << "Sofia event loop ended" << endl ;
         

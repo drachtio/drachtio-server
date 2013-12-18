@@ -45,20 +45,11 @@ namespace drachtio {
     }
     ClientController::~ClientController() {
         this->stop() ;
-   }
-    void ClientController::onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) {
-        //m_pController->processWatchdogTimer() ;
-        //t->expires_at(t->expires_at() + boost::posix_time::seconds(25));
-        //t->async_wait(boost::bind(&ClientController::onTimer, this, boost::asio::placeholders::error, t ));
     }
-
     void ClientController::threadFunc() {
         
         DR_LOG(log_debug) << "Client controller thread id: " << boost::this_thread::get_id() << endl ;
-        
-        boost::asio::deadline_timer t(m_ioservice, boost::posix_time::seconds(25) ) ;
-        t.async_wait(boost::bind(&ClientController::onTimer, this, boost::asio::placeholders::error, &t ));
- 
+         
         /* to make sure the event loop doesn't terminate when there is no work to do */
         boost::asio::io_service::work work(m_ioservice);
         
