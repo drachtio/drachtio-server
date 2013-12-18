@@ -528,7 +528,7 @@ namespace drachtio {
         switch (sip->sip_request->rq_method ) {
             case sip_method_ack:
             {
-                /* all done */
+                /* ack to 200 OK, now we are all done */
                 mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
                 if( m_mapLeg2IIP.end() == it ) {
                     DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find IIP for leg" << endl ;
@@ -541,6 +541,7 @@ namespace drachtio {
                     boost::shared_ptr<SipDialog> dlg = this->clearIIP( leg ) ;
                     m_pController->notifyDialogConstructionComplete( dlg ) ;
                     m_pController->getClientController()->route_request_inside_dialog( irq, sip, dlg->getDialogId() ) ;
+                    nta_incoming_destroy(irq) ;
                 }
                 break ;
             }
