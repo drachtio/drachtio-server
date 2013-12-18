@@ -595,6 +595,8 @@ namespace drachtio {
 
     	m_mapOrq2RIP.erase( it ) ;
 
+        nta_outgoing_destroy( orq ) ;
+
 		return 0 ;
     }
     int SipDialogController::processCancelOrAck( nta_incoming_t* irq, sip_t const *sip ) {
