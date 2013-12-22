@@ -85,23 +85,4 @@ namespace drachtio {
 			nta_leg_destroy( leg ) ;
 		}
 	}
-
-	int SipDialog::processRequest( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) {
-        switch (sip->sip_request->rq_method ) {
-            case sip_method_bye:
-            	DR_LOG(log_debug) << "SipDialog::processRequest - received BYE for " << sip->sip_call_id->i_id << endl ;
-            	theOneAndOnlyController->getClientController()->route_request_inside_dialog( irq, sip, m_dialogId ) ;
-
-            	/* NB: for a BYE we automatically return a 200 OK without waiting for client */
-            	return 200 ;
-
-            break ;
-
-            default:
-                DR_LOG(log_error) << "SipDialog::processRequest - unsupported method type: " << sip->sip_request->rq_method_name << ": " << sip->sip_call_id->i_id << endl ;
-                return 501 ;
-		 }
-		return 0 ;
-	}
-
 } 

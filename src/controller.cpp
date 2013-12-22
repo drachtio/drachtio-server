@@ -422,8 +422,6 @@ namespace drachtio {
            DR_LOG(log_error) << "Error calling su_clone_start" << endl ;
            return  ;
         }
-
-        m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         
         /* enable extended headers */
         if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
@@ -464,6 +462,8 @@ namespace drachtio {
         if( m_my_contact->m_url[0].url_port ) s << ":" <<  m_my_contact->m_url[0].url_port  ;
         m_my_via.assign( s.str().c_str(), s.str().length() ) ;
         DR_LOG(log_debug) << "My via header: " << m_my_via << endl ;
+
+        m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
               
         /* sofia event loop */
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id() << endl ;

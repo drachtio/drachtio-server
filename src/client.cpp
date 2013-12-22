@@ -253,10 +253,10 @@ namespace drachtio {
         jsonMsg.stringify(strJson) ;
         boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
     }
-    void Client::sendRequestWithinDialog( const string& dialogId, const string& msg ) {
+    void Client::sendRequestWithinDialog( const string& transactionId, const string& dialogId, const string& msg ) {
         ostringstream o ;
         this->pushMsgData( o, "notify", "sip") ;
-        o << ", \"data\": {\"dialogId\": \"" << dialogId << "\",\"message\": " << msg << "}" << "}" ;
+        o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"dialogId\": \"" << dialogId << "\",\"message\": " << msg << "}" << "}" ;
         DR_LOG(log_debug) << "sending " << o.str() << endl ;
         JsonMsg jsonMsg(o.str()) ;
         string strJson ;

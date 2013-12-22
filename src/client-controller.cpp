@@ -145,7 +145,7 @@ namespace drachtio {
          m_pController->getDialogController()->respondToSipRequest( transactionId, pMsg ) ;
     }
 
-    bool ClientController::route_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& dialogId ) {
+    bool ClientController::route_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& dialogId ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
@@ -156,7 +156,7 @@ namespace drachtio {
         string json = sm->str() ;
         JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendRequestWithinDialog, client, dialogId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendRequestWithinDialog, client, transactionId, dialogId, json) ) ;
 
         return true ;
     }

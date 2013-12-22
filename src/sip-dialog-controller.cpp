@@ -22,11 +22,10 @@ THE SOFTWARE.
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
-#include <sofia-sip/nta.h>
-
 #include "controller.hpp"
 #include "sofia-msg.hpp"
 #include "sip-dialog-controller.hpp"
+
 
 namespace {
     void cloneRespondToSipRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
@@ -49,8 +48,8 @@ namespace {
         return pController->getDialogController()->processRequestInsideDialog( leg, irq, sip) ;
     }
     int uasCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
-        drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
-        return pController->getDialogController()->processCancelOrAck( irq, sip) ;
+       drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
+        return pController->getDialogController()->processCancelOrAck( p, irq, sip) ;
     }
    int response_to_request_outside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {   
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
@@ -71,14 +70,17 @@ namespace {
 
 namespace drachtio {
 
-	SipDialogController::SipDialogController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone) {
+	SipDialogController::SipDialogController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
+        m_agent(pController->getAgent()), m_pClientController(pController->getClientController()) {
+
+            assert(m_agent) ;
+            assert(m_pClientController) ;
 	}
 	SipDialogController::~SipDialogController() {
 	}
     int SipDialogController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) {
        DR_LOG(log_debug) << "SipDialogController::sendSipRequestInsideDialog thread id: " << boost::this_thread::get_id() << endl ;
 
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequestInsideDialog, 
             sizeof( SipDialogController::SipMessageData ) );
@@ -95,6 +97,7 @@ namespace drachtio {
         if( rv < 0 ) {
             return  false;
         }
+
         return true ;
     }
 
@@ -106,8 +109,7 @@ namespace drachtio {
         string dialogId( pData->getDialogId() ) ;
         boost::shared_ptr<SipDialog> dlg ;
         nta_outgoing_t* orq = NULL ;
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
+ 
         try {
 
             if( !findDialogById( dialogId, dlg ) ) {
@@ -167,7 +169,7 @@ namespace drachtio {
             generateUuid( transactionId ) ;
 
             boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid ) ;
-            m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,p)) ;
+            addRIP( orq, p ) ;
 
             SofiaMsg req( orq, sip ) ;
             o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"message\": " << req.str() << "}" ;
@@ -188,7 +190,6 @@ namespace drachtio {
     }
    
     bool SipDialogController::sendCancelRequest( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipCancelRequest, 
             sizeof( SipDialogController::SipMessageData ) );
@@ -208,7 +209,6 @@ namespace drachtio {
         return true ;
     }
     void SipDialogController::doSendCancelRequest( SipMessageData* pData ) {
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         string rid( pData->getRequestId() ) ;
         string transactionId( pData->getTransactionId() ) ;
         boost::shared_ptr<IIP> iip ;
@@ -228,7 +228,6 @@ namespace drachtio {
    }
 
     bool SipDialogController::sendRequestOutsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequest, 
             sizeof( SipDialogController::SipMessageData ) );
@@ -378,16 +377,13 @@ namespace drachtio {
     }
 
     int SipDialogController::processResponseOutsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
-        mapOrq2IIP::iterator it = m_mapOrq2IIP.find( orq ) ;
-        if( m_mapOrq2IIP.end() == it ) {
+ 
+        boost::shared_ptr<IIP> iip ;
+        if( !findIIPByOrq( orq, iip ) ) {
             DR_LOG(log_error) << "SipDialogController::processResponse - unable to match response with callid " << sip->sip_call_id->i_id << endl ;
             //TODO: do I need to destroy this transaction?
-            return -1 ; //TODO: check meaning of return value
+            return -1 ; //TODO: check meaning of return value           
         }
-
-        /* send to client */
-        boost::shared_ptr<IIP> iip = it->second ;
         m_pController->getClientController()->route_response_inside_transaction( orq, sip, iip->transactionId() ) ;
 
         bool bClear = false ;
@@ -471,9 +467,11 @@ namespace drachtio {
 
         nta_incoming_t* irq = NULL ;
         int rc = -1 ;
-        mapTransactionId2IIP::iterator it = m_mapTransactionId2IIP.find( transactionId ) ;
-        if( m_mapTransactionId2IIP.end() != it ) {
-            boost::shared_ptr<IIP> iip = it->second ;
+
+        boost::shared_ptr<IIP> iip ;
+
+        /* search for invites in progress first, then requests within a dialog (could check to see if this is an INVITE here) */
+        if( findIIPByTransactionId( transactionId, iip ) ) {
             nta_leg_t* leg = iip->leg() ;
             irq = iip->irq() ;
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
@@ -499,6 +497,7 @@ namespace drachtio {
         else {
             nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
             if( irq ) {
+                //TODO: if we have already generated a response (BYE, INFO with msml) then don't try again
                 if( tags ) {
                     rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                         ,TAG_NEXT(tags), TAG_END() ) ;                                 
@@ -512,7 +511,7 @@ namespace drachtio {
                 nta_incoming_destroy(irq) ;                           
             }
             else {
-                DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
+                 DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
             }
         }
 
@@ -525,22 +524,24 @@ namespace drachtio {
     int SipDialogController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
         DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: " << sip->sip_request->rq_method_name << " irq " << irq << endl ;
         int rc = 0 ;
+        string transactionId ;
+        generateUuid( transactionId ) ;
+
         switch (sip->sip_request->rq_method ) {
             case sip_method_ack:
             {
                 /* ack to 200 OK, now we are all done */
-                mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
-                if( m_mapLeg2IIP.end() == it ) {
+                boost::shared_ptr<IIP> iip ;
+                if( !findIIPByLeg( leg, iip ) ) {
                     DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find IIP for leg" << endl ;
                     assert(false) ;
                 }
                 else {
-                    boost::shared_ptr<IIP> iip = it->second ;
                     string transactionId = iip->transactionId() ;
 
                     boost::shared_ptr<SipDialog> dlg = this->clearIIP( leg ) ;
                     m_pController->notifyDialogConstructionComplete( dlg ) ;
-                    m_pController->getClientController()->route_request_inside_dialog( irq, sip, dlg->getDialogId() ) ;
+                    m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
                     nta_incoming_destroy(irq) ;
                 }
                 break ;
@@ -553,55 +554,50 @@ namespace drachtio {
                     assert(0) ;
                     return 200 ;
                 }
-
-                m_pController->getClientController()->route_request_inside_dialog( irq, sip, dlg->getDialogId() ) ;
+                addIncomingRequestTransaction( irq, transactionId) ;
+                m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
  
                 this->clearDialog( leg ) ;
                 rc = 200 ;
                 break ;
             }
-            case sip_method_info:
+            default:
             {
-                if( 0 == strcmp( sip->sip_content_type->c_type, "application/msml+xml") ) {
+                if( sip_method_info == sip->sip_request->rq_method && 0 == strcmp( sip->sip_content_type->c_type, "application/msml+xml") ) {
                     /* msml INFO messages are notifications of events, and there is no reason (that I know of) to send anything but a 200 in response*/
                     rc = 200 ;
                 }
                 boost::shared_ptr<SipDialog> dlg ;
                 if( !this->findDialogByLeg( leg, dlg ) ) {
                     DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg" << endl ;
-                    assert(0) ;
                     return 200 ;
+                    assert(0) ;
                 }
 
-                m_pController->getClientController()->route_request_inside_dialog( irq, sip, dlg->getDialogId() ) ;
+                //TODO: here is the problem: we send this to client and don't save the irq - it never gets cleared
+                m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
 
             }
-
-            default:
-                DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - method not implemented " << sip->sip_request->rq_method_name << endl ;
-                break ;
         }
         return rc ;
     }
     int SipDialogController::processResponseInsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
         //boost::lock_guard<boost::mutex> lock(m_mutex) ;
     	ostringstream o ;
+        boost::shared_ptr<RIP> rip  ;
 
-    	mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
+        if( findRIPByOrq( orq, rip ) ) {
+            m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
+            clearRIP( orq ) ;          
+        }
+        else {
 
-    	assert( m_mapOrq2RIP.end() != it ) ;
-
-    	boost::shared_ptr<RIP> rip = it->second ;
-
-        m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
-
-    	m_mapOrq2RIP.erase( it ) ;
-
+        }
         nta_outgoing_destroy( orq ) ;
-
+  
 		return 0 ;
     }
-    int SipDialogController::processCancelOrAck( nta_incoming_t* irq, sip_t const *sip ) {
+    int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
         if( !sip ) {
             DR_LOG(log_warning) << "SipDialogController::processCancelOrAck - received null sip message, irq is " << irq << endl ;
             return -1 ;
@@ -629,9 +625,6 @@ namespace drachtio {
             DR_LOG(log_debug) << "Received CANCEL for call-id " << sip->sip_call_id->i_id << ", sending to client" << endl ;
             m_pController->getClientController()->route_cancel_transaction( irq, sip, dlg->getTransactionId() ) ;
             this->clearIIP( iip->leg() ) ;
-            DR_LOG(log_debug) << "After clearing UAS IIP for CANCEL, there are " << m_mapLeg2IIP.size() << " invites in progress" << endl ;
-
-
         }
         else if( sip->sip_request->rq_method == sip_method_ack ) {
             boost::shared_ptr<IIP> iip ;
@@ -640,8 +633,7 @@ namespace drachtio {
                 return 0 ;
             }
             boost::shared_ptr<SipDialog> dlg = this->clearIIP( iip->leg() ) ;
-            DR_LOG(log_debug) << "After clearing UAS IIP for ACK to non-success response, there are " << m_mapLeg2IIP.size() << " invites in progress" << endl ;
-            DR_LOG(log_debug) << "Most recent sip response on this dialog was " << dlg->getSipStatus() << endl ;
+             DR_LOG(log_debug) << "Most recent sip response on this dialog was " << dlg->getSipStatus() << endl ;
             //NB: when we get a CANCEL sofia sends the 487 response to the INVITE itself, so our latest sip status will be a provisional
             //not sure that we need to do anything particular about that however....though it we write cdrs we would want to capture the 487 final response
         }
@@ -651,132 +643,7 @@ namespace drachtio {
         return 0 ;
     }
 
-
-	void SipDialogController::addDialog( boost::shared_ptr<SipDialog> dlg ) {
-		const string strDialogId = dlg->getDialogId() ;
-		DR_LOG(log_debug) << "SipDialogController::addDialog call-id: " << dlg->getCallId() << " dialog id: " << strDialogId << endl ;
-		nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
-		assert( leg ) ;
-
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
-        m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
-        m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
-
-        m_pController->getClientController()->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;
-	}
-
-	bool SipDialogController::findDialogByLeg( nta_leg_t* leg, boost::shared_ptr<SipDialog>& dlg ) {
-		/* look in invites-in-progress first */
-        mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
-        if( m_mapLeg2IIP.end() == it ) {
-
-        	/* if not found, look in stable dialogs */
-			mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
-			if( m_mapLeg2Dialog.end() == itLeg ) return false ;
-			dlg = itLeg->second ;
-			return true ;
-        }
-
-        dlg = it->second->dlg() ;
-        return true ;
-
-	}
-	bool SipDialogController::findDialogById( const string& strDialogId, boost::shared_ptr<SipDialog>& dlg ) {
-		mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
-		if( m_mapId2Dialog.end() == it ) return false ;
-		dlg = it->second ;
-		return true ;
-	}
-
-	void SipDialogController::clearDialog( const string& strDialogId ) {
-		mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
-		if( m_mapId2Dialog.end() == it ) {
-			assert(0) ;
-			return ;
-		}
-		boost::shared_ptr<SipDialog> dlg = it->second ;
-		nta_leg_t* leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
-		m_mapId2Dialog.erase( it ) ;
-
-		mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
-		if( m_mapLeg2Dialog.end() == itLeg ) {
-			assert(0) ;
-			return ;
-		}
-		m_mapLeg2Dialog.erase( itLeg ) ;
-
-	}
-	void SipDialogController::clearDialog( nta_leg_t* leg ) {
-		mapLeg2Dialog::iterator it = m_mapLeg2Dialog.find( leg ) ;
-		if( m_mapLeg2Dialog.end() == it ) {
-			assert(0) ;
-			return ;
-		}
-		boost::shared_ptr<SipDialog> dlg = it->second ;
-		string strDialogId = dlg->getDialogId() ;
-		m_mapLeg2Dialog.erase( it ) ;
-
-		mapId2Dialog::iterator itId = m_mapId2Dialog.find( strDialogId ) ;
-		if( m_mapId2Dialog.end() == itId ) {
-			assert(0) ;
-			return ;
-		}
-		m_mapId2Dialog.erase( itId );
-	}
-
-    void SipDialogController::addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) {        
-        const char* a_tag = nta_incoming_tag( irq, NULL) ;
-        nta_leg_tag( leg, a_tag ) ;
-        dlg->setLocalTag( a_tag ) ;
-        boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, irq, transactionId, dlg) ;
-        m_mapIrq2IIP.insert( mapIrq2IIP::value_type(irq, p) ) ;
-        m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
-        m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   
-
-        nta_incoming_bind( irq, uasCancelOrAck, (nta_incoming_magic_t *) m_pController ) ;
-    }
-    void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) {        
-        boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, transactionId, dlg) ;
-        m_mapOrq2IIP.insert( mapOrq2IIP::value_type(orq, p) ) ;
-        m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
-        m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   
-    }
-    bool SipDialogController::findIIPByIrq( nta_incoming_t* irq, boost::shared_ptr<IIP>& iip ) {
-        mapIrq2IIP::iterator it = m_mapIrq2IIP.find( irq ) ;
-        if( m_mapIrq2IIP.end() == it ) return false ;
-        iip = it->second ;
-        return true ;
-    }
-    bool SipDialogController::findIIPByTransactionId( const string& transactionId, boost::shared_ptr<IIP>& iip ) {
-        mapTransactionId2IIP::iterator it = m_mapTransactionId2IIP.find( transactionId ) ;
-        if( m_mapTransactionId2IIP.end() == it ) return false ;
-        iip = it->second ;
-        return true ;
-    }
-    boost::shared_ptr<SipDialog> SipDialogController::clearIIP( nta_leg_t* leg ) {
-        mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
-        assert( it != m_mapLeg2IIP.end() ) ;
-        boost::shared_ptr<IIP> iip = it->second ;
-        nta_incoming_t* irq = iip->irq() ;
-        nta_outgoing_t* orq = iip->orq() ;
-        boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
-        mapIrq2IIP::iterator itIrq = m_mapIrq2IIP.find( iip->irq() ) ;
-        mapOrq2IIP::iterator itOrq = m_mapOrq2IIP.find( iip->orq() ) ;
-        mapTransactionId2IIP::iterator itTransaction = m_mapTransactionId2IIP.find( iip->transactionId() ) ;
-        assert( itTransaction != m_mapTransactionId2IIP.end() ) ;
-
-        assert( !(m_mapIrq2IIP.end() == itIrq && m_mapOrq2IIP.end() == itOrq )) ;
-
-        m_mapLeg2IIP.erase( it ) ;
-        if( itIrq != m_mapIrq2IIP.end() ) m_mapIrq2IIP.erase( itIrq ) ;
-        if( itOrq != m_mapOrq2IIP.end() ) m_mapOrq2IIP.erase( itOrq ) ;
-        m_mapTransactionId2IIP.erase( itTransaction ) ;
-
-        if( irq ) nta_incoming_destroy( irq ) ;
-        if( orq ) nta_outgoing_destroy( orq ) ;
-        return dlg ;
-    }
-	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
+ 	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
         int nHdrs = hdrs.size() ;
         tagi_t *tags = new tagi_t[nHdrs+1] ;
         int i = 0; 
@@ -831,9 +698,12 @@ namespace drachtio {
 
         return tags ;	//NB: caller responsible to delete after use to free memory      
 	}
-
+    void SipDialogController::bindIrq( nta_incoming_t* irq ) {
+        nta_incoming_bind( irq, uasCancelOrAck, (nta_incoming_magic_t *) m_pController ) ;
+    }
+ 
     void SipDialogController::logStorageCount(void)  {
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         DR_LOG(log_debug) << "m_mapIrq2IIP size " << m_mapIrq2IIP.size() << endl ;
         DR_LOG(log_debug) << "m_mapOrq2IIP size " << m_mapOrq2IIP.size() << endl ;
