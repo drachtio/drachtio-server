@@ -391,6 +391,22 @@ namespace drachtio {
         bool bClear = false ;
         iip->dlg()->setSipStatus( sip->sip_status->st_status ) ;
 
+        /* send PRACK if this is a reliable response */
+        if( sip->sip_rseq ) {
+            nta_leg_t* leg = iip->leg() ;
+            nta_leg_rtag( leg, sip->sip_to->a_tag) ;
+            nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, true );
+
+            ostringstream rack ;
+            rack << sip->sip_rseq->rs_response << " " << sip->sip_cseq->cs_seq << " " << sip->sip_cseq->cs_method_name ;
+
+            nta_outgoing_t* prack = nta_outgoing_prack( leg, orq, NULL, NULL, NULL, NULL, 
+                SIPTAG_RACK_STR( rack.str().c_str() ),
+                TAG_END() ) ;
+
+            nta_outgoing_destroy( prack ) ;
+        }
+
         if( sip->sip_status->st_status >= 200 ) {
 
             bClear = true ;
@@ -401,7 +417,7 @@ namespace drachtio {
                    // TODO: don't send the ACK if the INVITE had no body: the ACK must have a body in that case, and the client must supply it
                     nta_leg_t* leg = iip->leg() ;
                     nta_leg_rtag( leg, sip->sip_to->a_tag) ;
-                    nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, true );
+                    nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, false );
 
                     nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
                                                                    SIP_METHOD_ACK,
