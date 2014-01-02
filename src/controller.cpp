@@ -487,6 +487,11 @@ namespace drachtio {
     }
     int DrachtioController::processRequestOutsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
         DR_LOG(log_debug) << "processRequestOutsideDialog" << endl ;
+        int rc = validateSipMessage( sip ) ;
+        if( 0 != rc ) {
+            return rc ;
+        }
+
         switch (sip->sip_request->rq_method ) {
             case sip_method_invite:
             {
@@ -564,9 +569,13 @@ namespace drachtio {
     }
     int DrachtioController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
         DR_LOG(log_debug) << "DrachtioController::processRequestInsideDialog" << endl ;
-        int rc = 0 ;
-        boost::shared_ptr<SipDialog> dlg ;
+
+        int rc = validateSipMessage( sip ) ;
+        if( 0 != rc ) {
+            return rc ;
+        }
          
+        boost::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
@@ -640,6 +649,27 @@ namespace drachtio {
         DR_LOG(log_debug) << "generated Contact: " << o.str() << endl ;
         
         strContact = o.str() ;
+    }
+
+
+    int DrachtioController::validateSipMessage( sip_t const *sip ) {
+        if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_contact || !sip->sip_contact->m_url[0].url_host ) ) {
+            DR_LOG(log_error) << "Invalid or missing contact header" << endl ;
+            return 400 ;
+        }
+        if( !sip->sip_call_id || !sip->sip_call_id->i_id ) {
+            DR_LOG(log_error) << "Invalid or missing call-id header" << endl ;
+            return 400 ;
+        }
+        if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_to || !sip->sip_to->a_url[0].url_user ) ) {
+            DR_LOG(log_error) << "Invalid or missing to header or dialed number information" << endl ;
+            return 400 ;            
+        }
+        if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_from || !sip->sip_from->a_tag ) )  {
+            DR_LOG(log_error) << "Missing tag on From header on invite" << endl ;
+            return 400 ;            
+        }
+        return 0 ;
     }
 
     void DrachtioController::printStats() {

@@ -132,6 +132,7 @@ namespace drachtio {
         	void deinitializeLogging() ;
         	bool installConfig() ;
         	void logConfig() ;
+                int validateSipMessage( sip_t const *sip ) ;
 
         	scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
         	boost::mutex m_mutexGlobal ;
