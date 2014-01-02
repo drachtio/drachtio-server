@@ -154,7 +154,9 @@ namespace drachtio {
             o << "false, \"reason\":\"invalid auth message\"}}" ;
         }
         else if( (bReturn = theOneAndOnlyController->isSecret( secret ) )  ) {
-            o << "true}}" ;
+            string hostport ;
+            theOneAndOnlyController->getMyHostport( hostport ) ;
+            o << "true, \"hostport\": \"" << hostport << "\"}}" ;
         }
         else {
             o << "false, \"reason\":\"invalid credentials\"}}" ;
