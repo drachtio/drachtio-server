@@ -356,6 +356,7 @@ namespace drachtio {
 	private:
 		DrachtioController* m_pController ;
 		su_clone_r*			m_pClone ;
+		sip_contact_t*		m_my_contact ;
 
 		/* since access to the various maps below can be triggered either by arriva or network message, or client message - 
 			each in a different thread - we use this mutex to protect them.  To keep things straight, the mutex lock operations

@@ -75,6 +75,8 @@ namespace drachtio {
 
             assert(m_agent) ;
             assert(m_pClientController) ;
+
+            m_my_contact = nta_agent_contact( m_agent ) ;
 	}
 	SipDialogController::~SipDialogController() {
 	}
@@ -334,7 +336,7 @@ namespace drachtio {
                 orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     NULL, mtype, strMethod.c_str()
                     ,URL_STRING_MAKE(strRequestUri.c_str())
-                    ,TAG_IF( 0 == strMethod.compare("INVITE"), SIPTAG_CONTACT( m_pController->getMyContact()))
+                    ,TAG_IF( 0 == strMethod.compare("INVITE"), SIPTAG_CONTACT( m_my_contact ) )
                     ,TAG_IF( !strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str()))
                     ,TAG_NEXT(tags) ) ;
 
@@ -344,7 +346,7 @@ namespace drachtio {
                orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     NULL, mtype, strMethod.c_str()
                     ,URL_STRING_MAKE(strRequestUri.c_str())
-                    ,TAG_IF( 0 == strMethod.compare("INVITE"), SIPTAG_CONTACT( m_pController->getMyContact()))
+                    ,TAG_IF( 0 == strMethod.compare("INVITE"), SIPTAG_CONTACT( m_my_contact ))
                     ,TAG_IF( !strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str()))
                     ,TAG_END() ) ;
             }
@@ -669,7 +671,7 @@ namespace drachtio {
                 	/* well-known header */
                     tags[i].t_tag = tt;
                     tags[i].t_value = (tag_value_t) value.c_str() ;
-                    DR_LOG(log_debug) << "Adding well-known header '" << it->first << "' with value '" << value << "'" << endl ;
+                    DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << it->first << "' with value '" << value << "'" << endl ;
                 }
                 else {
                     /* custom header */
