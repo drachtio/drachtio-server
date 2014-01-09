@@ -36,13 +36,19 @@ THE SOFTWARE.
 
 using namespace std ;
 
+
 namespace {
+	const std::string doublequote("\"");
+	const std::string slashquote("\\\"");
 
 	inline stringstream& JSONAPPEND( const char* szName, const char* szValue, stringstream& o, bool comma = true ) {
 		if( szValue ) {
+			string val = szValue ;
+			boost::replace_all( val, doublequote, slashquote) ;
+
 			if( comma ) o << ",\"" << szName << "\": " ; 
 			else o << "\"" << szName << "\": " ; 
-			o << "\"" << szValue  << "\""  ; 
+			o << "\"" << val  << "\""  ; 
 		}
 		return o ;
 	}
@@ -73,10 +79,9 @@ namespace {
 }
 
 namespace drachtio {
-	
 	const std::string doublequote("\"");
 	const std::string slashquote("\\\"");
-
+	
 	class SofiaMsg {
 	public:
 		SofiaMsg(  nta_incoming_t* irq, sip_t const *sip ) ;
