@@ -292,9 +292,7 @@ namespace drachtio {
                 }
             }
 
-     
             normalizeSipUri( strRequestUri ) ;
-
             if( isLocalSipUri( strRequestUri ) ) {
                 o << "{\"success\": false, \"reason\": \"request_uri loop detected\"}" ;
                 m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
@@ -594,6 +592,9 @@ namespace drachtio {
 
                 //TODO: here is the problem: we send this to client and don't save the irq - it never gets cleared
                 m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
+
+                /* always send 200 OK to PRACK */
+                if( sip_method_prack == sip->sip_request->rq_method ) rc = 200 ;
 
             }
         }
