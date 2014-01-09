@@ -504,10 +504,15 @@ namespace drachtio {
             /* if the client included Require: 100rel on a provisional, send it reliably */
             bool bReliable = false ;
             if( code > 100 && code < 200 ) {
-                for( vector<string>::iterator it = vecUnknownStr.begin(); it != vecUnknownStr.end() && !bReliable; ++it ) {
-                    if( string::npos != it->find("100rel") ) bReliable = true;
-                }                 
-            }
+                int i = 0 ;
+                while( tags[i].t_tag != 0 ) {
+                    if( tags[i].t_tag == siptag_require_str && NULL != strstr( (const char*) tags[i].t_value, "100rel") ) {
+                        bReliable = true ;
+                        break ;
+                    }
+                    i++ ;
+                }
+             }
            /* iterate through data.opts.headers, adding headers to the response */
             if( bReliable ) {
                 nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status.empty() ? NULL : status.c_str()
