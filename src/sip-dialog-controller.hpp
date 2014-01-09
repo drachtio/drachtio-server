@@ -49,16 +49,24 @@ namespace drachtio {
 	class IIP {
 	public:
 		IIP( nta_leg_t* leg, nta_incoming_t* irq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
-			m_leg(leg), m_irq(irq), m_orq(NULL), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role) {}
+			m_leg(leg), m_irq(irq), m_orq(NULL), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role),m_rel(NULL) {}
 
 		IIP( nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
-			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role) {}
+			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role),m_rel(NULL) {}
 
 		~IIP() {}
 
 		nta_leg_t* leg(void) { return m_leg; }
 		nta_incoming_t* irq(void) { return m_irq; }
 		nta_outgoing_t* orq(void) { return m_orq; }
+		nta_reliable_t* rel(void) { return m_rel; }
+		void setReliable(nta_reliable_t* rel) { m_rel = rel; }
+		void destroyReliable(void) {
+			if( m_rel ) {
+				nta_reliable_destroy( m_rel ) ;
+				m_rel = NULL ;
+			}
+		}
 		const string& transactionId(void) { return m_strTransactionId; }
 		boost::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
 
@@ -67,6 +75,7 @@ namespace drachtio {
 		nta_leg_t* 		m_leg ;
 		nta_incoming_t*	m_irq ;
 		nta_outgoing_t*	m_orq ;
+		nta_reliable_t*	m_rel ;
 		boost::shared_ptr<SipDialog> 	m_dlg ;
 		agent_role		m_role ;
 	} ;
@@ -146,6 +155,7 @@ namespace drachtio {
         int processResponseOutsideDialog( nta_outgoing_t* request, sip_t const* sip )  ;
         int processResponseInsideDialog( nta_outgoing_t* request, sip_t const* sip ) ;
         int processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) ;
+        int processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) ;
 
 	    bool isManagingTransaction( const string& transactionId ) {
 	    	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;
@@ -204,6 +214,13 @@ namespace drachtio {
 			if( m_mapTransactionId2IIP.end() == it ) return false ;
 			iip = it->second ;
 			return true ;			
+		}
+		bool findIIPByReliable( nta_reliable_t* rel, boost::shared_ptr<IIP>& iip ) {
+			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+			mapRel2IIP::iterator it = m_mapRel2IIP.find( rel ) ;
+			if( m_mapRel2IIP.end() == it ) return false ;
+			iip = it->second.lock() ;
+			return !(!iip) ;			
 		}
 
 		/// Dialog helpers
@@ -294,6 +311,7 @@ namespace drachtio {
 			boost::shared_ptr<IIP> iip = it->second ;
 			nta_incoming_t* irq = iip->irq() ;
 			nta_outgoing_t* orq = iip->orq() ;
+			nta_reliable_t* rel = iip->rel(); 
 			boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
 			mapIrq2IIP::iterator itIrq = m_mapIrq2IIP.find( iip->irq() ) ;
 			mapOrq2IIP::iterator itOrq = m_mapOrq2IIP.find( iip->orq() ) ;
@@ -309,6 +327,14 @@ namespace drachtio {
 
 			if( irq ) nta_incoming_destroy( irq ) ;
 			if( orq ) nta_outgoing_destroy( orq ) ;
+
+			if( rel ) {
+				mapRel2IIP::iterator itRel = m_mapRel2IIP.find( rel ) ;
+				if( m_mapRel2IIP.end() != itRel ) {
+					m_mapRel2IIP.erase( itRel ) ;
+				}
+				nta_reliable_destroy( rel ) ;
+			}
 			return dlg ;			
 		}
 		void clearDialog( const string& strDialogId ) {
@@ -384,9 +410,13 @@ namespace drachtio {
        typedef boost::unordered_map<string, boost::shared_ptr<IIP> > mapTransactionId2IIP ;
         mapTransactionId2IIP m_mapTransactionId2IIP ;
 
- 		/* we need to lookup invites in progress by leg when we get an ACK from the network */
-       typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<IIP> > mapLeg2IIP ;
-        mapLeg2IIP m_mapLeg2IIP ;
+		/* we need to lookup invites in progress by leg when we get an ACK from the network */
+		typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<IIP> > mapLeg2IIP ;
+		mapLeg2IIP m_mapLeg2IIP ;
+
+		/* we need to lookup invites in progress by nta_reliable_t when we get an PRACK from the network */
+		typedef boost::unordered_map<nta_reliable_t*, boost::weak_ptr<IIP> > mapRel2IIP ;
+		mapRel2IIP m_mapRel2IIP ;
 
 
         /// Stable Dialogs 
@@ -395,7 +425,7 @@ namespace drachtio {
         typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<SipDialog> > mapLeg2Dialog ;
         mapLeg2Dialog m_mapLeg2Dialog ;
 
- 		/* we need to lookup dialogs by dialog  idwhen we get a request from the client  */
+ 		/* we need to lookup dialogs by dialog id when we get a request from the client  */
        typedef boost::unordered_map<string, boost::shared_ptr<SipDialog> > mapId2Dialog ;
         mapId2Dialog m_mapId2Dialog ;
 

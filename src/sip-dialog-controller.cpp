@@ -22,10 +22,16 @@ THE SOFTWARE.
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
+
+namespace drachtio {
+    class SipDialogController ;
+}
+
+#define NTA_RELIABLE_MAGIC_T drachtio::SipDialogController
+
 #include "controller.hpp"
 #include "sofia-msg.hpp"
 #include "sip-dialog-controller.hpp"
-
 
 namespace {
     void cloneRespondToSipRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
@@ -50,6 +56,9 @@ namespace {
     int uasCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
        drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         return pController->getDialogController()->processCancelOrAck( p, irq, sip) ;
+    }
+    int uasPrack( drachtio::SipDialogController *pController, nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) {
+        return pController->processPrack( rel, prack, sip) ;
     }
    int response_to_request_outside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {   
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
@@ -476,10 +485,8 @@ namespace drachtio {
         pMsg->get<string>("data.status", status);
 
         json_spirit::mObject obj ;
-        tagi_t* tags = NULL ;
-        if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-            tags = this->makeTags( obj, vecUnknownStr ) ;
-        }
+        pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ;
+        tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
 
         nta_incoming_t* irq = NULL ;
         int rc = -1 ;
@@ -494,17 +501,27 @@ namespace drachtio {
 
             dlg->setSipStatus( code ) ;
 
-            /* iterate through data.opts.headers, adding headers to the response */
-            if( tags ) {
-                rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
-                    ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
+            /* if the client included Require: 100rel on a provisional, send it reliably */
+            bool bReliable = false ;
+            if( code > 100 && code < 200 ) {
+                for( vector<string>::iterator it = vecUnknownStr.begin(); it != vecUnknownStr.end() && !bReliable; ++it ) {
+                    if( string::npos != it->find("100rel") ) bReliable = true;
+                }                 
+            }
+           /* iterate through data.opts.headers, adding headers to the response */
+            if( bReliable ) {
+                nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status.empty() ? NULL : status.c_str()
+                    ,SIPTAG_CONTACT(m_pController->getMyContact())
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
+                assert( rel ) ;
+                iip->setReliable( rel ) ;
             }
             else {
                 rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
-                    ,TAG_IF( code >= 200, SIPTAG_CONTACT(m_pController->getMyContact()))
-                    ,TAG_END() ) ;              
+                    ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
+                    ,TAG_NEXT(tags)
+                    ,TAG_END() ) ; 
             }
             if( 0 != rc ) {
                 assert(false) ;
@@ -514,14 +531,8 @@ namespace drachtio {
             nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
             if( irq ) {
                 //TODO: if we have already generated a response (BYE, INFO with msml) then don't try again
-                if( tags ) {
-                    rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
-                        ,TAG_NEXT(tags), TAG_END() ) ;                                 
-                    }
-                else {
-                   rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
-                        ,TAG_END() ) ;                                  
-                }
+                rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                    ,TAG_NEXT(tags), TAG_END() ) ;                                 
                 assert( 0 == rc ) ; 
                 DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq << endl ;
                 nta_incoming_destroy(irq) ;                           
@@ -593,9 +604,6 @@ namespace drachtio {
                 //TODO: here is the problem: we send this to client and don't save the irq - it never gets cleared
                 m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
 
-                /* always send 200 OK to PRACK */
-                if( sip_method_prack == sip->sip_request->rq_method ) rc = 200 ;
-
             }
         }
         return rc ;
@@ -627,7 +635,6 @@ namespace drachtio {
             return -1 ;
         }
 
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
         if( sip->sip_request->rq_method == sip_method_cancel ) {
             boost::shared_ptr<IIP> iip ;
             if( !findIIPByIrq( irq, iip ) ) {
@@ -660,6 +667,21 @@ namespace drachtio {
             DR_LOG(log_debug) << "Received " << sip->sip_request->rq_method_name << " for call-id " << sip->sip_call_id->i_id << ", discarding" << endl ;
         }
         return 0 ;
+    }
+    int SipDialogController::processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) {
+        DR_LOG(log_debug) << "SipDialogController::processPrack: " << endl ;
+        boost::shared_ptr<IIP> iip ;
+        if( findIIPByReliable( rel, iip ) ) {
+            boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
+            assert( dlg ) ;
+            m_pController->getClientController()->route_request_inside_dialog( iip->irq(), sip, iip->transactionId(), dlg->getDialogId() ) ;
+            iip->destroyReliable() ;
+            nta_incoming_destroy( prack ) ;
+        }
+        else {
+            assert(0) ;
+        }
+        return 200 ;
     }
 
  	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
