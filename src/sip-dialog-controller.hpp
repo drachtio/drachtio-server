@@ -186,7 +186,10 @@ namespace drachtio {
 			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
 			m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   			
 		}
-
+		void addReliable( nta_reliable_t* rel, boost::shared_ptr<IIP>& iip) {
+			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+			m_mapRel2IIP.insert( mapRel2IIP::value_type(rel, iip) ) ;
+		}
 		bool findIIPByIrq( nta_incoming_t* irq, boost::shared_ptr<IIP>& iip ) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
 	        mapIrq2IIP::iterator it = m_mapIrq2IIP.find( irq ) ;
@@ -220,7 +223,11 @@ namespace drachtio {
 			mapRel2IIP::iterator it = m_mapRel2IIP.find( rel ) ;
 			if( m_mapRel2IIP.end() == it ) return false ;
 			iip = it->second.lock() ;
-			return !(!iip) ;			
+			if( !iip ) {
+				m_mapRel2IIP.erase(it) ;
+				return false ;
+			}
+			return true ;		
 		}
 
 		/// Dialog helpers

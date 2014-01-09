@@ -521,6 +521,7 @@ namespace drachtio {
                     ,TAG_END() ) ; 
                 assert( rel ) ;
                 iip->setReliable( rel ) ;
+                addReliable( rel, iip ) ;
             }
             else {
                 rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
