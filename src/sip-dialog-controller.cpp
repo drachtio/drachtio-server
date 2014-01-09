@@ -527,9 +527,7 @@ namespace drachtio {
                     ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
-            }
-            if( 0 != rc ) {
-                assert(false) ;
+                assert(0 == rc) ;
             }
         }
         else {
