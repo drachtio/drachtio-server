@@ -156,7 +156,7 @@ namespace drachtio {
         string json = sm->str() ;
         JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendRequestWithinDialog, client, transactionId, dialogId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, json) ) ;
 
         return true ;
     }
@@ -171,7 +171,7 @@ namespace drachtio {
         string json = sm->str() ;
         JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendResponseWithinTransaction, client, transactionId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, json) ) ;
 
         return true ;
     }
@@ -240,20 +240,19 @@ namespace drachtio {
             m_mapTransactions.insert( mapTransactions::value_type( transactionId, client) ) ; //TODO: need to think about when this gets cleared
         }     
     }
-    bool ClientController::route_cancel_transaction( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
+    bool ClientController::route_request_inside_invite( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
         client_ptr client = findClientForTransaction( transactionId ) ;
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_cancel_transaction - client that was sent the transaction has disconnected: " << transactionId << endl ;
+            DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client that was sent the transaction has disconnected: " << transactionId << endl ;
             return false;            
         }
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
         string json = sm->str() ;
         JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendCancelTransaction, client, transactionId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendRequestInsideInvite, client, transactionId, json) ) ;
 
         return true ;
-       
     }
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
         client_ptr client ;

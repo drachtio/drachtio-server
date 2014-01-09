@@ -59,7 +59,7 @@ namespace drachtio {
  
         bool route_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip,  const string& transactionId, const string& dialogId ) ;
 
-        bool route_cancel_transaction( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) ;
+        bool route_request_inside_invite( nta_incoming_t* prack, sip_t const *sip, const string& transactionId ) ;
 
         bool route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId ) ; 
         

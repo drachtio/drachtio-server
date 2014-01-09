@@ -56,9 +56,9 @@ namespace drachtio {
 	    std::vector<string> getServices(void) { return m_vecServices; }
 
 	    void sendRequestOutsideDialog( const string& transactionId, const string& msg ) ;
-	    void sendRequestWithinDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
-	    void sendResponseWithinTransaction( const string& transactionId, const string& msg ) ;
-	    void sendCancelTransaction( const string& transactionId, const string& msg ) ;
+	    void sendRequestInsideDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
+	    void sendResponseInsideTransaction( const string& transactionId, const string& msg ) ;
+	    void sendRequestInsideInvite( const string& transactionId, const string& msg ) ;
 	    void sendDialogInfo( const string& dialogId, const string& transactionId) ;
 	    void sendResponse( const string& rid, const string& strData) ;
 	    	    

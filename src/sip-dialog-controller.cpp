@@ -653,7 +653,7 @@ namespace drachtio {
             }
 
             DR_LOG(log_debug) << "Received CANCEL for call-id " << sip->sip_call_id->i_id << ", sending to client" << endl ;
-            m_pController->getClientController()->route_cancel_transaction( irq, sip, dlg->getTransactionId() ) ;
+            m_pController->getClientController()->route_request_inside_invite( irq, sip, dlg->getTransactionId() ) ;
             this->clearIIP( iip->leg() ) ;
         }
         else if( sip->sip_request->rq_method == sip_method_ack ) {
@@ -678,7 +678,7 @@ namespace drachtio {
         if( findIIPByReliable( rel, iip ) ) {
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
             assert( dlg ) ;
-            m_pController->getClientController()->route_request_inside_dialog( iip->irq(), sip, iip->transactionId(), dlg->getDialogId() ) ;
+            m_pController->getClientController()->route_request_inside_invite( prack, sip, iip->transactionId() ) ;
             iip->destroyReliable() ;
             nta_incoming_destroy( prack ) ;
         }

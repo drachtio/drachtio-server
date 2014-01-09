@@ -255,7 +255,7 @@ namespace drachtio {
         jsonMsg.stringify(strJson) ;
         boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
     }
-    void Client::sendRequestWithinDialog( const string& transactionId, const string& dialogId, const string& msg ) {
+    void Client::sendRequestInsideDialog( const string& transactionId, const string& dialogId, const string& msg ) {
         ostringstream o ;
         this->pushMsgData( o, "notify", "sip") ;
         o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"dialogId\": \"" << dialogId << "\",\"message\": " << msg << "}" << "}" ;
@@ -265,7 +265,7 @@ namespace drachtio {
         jsonMsg.stringify(strJson) ;
         boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
     }
-    void Client::sendResponseWithinTransaction( const string& transactionId, const string& msg ) {
+    void Client::sendResponseInsideTransaction( const string& transactionId, const string& msg ) {
        ostringstream o ;
         this->pushMsgData( o, "notify", "sip") ;
         o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"message\": " << msg << "}" << "}" ;
@@ -295,7 +295,7 @@ namespace drachtio {
         jsonMsg.stringify(strJson) ;
         boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;        
     }
-    void Client::sendCancelTransaction( const string& transactionId, const string& msg ) {
+    void Client::sendRequestInsideInvite( const string& transactionId, const string& msg ) {
         ostringstream o ;
         this->pushMsgData( o, "notify", "sip") ;
         o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"message\": " << msg << "}" << "}" ;
