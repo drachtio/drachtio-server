@@ -581,11 +581,13 @@ namespace drachtio {
                     assert(0) ;
                     return 200 ;
                 }
-                addIncomingRequestTransaction( irq, transactionId) ;
+                //addIncomingRequestTransaction( irq, transactionId) ;
                 m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
  
                 this->clearDialog( leg ) ;
-                rc = 200 ;
+                nta_incoming_destroy( irq ) ;
+
+                rc = 200 ; //we generate 200 OK to BYE in all cases, any client responses will be discarded
                 break ;
             }
             default:
