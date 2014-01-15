@@ -308,7 +308,7 @@ namespace drachtio {
     void Client::sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, const string& msg ) {
         ostringstream o ;
         this->pushMsgData( o, "notify", "sip") ;
-        o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"dialogId\":" << dialogId << "\"message\": " << msg << "}" << "}" ;
+        o << ", \"data\": {\"transactionId\": \"" << transactionId << "\",\"dialogId\":" << dialogId << ",\"message\": " << msg << "}" << "}" ;
         DR_LOG(log_debug) << "sending " << o.str() << endl ;
         JsonMsg jsonMsg(o.str()) ;
         string strJson ;
