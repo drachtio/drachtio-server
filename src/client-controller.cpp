@@ -240,7 +240,7 @@ namespace drachtio {
             m_mapTransactions.insert( mapTransactions::value_type( transactionId, client) ) ; //TODO: need to think about when this gets cleared
         }     
     }
-    bool ClientController::route_request_inside_invite( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
+    bool ClientController::route_request_inside_invite( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& dialogId  ) {
         client_ptr client = findClientForTransaction( transactionId ) ;
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client that was sent the transaction has disconnected: " << transactionId << endl ;
@@ -250,7 +250,8 @@ namespace drachtio {
         string json = sm->str() ;
         JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendRequestInsideInvite, client, transactionId, json) ) ;
+        if( dialogId.length() > 0 )  m_ioservice.post( boost::bind(&Client::sendRequestInsideInviteWithDialog, client, transactionId, dialogId, json) ) ;
+        else m_ioservice.post( boost::bind(&Client::sendRequestInsideInvite, client, transactionId, json) ) ;
 
         return true ;
     }

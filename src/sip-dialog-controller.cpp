@@ -675,7 +675,7 @@ namespace drachtio {
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
             assert( dlg ) ;
             m_pClientController->addDialogForTransaction( dlg->getTransactionId(), dlg->getDialogId() ) ;      
-            m_pController->getClientController()->route_request_inside_invite( prack, sip, iip->transactionId() ) ;
+            m_pController->getClientController()->route_request_inside_invite( prack, sip, iip->transactionId(), dlg->getDialogId() ) ;
             iip->destroyReliable() ;
             nta_incoming_destroy( prack ) ;
         }
