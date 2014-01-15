@@ -538,7 +538,7 @@ namespace drachtio {
                 nta_incoming_destroy(irq) ;                           
             }
             else {
-                 DR_LOG(log_warning) << "Unable to find transaction with transactionId " << transactionId << endl ;
+                 DR_LOG(log_debug) << "silently discarding sip response from client; was probably a 200 OK to BYE; transactionId: " << transactionId << endl ;
             }
         }
 
