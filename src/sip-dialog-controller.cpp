@@ -437,12 +437,8 @@ namespace drachtio {
                 //TODO: handle redirection (should this be client specified?)
 
                 //NB: the above cases could cause us to reset bClear back to false
-
-                
+   
             }
- 
-
-
         }
         if( bClear ) {
             boost::shared_ptr<SipDialog> dlg = this->clearIIP( iip->leg() ) ;
@@ -678,6 +674,7 @@ namespace drachtio {
         if( findIIPByReliable( rel, iip ) ) {
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
             assert( dlg ) ;
+            m_pClientController->addDialogForTransaction( dlg->getTransactionId(), dlg->getDialogId() ) ;      
             m_pController->getClientController()->route_request_inside_invite( prack, sip, iip->transactionId() ) ;
             iip->destroyReliable() ;
             nta_incoming_destroy( prack ) ;
