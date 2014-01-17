@@ -421,6 +421,15 @@ namespace drachtio {
 
                 /* we need to send ACK in the case of success response (stack handles it for us in non-success) */
                 if( 200 == sip->sip_status->st_status ) {
+
+                    sip_session_expires_t* se = sip_session_expires(sip) ;
+                    if( se && se->x_delta >= 90 ) {
+                        iip->dlg()->setSessionTimer( se->x_delta, !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::uac_is_refresher : SipDialog::uas_is_refresher ) ;
+                    }
+                    else {
+                        DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - ignoring session-expires, value is less than 90" << endl ;
+                    }
+
                    // TODO: don't send the ACK if the INVITE had no body: the ACK must have a body in that case, and the client must supply it
                     nta_leg_t* leg = iip->leg() ;
                     nta_leg_rtag( leg, sip->sip_to->a_tag) ;
