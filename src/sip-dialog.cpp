@@ -103,7 +103,7 @@ namespace drachtio {
 	void SipDialog::setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) {
 		assert( NULL == m_timerSessionRefresh ) ;
 		m_refresher = whoIsResponsible ;
-		su_duration_t nMilliseconds = nSecs * 60  ;
+		su_duration_t nMilliseconds = nSecs * 60 * 1000  ;
 
 		DR_LOG(log_debug) << "Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them") << endl ;
 
