@@ -517,7 +517,7 @@ namespace drachtio {
                     sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
 
                     if( se->x_delta >= 90 ) {
-                        dlg->setSessionTimer( se->x_delta, 0 == strcmp( se->x_refresher, "uas") ? SipDialog::uas_is_refresher : SipDialog::uac_is_refresher ) ;
+                        dlg->setSessionTimer( se->x_delta, !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::uac_is_refresher : SipDialog::uas_is_refresher ) ;
                     }
                     else {
                         DR_LOG(log_warning) << "SipDialogController::doRespondToSipRequest - session timer requested is less than 90 seconds, ignoring" << endl ;
