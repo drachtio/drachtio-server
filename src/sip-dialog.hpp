@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include <sys/time.h>
 #include <boost/shared_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
 
 #include <sofia-sip/nta.h>
 
@@ -31,7 +32,7 @@ using namespace std ;
 
 namespace drachtio {
 
-	class SipDialog {
+	class SipDialog : public boost::enable_shared_from_this<SipDialog> {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
 		SipDialog( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip ) ;
@@ -81,10 +82,6 @@ namespace drachtio {
 		void setSipStatus(unsigned int code) { m_recentSipStatus = code; }
 		void setConnectTime(void) { m_connectTime = time(0) ;}
 		void setEndTime(void) { m_endTime = time(0) ;}
-		void setRefresher( SessionRefresher_t who, unsigned int nSessionExpires) {
-			m_refresher = who; 
-			m_nSessionExpires = nSessionExpires ;
-		}
 		bool hasLocalTag(void) const { return !m_localEndpoint.m_strTag.empty(); }
 		bool hasRemoteTag(void) const { return !m_remoteEndpoint.m_strTag.empty(); }
 		void setLocalTag(const char* tag) { m_localEndpoint.m_strTag.assign( tag );}
@@ -112,6 +109,11 @@ namespace drachtio {
 
 		void setTransactionId(const string& strValue) { m_transactionId = strValue; }
 
+		void setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) ;
+		void cancelSessionTimer(void) ;
+		void doSessionTimerHandling(void) ;
+		bool areWeRefresher(void) { return (uac_is_refresher == m_refresher && we_are_uac == m_type) || (uas_is_refresher == m_refresher && we_are_uas == m_type) ;}
+
 	protected:
 		string 			m_dialogId ;
 		string 			m_transactionId ;
@@ -119,13 +121,19 @@ namespace drachtio {
 		Endpoint_t		m_localEndpoint ;
 		Endpoint_t		m_remoteEndpoint ;
 		string			m_strCallId ;
-		unsigned int 	m_nSessionExpires ;
-		SessionRefresher_t m_refresher ;
 		unsigned int	m_recentSipStatus ;
 		time_t			m_startTime ;
 		time_t			m_connectTime ;
 		time_t			m_endTime ;
 		ReleaseCause_t	m_releaseCause ;
+        
+        /* session timer */
+        su_timer_t*     m_timerSessionRefresh ;
+        SessionRefresher_t	m_refresher ;
+        boost::weak_ptr<SipDialog>* m_ppSelf ;
+
+
+
 
 		/* only populated/relevant when we are UAS, and UAC may be natted */
 		string 			m_sourceAddress ;

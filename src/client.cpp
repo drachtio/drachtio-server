@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
+#include <boost/enable_shared_from_this.hpp>
 
 #include "client.hpp"
 #include "controller.hpp"

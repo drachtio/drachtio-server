@@ -384,6 +384,8 @@ namespace drachtio {
 		}
 
 		tagi_t* makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) ;
+		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
+
 		void bindIrq( nta_incoming_t* irq ) ;
 
 	private:

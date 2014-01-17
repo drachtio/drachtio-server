@@ -509,7 +509,24 @@ namespace drachtio {
                     i++ ;
                 }
              }
-           /* iterate through data.opts.headers, adding headers to the response */
+
+             /* set session timer if required */
+             if( 200 == code ) {
+                string strSessionExpires ;
+                if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
+                    sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
+
+                    if( se->x_delta >= 90 ) {
+                        dlg->setSessionTimer( se->x_delta, 0 == strcmp( se->x_refresher, "uas") ? SipDialog::uas_is_refresher : SipDialog::uac_is_refresher ) ;
+                    }
+                    else {
+                        DR_LOG(log_warning) << "SipDialogController::doRespondToSipRequest - session timer requested is less than 90 seconds, ignoring" << endl ;
+                    }
+                    su_free( m_pController->getHome(), se ) ;
+                }
+             }
+
+            /* iterate through data.opts.headers, adding headers to the response */
             if( bReliable ) {
                 nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status.empty() ? NULL : status.c_str()
                     ,SIPTAG_CONTACT(m_pController->getMyContact())
@@ -745,7 +762,17 @@ namespace drachtio {
     void SipDialogController::bindIrq( nta_incoming_t* irq ) {
         nta_incoming_bind( irq, uasCancelOrAck, (nta_incoming_magic_t *) m_pController ) ;
     }
- 
+    bool SipDialogController::searchForHeader( tagi_t* tags, tag_type_t header, string& value ) {
+        int i = 0 ;
+        while( tags[i].t_tag != 0 ) {
+            if( tags[i].t_tag == header ) {
+                value.assign( (const char*) tags[i].t_value );
+                return true ;
+            }
+            i++ ;
+        }
+        return false ;
+    }
     void SipDialogController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
