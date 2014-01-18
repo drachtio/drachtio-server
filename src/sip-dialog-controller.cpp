@@ -73,6 +73,10 @@ namespace {
         drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
         pController->getDialogController()->doSendRequestInsideDialog( d ) ;
     }
+    int response_to_refreshing_reinvite( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {   
+        drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
+        return pController->getDialogController()->processResponseToRefreshingReinvite( request, sip ) ;
+    }
 
 }
 
@@ -678,23 +682,34 @@ namespace drachtio {
         return rc ;
     }
     int SipDialogController::processResponseInsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
-        //boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: " << endl ;
     	ostringstream o ;
         boost::shared_ptr<RIP> rip  ;
 
         if( findRIPByOrq( orq, rip ) ) {
-            if( 0 != rip->rid().compare("undefined") ) {
-                m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
-            }
+            m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
             clearRIP( orq ) ;          
-        }
-        else {
-
         }
         nta_outgoing_destroy( orq ) ;
   
 		return 0 ;
     }
+    int SipDialogController::processResponseToRefreshingReinvite( nta_outgoing_t* orq, sip_t const* sip ) {
+        DR_LOG(log_debug) << "SipDialogController::processResponseToRefreshingReinvite: " << endl ;
+        ostringstream o ;
+        boost::shared_ptr<RIP> rip  ;
+
+        if( findRIPByOrq( orq, rip ) ) {
+            clearRIP( orq ) ;          
+        }
+        nta_outgoing_destroy( orq ) ;
+
+        //TODO: handle non-200 responses, set session timer etc
+        
+        return 0 ;
+        
+    }
+
     int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
         if( !sip ) {
             DR_LOG(log_warning) << "SipDialogController::processCancelOrAck - received null sip message, irq is " << irq << endl ;
@@ -764,7 +779,7 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local content-type " << strContentType << endl ;
 
             //TODO: also need to reestablish the session timer
-            nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
+            nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
                                             NULL,
                                             SIP_METHOD_INVITE,
                                             NULL,

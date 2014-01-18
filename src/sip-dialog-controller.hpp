@@ -154,6 +154,7 @@ namespace drachtio {
 
         int processResponseOutsideDialog( nta_outgoing_t* request, sip_t const* sip )  ;
         int processResponseInsideDialog( nta_outgoing_t* request, sip_t const* sip ) ;
+		int processResponseToRefreshingReinvite( nta_outgoing_t* request, sip_t const* sip ) ;
         int processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) ;
         int processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) ;
 
