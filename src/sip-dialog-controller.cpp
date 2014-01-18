@@ -712,7 +712,22 @@ namespace drachtio {
         }
         return 200 ;
     }
+    void SipDialogController::notifyRefreshDialog( boost::shared_ptr<SipDialog> dlg ) {
 
+    }
+    void SipDialogController::notifyTerminateStaleDialog( boost::shared_ptr<SipDialog> dlg ) {
+        nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
+        if( leg ) {
+            nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
+                                            NULL,
+                                            SIP_METHOD_BYE,
+                                            NULL,
+                                            SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"Session timer expired\""),
+                                            TAG_END() ) ;
+            nta_outgoing_destroy(orq) ;
+        }
+        clearDialog( dlg->getDialogId() ) ;
+    }
  	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
         int nHdrs = hdrs.size() ;
         tagi_t *tags = new tagi_t[nHdrs+1] ;

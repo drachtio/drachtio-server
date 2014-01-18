@@ -157,6 +157,9 @@ namespace drachtio {
         int processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) ;
         int processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) ;
 
+        void notifyRefreshDialog( boost::shared_ptr<SipDialog> dlg ) ;
+        void notifyTerminateStaleDialog( boost::shared_ptr<SipDialog> dlg ) ;
+
 	    bool isManagingTransaction( const string& transactionId ) {
 	    	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;
 	    }
