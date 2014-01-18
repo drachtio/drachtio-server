@@ -82,6 +82,12 @@ namespace drachtio {
 		if( sip->sip_call_id->i_id ) m_strCallId = sip->sip_call_id->i_id ;
 		const char *ltag = nta_leg_get_tag( leg ) ;
 		if( ltag ) this->setLocalTag( ltag ) ;
+		if( sip->sip_payload ) this->setLocalSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
+		if( sip->sip_content_type ) {
+			string hvalue ;
+			parseGenericHeader( sip->sip_content_type->c_common, hvalue ) ;
+			if( !hvalue.empty() ) this->setLocalContentType( hvalue ) ;			
+		}
 	}	
 	SipDialog::~SipDialog() {
 		DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying sip dialog with call-id " << getCallId() << endl ;

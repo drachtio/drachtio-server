@@ -89,6 +89,7 @@ namespace drachtio {
 		bool hasLocalSdp(void) const { return !m_localEndpoint.m_strSdp.empty(); }
 		bool hasRemoteSdp(void) const { return !m_remoteEndpoint.m_strSdp.empty(); }
 		void setLocalSdp(const char* sdp) { m_localEndpoint.m_strSdp.assign( sdp );}
+		void setLocalSdp(const char* data, unsigned int len) { m_localEndpoint.m_strSdp.assign( data, len );}
 		void setRemoteSdp(const char* sdp) { m_remoteEndpoint.m_strSdp.assign( sdp );}
 		void setRemoteSdp(const char* data, unsigned int len) { m_remoteEndpoint.m_strSdp.assign( data, len );}
 		void setRemoteContentType( string& type ) { m_remoteEndpoint.m_strContentType = type ; }
@@ -97,7 +98,6 @@ namespace drachtio {
 		void setLocalSignalingAddress( const char* szAddress ) { m_localEndpoint.m_strSignalingAddress = szAddress; }
 		void setRemoteSignalingPort( unsigned int port ) { m_remoteEndpoint.m_signalingPort = port; }
 		void setLocalSignalingPort( unsigned int port ) { m_localEndpoint.m_signalingPort = port; }
-
 
 		const string& getSourceAddress(void) const { return m_sourceAddress;}
 		unsigned int getSourcePort(void) const { return m_sourcePort; }
