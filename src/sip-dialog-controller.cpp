@@ -713,7 +713,22 @@ namespace drachtio {
         return 200 ;
     }
     void SipDialogController::notifyRefreshDialog( boost::shared_ptr<SipDialog> dlg ) {
+        nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
+        if( leg ) {
+            string strSdp = dlg->getLocalEndpoint().m_strSdp ;
+            string strContentType = dlg->getLocalEndpoint().m_strContentType ;
 
+            //TODO: also need to reestablish the session timer
+            nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
+                                            NULL,
+                                            SIP_METHOD_INVITE,
+                                            NULL,
+                                            SIPTAG_PAYLOAD_STR(strSdp.c_str()),
+                                            SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
+                                            TAG_END() ) ;
+            nta_outgoing_destroy(orq) ;
+            m_pClientController->route_event_inside_dialog( "{\"event\": \"refreshed\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
+        }
     }
     void SipDialogController::notifyTerminateStaleDialog( boost::shared_ptr<SipDialog> dlg ) {
         nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
