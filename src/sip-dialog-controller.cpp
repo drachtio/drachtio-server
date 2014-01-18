@@ -699,8 +699,17 @@ namespace drachtio {
         ostringstream o ;
         boost::shared_ptr<RIP> rip  ;
 
+        nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
+
         if( findRIPByOrq( orq, rip ) ) {
             clearRIP( orq ) ;          
+
+            nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
+                   SIP_METHOD_ACK,
+                   (url_string_t*) sip->sip_contact->m_url ,
+                   TAG_END());
+
+            nta_outgoing_destroy( ack_request ) ;
         }
         nta_outgoing_destroy( orq ) ;
 
