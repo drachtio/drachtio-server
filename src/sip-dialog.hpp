@@ -110,6 +110,7 @@ namespace drachtio {
 		void setTransactionId(const string& strValue) { m_transactionId = strValue; }
 
 		void setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) ;
+		bool hasSessionTimer(void) { return NULL != m_timerSessionRefresh; }
 		void cancelSessionTimer(void) ;
 		void doSessionTimerHandling(void) ;
 		bool areWeRefresher(void) { return (uac_is_refresher == m_refresher && we_are_uac == m_type) || (uas_is_refresher == m_refresher && we_are_uas == m_type) ;}

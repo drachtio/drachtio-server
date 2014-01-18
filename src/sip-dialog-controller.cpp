@@ -616,6 +616,35 @@ namespace drachtio {
                 rc = 200 ; //we generate 200 OK to BYE in all cases, any client responses will be discarded
                 break ;
             }
+            case sip_method_invite: {
+                boost::shared_ptr<SipDialog> dlg ;
+                if( !this->findDialogByLeg( leg, dlg ) ) {
+                    DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg" << endl ;
+                    rc = 481 ;
+                    assert(0) ;
+                }
+                /* check to see if this is a refreshing re-INVITE; i.e., same SDP as before */
+                bool bRefreshing = false ;
+                if( sip->sip_payload ) {
+                    string strSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
+                    if( 0 == strSdp.compare( dlg->getRemoteEndpoint().m_strSdp ) ) {
+                        bRefreshing = true ;
+                    }
+                }                
+                if( dlg->hasSessionTimer() ) dlg->cancelSessionTimer() ;
+
+                int result = nta_incoming_treply( irq, SIP_200_OK
+                    ,SIPTAG_CONTACT(m_my_contact)
+                    ,SIPTAG_PAYLOAD_STR(dlg->getLocalEndpoint().m_strSdp.c_str())
+                    ,SIPTAG_CONTENT_TYPE_STR(dlg->getLocalEndpoint().m_strContentType.c_str())
+                    ,TAG_IF(sip->sip_session_expires, SIPTAG_SESSION_EXPIRES(sip->sip_session_expires))
+                    ,TAG_END() ) ; 
+                assert( 0 == result ) ;
+                
+                m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"event\": \"refreshed\"}" :  "{\"event\": \"modified\"}"
+                    ,dlg->getTransactionId(), dlg->getDialogId() ) ;                
+               
+            }
             default:
             {
                 if( sip_method_info == sip->sip_request->rq_method && 0 == strcmp( sip->sip_content_type->c_type, "application/msml+xml") ) {
