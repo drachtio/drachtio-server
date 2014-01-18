@@ -725,6 +725,7 @@ namespace drachtio {
                                             SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"Session timer expired\""),
                                             TAG_END() ) ;
             nta_outgoing_destroy(orq) ;
+            m_pClientController->route_event_inside_dialog( "{\"event\": \"terminated\",\"reason\":\"session expired\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
         clearDialog( dlg->getDialogId() ) ;
     }

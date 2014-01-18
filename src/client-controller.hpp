@@ -62,6 +62,8 @@ namespace drachtio {
         bool route_request_inside_invite( nta_incoming_t* prack, sip_t const *sip, const string& transactionId, const string& dialogId  = "" ) ;
 
         bool route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId ) ; 
+
+        bool route_event_inside_dialog( const string& event,  const string& transactionId, const string& dialogId ) ;
         
         void respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) ;
 

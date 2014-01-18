@@ -255,6 +255,18 @@ namespace drachtio {
 
         return true ;
     }
+    bool ClientController::route_event_inside_dialog( const string& event, const string& transactionId, const string& dialogId ) {
+        client_ptr client = this->findClientForDialog( dialogId );
+        if( !client ) {
+            DR_LOG(log_warning) << "ClientController::route_event_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
+            return false ;
+        }
+
+        m_ioservice.post( boost::bind(&Client::sendEventInsideDialog, client, transactionId, dialogId, event) ) ;
+
+        return true ;
+    }
+
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
         client_ptr client ;
         boost::lock_guard<boost::mutex> l( m_lock ) ;
