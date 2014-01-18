@@ -519,6 +519,16 @@ namespace drachtio {
                 }
              }
 
+             /* update local sdp if provided */
+             string strLocalSdp ;
+             if( searchForHeader( tags, siptag_payload_str, strLocalSdp ) ) {
+                dlg->setLocalSdp( strLocalSdp.c_str() ) ;
+                string strLocalContentType ;
+                if( searchForHeader( tags, siptag_content_type_str, strLocalContentType ) ) {
+                    dlg->setLocalContentType( strLocalContentType ) ;
+                }
+             }
+
              /* set session timer if required */
              if( 200 == code ) {
                 string strSessionExpires ;
@@ -628,7 +638,8 @@ namespace drachtio {
                 if( sip->sip_payload ) {
                     string strSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
                     if( 0 == strSdp.compare( dlg->getRemoteEndpoint().m_strSdp ) ) {
-                        bRefreshing = true ;
+                      DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received refreshing re-INVITE" << endl ;
+                      bRefreshing = true ;
                     }
                 }                
                 if( dlg->hasSessionTimer() ) dlg->cancelSessionTimer() ;
