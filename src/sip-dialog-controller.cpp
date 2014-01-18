@@ -653,7 +653,8 @@ namespace drachtio {
                 assert( 0 == result ) ;
                 
                 m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"event\": \"refreshed\"}" :  "{\"event\": \"modified\"}"
-                    ,dlg->getTransactionId(), dlg->getDialogId() ) ;                
+                    ,dlg->getTransactionId(), dlg->getDialogId() ) ;   
+                break ;             
                
             }
             default:
@@ -682,7 +683,9 @@ namespace drachtio {
         boost::shared_ptr<RIP> rip  ;
 
         if( findRIPByOrq( orq, rip ) ) {
-            m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
+            if( 0 != rip->rid().compare("undefined") ) {
+                m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
+            }
             clearRIP( orq ) ;          
         }
         else {
@@ -761,7 +764,7 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local content-type " << strContentType << endl ;
 
             //TODO: also need to reestablish the session timer
-            nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
+            nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
                                             NULL,
                                             SIP_METHOD_INVITE,
                                             NULL,
@@ -769,7 +772,13 @@ namespace drachtio {
                                             SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
                                             SIPTAG_PAYLOAD_STR(strSdp.c_str()),
                                             TAG_END() ) ;
-            nta_outgoing_destroy(orq) ;
+            
+            string transactionId ;
+            generateUuid( transactionId ) ;
+
+            boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, "undefined" ) ; //because no client instructed us to send this
+            addRIP( orq, p ) ;
+
             m_pClientController->route_event_inside_dialog( "{\"event\": \"refreshed\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
     }
