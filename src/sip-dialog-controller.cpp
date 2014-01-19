@@ -630,7 +630,20 @@ namespace drachtio {
                     rc = 481 ;
                     assert(0) ;
                 }
+
+                /* TODO: reject if session timer requested is less than minSE seconds */
+                if( sip->sip_session_expires && sip->sip_session_expires->x_delta < dlg->getMinSE() ) {
+                    ostringstream o ;
+                    o << dlg->getMinSE() ;
+                    nta_incoming_treply( irq, SIP_422_SESSION_TIMER_TOO_SMALL, 
+                        SIPTAG_MIN_SE_STR(o.str().c_str()),
+                        TAG_END() ) ;  
+                    return 0 ;             
+                }
+
                 /* check to see if this is a refreshing re-INVITE; i.e., same SDP as before */
+                if( dlg->hasSessionTimer() ) dlg->cancelSessionTimer() ;
+
                 bool bRefreshing = false ;
                 if( sip->sip_payload ) {
                     string strSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
@@ -639,7 +652,6 @@ namespace drachtio {
                       bRefreshing = true ;
                     }
                 }                
-                if( dlg->hasSessionTimer() ) dlg->cancelSessionTimer() ;
 
                 int result = nta_incoming_treply( irq, SIP_200_OK
                     ,SIPTAG_CONTACT(m_my_contact)
@@ -648,6 +660,11 @@ namespace drachtio {
                     ,TAG_IF(sip->sip_session_expires, SIPTAG_SESSION_EXPIRES(sip->sip_session_expires))
                     ,TAG_END() ) ; 
                 assert( 0 == result ) ;
+
+               if( sip->sip_session_expires ) {
+                    dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
+                        !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher) ;
+                }
                 
                 m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"event\": \"refreshed\"}" :  "{\"event\": \"modified\"}"
                     ,dlg->getTransactionId(), dlg->getDialogId() ) ;   
@@ -714,8 +731,9 @@ namespace drachtio {
             else {
                 /* reset session expires timer, if provided */
                 sip_session_expires_t* se = sip_session_expires(sip) ;
-                if( se ) {                    
-                    dlg->setSessionTimer( std::max( (unsigned long) 90, se->x_delta), !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::we_are_refresher : SipDialog::they_are_refresher ) ;
+                if( se ) {                
+                    //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
+                    dlg->setSessionTimer( se->x_delta, !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::we_are_refresher : SipDialog::they_are_refresher ) ;
                 }
              }
         }
@@ -794,13 +812,15 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local content-type " << strContentType << endl ;
 
             assert( dlg->getSessionExpiresSecs() ) ;
-            ostringstream o ;
+            ostringstream o,v ;
             o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
+            v << dlg->getMinSE() ;
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
                                             NULL,
                                             SIP_METHOD_INVITE,
                                             NULL,
                                             SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
+                                            SIPTAG_MIN_SE_STR(v.str().c_str()),
                                             SIPTAG_CONTACT( m_my_contact ),
                                             SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
                                             SIPTAG_PAYLOAD_STR(strSdp.c_str()),

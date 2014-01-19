@@ -497,6 +497,14 @@ namespace drachtio {
             {
                 /* TODO:  should support optional config to only allow invites from defined addresses */
 
+                /* system-wide minimum session-expires is 90 seconds */
+                if( sip->sip_session_expires && sip->sip_session_expires->x_delta < 90 ) {
+                      nta_incoming_treply( irq, SIP_422_SESSION_TIMER_TOO_SMALL, 
+                        SIPTAG_MIN_SE_STR("90"),
+                        TAG_END() ) ; 
+                      return 0;
+                } 
+
                 string transactionId ;
                 generateUuid( transactionId ) ;
 

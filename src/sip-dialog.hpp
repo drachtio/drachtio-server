@@ -116,6 +116,8 @@ namespace drachtio {
 		DialogType_t getRole(void) { return m_type; }
 		bool areWeRefresher(void) { return we_are_refresher == m_refresher; }
 		unsigned long getSessionExpiresSecs(void) { return m_nSessionExpiresSecs; }
+		unsigned long getMinSE(void) { return m_nMinSE; }
+		void setMinSE(unsigned long secs) { m_nMinSE = secs;}
 
 	protected:
 		string 			m_dialogId ;
@@ -132,6 +134,7 @@ namespace drachtio {
         
         /* session timer */
         unsigned long 	m_nSessionExpiresSecs ;
+        unsigned long 	m_nMinSE ;
         su_timer_t*     m_timerSessionRefresh ;
         SessionRefresher_t	m_refresher ;
         boost::weak_ptr<SipDialog>* m_ppSelf ;
