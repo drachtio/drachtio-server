@@ -602,8 +602,8 @@ namespace drachtio {
                     boost::shared_ptr<SipDialog> dlg = this->clearIIP( leg ) ;
                     m_pController->notifyDialogConstructionComplete( dlg ) ;
                     m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
-                    nta_incoming_destroy(irq) ;
                 }
+                nta_incoming_destroy(irq) ;
                 break ;
             }
             case sip_method_bye:
@@ -668,6 +668,7 @@ namespace drachtio {
                 
                 m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"event\": \"refreshed\"}" :  "{\"event\": \"modified\"}"
                     ,dlg->getTransactionId(), dlg->getDialogId() ) ;   
+                nta_incoming_destroy( irq ) ;
                 break ;             
                
             }
