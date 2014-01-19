@@ -19,6 +19,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+#include <algorithm>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
@@ -427,13 +429,10 @@ namespace drachtio {
                 if( 200 == sip->sip_status->st_status ) {
 
                     sip_session_expires_t* se = sip_session_expires(sip) ;
-                    if( se && se->x_delta >= 90 ) {
-                        iip->dlg()->setSessionTimer( se->x_delta, !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::uac_is_refresher : SipDialog::uas_is_refresher ) ;
+                    if( se ) {
+                        iip->dlg()->setSessionTimer( std::max((unsigned long) 90, se->x_delta), !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::we_are_refresher : SipDialog::they_are_refresher ) ;
                     }
-                    else {
-                        DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - ignoring session-expires, value is less than 90" << endl ;
-                    }
-
+ 
                    // TODO: don't send the ACK if the INVITE had no body: the ACK must have a body in that case, and the client must supply it
                     nta_leg_t* leg = iip->leg() ;
                     nta_leg_rtag( leg, sip->sip_to->a_tag) ;
@@ -539,12 +538,7 @@ namespace drachtio {
                 if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
                     sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
 
-                    if( se->x_delta >= 90 ) {
-                        dlg->setSessionTimer( se->x_delta, !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::uac_is_refresher : SipDialog::uas_is_refresher ) ;
-                    }
-                    else {
-                        DR_LOG(log_warning) << "SipDialogController::doRespondToSipRequest - session timer requested is less than 90 seconds, ignoring" << endl ;
-                    }
+                    dlg->setSessionTimer( std::max((unsigned long) 90, se->x_delta), !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher ) ;
                     su_free( m_pController->getHome(), se ) ;
                 }
              }
@@ -600,8 +594,7 @@ namespace drachtio {
                 /* ack to 200 OK, now we are all done */
                 boost::shared_ptr<IIP> iip ;
                 if( !findIIPByLeg( leg, iip ) ) {
-                    DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find IIP for leg" << endl ;
-                    assert(false) ;
+                    DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog - unable to find IIP for ACK, must be for reINVITE" << endl ;
                 }
                 else {
                     string transactionId = iip->transactionId() ;
@@ -700,7 +693,11 @@ namespace drachtio {
         boost::shared_ptr<RIP> rip  ;
 
         nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
-
+        assert(leg) ;
+        boost::shared_ptr<SipDialog> dlg ;
+        if( !findDialogByLeg( leg, dlg ) ) {
+            assert(0) ;
+        }
         if( findRIPByOrq( orq, rip ) ) {
             clearRIP( orq ) ;          
 
@@ -710,10 +707,19 @@ namespace drachtio {
                    TAG_END());
 
             nta_outgoing_destroy( ack_request ) ;
+
+            if( sip->sip_status->st_status != 200 ) {
+                //TODO: notify client that call has failed, send BYE
+            }
+            else {
+                /* reset session expires timer, if provided */
+                sip_session_expires_t* se = sip_session_expires(sip) ;
+                if( se ) {                    
+                    dlg->setSessionTimer( std::max( (unsigned long) 90, se->x_delta), !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::we_are_refresher : SipDialog::they_are_refresher ) ;
+                }
+             }
         }
         nta_outgoing_destroy( orq ) ;
-
-        //TODO: handle non-200 responses, set session timer etc
         
         return 0 ;
         
@@ -787,11 +793,14 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local sdp " << strSdp << endl ;
             DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local content-type " << strContentType << endl ;
 
-            //TODO: also need to reestablish the session timer
+            assert( dlg->getSessionExpiresSecs() ) ;
+            ostringstream o ;
+            o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
                                             NULL,
                                             SIP_METHOD_INVITE,
                                             NULL,
+                                            SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
                                             SIPTAG_CONTACT( m_my_contact ),
                                             SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
                                             SIPTAG_PAYLOAD_STR(strSdp.c_str()),

@@ -67,8 +67,8 @@ namespace drachtio {
 
 		enum SessionRefresher_t {
 			no_refresher = 0
-			,uac_is_refresher
-			,uas_is_refresher 
+			,we_are_refresher
+			,they_are_refresher 
 		} ;
 
 		const string& getCallId(void) const { return m_strCallId; }
@@ -113,7 +113,9 @@ namespace drachtio {
 		bool hasSessionTimer(void) { return NULL != m_timerSessionRefresh; }
 		void cancelSessionTimer(void) ;
 		void doSessionTimerHandling(void) ;
-		bool areWeRefresher(void) { return (uac_is_refresher == m_refresher && we_are_uac == m_type) || (uas_is_refresher == m_refresher && we_are_uas == m_type) ;}
+		DialogType_t getRole(void) { return m_type; }
+		bool areWeRefresher(void) { return we_are_refresher == m_refresher; }
+		unsigned long getSessionExpiresSecs(void) { return m_nSessionExpiresSecs; }
 
 	protected:
 		string 			m_dialogId ;
@@ -129,6 +131,7 @@ namespace drachtio {
 		ReleaseCause_t	m_releaseCause ;
         
         /* session timer */
+        unsigned long 	m_nSessionExpiresSecs ;
         su_timer_t*     m_timerSessionRefresh ;
         SessionRefresher_t	m_refresher ;
         boost::weak_ptr<SipDialog>* m_ppSelf ;
