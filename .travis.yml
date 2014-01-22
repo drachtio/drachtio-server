@@ -1,0 +1,6 @@
+language: cpp
+compiler:
+  - gcc
+  - clang
+# Change this to your needs
+script: cd build/debug && ../../configure CPPFLAGS=-DDEBUG && CXXFLAGS='-g -O0' && make
