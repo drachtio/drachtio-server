@@ -615,12 +615,12 @@ namespace drachtio {
                     assert(0) ;
                     return 200 ;
                 }
-                //addIncomingRequestTransaction( irq, transactionId) ;
                 m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
  
                 this->clearDialog( leg ) ;
                 nta_incoming_destroy( irq ) ;
-                m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"near end release\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
+                m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"far end release\"}",
+                    dlg->getTransactionId(), dlg->getDialogId() ) ;
 
                 rc = 200 ; //we generate 200 OK to BYE in all cases, any client responses will be discarded
                 break ;
@@ -651,6 +651,9 @@ namespace drachtio {
                     string strSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
                     if( 0 == strSdp.compare( dlg->getRemoteEndpoint().m_strSdp ) ) {
                       bRefreshing = true ;
+                    }
+                    else {
+                        DR_LOG(log_debug) << "sdp in invite " << strSdp << endl << "previous sdp " << dlg->getRemoteEndpoint().m_strSdp << endl ;
                     }
                 }                
                 DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received " << 
