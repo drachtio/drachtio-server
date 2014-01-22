@@ -23,5 +23,5 @@ ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_5
 ${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip-1.12.11 && ./configure && $(MAKE)
 
-${srcdir}/deps/json-spirit/build/libjson_spirit.a: ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a 
+${srcdir}/deps/json-spirit/build/json_spirit/libjson_spirit.a: ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a 
 	cd ${srcdir}/deps/json-spirit/build && cmake .. && $(MAKE)

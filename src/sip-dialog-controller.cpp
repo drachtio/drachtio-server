@@ -194,6 +194,7 @@ namespace drachtio {
 
             if( sip_method_bye == mtype ) {
                 this->clearDialog( dialogId ) ;
+                m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"near end release\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
             }
 
        } catch( std::runtime_error& err ) {
@@ -619,6 +620,7 @@ namespace drachtio {
  
                 this->clearDialog( leg ) ;
                 nta_incoming_destroy( irq ) ;
+                m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"near end release\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
 
                 rc = 200 ; //we generate 200 OK to BYE in all cases, any client responses will be discarded
                 break ;
@@ -648,10 +650,12 @@ namespace drachtio {
                 if( sip->sip_payload ) {
                     string strSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
                     if( 0 == strSdp.compare( dlg->getRemoteEndpoint().m_strSdp ) ) {
-                      DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received refreshing re-INVITE" << endl ;
                       bRefreshing = true ;
                     }
                 }                
+                DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received " << 
+                    (bRefreshing ? "refreshing " : "") << "re-INVITE" << endl ;
+
 
                 int result = nta_incoming_treply( irq, SIP_200_OK
                     ,SIPTAG_CONTACT(m_my_contact)
