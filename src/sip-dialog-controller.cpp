@@ -666,7 +666,7 @@ namespace drachtio {
                         !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher) ;
                 }
                 
-                m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"event\": \"refreshed\"}" :  "{\"event\": \"modified\"}"
+                m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"eventName\": \"refresh\"}" :  "{\"eventName\": \"modify\"}"
                     ,dlg->getTransactionId(), dlg->getDialogId() ) ;   
                 nta_incoming_destroy( irq ) ;
                 break ;             
@@ -833,7 +833,7 @@ namespace drachtio {
             boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, "undefined" ) ; //because no client instructed us to send this
             addRIP( orq, p ) ;
 
-            m_pClientController->route_event_inside_dialog( "{\"event\": \"refreshed\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
+            m_pClientController->route_event_inside_dialog( "{\"eventName\": \"refresh\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
     }
     void SipDialogController::notifyTerminateStaleDialog( boost::shared_ptr<SipDialog> dlg ) {
@@ -846,7 +846,7 @@ namespace drachtio {
                                             SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"Session timer expired\""),
                                             TAG_END() ) ;
             nta_outgoing_destroy(orq) ;
-            m_pClientController->route_event_inside_dialog( "{\"event\": \"terminated\",\"reason\":\"session expired\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
+            m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"session expired\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
         clearDialog( dlg->getDialogId() ) ;
     }
