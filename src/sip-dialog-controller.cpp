@@ -426,6 +426,10 @@ namespace drachtio {
             bClear = true ;
             if( sip->sip_cseq->cs_method ==  sip_method_invite ) {
 
+                if( sip->sip_payload ) {
+                    iip->dlg()->setRemoteSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
+                }
+                
                 /* we need to send ACK in the case of success response (stack handles it for us in non-success) */
                 if( 200 == sip->sip_status->st_status ) {
 
