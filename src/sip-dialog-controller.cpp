@@ -119,7 +119,6 @@ namespace drachtio {
     }
 
     void SipDialogController::doSendRequestInsideDialog( SipMessageData* pData ) {                
-        vector<string> vecUnknownStr ;
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
         ostringstream o ;
         string rid( pData->getRequestId() ) ;
@@ -158,7 +157,7 @@ namespace drachtio {
 
             json_spirit::mObject obj ;
             if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
-                tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
+                tagi_t* tags = this->makeTags( obj ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
                                                             NULL,
@@ -167,7 +166,7 @@ namespace drachtio {
                                                             TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
                                                             TAG_NEXT(tags),
                                                             TAG_END() ) ;
-                delete[] tags ;
+                deleteTags( tags ) ;
             }
             else {
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
@@ -185,21 +184,20 @@ namespace drachtio {
             string transactionId ;
             generateUuid( transactionId ) ;
 
-            boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid ) ;
+            boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid, dialogId ) ;
             addRIP( orq, p ) ;
 
             SofiaMsg req( orq, sip ) ;
-            o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"message\": " << req.str() << "}" ;
+            o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"dialogId\": \"" << dialogId << "\",\"message\": " << req.str() << "}" ;
             m_pController->getClientController()->sendResponseToClient( rid, o.str(), transactionId ) ; 
 
             if( sip_method_bye == mtype ) {
                 this->clearDialog( dialogId ) ;
-                m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"near end release\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
             }
 
        } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - Error " << err.what() << endl;
-            o << "{\"success\": false, \"reason\": \"" << err.what() << "\"}" ;
+            o << "{\"success\": false, \"dialogId\": \"" << dialogId << "\",\"reason\": \"" << err.what() << "\"}" ;
             m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
        }                       
 
@@ -265,7 +263,6 @@ namespace drachtio {
     }
     void SipDialogController::doSendRequestOutsideDialog( SipMessageData* pData ) {
         //boost::lock_guard<boost::mutex> lock(m_mutex) ;
-        vector<string> vecUnknownStr ;
         nta_leg_t* leg = NULL ;
         nta_outgoing_t* orq = NULL ;
         string rid( pData->getRequestId() ) ;
@@ -345,7 +342,7 @@ namespace drachtio {
 
             if( pMsg->get<json_spirit::mObject>("data.headers", obj) ) {
 
-                tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
+                tagi_t* tags = this->makeTags( obj ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     NULL, mtype, strMethod.c_str()
@@ -354,7 +351,7 @@ namespace drachtio {
                     ,TAG_IF( !strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str()))
                     ,TAG_NEXT(tags) ) ;
 
-                 delete[] tags ;
+                 deleteTags( tags ) ;
             }
             else {
                orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
@@ -486,7 +483,6 @@ namespace drachtio {
         }
     }
     void SipDialogController::doRespondToSipRequest( SipMessageData* pData ) {
-        vector<string> vecUnknownStr ; //this needs to exist for as long as we access tags below
         string transactionId( pData->getTransactionId() ) ;
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
 
@@ -499,7 +495,7 @@ namespace drachtio {
 
         json_spirit::mObject obj ;
         pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ;
-        tagi_t* tags = this->makeTags( obj, vecUnknownStr ) ;
+        tagi_t* tags = this->makeTags( obj ) ;
 
         nta_incoming_t* irq = NULL ;
         int rc = -1 ;
@@ -581,7 +577,7 @@ namespace drachtio {
             }
         }
 
-        if( tags ) delete[] tags ;
+        if( tags ) deleteTags( tags );
 
         /* we must explicitly delete an object allocated with placement new */
         pData->~SipMessageData() ;
@@ -606,7 +602,7 @@ namespace drachtio {
 
                     boost::shared_ptr<SipDialog> dlg = this->clearIIP( leg ) ;
                     m_pController->notifyDialogConstructionComplete( dlg ) ;
-                    m_pController->getClientController()->route_request_inside_dialog( irq, sip, transactionId, dlg->getDialogId() ) ;
+                    m_pController->getClientController()->route_ack_request_inside_dialog( irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;
                 }
                 nta_incoming_destroy(irq) ;
                 break ;
@@ -623,8 +619,6 @@ namespace drachtio {
  
                 this->clearDialog( leg ) ;
                 nta_incoming_destroy( irq ) ;
-                m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"far end release\"}",
-                    dlg->getTransactionId(), dlg->getDialogId() ) ;
 
                 rc = 200 ; //we generate 200 OK to BYE in all cases, any client responses will be discarded
                 break ;
@@ -677,8 +671,8 @@ namespace drachtio {
                         !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher) ;
                 }
                 
-                m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"eventName\": \"refresh\"}" :  "{\"eventName\": \"modify\"}"
-                    ,dlg->getTransactionId(), dlg->getDialogId() ) ;   
+                //m_pClientController->route_event_inside_dialog( bRefreshing ? "{\"eventName\": \"refresh\"}" :  "{\"eventName\": \"modify\"}"
+                //    ,dlg->getTransactionId(), dlg->getDialogId() ) ;   
                 nta_incoming_destroy( irq ) ;
                 break ;             
                
@@ -709,7 +703,7 @@ namespace drachtio {
         boost::shared_ptr<RIP> rip  ;
 
         if( findRIPByOrq( orq, rip ) ) {
-            m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId() ) ;
+            m_pController->getClientController()->route_response_inside_transaction( orq, sip, rip->transactionId(), rip->dialogId() ) ;
             clearRIP( orq ) ;          
         }
         nta_outgoing_destroy( orq ) ;
@@ -820,8 +814,6 @@ namespace drachtio {
         if( leg ) {
             string strSdp = dlg->getLocalEndpoint().m_strSdp ;
             string strContentType = dlg->getLocalEndpoint().m_strContentType ;
-            DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local sdp " << strSdp << endl ;
-            DR_LOG(log_debug) << "SipDialogController::notifyRefreshDialog - local content-type " << strContentType << endl ;
 
             assert( dlg->getSessionExpiresSecs() ) ;
             ostringstream o,v ;
@@ -861,7 +853,18 @@ namespace drachtio {
         }
         clearDialog( dlg->getDialogId() ) ;
     }
- 	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) {
+    void SipDialogController::deleteTags( tagi_t* tags ) {
+        int i = 0 ;
+        while( tags[i].t_tag != tag_null ) {
+            if( tags[i].t_value ) {
+                char *p = (char *) tags[i].t_value ;
+                delete p ;
+            }
+             i++ ;
+        }       
+        delete [] tags ; 
+    }
+ 	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs ) {
         int nHdrs = hdrs.size() ;
         tagi_t *tags = new tagi_t[nHdrs+1] ;
         int i = 0; 
@@ -885,8 +888,11 @@ namespace drachtio {
                 tag_type_t tt ;
                 if( getTagTypeForHdr( hdr, tt ) ) {
                 	/* well-known header */
+                    char *p = new char[value.length()+1] ;
+                    memset(p, '\0', value.length()+1) ;
+                    strcpy( p, value.c_str() ) ;
                     tags[i].t_tag = tt;
-                    tags[i].t_value = (tag_value_t) value.c_str() ;
+                    tags[i].t_value = (tag_value_t) p ;
                     DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << it->first << "' with value '" << value << "'" << endl ;
                 }
                 else {
@@ -899,11 +905,15 @@ namespace drachtio {
                       DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << it->first << "'" << endl;
                        continue ;
                     }
-                    ostringstream o ;
-                    o << it->first << ": " <<  value.c_str()  ;
-                    vecUnknownStr.push_back( o.str() ) ;
+                    int nLength = it->first.length() + 2 + value.length() + 1;
+                    char *p = new char[nLength] ;
+                    memset(p, '\0', nLength) ;
+                    strcpy( p, it->first.c_str() ) ;
+                    strcat( p, ": ") ;
+                    strcat( p, value.c_str()) ;
+
                     tags[i].t_tag = siptag_unknown_str ;
-                    tags[i].t_value = (tag_value_t) vecUnknownStr.back().c_str() ;
+                    tags[i].t_value = (tag_value_t) p ;
                     DR_LOG(log_debug) << "Adding custom header '" << it->first << "' with value '" << value << "'" << endl ;
                 }
             } catch( std::runtime_error& err ) {
@@ -921,7 +931,7 @@ namespace drachtio {
     }
     bool SipDialogController::searchForHeader( tagi_t* tags, tag_type_t header, string& value ) {
         int i = 0 ;
-        while( tags[i].t_tag != 0 ) {
+        while( tags[i].t_tag != tag_null ) {
             if( tags[i].t_tag == header ) {
                 value.assign( (const char*) tags[i].t_value );
                 return true ;

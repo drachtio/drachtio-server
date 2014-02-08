@@ -85,14 +85,18 @@ namespace drachtio {
 	public:
 		RIP( const string& transactionId, const string& rid ) : 
 			m_transactionId(transactionId), m_rid(rid) {}
+		RIP( const string& transactionId, const string& rid, const string& dialogId ) : 
+			m_transactionId(transactionId), m_rid(rid), m_dialogId(dialogId) {}
 
 		~RIP() {}
 
 		const string& transactionId(void) { return m_transactionId; }
+		const string& dialogId(void) { return m_dialogId; }
 		const string& rid(void) { return m_rid; }
 
 	private:
 		string 			m_transactionId ;
+		string			m_dialogId ;
 		string 			m_rid ;
 	} ;
 
@@ -387,8 +391,9 @@ namespace drachtio {
 			m_mapId2Dialog.erase( itId );			
 		}
 
-		tagi_t* makeTags( json_spirit::mObject&  hdrs, vector<string>& vecUnknownStr ) ;
-		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
+		tagi_t* makeTags( json_spirit::mObject&  hdrs ) ;
+ 		void deleteTags( tagi_t* tags ) ;
+ 		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
 
 		void bindIrq( nta_incoming_t* irq ) ;
 

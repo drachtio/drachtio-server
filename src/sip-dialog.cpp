@@ -51,7 +51,7 @@ namespace drachtio {
 		m_startTime(time(NULL)), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90)
 	{
-		generateUuid( m_dialogId ) ;
+		//generateUuid( m_dialogId ) ;
 
 		/* get sending address and port */
 		string host ;
@@ -79,9 +79,10 @@ namespace drachtio {
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90)
 	{
-		generateUuid( m_dialogId ) ;
+		//generateUuid( m_dialogId ) ;
 
 		if( sip->sip_call_id->i_id ) m_strCallId = sip->sip_call_id->i_id ;
+		
 		const char *ltag = nta_leg_get_tag( leg ) ;
 		if( ltag ) this->setLocalTag( ltag ) ;
 		if( sip->sip_payload ) this->setLocalSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
@@ -90,6 +91,7 @@ namespace drachtio {
 			parseGenericHeader( sip->sip_content_type->c_common, hvalue ) ;
 			if( !hvalue.empty() ) this->setLocalContentType( hvalue ) ;			
 		}
+
 	}	
 	SipDialog::~SipDialog() {
 		DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying sip dialog with call-id " << getCallId() << endl ;

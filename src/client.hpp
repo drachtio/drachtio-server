@@ -57,10 +57,10 @@ namespace drachtio {
 
 	    void sendRequestOutsideDialog( const string& transactionId, const string& msg ) ;
 	    void sendRequestInsideDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
-	    void sendResponseInsideTransaction( const string& transactionId, const string& msg ) ;
+	    void sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, const string& msg ) ;
+	    void sendResponseInsideTransaction( const string& transactionId, const string& dialogId, const string& msg ) ;
 	    void sendRequestInsideInvite( const string& transactionId, const string& msg ) ;
 	    void sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
-	    void sendDialogInfo( const string& dialogId, const string& transactionId) ;
 	    void sendResponse( const string& rid, const string& strData) ;
 	    void sendEventInsideDialog( const string& transactionId, const string& dialogId, const string& event ) ;
 	    	    

@@ -160,7 +160,23 @@ namespace drachtio {
 
         return true ;
     }
-    bool ClientController::route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId ) {
+    bool ClientController::route_ack_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
+        client_ptr client = this->findClientForDialog( dialogId );
+        if( !client ) {
+            DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
+            return false ;
+        }
+
+        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
+        string json = sm->str() ;
+        JsonMsg jmsg( json ) ;
+
+        m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, json) ) ;
+
+        return true ;
+    }
+
+    bool ClientController::route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId, const string& dialogId ) {
         client_ptr client = this->findClientForTransaction( transactionId );
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId << endl ;
@@ -171,7 +187,7 @@ namespace drachtio {
         string json = sm->str() ;
         JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, json) ) ;
 
         return true ;
     }
@@ -194,8 +210,6 @@ namespace drachtio {
             DR_LOG(log_warning) << "ClientController::addDialogForTransaction - client managing dialog has disconnected: " << dialogId << endl ;
             return  ;
         }
-
-        m_ioservice.post( boost::bind(&Client::sendDialogInfo, client, dialogId, transactionId) ) ;
 
     } 
     bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {

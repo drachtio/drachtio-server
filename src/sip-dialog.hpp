@@ -104,7 +104,13 @@ namespace drachtio {
 		void setSourceAddress( const string& host ) { m_sourceAddress = host; }
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
 
-		const string& getDialogId(void) const { return m_dialogId; }
+		const string& getDialogId(void) { 
+			if( m_dialogId.empty() ) {
+				m_dialogId = m_strCallId;
+				m_dialogId.append( we_are_uac == m_type ? ";uac" : ";uas");
+			}
+			return m_dialogId ;
+		}
 		const string& getTransactionId(void) const { return m_transactionId; }
 
 		void setTransactionId(const string& strValue) { m_transactionId = strValue; }
