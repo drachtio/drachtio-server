@@ -3,41 +3,41 @@
 	[
 		{
 			"name": "source"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/src"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/src"
 		}
 		,{
 			"name": "build"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/build"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/build"
 		}
 		,{
 			"name": "docs"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/docs"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/docs"
 		}
 		,{
 			"name": "toplevel"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/"
 			,"folder_exclude_patterns": ["src","*.cache","build","deps","docs","*.xcodeproj"]
 			,"file_exclude_patterns":["aclocal.m4","install-sh","Makefile.in","config.guess","config.*","configure","depcomp","missing"]
 		}
 		,{
 			"name": "sofia - sip"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/sofia-sip-1.12.11/libsofia-sip-ua/sip"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/deps/sofia-sip-1.12.11/libsofia-sip-ua/sip"
 			,"folder_exclude_patterns": [".*","images"]
 			,"file_exclude_patterns":["aclocal.m4","install-sh","Makefile.in","config.guess","config.*","configure","depcomp","missing"]
 		}
 		,{
 			"name": "sofia - nta"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/sofia-sip-1.12.11/libsofia-sip-ua/nta"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/deps/sofia-sip-1.12.11/libsofia-sip-ua/nta"
 			,"folder_exclude_patterns": [".*","images"]
 		}
 		,{
 			"name": "sofia - msg"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps/sofia-sip-1.12.11/libsofia-sip-ua/msg"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/deps/sofia-sip-1.12.11/libsofia-sip-ua/msg"
 			,"folder_exclude_patterns": [".*","images"]
 		}
 		,{
 			"name": "all dependencies"
-			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio/deps"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/deps"
 		}
 	]
 	,"settings": {
