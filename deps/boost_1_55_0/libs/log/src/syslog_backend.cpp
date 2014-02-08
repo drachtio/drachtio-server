@@ -372,7 +372,9 @@ BOOST_LOG_ANONYMOUS_NAMESPACE {
         };
 
         // The packet size is mandated in RFC3164, plus one for the terminating zero
-        char packet[1025];
+        // DH: for sip messages I need to log more
+        //char packet[1025];
+        char packet[4096] ;
         std::size_t packet_size = boost::log::aux::snprintf
         (
             packet,
