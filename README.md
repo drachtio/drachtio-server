@@ -2,7 +2,7 @@
 
 [![drachtio logo](http://www.dracht.io/images/definition_only.png)](http://dracht.io/)
 
-drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based application-agnostic user agent that is built on the [sofia SIP stack](https://gitorious.org/sofia-sip).  It is designed to provide a high-performance SIP processing server platform that offers its capabilities to client applications over a TCP and JSON message-passing interface.  The accompanying client framework is provided by [drachtio-client](https://github.com/davehorton/drachtio-client).
+drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based application-agnostic user agent that is built on the [sofia SIP stack](https://gitorious.org/sofia-sip).  It is designed to provide a high-performance SIP processing server platform that offers its capabilities to client applications over a TCP and JSON message-passing interface.  The accompanying client framework is provided by [drachtio](https://github.com/davehorton/drachtio).
 
 ## Building
 
