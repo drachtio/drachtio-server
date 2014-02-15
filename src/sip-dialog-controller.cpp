@@ -546,6 +546,7 @@ namespace drachtio {
 
             /* iterate through data.opts.headers, adding headers to the response */
             if( bReliable ) {
+                DR_LOG(log_debug) << "Sending " << code << " response reliably" << endl ;
                 nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status.empty() ? NULL : status.c_str()
                     ,SIPTAG_CONTACT(m_pController->getMyContact())
                     ,TAG_NEXT(tags)
@@ -555,6 +556,7 @@ namespace drachtio {
                 addReliable( rel, iip ) ;
             }
             else {
+                DR_LOG(log_debug) << "Sending " << code << " response (not reliably)" << endl ;
                 rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
                     ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
                     ,TAG_NEXT(tags)

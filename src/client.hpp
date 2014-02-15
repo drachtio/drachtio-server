@@ -53,6 +53,8 @@ namespace drachtio {
 	    void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
 	    void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
 
+	    bool processOneMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
+
 	    std::vector<string> getServices(void) { return m_vecServices; }
 
 	    void sendRequestOutsideDialog( const string& transactionId, const string& msg ) ;
@@ -79,6 +81,8 @@ namespace drachtio {
 		void processResponse( boost::shared_ptr<JsonMsg> pMsg,  JsonMsg& msgResponse, bool& bDisconnect ) ;
 	    
 	    void pushMsgData( ostringstream& o, const char* szType, const char* szCommand, const char* szRequestId = NULL) ;
+
+	    unsigned int readMessageLength(unsigned int bytes_transferred, unsigned int& nread) ;
 		    
 	private:
 		ClientController& m_controller ;
