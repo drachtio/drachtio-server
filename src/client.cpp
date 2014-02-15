@@ -93,7 +93,8 @@ namespace drachtio {
         }
  
         /*  add the data to any partial message we have, then check if we have received the expeected length of data */
-        DR_LOG(log_debug) << "Client::read_handler read " << bytes_transferred << " bytes " << endl ;
+        DR_LOG(log_debug) << "Client::read_handler read " << bytes_transferred << " bytes: " << 
+            std::string(m_readBuf.begin(), m_readBuf.end()) << endl ;
 
         if( m_nMessageLength > 0 ) {
             for( unsigned int i = 0; i < bytes_transferred; i++ ) m_buffer.push_back( m_readBuf[i] ) ;
@@ -114,6 +115,7 @@ namespace drachtio {
             JsonMsg msgResponse ;
             bool bDisconnect = false ;
             try {
+            DR_LOG(log_debug) << "Client::read_handler read JSON: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
                 boost::shared_ptr<JsonMsg> pMsg = boost::make_shared<JsonMsg>( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) ;
                 bDisconnect = processOneMessage( pMsg, msgResponse ) ;
             } catch( std::runtime_error& err ) {
@@ -144,6 +146,7 @@ namespace drachtio {
                 if( len ) {
                     DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << len << " bytes " << endl ; 
                     m_nMessageLength = len ;
+                    i++ ;
                     while( i-- ) m_buffer.pop_front() ;
                 }
                 else {
