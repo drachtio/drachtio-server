@@ -110,14 +110,16 @@ namespace drachtio {
 				o << "[" ;
 				msg_list_t* l = list ;
 				do {
-					if( l != list ) o << "," ;
-					int i = 0 ;
-					o << "[" ;
-					for (const msg_param_t* p = l->k_items; *p; p++, i++) {
-						if( i > 0 ) o << "," ;
-						o << "\"" << *p << "\""; 
+					if( l->k_items ) {
+						if( l != list ) o << "," ;
+						int i = 0 ;
+						o << "[" ;
+						for (const msg_param_t* p = l->k_items; p && *p; p++, i++) {
+							if( i > 0 ) o << "," ;
+							o << "\"" << *p << "\""; 
+						}
+						o << "]" ;						
 					}
-					o << "]" ;
 				} while( (l = l->k_next) ) ;
 
 				o << "]" ;
@@ -129,7 +131,7 @@ namespace drachtio {
 				o << "[" ;
 				if( params ) {
 					int i = 0 ;
-					for (const msg_param_t* p = params; *p; p++, i++) {
+					for (const msg_param_t* p = params; p && *p; p++, i++) {
 						if( i > 0 ) o << "," ;
 						string val = *p ;
 						boost::replace_all( val, doublequote, slashquote) ;
