@@ -53,6 +53,8 @@ namespace drachtio {
         void join( client_ptr client ) ;
         void leave( client_ptr client ) ;
 
+        void addNamedService( client_ptr client, string& strAppName ) ;
+
         bool wants_requests( client_ptr client, const string& verb ) ;
 
         bool route_request_outside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) ;
@@ -128,6 +130,9 @@ namespace drachtio {
         
        typedef boost::unordered_map<string,client_weak_ptr> mapRequests ;
         mapDialogs m_mapRequests ;
+
+       typedef boost::unordered_map<string,string> mapDialogId2Appname ;
+        mapDialogId2Appname m_mapDialogId2Appname ;
         
     } ;
 

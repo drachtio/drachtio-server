@@ -38,6 +38,7 @@ namespace drachtio {
         m_endpoint(  boost::asio::ip::tcp::v4(), port ),
         m_acceptor( m_ioservice, m_endpoint ) {
             
+        srand (time(NULL));    
         boost::thread t(&ClientController::threadFunc, this) ;
         m_thread.swap( t ) ;
             
@@ -70,14 +71,16 @@ namespace drachtio {
     void ClientController::join( client_ptr client ) {
         m_clients.insert( client ) ;
         client_weak_ptr p( client ) ;
-        for( vector<string>::const_iterator it = client->getServices().begin(); it != client->getServices().end(); ++it ) {
-           m_services.insert(map_of_services::value_type(*it, p)) ;
-        }
-       DR_LOG(log_debug) << "Added client, count of connected clients is now: " << m_clients.size() << endl ;
+        DR_LOG(log_debug) << "Added client, count of connected clients is now: " << m_clients.size() << endl ;       
     }
     void ClientController::leave( client_ptr client ) {
         m_clients.erase( client ) ;
         DR_LOG(log_debug) << "Removed client, count of connected clients is now: " << m_clients.size() << endl ;
+    }
+    void ClientController::addNamedService( client_ptr client, string& strAppName ) {
+        //TODO: should we be locking here?  need to review entire locking strategy for this class
+        client_weak_ptr p( client ) ;
+        m_services.insert( map_of_services::value_type(strAppName,p)) ;       
     }
 
 	void ClientController::start_accept() {
@@ -149,6 +152,8 @@ namespace drachtio {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
+            
+            //TODO: try to find another client providing the same service
             return false ;
         }
 
@@ -164,7 +169,9 @@ namespace drachtio {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
-            return false ;
+ 
+           //TODO: try to find another client providing the same service
+             return false ;
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
@@ -209,6 +216,15 @@ namespace drachtio {
             m_mapTransactions.erase( transactionId ) ;
             DR_LOG(log_warning) << "ClientController::addDialogForTransaction - client managing dialog has disconnected: " << dialogId << endl ;
             return  ;
+        }
+        else {
+            string strAppName ;
+            if( client->getAppName( strAppName ) ) {
+                m_mapDialogId2Appname.insert( mapDialogId2Appname::value_type( dialogId, strAppName ) ) ;
+                
+                DR_LOG(log_debug) << "ClientController::addDialogForTransaction - dialog id " << dialogId << 
+                    " has been established for client app " << strAppName << "; count of tracked dialogs is " << m_mapDialogId2Appname.size() << endl ;
+            }
         }
 
     } 
@@ -283,9 +299,43 @@ namespace drachtio {
 
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
         client_ptr client ;
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
-        mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
-        if( m_mapDialogs.end() != it ) client = it->second.lock() ;
+
+        // try to get the exact client first 
+        {
+            boost::lock_guard<boost::mutex> l( m_lock ) ;
+            mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
+            if( m_mapDialogs.end() != it ) client = it->second.lock() ;
+        }
+
+        // if that client is no longer connected, randomly select another client that is running that app 
+        if( !client ) {
+            boost::lock_guard<boost::mutex> l( m_lock ) ;
+            mapDialogId2Appname::iterator it = m_mapDialogId2Appname.find( dialogId ) ;
+            if( m_mapDialogId2Appname.end() != it ) {
+                string appName = it->second ;
+                DR_LOG(log_info) << "Attempting to find another client for app " << appName << endl ;
+
+                pair<map_of_services::iterator,map_of_services::iterator> pair = m_services.equal_range( appName ) ;
+                unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
+                if( 0 == nPossibles ) {
+                   DR_LOG(log_warning) << "No other clients found for app " << appName << endl ;
+                   return client ;
+                }
+                unsigned int nOffset = rand() % nPossibles ;
+                unsigned int nTries = 0 ;
+                do {
+                    map_of_services::iterator itTemp = pair.first ;
+                    std::advance( itTemp, nOffset) ;
+                    client = itTemp->second.lock() ;
+                    if( !client ) {
+                        if( ++nOffset == nPossibles ) nOffset = 0 ;
+                    }
+                } while( !client && ++nTries < nPossibles ) ;
+
+                if( !client ) DR_LOG(log_warning) << "No other connected clients found for app " << appName << endl ;
+                else DR_LOG(log_info) << "Found alternative client for app " << appName << " " << nOffset << ":" << nPossibles << endl ;
+            }
+        }
         return client ;
     }
     client_ptr ClientController::findClientForRequest( const string& rid ) {
@@ -301,7 +351,7 @@ namespace drachtio {
         return client ;
     }
 
-    void ClientController::stop() {
+     void ClientController::stop() {
         m_acceptor.cancel() ;
         m_ioservice.stop() ;
         m_thread.join() ;

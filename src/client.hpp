@@ -55,8 +55,6 @@ namespace drachtio {
 
 	    bool processOneMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
 
-	    std::vector<string> getServices(void) { return m_vecServices; }
-
 	    void sendRequestOutsideDialog( const string& transactionId, const string& msg ) ;
 	    void sendRequestInsideDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
 	    void sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, const string& msg ) ;
@@ -65,7 +63,9 @@ namespace drachtio {
 	    void sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
 	    void sendResponse( const string& rid, const string& strData) ;
 	    void sendEventInsideDialog( const string& transactionId, const string& dialogId, const string& event ) ;
-	    	    
+
+		bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
+
 	protected:
 
 		enum state {
@@ -74,7 +74,6 @@ namespace drachtio {
 		} ;
 
 		bool processAuthentication(boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
-		bool processRegistration( boost::shared_ptr<JsonMsg> pMsg,  JsonMsg& msgResponse ) ;
 		void processMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
 		void processNotify( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
 		void processRequest( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
@@ -91,7 +90,7 @@ namespace drachtio {
 	    boost::array<char, 8192> m_readBuf ;
 	    boost::circular_buffer<char> m_buffer ;
 	    unsigned int m_nMessageLength ;
-	    std::vector<string> m_vecServices;
+	    string m_strAppName ;
 	} ;
 
 	typedef boost::shared_ptr<Client> client_ptr;

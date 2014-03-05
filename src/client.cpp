@@ -94,7 +94,8 @@ namespace drachtio {
  
         /*  add the data to any partial message we have, then check if we have received the expeected length of data */
         DR_LOG(log_debug) << "Client::read_handler read " << bytes_transferred << " bytes: " << 
-            std::string(m_readBuf.begin(), m_readBuf.end()) << endl ;
+            //std::string(m_readBuf.begin(), m_readBuf.end()) << endl ;
+            std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
 
         if( m_nMessageLength > 0 ) {
             for( unsigned int i = 0; i < bytes_transferred; i++ ) m_buffer.push_back( m_readBuf[i] ) ;
@@ -236,32 +237,19 @@ namespace drachtio {
             string hostport ;
             theOneAndOnlyController->getMyHostport( hostport ) ;
             o << "true, \"hostport\": \"" << hostport << "\"}}" ;
+
+            string strAppName ;
+            if( pMsg->get<string>("data.appName", strAppName) ) {
+                m_controller.addNamedService( shared_from_this(), strAppName ) ; 
+                m_strAppName = strAppName ;
+            }
         }
         else {
             o << "false, \"reason\":\"invalid credentials\"}}" ;
         }
         msgResponse.set( o.str() ) ;
         return bReturn ;
-    }
-    bool Client::processRegistration( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse  ) {
-        bool bReturn = false ;
-        string id = pMsg->get_or_default<string>("request-id","") ;
-        ostringstream o ;
-        o << "{\"type\": \"response\", \"rid\": \"" << id << "\",\"data\": {\"registered\":" ;        
-        if( 0 != pMsg->get_or_default<string>("type","").compare("request") || 
-            0 != pMsg->get_or_default<string>("command","").compare("register") ) {
-
-            o << "false, \"reason\":\"invalid register message\"}}" ;
-       }
-       else {
-            bReturn = true ;
-            pMsg->get_array<string>("data.<array>.services", m_vecServices) ;
-            o << "true}}" ;        
-        }
-        msgResponse.set( o.str() ) ;
-        return bReturn ;
-    }
- 
+    } 
     void Client::processMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
         bDisconnect = false ;
 
