@@ -291,9 +291,9 @@ namespace drachtio {
 		struct contact_parser {
 			static stringstream& toJson( sip_contact_t* c, stringstream& o) {
 				o << "{" ;
-				JSONAPPEND("display", c->m_display,o, false)  ;
-				o << ",\"url\": "  ;
+				o << "\"url\": "  ;
 				url_parser::toJson( c->m_url, o ) ;
+				JSONAPPEND("display", c->m_display,o)  ;
 				JSONAPPEND("comment", c->m_comment,o)  ;
 				JSONAPPEND("q", c->m_q,o) ;
 				JSONAPPEND("expires", c->m_expires,o) ;
