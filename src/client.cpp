@@ -122,7 +122,7 @@ namespace drachtio {
             try {
                 if( !readMessageLength( m_nMessageLength ) ) {
                     DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength << endl ;                     
-                    return ;
+                    goto read_again ;
                 }
             }
             catch( std::runtime_error& err ) {
@@ -165,7 +165,7 @@ namespace drachtio {
                 try {
                     if( !readMessageLength( m_nMessageLength ) ) {
                         DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength << endl ;                     
-                        return ;
+                        break ;
                     }
                 }
                 catch( std::runtime_error& err ) {
@@ -180,6 +180,7 @@ namespace drachtio {
             }
         }
 
+read_again:
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
 
