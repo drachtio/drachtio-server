@@ -43,7 +43,7 @@ namespace drachtio {
     }
 
 	Client::Client( boost::asio::io_service& io_service, ClientController& controller ) : m_sock(io_service), m_controller( controller ),  
-        m_state(initial), m_buffer(8192), m_nMessageLength(0) {
+        m_state(initial), m_buffer(12228), m_nMessageLength(0) {
     }
     Client::~Client() {
     }
@@ -58,19 +58,33 @@ namespace drachtio {
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
         
     }
-    unsigned int Client::readMessageLength() {
-        boost::array<char, 5> ch ;
+    bool Client::readMessageLength(unsigned int& len) {
+        bool continueOn = true ;
+        boost::array<char, 6> ch ;
         memset( ch.data(), 0, sizeof(ch)) ;
         unsigned int i = 0 ;
+        char c ;
         do {
-            char c = m_buffer.front() ;
+            c = m_buffer.front() ;
             m_buffer.pop_front() ;
             if( '#' == c ) break ;
-            if( !isdigit( c ) ) return 0 ;
+            if( !isdigit( c ) ) throw std::runtime_error("Client::readMessageLength - invalid message length specifier") ;
             ch[i++] = c ;
-        } while( m_buffer.size() && i < 5) ;
+        } while( m_buffer.size() && i < 6 ) ;
 
-        return boost::lexical_cast<unsigned int>(ch.data()); 
+        if( 6 == i ) throw std::runtime_error("Client::readMessageLength - invalid message length specifier") ;
+
+        if( 0 == m_buffer.size() ) {
+            if( '#' != c ) {
+                /* the message was split in the middle of the length specifier - put them back for next time to be read in full once remainder come in */
+                for( unsigned int n = 0; n < i; n++ ) m_buffer.push_back( ch[n] ) ;
+                return false ;
+            }
+            continueOn = false ;
+        }
+
+        len = boost::lexical_cast<unsigned int>(ch.data()); 
+        return continueOn ;
     }
 
     bool Client::processOneMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) {
@@ -97,15 +111,21 @@ namespace drachtio {
             return ;
         }
 
-        DR_LOG(log_debug) << "Client::read_handler read " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
+        DR_LOG(log_debug) << "Client::read_handler read raw message of " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
 
         /* append the data to our in-process buffer */
         m_buffer.insert( m_buffer.end(), m_readBuf.begin(),  m_readBuf.begin() + bytes_transferred ) ;
 
         /* if we're starting a new message, parse the message length */
         if( 0 == m_nMessageLength ) {
-            m_nMessageLength = readMessageLength() ;
-            if( 0 == m_nMessageLength ) {
+
+            try {
+                if( !readMessageLength( m_nMessageLength ) ) {
+                    DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength << endl ;                     
+                    return ;
+                }
+            }
+            catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly" << endl ;                     
                 m_controller.leave( shared_from_this() ) ;               
                 return ;
@@ -142,11 +162,16 @@ namespace drachtio {
             m_buffer.erase_begin( m_nMessageLength ) ;
             if( m_buffer.size() ) {
                 DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer, remaining bytes to process: " << m_buffer.size() << endl ;
-                m_nMessageLength = readMessageLength() ;
-                if( 0 == m_nMessageLength ) {
-                     DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly (follow-on message)" << endl ;                     
+                try {
+                    if( !readMessageLength( m_nMessageLength ) ) {
+                        DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength << endl ;                     
+                        return ;
+                    }
+                }
+                catch( std::runtime_error& err ) {
+                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly" << endl ;                     
                     m_controller.leave( shared_from_this() ) ;               
-                    return ;       
+                    return ;
                 }
                 DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << m_nMessageLength << " bytes " << endl ; 
             }

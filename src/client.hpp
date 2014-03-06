@@ -81,7 +81,7 @@ namespace drachtio {
 	    
 	    void pushMsgData( ostringstream& o, const char* szType, const char* szCommand, const char* szRequestId = NULL) ;
 
-	    unsigned int readMessageLength() ;
+	    bool readMessageLength( unsigned int& len ) ;
 		    
 	private:
 		ClientController& m_controller ;
