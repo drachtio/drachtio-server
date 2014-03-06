@@ -106,10 +106,16 @@ namespace drachtio {
 
 		template<typename InputIterator> void set( InputIterator begin, InputIterator end ) {
 			m_strRaw.assign( begin, end ) ;
-			if( !json_spirit::read( m_strRaw, m_value ) ) throw std::runtime_error("Invalid JSON") ;
+			if( !json_spirit::read( m_strRaw, m_value ) ) {
+				cerr << "Invalid JSON " << endl << m_strRaw << endl ;
+				throw std::runtime_error("Invalid JSON") ;
+			}
 		}
 		void set( const string& strJson ) {
-			if( !json_spirit::read( strJson, m_value ) ) throw std::runtime_error("Invalid JSON") ;
+			if( !json_spirit::read( strJson, m_value ) ) {
+				cerr << "Invalid JSON " << endl << strJson << endl ;
+				throw std::runtime_error("Invalid JSON") ;
+			}
 		}
 		void stringify(string& json) const { 
 			json = json_spirit::write( m_value ) ;
