@@ -78,6 +78,7 @@ namespace drachtio {
             if( '#' != c ) {
                 /* the message was split in the middle of the length specifier - put them back for next time to be read in full once remainder come in */
                 for( unsigned int n = 0; n < i; n++ ) m_buffer.push_back( ch[n] ) ;
+                len = 0 ;
                 return false ;
             }
             continueOn = false ;
