@@ -168,7 +168,7 @@ namespace drachtio {
             bool bDisconnect = false ;
             try {
  
-                boost::shared_ptr<JsonMsg> pMsg = boost::make_shared<JsonMsg>( m_buffer.begin(), m_buffer.end() + m_nMessageLength ) ;
+                boost::shared_ptr<JsonMsg> pMsg = boost::make_shared<JsonMsg>( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) ;
 
                 /* reset for next message */
                 m_buffer.erase_begin( m_nMessageLength ) ;
