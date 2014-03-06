@@ -58,13 +58,18 @@ namespace drachtio {
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
         
     }
-    unsigned int Client::readMessageLength(unsigned int bytes_transferred, unsigned int& i) {
+    unsigned int Client::readMessageLength() {
         boost::array<char, 5> ch ;
         memset( ch.data(), 0, sizeof(ch)) ;
-        i = 0 ;
-        for( ; m_readBuf[i] != '#' && i < bytes_transferred; i++ ) {
-            ch[i] = m_readBuf[i] ;
-        }
+        unsigned int i = 0 ;
+        do {
+            char c = m_buffer.front() ;
+            m_buffer.pop_front() ;
+            if( '#' == c ) break ;
+            if( !isdigit( c ) ) return 0 ;
+            ch[i++] = c ;
+        } while( m_buffer.size() && i < 5) ;
+
         return boost::lexical_cast<unsigned int>(ch.data()); 
     }
 
@@ -91,36 +96,32 @@ namespace drachtio {
             m_controller.leave( shared_from_this() ) ;
             return ;
         }
- 
-        /*  add the data to any partial message we have, then check if we have received the expeected length of data */
-        DR_LOG(log_debug) << "Client::read_handler read " << bytes_transferred << " bytes: " << 
-            //std::string(m_readBuf.begin(), m_readBuf.end()) << endl ;
-            std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
 
-        if( m_nMessageLength > 0 ) {
-            for( unsigned int i = 0; i < bytes_transferred; i++ ) m_buffer.push_back( m_readBuf[i] ) ;
-        }
-        else {
-            /* read the length specifier at the front, skip the delimiting hash, add the rest */
-            unsigned int i ;
-            m_nMessageLength = readMessageLength(bytes_transferred, i) ;
- 
-            DR_LOG(log_debug) << "Client::read_handler message header indicates message length of " << m_nMessageLength << " bytes " << endl ;
- 
-            if( i < bytes_transferred ) {
-                for( i++; i < bytes_transferred; i++ ) m_buffer.push_back( m_readBuf[i] ) ;
+        DR_LOG(log_debug) << "Client::read_handler read " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
+
+        /* append the data to our in-process buffer */
+        m_buffer.insert( m_buffer.end(), m_readBuf.begin(),  m_readBuf.begin() + bytes_transferred ) ;
+
+        /* if we're starting a new message, parse the message length */
+        if( 0 == m_nMessageLength ) {
+            m_nMessageLength = readMessageLength() ;
+            if( 0 == m_nMessageLength ) {
+                DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly" << endl ;                     
+                m_controller.leave( shared_from_this() ) ;               
+                return ;
             }
         }
 
+        /* while we have at least one full message, process it */
         while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
             JsonMsg msgResponse ;
             bool bDisconnect = false ;
             try {
-            DR_LOG(log_debug) << "Client::read_handler read JSON: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
+                DR_LOG(log_debug) << "Client::read_handler read JSON: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
                 boost::shared_ptr<JsonMsg> pMsg = boost::make_shared<JsonMsg>( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) ;
                 bDisconnect = processOneMessage( pMsg, msgResponse ) ;
             } catch( std::runtime_error& err ) {
-                DR_LOG(log_debug) << "Error: " << err.what() << endl ;
+                DR_LOG(log_error) << "Error parsing JSON message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what() << endl ;
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
@@ -140,76 +141,19 @@ namespace drachtio {
             /* reload for next message */
             m_buffer.erase_begin( m_nMessageLength ) ;
             if( m_buffer.size() ) {
-                DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer" << endl ;
- 
-                unsigned int i ;
-                unsigned int len = readMessageLength( m_buffer.size(), i ) ;
-                if( len ) {
-                    DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << len << " bytes " << endl ; 
-                    m_nMessageLength = len ;
-                    i++ ;
-                    while( i-- ) m_buffer.pop_front() ;
+                DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer, remaining bytes to process: " << m_buffer.size() << endl ;
+                m_nMessageLength = readMessageLength() ;
+                if( 0 == m_nMessageLength ) {
+                     DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly (follow-on message)" << endl ;                     
+                    m_controller.leave( shared_from_this() ) ;               
+                    return ;       
                 }
-                else {
-                    DR_LOG(log_error) << "Client::read_handler failed reading follow-on message " << endl ;                     
-                }
+                DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << m_nMessageLength << " bytes " << endl ; 
             }
             else {
                 m_nMessageLength = 0 ;
             }
         }
-
-#ifdef NEVER
-
-        /* now check if we have (at least) a full message to process */
-        if( m_buffer.size() >= m_nMessageLength ) {
-  
-            JsonMsg msgResponse ;
-            bool bDisconnect = false ;
-            try {
- 
-                boost::shared_ptr<JsonMsg> pMsg = boost::make_shared<JsonMsg>( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) ;
-
-                /* reset for next message */
-                m_buffer.erase_begin( m_nMessageLength ) ;
-                m_nMessageLength = 0 ;
-
-                DR_LOG(log_info) << "Read JSON msg from client: " << pMsg->getRawText() << endl  ;
-
-                switch( m_state ) {
-                    case initial:
-                        if( this->processAuthentication( pMsg, msgResponse ) ) {
-                            m_state = authenticated ;
-                        }     
-                        else bDisconnect = true ;    
-                        break ;              
-                    default:
-                        this->processMessage( pMsg, msgResponse, bDisconnect ) ;
-                        break ;
-                }
-            } catch( std::runtime_error& err ) {
-                DR_LOG(log_debug) << "Error: " << err.what() << endl ;
-                m_controller.leave( shared_from_this() ) ;
-                return ;
-            }
-
-            if( !msgResponse.isNull() ) {
-                string strJson ;
-                msgResponse.stringify(strJson) ;
-                DR_LOG(log_info) << "Sending " << strJson << endl ;
-                boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
-            }
-            if( bDisconnect ) {
-                m_controller.leave( shared_from_this() ) ;
-                return ;
-            }
-        }
-        else {
-#pragma mark TODO: need to deal with reading more than one message
-            DR_LOG(log_debug) << "Read partial message; read " << m_buffer.size() << " of " << m_nMessageLength << " bytes" << endl ;
-        }
-
-#endif
 
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
