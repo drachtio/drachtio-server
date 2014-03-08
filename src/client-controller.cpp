@@ -100,7 +100,8 @@ namespace drachtio {
         DR_LOG(log_debug) << "Added client for " << verb << " requests" << endl ;
 
         //initialize the offset if this is the first client registering for that verb
-        m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(verb,0)) ;
+        map_of_request_type_offsets::iterator it = m_map_of_request_type_offsets.find( verb ) ;
+        if( m_map_of_request_type_offsets.end() == it ) m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(verb,0)) ;
 
         //TODO: validate the verb is supported
         return true ;  
@@ -162,7 +163,8 @@ namespace drachtio {
         JsonMsg jmsg( json ) ;
 
         m_mapTransactions.insert( mapTransactions::value_type(transactionId,client)) ;
-
+        DR_LOG(log_info) << "ClientController::route_request_outside_dialog - added invite transaction, map size is now: " << m_mapTransactions.size() << " request" << endl ;
+ 
         m_ioservice.post( boost::bind(&Client::sendRequestOutsideDialog, client, transactionId, json) ) ;
  
         return true ;
@@ -225,7 +227,9 @@ namespace drachtio {
         mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
         if( m_mapTransactions.end() != it ) {
             m_mapDialogs.insert( mapDialogs::value_type(dialogId, it->second ) ) ;
-        }
+            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog, now tracking: " << 
+                m_mapDialogs.size() << "dialogs and " << m_mapTransactions.size() << " transactions" << endl ;
+         }
         else {
             DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found" << endl ;
             assert(false) ;
