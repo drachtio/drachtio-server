@@ -122,6 +122,9 @@ namespace drachtio {
         typedef boost::unordered_multimap<string,RequestSpecifier> map_of_request_types ;
         map_of_request_types m_request_types ;
 
+        typedef boost::unordered_map<string,unsigned int> map_of_request_type_offsets ;
+        map_of_request_type_offsets m_map_of_request_type_offsets ;
+
         typedef boost::unordered_map<string,client_weak_ptr> mapDialogs ;
         mapDialogs m_mapDialogs ;
         

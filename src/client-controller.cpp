@@ -98,6 +98,10 @@ namespace drachtio {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_request_types.insert( map_of_request_types::value_type(verb, spec)) ;  
         DR_LOG(log_debug) << "Added client for " << verb << " requests" << endl ;
+
+        //initialize the offset if this is the first client registering for that verb
+        m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(verb,0)) ;
+
         //TODO: validate the verb is supported
         return true ;  
     }
@@ -109,24 +113,38 @@ namespace drachtio {
         string method_name = sip->sip_request->rq_method_name ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
 
+        /* round robin select a client that has registered for this request type */
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         client_ptr client ;
         string matchId ;
         pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range( method_name ) ;
-        for( map_of_request_types::iterator it = pair.first; it != pair.second; ) {
-            RequestSpecifier& spec = it->second ;
-
-            if( !spec.client() ) {
-                /* note: our weak pointer may be to a client that has disconnected, so we need to check and remove them from the map
-                    at this point if that is so.
-                */
-                DR_LOG(log_debug) << "Removing disconnected client while iterating" << endl ;
-                m_request_types.erase(it++) ;
-                continue ;
-            }
-            client = spec.client() ;
-            break ;
+        unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
+        if( 0 == nPossibles ) {
+            DR_LOG(log_info) << "No connected clients found to handle incoming " << method_name << " request" << endl ;
+           return false ;           
         }
+
+        map_of_request_type_offsets::iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
+        unsigned int nOffset = m_map_of_request_type_offsets.end() != itOffset ? itOffset->second : 0 ;
+        m_map_of_request_type_offsets.insert( map_of_request_type_offsets::value_type(method_name,++nOffset)) ;
+
+        unsigned int nTries = 0 ;
+        do {
+            map_of_request_types::iterator it = pair.first ;
+            std::advance( it, nOffset) ;
+            RequestSpecifier& spec = it->second ;
+            client = spec.client() ;
+            if( !client ) {
+                DR_LOG(log_debug) << "Removing disconnected client while iterating" << endl ;
+                m_request_types.erase( it ) ;
+                if( nOffset >= m_request_types.size() ) {
+                    nOffset = m_request_types.size() - 1 ;
+                }
+            }
+            else {
+                DR_LOG(log_debug) << "Selected client at offset " << nOffset << endl ;                
+            }
+        } while( !client && ++nTries < nPossibles ) ;
 
         if( !client ) {
             DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request" << endl ;
