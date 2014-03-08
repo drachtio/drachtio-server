@@ -128,7 +128,8 @@ namespace drachtio {
         unsigned int nOffset = 0 ;
         map_of_request_type_offsets::iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
         if( m_map_of_request_type_offsets.end() != itOffset ) {
-            if( itOffset->second < nPossibles ) nOffset = itOffset->second ;
+            unsigned int i = itOffset->second;
+            if( i < nPossibles ) nOffset = i ;
             else nOffset = nPossibles -1 ;
         }
 
@@ -188,6 +189,11 @@ namespace drachtio {
 
         m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, json) ) ;
 
+        string method_name = sip->sip_request->rq_method_name ;
+        if( 0 == method_name.compare("BYE") ) {
+            removeDialog( dialogId ) ;
+        }
+
         return true ;
     }
     bool ClientController::route_ack_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
@@ -221,6 +227,11 @@ namespace drachtio {
 
         m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, json) ) ;
 
+        string method_name = sip->sip_cseq->cs_method_name ;
+        if( 0 == method_name.compare("BYE") ) {
+            removeDialog( dialogId ) ;
+        }
+        
         return true ;
     }
     void ClientController::addDialogForTransaction( const string& transactionId, const string& dialogId ) {
@@ -323,6 +334,18 @@ namespace drachtio {
 
         return true ;
     }
+
+    void ClientController::removeDialog( const string& dialogId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
+        if( m_mapDialogs.end() == it ) {
+            DR_LOG(log_warning) << "ClientController::removeDialog - dialog not found: " << dialogId << endl ;
+            return ;
+        }
+        m_mapDialogs.erase( it ) ;
+        DR_LOG(log_info) << "ClientController::removeDialog - after removing dialogs count is now: " << m_mapDialogs.size() << endl ;
+    }
+
 
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
         client_ptr client ;

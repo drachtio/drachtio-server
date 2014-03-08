@@ -104,6 +104,7 @@ namespace drachtio {
         client_ptr findClientForDialog( const string& dialogId ) ;
         client_ptr findClientForRequest( const string& rid ) ;
         client_ptr findClientForTransaction( const string& transactionId ) ;
+        void removeDialog( const string& dialogId ) ;
 
         DrachtioController*         m_pController ;
         boost::thread               m_thread ;
