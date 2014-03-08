@@ -124,9 +124,14 @@ namespace drachtio {
            return false ;           
         }
 
+        unsigned int nOffset = 0 ;
         map_of_request_type_offsets::iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
-        unsigned int nOffset = m_map_of_request_type_offsets.end() != itOffset ? itOffset->second : 0 ;
-        m_map_of_request_type_offsets.insert( map_of_request_type_offsets::value_type(method_name,++nOffset)) ;
+        if( m_map_of_request_type_offsets.end() != itOffset ) {
+            if( itOffset->second < nPossibles ) nOffset = itOffset->second ;
+            else nOffset = nPossibles -1 ;
+        }
+
+        m_map_of_request_type_offsets.insert( map_of_request_type_offsets::value_type(method_name,nOffset+1)) ;
 
         unsigned int nTries = 0 ;
         do {
