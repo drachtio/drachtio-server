@@ -352,7 +352,7 @@ namespace drachtio {
     }
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
-        return findClientForDialog( dialogId ) ;
+        return findClientForDialog_nolock( dialogId ) ;
     }
 
     client_ptr ClientController::findClientForDialog_nolock( const string& dialogId ) {
