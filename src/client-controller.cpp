@@ -107,6 +107,7 @@ namespace drachtio {
         return true ;  
     }
 
+    ///NB: route_XXX handles incoming messages from the network
     bool ClientController::route_request_outside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
@@ -126,14 +127,15 @@ namespace drachtio {
         }
 
         unsigned int nOffset = 0 ;
-        map_of_request_type_offsets::iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
+        map_of_request_type_offsets::const_iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
         if( m_map_of_request_type_offsets.end() != itOffset ) {
             unsigned int i = itOffset->second;
             if( i < nPossibles ) nOffset = i ;
-            else nOffset = nPossibles -1 ;
+            else nOffset = 0;
         }
 
-        m_map_of_request_type_offsets.insert( map_of_request_type_offsets::value_type(method_name,nOffset+1)) ;
+        m_map_of_request_type_offsets.erase( itOffset ) ;
+        m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(method_name, nOffset + 1)) ;
 
         unsigned int nTries = 0 ;
         do {
@@ -170,6 +172,8 @@ namespace drachtio {
  
         return true ;
     }
+
+    //client has sent us a response to an incoming request from the network
     void ClientController::respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) {
          m_pController->getDialogController()->respondToSipRequest( transactionId, pMsg ) ;
     }
@@ -189,6 +193,7 @@ namespace drachtio {
 
         m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, json) ) ;
 
+        /* if this is a BYE from the network, it ends the dialog */
         string method_name = sip->sip_request->rq_method_name ;
         if( 0 == method_name.compare("BYE") ) {
             removeDialog( dialogId ) ;
@@ -231,10 +236,11 @@ namespace drachtio {
         if( 0 == method_name.compare("BYE") ) {
             removeDialog( dialogId ) ;
         }
-        
+
         return true ;
     }
     void ClientController::addDialogForTransaction( const string& transactionId, const string& dialogId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
         mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
         if( m_mapTransactions.end() != it ) {
             m_mapDialogs.insert( mapDialogs::value_type(dialogId, it->second ) ) ;
@@ -248,7 +254,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "ClientController::addDialogForTransaction - transaction id " << transactionId << 
             " has associated dialog " << dialogId << endl ;
 
-        client_ptr client = this->findClientForDialog( dialogId );
+        client_ptr client = this->findClientForDialog_nolock( dialogId );
         if( !client ) {
             m_mapDialogs.erase( dialogId ) ;
             m_mapTransactions.erase( transactionId ) ;
@@ -264,7 +270,6 @@ namespace drachtio {
                     " has been established for client app " << strAppName << "; count of tracked dialogs is " << m_mapDialogId2Appname.size() << endl ;
             }
         }
-
     } 
     bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
         ostringstream o ;
@@ -345,21 +350,19 @@ namespace drachtio {
         m_mapDialogs.erase( it ) ;
         DR_LOG(log_info) << "ClientController::removeDialog - after removing dialogs count is now: " << m_mapDialogs.size() << endl ;
     }
-
-
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        return findClientForDialog( dialogId ) ;
+    }
+
+    client_ptr ClientController::findClientForDialog_nolock( const string& dialogId ) {
         client_ptr client ;
 
-        // try to get the exact client first 
-        {
-            boost::lock_guard<boost::mutex> l( m_lock ) ;
-            mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
-            if( m_mapDialogs.end() != it ) client = it->second.lock() ;
-        }
+        mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
+        if( m_mapDialogs.end() != it ) client = it->second.lock() ;
 
         // if that client is no longer connected, randomly select another client that is running that app 
         if( !client ) {
-            boost::lock_guard<boost::mutex> l( m_lock ) ;
             mapDialogId2Appname::iterator it = m_mapDialogId2Appname.find( dialogId ) ;
             if( m_mapDialogId2Appname.end() != it ) {
                 string appName = it->second ;
@@ -388,13 +391,16 @@ namespace drachtio {
         }
         return client ;
     }
+
     client_ptr ClientController::findClientForRequest( const string& rid ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
         client_ptr client ;
         mapRequests::iterator it = m_mapRequests.find( rid ) ;
         if( m_mapRequests.end() != it ) client = it->second.lock() ;
         return client ;
     }
     client_ptr ClientController::findClientForTransaction( const string& transactionId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
         client_ptr client ;
         mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
         if( m_mapTransactions.end() != it ) client = it->second.lock() ;
