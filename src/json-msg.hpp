@@ -27,7 +27,7 @@ THE SOFTWARE.
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
-#include "json_spirit.h"
+#include <jansson.h>
 
 using namespace std ;
 
@@ -38,11 +38,11 @@ namespace drachtio {
 	class JsonMsg : public boost::enable_shared_from_this<JsonMsg> {
 	public:
 
-		JsonMsg() {}
-		JsonMsg( json_spirit::mValue& value ) : m_value(value) {
-
+		JsonMsg() : m_value(0) {}
+		JsonMsg( json_t *value ) : m_value(value) {
+			json_incref(m_value) ;
 		} 
-		JsonMsg( const string& strMsg ) : m_strRaw(strMsg) {
+		JsonMsg( const string& strMsg ) : m_value(0) {
 			try {
 				set( strMsg ) ;
 			} catch( std::runtime_error& e) {
@@ -50,7 +50,7 @@ namespace drachtio {
 				throw e ;
 			}
 		}
-		template<typename InputIterator> JsonMsg( InputIterator begin, InputIterator end ) {
+		template<typename InputIterator> JsonMsg( InputIterator begin, InputIterator end ) : m_value(0) {
 			try {
 				set( begin, end ) ;
 			} catch( std::runtime_error& e) {
@@ -58,122 +58,56 @@ namespace drachtio {
 				throw e ;
 			}
 		}
-		~JsonMsg() {}
+		~JsonMsg() {
+			if( m_value) json_decref(m_value) ;
+		}
 
-
-		bool has( const char * szPath ) const {
-			try {
-				get_by_path_or_throw( szPath ) ; 
-				return true ;
-			} catch( std::runtime_error& err ) {}
-			return false ;
-		}
-		template< typename T> bool get(const char * szPath, T& t) const {
-			bool bReturn = false ;
-			try {
-				const json_spirit::mValue& value = get_by_path_or_throw( szPath ) ;
-				t = value.get_value<T>() ;
-				bReturn = true ;
-			} catch( std::runtime_error& err ) {}
-			return bReturn ;
-		}
-		template< typename T> T get_or_default(const char * szPath, const T defaultValue) const {
-			T t; 
-			try {
-				const json_spirit::mValue& value = get_by_path_or_throw( szPath ) ;
-				t = value.get_value<T>() ;
-			} catch( ... ) {
-				t = defaultValue ;
-			}
-			return t ;
-		}
-		template< typename T> bool get_array(const char * szPath, std::vector<T>& t) const {
-			bool bReturn = false ;
-			try {
-				const json_spirit::mArray& array_val = get_by_path_or_throw( szPath ).get_array() ;
-				for( json_spirit::mArray::const_iterator it = array_val.begin(); it != array_val.end(); it++ ) {
-					t.push_back( it->get_value<T>() ) ;
-				}
-				bReturn = true ;
-			} catch( std::runtime_error& err ) {
-				cerr << "Exception in JsonMsg::get_array: " << err.what() << endl ;
-			}
-			catch( ... ) {
-				cerr << "Unknown exception" << endl ;
-			}
-			return bReturn ;
-		}
+		json_t* value(void) { return m_value; }
 
 		template<typename InputIterator> void set( InputIterator begin, InputIterator end ) {
-			m_strRaw.assign( begin, end ) ;
-			if( !json_spirit::read( m_strRaw, m_value ) ) {
-				cerr << "Invalid JSON " << endl << m_strRaw << endl ;
-				throw std::runtime_error("Invalid JSON") ;
+			string strJson( begin, end) ;
+			json_error_t error ;
+			json_t* v = json_loads(strJson.c_str(), 0, &error) ;
+			if( !v ) {
+				cerr << "JsonMsg::set - " << error.text << " at line " << error.line << ", column " << error.column << endl ;
+				throw std::runtime_error(error.text) ;
 			}
+			m_value = v ;
+		}
+		void set( json_t* json ) {
+			if( m_value ) json_decref( m_value ) ;
+			m_value = json ;
 		}
 		void set( const string& strJson ) {
-			if( !json_spirit::read( strJson, m_value ) ) {
-				cerr << "Invalid JSON " << endl << strJson << endl ;
-				throw std::runtime_error("Invalid JSON") ;
+			json_error_t error ;
+			json_t* v = json_loads(strJson.c_str(), 0, &error) ;
+			if( !v ) {
+				cerr << "JsonMsg::set - " << error.text << " at line " << error.line << ", column " << error.column << endl ;
+				throw std::runtime_error(error.text) ;
 			}
+			m_value = v ;			
 		}
 		void stringify(string& json) const { 
-			json = json_spirit::write( m_value ) ;
+			assert(m_value) ;
+			char * c = json_dumps(m_value, JSON_SORT_KEYS | JSON_COMPACT | JSON_ENCODE_ANY ) ;
+			if( !c ) {
+				throw std::runtime_error("JsonMsg::stringify: encode operation failed") ;
+			}
+
 			ostringstream o ;
-			o << json.length() << "#" << json ;
+			o << strlen(c) << "#" << c ;
 			json = o.str() ;
-			return ;
+#ifdef DEBUG
+			my_json_free(c) ;
+#else 
+			free(c) ;
+#endif
 		}
-		bool isNull() const { return m_value.is_null(); }
-		const string& getRawText() const { return m_strRaw; }
+		bool isNull() const { return m_value && m_value == json_null(); }
 
 	protected:
 
-		const json_spirit::mValue& get_by_path_or_throw( const char * szPath ) const {
-
-			if( 0 == strlen(szPath) ) throw std::runtime_error("Invalid path") ;
-
-			string strPath( szPath ) ;
-
-			boost::char_separator<char> sep(".") ;
-			tokenizer tok( strPath, sep) ;
-			bool isArray = false ;
-			bool isObject = true ;
-			const json_spirit::mValue* pValue = &m_value ;
-
-			for( tokenizer::iterator it = tok.begin(); it != tok.end(); ++it ) {
-				const string& el = *it ;
-
-				if( 0 == el.compare("<array>") ) {
-					isArray = true ;
-					isObject = false ;
-					continue ;
-				}
-
-				json_spirit::Value_type type = pValue->type() ;
-
-				const json_spirit::mObject& obj = pValue->get_obj() ;
-	           	json_spirit::mObject::const_iterator itChild = obj.find( el ) ;
-	           	if( obj.end() == itChild ) {
-	           		ostringstream o ;
-	           		o << "Path component not found: " << el ;
-	           		throw std::runtime_error(o.str()) ;
-	           	}
-
-	           	const json_spirit::mValue& childObj = itChild->second ; 
-
-	           	pValue = &childObj ;
-
-	           	isArray = false ;
-	           	isObject = true ;
-
-			}
-			return *pValue ;
-
-		}
-
-		json_spirit::mValue 	m_value ;
-		string 					m_strRaw ;
+		json_t *			 	m_value ;
 	} ;
 }
 

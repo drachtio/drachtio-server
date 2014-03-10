@@ -141,29 +141,27 @@ namespace drachtio {
 
             DR_LOG(log_debug) << "SipDialogController::doSendSipRequestInsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
 
-            string strBody ;
-            pMsg->get<string>("data.msg.body", strBody) ;
-            //DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog body is " << strBody << endl ;
+            const char *body, *method ;
+            json_t* obj = NULL;
+            json_unpack( pMsg->value(), "{s:s,s:{s:{s:s,s:o}}}", "method",&method,"data","msg","body",&body,"headers",obj) ;
  
-            string strMethod ;
-            if( !pMsg->get<string>("data.method", strMethod) ) {
+            if( !method ) {
                 throw std::runtime_error("method is required") ;
             }
 
-            sip_method_t mtype = methodType( strMethod ) ;
+            sip_method_t mtype = methodType( method ) ;
             if( sip_method_unknown == mtype ) {
                 throw std::runtime_error("unknown method") ;
             }
 
-            json_spirit::mObject obj ;
-            if( pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ) {
+            if( obj && json_object_size( obj ) > 0 ) {
                 tagi_t* tags = this->makeTags( obj ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
                                                             NULL,
-                                                            mtype, strMethod.c_str(),
+                                                            mtype, method,
                                                             NULL,
-                                                            TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
+                                                            TAG_IF(body, SIPTAG_PAYLOAD_STR(body)),
                                                             TAG_NEXT(tags),
                                                             TAG_END() ) ;
                 deleteTags( tags ) ;
@@ -171,9 +169,9 @@ namespace drachtio {
             else {
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
                                                             NULL,
-                                                            mtype, strMethod.c_str(),
+                                                            mtype, method,
                                                             NULL,
-                                                            TAG_IF(!strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str())),
+                                                            TAG_IF(body, SIPTAG_PAYLOAD_STR(body)),
                                                             TAG_END() ) ;
             }
            if( NULL == orq ) throw std::runtime_error("internal error attempting to create sip transaction") ;               
@@ -188,8 +186,12 @@ namespace drachtio {
             addRIP( orq, p ) ;
 
             SofiaMsg req( orq, sip ) ;
-            o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"dialogId\": \"" << dialogId << "\",\"message\": " << req.str() << "}" ;
-            m_pController->getClientController()->sendResponseToClient( rid, o.str(), transactionId ) ; 
+            string jsonMsg ;
+            req.str( jsonMsg ) ;
+            json_t* data = json_pack("{s:b,s:s,s:s,s:s}","success",true,"transactionId",transactionId.c_str(),
+                "dialogId",dialogId.c_str(),"message",jsonMsg.c_str()) ;
+
+            m_pController->getClientController()->sendResponseToClient( rid, data, transactionId ) ; 
 
             if( sip_method_bye == mtype ) {
                 this->clearDialog( dialogId ) ;
@@ -197,8 +199,9 @@ namespace drachtio {
 
        } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - Error " << err.what() << endl;
-            o << "{\"success\": false, \"dialogId\": \"" << dialogId << "\",\"reason\": \"" << err.what() << "\"}" ;
-            m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+            json_t* data = json_pack("{s:b,s:s,s:s}","success",false,
+                "dialogId",dialogId.c_str(),"reason",err.what()) ;
+            m_pController->getClientController()->sendResponseToClient( rid, data ) ; 
        }                       
 
         /* we must explicitly delete an object allocated with placement new */
@@ -215,8 +218,8 @@ namespace drachtio {
         void* place = su_msg_data( msg ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        string transactionId ;
-        pMsg->get<string>("data.transactionId",transactionId) ;
+        const char* transactionId ;
+        json_unpack( pMsg->value(), "{s:{s:s}}", "data","transactionId",&transactionId) ;
         SipMessageData* msgData = new(place) SipMessageData( transactionId, rid, pMsg ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
@@ -228,17 +231,17 @@ namespace drachtio {
         string rid( pData->getRequestId() ) ;
         string transactionId( pData->getTransactionId() ) ;
         boost::shared_ptr<IIP> iip ;
-        ostringstream o ;
+        json_t* json ;
 
         if( findIIPByTransactionId( transactionId, iip ) ) {
             int rc = nta_outgoing_cancel( iip->orq() ) ;
-            o << "{\"success\": true }" ;
+            json = json_pack("{s:b}","success",true) ;
         }
         else {
            DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - unknown transaction id " << transactionId << endl;
-            o << "{\"success\": false, \"reason\": \"request could not be found for transaction id " << transactionId << "\"}" ;
+            json = json_pack("{s:b,s:s}","success",false,"reason","request could not be found for specified transaction id") ;
         }
-        m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+        m_pController->getClientController()->sendResponseToClient( rid, json ) ; 
 
         pData->~SipMessageData() ;
    }
@@ -271,51 +274,54 @@ namespace drachtio {
 
         DR_LOG(log_debug) << "doSendSipRequestOutsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
 
-        string strFrom, strTo, strRequestUri, strMethod, strBody, strContentType ;
-        json_spirit::mObject obj ;
+        const char *from, *to, *request_uri, *method, *body, *content_type ;
 
         try {
 
-            if( !pMsg->get<string>("data.method", strMethod) ) {
-                o << "{\"success\": false, \"reason\": \"method is required\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+            json_unpack(pMsg->value(), "{s:{s:s,s:s,s?s,s:{s:s,s:s,s:s}}}","data","method",method,"request_uri",request_uri,
+                "body",body,"headers","content_type",content_type,"to",to,"from",from) ;
+
+            if( !method ) {
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","method is required") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - method is required") ;
             }
      
-            sip_method_t mtype = methodType( strMethod ) ;
+            sip_method_t mtype = methodType( method ) ;
             if( sip_method_unknown == mtype ) {
-                o << "{\"success\": false, \"reason\": \"unknown method\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","unknown method") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - unknown method") ;
             }
 
-            if( !pMsg->get<string>("data.request_uri", strRequestUri ) )  {
-                o << "{\"success\": false, \"reason\": \"request_uri is required\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+            if( !request_uri )  {
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","request_uri is required") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - request_uri is required") ;
 
             }
 
             /* if body was provided, content-type is required */
-            if( pMsg->get<string>("data.body", strBody ) ) {
-                if( !pMsg->get<string>("data.headers.content-type", strContentType) ) {
-                    o << "{\"success\": false, \"reason\": \"missing content-type header\"}" ;
-                    m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
-                    throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - missing content-type") ;
-                }
+            if( body && !content_type ) {
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                "success", false, "reason","missing content-type header") ) ; 
+                throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - missing content-type") ;
             }
 
+            string strRequestUri = request_uri ;
             normalizeSipUri( strRequestUri ) ;
             if( isLocalSipUri( strRequestUri ) ) {
-                o << "{\"success\": false, \"reason\": \"request_uri loop detected\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","request_uri loop detected") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - can not send request to myself") ;
             }
 
             /* if we got a from header, replace the hostport with the correct one */
             string myHostport ;
+            string strFrom ;
             m_pController->getMyHostport( myHostport ) ;
-            if( pMsg->get<string>("data.headers.from", strFrom) ) {
+            if( from ) {
+                strFrom = from ;
                 replaceHostInUri( strFrom, myHostport ) ; 
             }
             else {
@@ -325,45 +331,47 @@ namespace drachtio {
             }
 
             /* default To header to the request uri, if no To provided */
-            strTo = pMsg->get_or_default<string>("data.headers.to", strRequestUri.c_str() ) ;
+            if( !to ) to = request_uri ;
 
             leg = nta_leg_tcreate( m_pController->getAgent(),
                 uacLegCallback, (nta_leg_magic_t *) m_pController,
                 SIPTAG_FROM_STR(strFrom.c_str()),
-                SIPTAG_TO_STR(strTo.c_str()),
+                SIPTAG_TO_STR(to),
                 TAG_END() );
 
             if( !leg ) {
-                o << "{\"success\": false, \"reason\": \"internal error attempting to create sip leg\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","internal error attempting to create sip leg") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - Error creating leg for uac invite") ;
             }
             nta_leg_tag( leg, NULL ) ;
 
-            if( pMsg->get<json_spirit::mObject>("data.headers", obj) ) {
+            json_t* obj ;
+             ;
+            if( 0 == json_unpack(pMsg->value(), "{s:{s:o}}","data","headers",obj) && json_object_size(obj) > 0 ) {
 
                 tagi_t* tags = this->makeTags( obj ) ;
 
                 orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    NULL, mtype, strMethod.c_str()
+                    NULL, mtype, method
                     ,URL_STRING_MAKE(strRequestUri.c_str())
-                    ,TAG_IF( 0 == strMethod.compare("INVITE"), SIPTAG_CONTACT( m_my_contact ) )
-                    ,TAG_IF( !strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str()))
+                    ,TAG_IF( 0 == strcmp(method,"INVITE"), SIPTAG_CONTACT( m_my_contact ) )
+                    ,TAG_IF( body, SIPTAG_PAYLOAD_STR(body))
                     ,TAG_NEXT(tags) ) ;
 
                  deleteTags( tags ) ;
             }
             else {
                orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    NULL, mtype, strMethod.c_str()
+                    NULL, mtype, method
                     ,URL_STRING_MAKE(strRequestUri.c_str())
-                    ,TAG_IF( 0 == strMethod.compare("INVITE"), SIPTAG_CONTACT( m_my_contact ))
-                    ,TAG_IF( !strBody.empty(), SIPTAG_PAYLOAD_STR(strBody.c_str()))
+                    ,TAG_IF( 0 == strcmp(method,"INVITE"), SIPTAG_CONTACT( m_my_contact ))
+                    ,TAG_IF( !body, SIPTAG_PAYLOAD_STR(body))
                     ,TAG_END() ) ;
             }
             if( NULL == orq ) {
-                o << "{\"success\": false, \"reason\": \"internal error attempting to create sip transaction\"}" ;
-                m_pController->getClientController()->sendResponseToClient( rid, o.str() ) ; 
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","internal error attempting to create sip transaction") )  ;  
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - Error creating sip transaction for uac invite") ;               
             }
             string transactionId ;
@@ -377,8 +385,10 @@ namespace drachtio {
             addOutgoingInviteTransaction( leg, orq, sip, transactionId, dlg ) ;
 
             SofiaMsg req( orq, sip ) ;
-            o << "{\"success\": true, \"transactionId\": \"" << transactionId << "\",\"message\": " << req.str() << "}" ;
-            m_pController->getClientController()->sendResponseToClient( rid, o.str(), transactionId ) ; 
+            string jsonMsg ;
+            req.str( jsonMsg ) ;
+            m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s,s:s}", 
+                    "success", true, "transactionId",transactionId.c_str(),"message",jsonMsg.c_str()) , transactionId ) ; 
 
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << err.what() << endl;
@@ -466,6 +476,14 @@ namespace drachtio {
     void SipDialogController::respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg  ) {
         DR_LOG(log_debug) << "respondToSipRequest thread id: " << boost::this_thread::get_id() << endl ;
 
+        json_t* hdrs ;
+        if( 0 > json_unpack( pMsg->value(), "{s:{s:{s:o}}}", "data", "msg", "headers", &hdrs) ) {
+            DR_LOG(log_debug) << "SipDialogController::respondToSipRequest - failed to parse sip headers " << endl ;
+        }
+        else {
+            DR_LOG(log_debug) << "SipDialogController::respondToSipRequest - count of headers " << json_object_size(hdrs) << endl ;
+        }
+
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneRespondToSipRequest, 
         	sizeof( SipDialogController::SipMessageData ) );
@@ -486,15 +504,16 @@ namespace drachtio {
         string transactionId( pData->getTransactionId() ) ;
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
 
-        DR_LOG(log_debug) << "responding to sip request in thread " << boost::this_thread::get_id() << " with transactionId " << transactionId << endl ;
-
         int code ;
-        string status ;
-        pMsg->get<int>("data.code", code ) ;
-        pMsg->get<string>("data.status", status);
+        const char* status = NULL ;
+        json_t* obj ;
+        json_t* json = pMsg->value() ;
+        if( 0 > json_unpack( json, "{s:{s:i,s?s,s:{s:o}}}", "data","code",&code,"status",&status,"msg","headers",&obj) ) {
+            DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed unpacking json message" << endl ;
+            return ;
+        }
 
-        json_spirit::mObject obj ;
-        pMsg->get<json_spirit::mObject>("data.msg.headers", obj) ;
+        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - code: " << code << " number of tags: " << json_object_size(obj) << endl ;
         tagi_t* tags = this->makeTags( obj ) ;
 
         nta_incoming_t* irq = NULL ;
@@ -547,7 +566,7 @@ namespace drachtio {
             /* iterate through data.opts.headers, adding headers to the response */
             if( bReliable ) {
                 DR_LOG(log_debug) << "Sending " << code << " response reliably" << endl ;
-                nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status.empty() ? NULL : status.c_str()
+                nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status
                     ,SIPTAG_CONTACT(m_pController->getMyContact())
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
@@ -557,7 +576,7 @@ namespace drachtio {
             }
             else {
                 DR_LOG(log_debug) << "Sending " << code << " response (not reliably)" << endl ;
-                rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                rc = nta_incoming_treply( irq, code, status
                     ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
@@ -568,7 +587,7 @@ namespace drachtio {
             nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
             if( irq ) {
                 //TODO: if we have already generated a response (BYE, INFO with msml) then don't try again
-                rc = nta_incoming_treply( irq, code, status.empty() ? NULL : status.c_str()
+                rc = nta_incoming_treply( irq, code, status
                     ,TAG_NEXT(tags), TAG_END() ) ;                                 
                 assert( 0 == rc ) ; 
                 DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq << endl ;
@@ -866,26 +885,34 @@ namespace drachtio {
         }       
         delete [] tags ; 
     }
- 	tagi_t* SipDialogController::makeTags( json_spirit::mObject&  hdrs ) {
-        int nHdrs = hdrs.size() ;
+ 	tagi_t* SipDialogController::makeTags( json_t*  hdrs ) {
+        int nHdrs = json_object_size( hdrs ) ;
         tagi_t *tags = new tagi_t[nHdrs+1] ;
         int i = 0; 
-        for( json_spirit::mConfig::Object_type::iterator it = hdrs.begin() ; it != hdrs.end(); it++, i++ ) {
+        const char* k ;
+        json_t* v ;
+
+        DR_LOG(log_debug) << "SipDialogController::makeTags - " << nHdrs << " tags were provided" << endl ;
+
+        json_object_foreach(hdrs, k, v) {
 
             /* default to skip, as this may not be a header we are allowed to set, or value might not be provided correctly (as a string) */
             tags[i].t_tag = tag_skip ;
             tags[i].t_value = (tag_value_t) 0 ;                     
 
-            string hdr = boost::to_lower_copy( boost::replace_all_copy( it->first, "-", "_" ) );
+            string strKey( k ) ;
+
+            string hdr = boost::to_lower_copy( boost::replace_all_copy( strKey, "-", "_" ) );
 
             /* check to make sure this isn't a header that is not client-editable */
             if( isImmutableHdr( hdr ) ) {
-                DR_LOG(log_warning) << "SipDialogController::makeTags - client provided a value for header '" << it->first << "' which is not modfiable by client" << endl;
+                DR_LOG(log_warning) << "SipDialogController::makeTags - client provided a value for header '" << strKey << "' which is not modfiable by client" << endl;
+                i++ ;
                 continue ;                       
             }
 
             try {
-                string value = it->second.get_str() ;
+                string value = json_string_value( v ) ;
 
                 tag_type_t tt ;
                 if( getTagTypeForHdr( hdr, tt ) ) {
@@ -895,29 +922,30 @@ namespace drachtio {
                     strcpy( p, value.c_str() ) ;
                     tags[i].t_tag = tt;
                     tags[i].t_value = (tag_value_t) p ;
-                    DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << it->first << "' with value '" << value << "'" << endl ;
+                    DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << strKey << "' with value '" << p << "'" << endl ;
                 }
                 else {
                     /* custom header */
-                    if( string::npos != it->first.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
-                       DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header name '" << it->first << "'" << endl;
+                    if( string::npos != strKey.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
+                       DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header name '" << strKey << "'" << endl;
                        continue ;
                     }
                     else if( string::npos != value.find("\r\n") ) {
-                      DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << it->first << "'" << endl;
+                      DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << strKey << "'" << endl;
                        continue ;
                     }
-                    int nLength = it->first.length() + 2 + value.length() + 1;
+                    int nLength = strKey.length() + 2 + value.length() + 1;
                     char *p = new char[nLength] ;
                     memset(p, '\0', nLength) ;
-                    strcpy( p, it->first.c_str() ) ;
+                    strcpy( p, k ) ;
                     strcat( p, ": ") ;
-                    strcat( p, value.c_str()) ;
+                    strcat( p, value.c_str() ) ;
 
                     tags[i].t_tag = siptag_unknown_str ;
                     tags[i].t_value = (tag_value_t) p ;
-                    DR_LOG(log_debug) << "Adding custom header '" << it->first << "' with value '" << value << "'" << endl ;
+                    DR_LOG(log_debug) << "Adding custom header '" << strKey << "' with value '" << value << "'" << endl ;
                 }
+                i++ ;
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "SipDialogController::makeTags - Error attempting to read string value for header " << hdr << ": " << err.what() << endl;
             }                       

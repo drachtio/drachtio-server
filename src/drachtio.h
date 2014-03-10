@@ -94,6 +94,10 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 	sip_method_t methodType( const std::string& method ) ;
 
 	bool isLocalSipUri( const std::string& uri ) ;
+
+	void* my_json_malloc( size_t bytes ) ;
+
+	void my_json_free( void* ptr ) ;
  
  }
 

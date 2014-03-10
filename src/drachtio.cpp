@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include <boost/assign/list_of.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
+#include <boost/thread.hpp>
 
 #include <sofia-sip/url.h>
 #include <sofia-sip/nta.h>
@@ -46,6 +47,12 @@ THE SOFTWARE.
 
 using namespace std ;
  
+namespace {
+    unsigned int json_allocs = 0 ;
+    unsigned int json_bytes = 0 ;
+    boost::mutex  json_lock ;
+} ;
+
 namespace drachtio {
 
     typedef boost::unordered_map<string,tag_type_t> mapHdr2Tag ;
@@ -250,5 +257,36 @@ namespace drachtio {
 
         return setLocalUris.end() != setLocalUris.find( uri ) ;
     }
+
+    void* my_json_malloc( size_t bytes ) {
+        boost::lock_guard<boost::mutex> l( json_lock ) ;
+
+        json_allocs++ ;
+        json_bytes += bytes ;
+        //DR_LOG(log_debug) << "my_json_malloc: alloc'ing " << bytes << " bytes; outstanding allocations: " << json_allocs << ", outstanding memory size: " << json_bytes << endl ;
+
+        /* store size at the beginnng of the block */
+        void *ptr = malloc( bytes + 8 ) ;
+        *((size_t *)ptr) = bytes ;
+ 
+        return (void*) ((char*) ptr + 8);
+    }
+
+    void my_json_free( void* ptr ) {
+       boost::lock_guard<boost::mutex> l( json_lock ) ;
+
+        size_t size;
+        ptr = (void *) ((char *) ptr - 8) ;
+        size = *((size_t *)ptr);
+
+        json_allocs-- ;
+        json_bytes -= size ;
+        //DR_LOG(log_debug) << "my_json_free: freeing " << size << " bytes; outstanding allocations: " << json_allocs << ", outstanding memory size: " << json_bytes << endl ;
+
+        /* zero memory in debug mode */
+        memset( ptr, 0, size + 8 ) ;
+
+    }
+ 
  }
 

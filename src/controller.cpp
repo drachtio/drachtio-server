@@ -44,6 +44,8 @@ THE SOFTWARE.
 
 #include <sofia-sip/msg_addr.h>
 
+#include <jansson.h>
+
 #define DEFAULT_CONFIG_FILENAME "/etc/drachtio.conf.xml"
 #define MAXLOGLEN (8192)
 /* from sofia */
@@ -155,6 +157,11 @@ namespace drachtio {
             exit(-1) ;
         }
         this->installConfig() ;
+
+#ifdef DEBUG
+        json_set_alloc_funcs(my_json_malloc, my_json_free);
+#endif
+
     }
 
     DrachtioController::~DrachtioController() {
@@ -591,11 +598,11 @@ namespace drachtio {
         return 0 ;
     }
     int DrachtioController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
-        string strDialogId ;
         boost::shared_ptr<SipDialog> dlg ;
+        const char *dialogId ;
         
-        pMsg->get<string>("data.dialogId", strDialogId) ;
-        if( !m_pDialogController->findDialogById( strDialogId, dlg ) ) {
+        json_unpack(pMsg->value(), "{s:{s:s}}", "data", "dialogId", &dialogId) ;
+        if( !m_pDialogController->findDialogById( dialogId, dlg ) ) {
             //DO I need to look in dialog maker also ?  What about an UPDATE sent during an INVITE transaction?
             return -1;
         }

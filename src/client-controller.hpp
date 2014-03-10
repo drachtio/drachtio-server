@@ -73,8 +73,8 @@ namespace drachtio {
 
         bool sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) ;
 
-        void sendResponseToClient( const string& rid, const string& strData ) ;
-        void sendResponseToClient( const string& rid, const string& strData, const string& transactionId ) ;
+        void sendResponseToClient( const string& rid, json_t* json ) ;
+        void sendResponseToClient( const string& rid, json_t* json, const string& transactionId ) ;
 
         void addDialogForTransaction( const string& transactionId, const string& dialogId ) ;
 

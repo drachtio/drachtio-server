@@ -33,6 +33,7 @@ void handleSigHup( int signal ) {
 
 
 int main( int argc, char *argv[] ) {
+
 	try {
 		theOneAndOnlyController = new DrachtioController( argc, argv ) ;
 		signal( SIGHUP, handleSigHup ) ;

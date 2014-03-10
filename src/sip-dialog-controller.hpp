@@ -391,7 +391,7 @@ namespace drachtio {
 			m_mapId2Dialog.erase( itId );			
 		}
 
-		tagi_t* makeTags( json_spirit::mObject&  hdrs ) ;
+		tagi_t* makeTags( json_t*  hdrs ) ;
  		void deleteTags( tagi_t* tags ) ;
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
 

@@ -27,9 +27,9 @@ THE SOFTWARE.
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/asio.hpp>
 
-#include "sofia-msg.hpp"
 #include "client-controller.hpp"
 #include "controller.hpp"
+#include "sofia-msg.hpp"
 
 namespace drachtio {
      
@@ -161,14 +161,18 @@ namespace drachtio {
         }
 
         /* we've selected a client for this message */
-        string json = sm->str() ;
+        string json ;
+        if( !sm->str(json) ) {
+            DR_LOG(log_error) << "Error converting incoming sip message to json" << endl ;
+            return false ;            
+        }
 
-        JsonMsg jmsg( json ) ;
+        //JsonMsg jmsg( json ) ;
 
         m_mapTransactions.insert( mapTransactions::value_type(transactionId,client)) ;
         DR_LOG(log_info) << "ClientController::route_request_outside_dialog - added invite transaction, map size is now: " << m_mapTransactions.size() << " request" << endl ;
  
-        m_ioservice.post( boost::bind(&Client::sendRequestOutsideDialog, client, transactionId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendRequestOutsideDialog, client, transactionId, sm) ) ;
  
         return true ;
     }
@@ -188,7 +192,11 @@ namespace drachtio {
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-        string json = sm->str() ;
+        string json  ;
+        if( !sm->str( json ) ) {
+            DR_LOG(log_error) << "ClientController::route_request_inside_dialog - Error converting incoming sip message to json" << endl ;
+            return false ;            
+        }
         JsonMsg jmsg( json ) ;
 
         m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, json) ) ;
@@ -211,7 +219,11 @@ namespace drachtio {
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-        string json = sm->str() ;
+        string json  ;
+        if( !sm->str( json ) ) {
+            DR_LOG(log_error) << "ClientController::route_ack_request_inside_dialog - Error converting incoming sip message to json" << endl ;
+            return false ;            
+        }
         JsonMsg jmsg( json ) ;
 
         m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, json) ) ;
@@ -227,7 +239,11 @@ namespace drachtio {
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( orq, sip ) ;
-        string json = sm->str() ;
+         string json  ;
+        if( !sm->str( json ) ) {
+            DR_LOG(log_error) << "ClientController::route_response_inside_transaction - Error converting incoming sip message to json" << endl ;
+            return false ;            
+        }
         JsonMsg jmsg( json ) ;
 
         m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, json) ) ;
@@ -274,41 +290,36 @@ namespace drachtio {
     bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
         ostringstream o ;
         m_mapRequests.insert( mapRequests::value_type( rid, client)) ;   
-        string strDialogId ;
-        if( pMsg->get<string>("data.dialogId", strDialogId) ) {
+        const char* dialogId ;
+        if( 0 == json_unpack( pMsg->value(), "{s:{s:s}}","data","dialogId",&dialogId)) {
             if( m_pController->sendRequestInsideDialog( pMsg, rid ) < 0 ) {
-                o << "{\"success\": false, \"reason\": \"unknown sip dialog\"}" ;
-                client->sendResponse( rid, o.str() ) ;
+                json_t* data = json_pack("{s:b,s:s}","success",false,"reason","unknown sip dialog") ;
+                client->sendResponse( rid, data ) ;
+                json_decref(data) ;
                 return false ;
             }
-            return true ;
+            return true ;            
         }
         else {
-            string method ;
-            string transactionId ;
-            pMsg->get<string>("data.method", method ) ;
-            if( 0 == method.compare("CANCEL")  ) {
-                if( !pMsg->get<string>("data.transactionId", transactionId) ) {
-                    o << "{\"success\": false, \"reason\": \"cancel request is missing transaction id\"}" ;
-                    client->sendResponse( rid, o.str() ) ;
-                    return false ;
-                }
-                return m_pController->getDialogController()->sendCancelRequest( pMsg, rid ) ;
+            const char *method, *transactionId ;
+            json_unpack( pMsg->value(), "{s:{s:s,s?s}}","data","method",&method,"transactionId",&transactionId) ;
+            if( 0 == strcmp( method,"CANCEL") ) {
+                 return m_pController->getDialogController()->sendCancelRequest( pMsg, rid ) ;
             }
             return m_pController->getDialogController()->sendRequestOutsideDialog( pMsg, rid ) ;        
         }
     }
-    void ClientController::sendResponseToClient( const string& rid, const string& strData ) {
+    void ClientController::sendResponseToClient( const string& rid, json_t* data ) {
         string null;
-        sendResponseToClient( rid, strData, null) ;
+        sendResponseToClient( rid, data, null) ;
     }
-    void ClientController::sendResponseToClient( const string& rid, const string& strData, const string& transactionId ) {
+    void ClientController::sendResponseToClient( const string& rid, json_t* data, const string& transactionId ) {
         client_ptr client = findClientForRequest( rid ) ;
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::sendResponseToClient - client that sent the request has disconnected: " << rid << endl ;
             return ;
         }
-        m_ioservice.post( boost::bind(&Client::sendResponse, client, rid, strData) ) ;   
+        m_ioservice.post( boost::bind(&Client::sendResponse, client, rid, data) ) ;   
         if( !transactionId.empty() ) {
             m_mapTransactions.insert( mapTransactions::value_type( transactionId, client) ) ; //TODO: need to think about when this gets cleared
         }     
@@ -320,7 +331,11 @@ namespace drachtio {
             return false;            
         }
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-        string json = sm->str() ;
+        string json ;
+        if( !sm->str( json ) ) {
+            DR_LOG(log_error) << "ClientController::route_request_inside_invite - Error converting incoming sip message to json" << endl ;
+            return false ;            
+        }
         JsonMsg jmsg( json ) ;
 
         if( dialogId.length() > 0 )  m_ioservice.post( boost::bind(&Client::sendRequestInsideInviteWithDialog, client, transactionId, dialogId, json) ) ;
