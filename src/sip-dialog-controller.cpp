@@ -349,7 +349,7 @@ namespace drachtio {
             nta_leg_tag( leg, NULL ) ;
 
             json_t* obj ;
-            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:{s:o}}}","data","msg", "headers",obj) ) {
+            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:{s:o}}}","data","msg", "headers", &obj) ) {
                 DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - error parsing " << error.text << endl ;
                 return  ;
             }
