@@ -390,10 +390,8 @@ namespace drachtio {
             addOutgoingInviteTransaction( leg, orq, sip, transactionId, dlg ) ;
 
             SofiaMsg req( orq, sip ) ;
-            string jsonMsg ;
-            req.str( jsonMsg ) ;
-            m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s,s:s}", 
-                    "success", true, "transactionId",transactionId.c_str(),"message",jsonMsg.c_str()) , transactionId ) ; 
+            m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s,s:o}", 
+                    "success", true, "transactionId",transactionId.c_str(),"message",req.value() ) ) ; 
 
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << err.what() << endl;

@@ -237,11 +237,6 @@ namespace drachtio {
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( orq, sip ) ;
-         string json  ;
-        if( !sm->str( json ) ) {
-            DR_LOG(log_error) << "ClientController::route_response_inside_transaction - Error converting incoming sip message to json" << endl ;
-            return false ;            
-        }
  
         m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, sm) ) ;
 
