@@ -350,7 +350,7 @@ namespace drachtio {
 
             json_t* obj ;
              ;
-            if( 0 == json_unpack(pMsg->value(), "{s:{s:o}}","data","headers",obj) && json_object_size(obj) > 0 ) {
+            if( 0 == json_unpack(pMsg->value(), "{s:{s:{s:o}}","data","msg", "headers",obj) && json_object_size(obj) > 0 ) {
 
                 tagi_t* tags = this->makeTags( obj ) ;
 
@@ -368,7 +368,7 @@ namespace drachtio {
                     NULL, mtype, method
                     ,URL_STRING_MAKE(strRequestUri.c_str())
                     ,TAG_IF( 0 == strcmp(method,"INVITE"), SIPTAG_CONTACT( m_my_contact ))
-                    ,TAG_IF( !body, SIPTAG_PAYLOAD_STR(body))
+                    ,TAG_IF( body, SIPTAG_PAYLOAD_STR(body))
                     ,TAG_END() ) ;
             }
             if( NULL == orq ) {
