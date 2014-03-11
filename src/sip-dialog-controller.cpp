@@ -390,8 +390,13 @@ namespace drachtio {
             addOutgoingInviteTransaction( leg, orq, sip, transactionId, dlg ) ;
 
             SofiaMsg req( orq, sip ) ;
-            m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s,s:o}", 
-                    "success", true, "transactionId",transactionId.c_str(),"message",req.value() ) ) ; 
+            json_t* json = json_pack(&error, JSON_COMPACT | JSON_ENCODE_ANY, "{s:b,s:s,s:o}", 
+                    "success", true, "transactionId",transactionId.c_str(),"message",req.value() ) ;
+            if( !json ) {
+                DR_LOG(log_error) << "doSendRequestOutsideDialog - error packing request message: " << error.text << endl ;
+                return ;
+            }
+            m_pController->getClientController()->sendResponseToClient( rid, json ) ; 
 
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << err.what() << endl;

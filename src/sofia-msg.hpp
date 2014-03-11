@@ -55,7 +55,7 @@ namespace drachtio {
 
 		void populateHeaders( sip_t const *sip, json_t* json ) ;
 
-		json_t* value(void) const { return m_json; }
+		json_t* value(void) const { assert(m_json); return m_json; }
 
 		bool str(string& str) const { 
 			if( !m_json ) return false ;
