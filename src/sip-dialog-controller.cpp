@@ -390,7 +390,7 @@ namespace drachtio {
             addOutgoingInviteTransaction( leg, orq, sip, transactionId, dlg ) ;
 
             SofiaMsg req( orq, sip ) ;
-            json_t* json = json_pack(&error, JSON_COMPACT | JSON_ENCODE_ANY, "{s:b,s:s,s:o}", 
+            json_t* json = json_pack_ex(&error, JSON_COMPACT | JSON_ENCODE_ANY, "{s:b,s:s,s:o}", 
                     "success", true, "transactionId",transactionId.c_str(),"message",req.value() ) ;
             if( !json ) {
                 DR_LOG(log_error) << "doSendRequestOutsideDialog - error packing request message: " << error.text << endl ;
