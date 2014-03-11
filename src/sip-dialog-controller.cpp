@@ -272,16 +272,18 @@ namespace drachtio {
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
         ostringstream o ;
 
-        DR_LOG(log_debug) << "doSendSipRequestOutsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
-
         const char *from, *to, *request_uri, *method, *body, *content_type ;
 
         try {
 
-            json_unpack(pMsg->value(), "{s:{s:s,s:s,s?s,s:{s:s,s:s,s:s}}}","data","method",&method,"request_uri",&request_uri,
-                "body",&body,"headers","content-type",&content_type,"to",&to,"from",&from) ;
+            if( 0 > json_unpack(pMsg->value(), "{s:{s:s,s:s,s:{s:s,s:{s:s,s:s,s:s}}}","data","method",&method,"request_uri",&request_uri,
+                "msg","body",&body,"headers","content-type",&content_type,"to",&to,"from",&from) ) {
 
-            if( !method ) {
+                DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - failed parsing message" << endl ;
+                return  ;
+            }
+
+            if( !method || 0 == strlen(method)) {
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
                     "success", false, "reason","method is required") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - method is required") ;
@@ -294,7 +296,7 @@ namespace drachtio {
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - unknown method") ;
             }
 
-            if( !request_uri )  {
+            if( !request_uri || 0 == strlen(request_uri))  {
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
                     "success", false, "reason","request_uri is required") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - request_uri is required") ;
@@ -302,7 +304,7 @@ namespace drachtio {
             }
 
             /* if body was provided, content-type is required */
-            if( body && !content_type ) {
+            if( body && (!content_type || 0 == strlen(content_type) ) ) {
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
                 "success", false, "reason","missing content-type header") ) ; 
                 throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - missing content-type") ;
