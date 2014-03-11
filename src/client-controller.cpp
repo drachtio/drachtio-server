@@ -197,9 +197,8 @@ namespace drachtio {
             DR_LOG(log_error) << "ClientController::route_request_inside_dialog - Error converting incoming sip message to json" << endl ;
             return false ;            
         }
-        JsonMsg jmsg( json ) ;
-
-        m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, json) ) ;
+ 
+        m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, sm) ) ;
 
         /* if this is a BYE from the network, it ends the dialog */
         string method_name = sip->sip_request->rq_method_name ;
@@ -224,9 +223,8 @@ namespace drachtio {
             DR_LOG(log_error) << "ClientController::route_ack_request_inside_dialog - Error converting incoming sip message to json" << endl ;
             return false ;            
         }
-        JsonMsg jmsg( json ) ;
 
-        m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, json) ) ;
+        m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, sm) ) ;
 
         return true ;
     }
@@ -244,9 +242,8 @@ namespace drachtio {
             DR_LOG(log_error) << "ClientController::route_response_inside_transaction - Error converting incoming sip message to json" << endl ;
             return false ;            
         }
-        JsonMsg jmsg( json ) ;
-
-        m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, json) ) ;
+ 
+        m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, sm) ) ;
 
         string method_name = sip->sip_cseq->cs_method_name ;
         if( 0 == method_name.compare("BYE") ) {
@@ -336,10 +333,9 @@ namespace drachtio {
             DR_LOG(log_error) << "ClientController::route_request_inside_invite - Error converting incoming sip message to json" << endl ;
             return false ;            
         }
-        JsonMsg jmsg( json ) ;
-
-        if( dialogId.length() > 0 )  m_ioservice.post( boost::bind(&Client::sendRequestInsideInviteWithDialog, client, transactionId, dialogId, json) ) ;
-        else m_ioservice.post( boost::bind(&Client::sendRequestInsideInvite, client, transactionId, json) ) ;
+ 
+        if( dialogId.length() > 0 )  m_ioservice.post( boost::bind(&Client::sendRequestInsideInviteWithDialog, client, transactionId, dialogId, sm) ) ;
+        else m_ioservice.post( boost::bind(&Client::sendRequestInsideInvite, client, transactionId, sm) ) ;
 
         return true ;
     }

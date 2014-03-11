@@ -272,39 +272,39 @@ read_again:
 
         send(json) ;
     }
-    void Client::sendRequestInsideDialog( const string& transactionId, const string& dialogId, const string& msg ) {
+    void Client::sendRequestInsideDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) {
         string strUuid ;
         generateUuid( strUuid ) ;
 
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "dialogId", dialogId.c_str(), "message",msg.c_str()) ;
+        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
+            "data","transactionId",transactionId.c_str(), "dialogId", dialogId.c_str(), "message",sm->value()) ;
 
         send(json) ;
     }
-    void Client::sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, const string& msg ) {
+    void Client::sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) {
         string strUuid ;
         generateUuid( strUuid ) ;
 
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
+        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
             "data","transactionId",transactionId.c_str(), "inviteTransactionId", inviteTransactionId.c_str(), 
-            "dialogId", dialogId.c_str(), "message",msg.c_str()) ;
+            "dialogId", dialogId.c_str(), "message",sm->value()) ;
 
         send(json) ;
     }
-    void Client::sendResponseInsideTransaction( const string& transactionId, const string& dialogId, const string& msg ) {
+    void Client::sendResponseInsideTransaction( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm ) {
         string strUuid ;
         generateUuid( strUuid ) ;
 
         json_t* json = NULL ;
         if( !dialogId.empty() ) {
-            json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
+            json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
                 "data","transactionId",transactionId.c_str(), 
-                "dialogId", dialogId.c_str(), "message",msg.c_str()) ;
+                "dialogId", dialogId.c_str(), "message",sm->value()) ;
         }
         else {
-            json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
+            json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
                 "data","transactionId",transactionId.c_str(), 
-                "message",msg.c_str()) ;            
+                "message",sm->value()) ;            
         }
         send(json) ;
    }
@@ -313,21 +313,21 @@ read_again:
         send(json) ;
         json_decref(obj) ;
      }
-    void Client::sendRequestInsideInvite( const string& transactionId, const string& msg ) {
+    void Client::sendRequestInsideInvite( const string& transactionId, boost::shared_ptr<SofiaMsg> sm) {
         string strUuid ;
         generateUuid( strUuid ) ;
 
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "message",msg.c_str()) ;
+        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
+            "data","transactionId",transactionId.c_str(), "message",sm->value()) ;
 
        send(json) ;
      }
-    void Client::sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, const string& msg ) {
+    void Client::sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm ) {
         string strUuid ;
         generateUuid( strUuid ) ;
 
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(),"dialogId",dialogId.c_str(),"message",msg.c_str()) ;
+        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
+            "data","transactionId",transactionId.c_str(),"dialogId",dialogId.c_str(),"message",sm->value()) ;
 
        send(json) ;
      }

@@ -55,11 +55,11 @@ namespace drachtio {
 	    bool processOneMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
 
 	    void sendRequestOutsideDialog( const string& transactionId, boost::shared_ptr<SofiaMsg> sm ) ;
-	    void sendRequestInsideDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
-	    void sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, const string& msg ) ;
-	    void sendResponseInsideTransaction( const string& transactionId, const string& dialogId, const string& msg ) ;
-	    void sendRequestInsideInvite( const string& transactionId, const string& msg ) ;
-	    void sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, const string& msg ) ;
+	    void sendRequestInsideDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
+	    void sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
+	    void sendResponseInsideTransaction( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
+	    void sendRequestInsideInvite( const string& transactionId, boost::shared_ptr<SofiaMsg> sm  ) ;
+	    void sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
 	    void sendResponse( const string& rid, json_t* json) ;
 	    void sendEventInsideDialog( const string& transactionId, const string& dialogId, const string& event ) ;
 
