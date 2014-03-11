@@ -141,9 +141,9 @@ namespace drachtio {
 
             DR_LOG(log_debug) << "SipDialogController::doSendSipRequestInsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
 
-            const char *body, *method ;
+            const char *body=NULL, *method=NULL ;
             json_t* obj = NULL;
-            json_unpack( pMsg->value(), "{s:s,s:{s:{s:s,s:o}}}", "method",&method,"data","msg","body",&body,"headers",obj) ;
+            json_unpack( pMsg->value(), "{s:{s:{s?s,s:o,s:s}}}", "data","msg","body",&body,"headers",obj,"method",&method) ;
  
             if( !method ) {
                 throw std::runtime_error("method is required") ;
