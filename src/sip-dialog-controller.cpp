@@ -143,7 +143,7 @@ namespace drachtio {
 
             const char *body=NULL, *method=NULL ;
             json_t* obj = NULL;
-            json_unpack( pMsg->value(), "{s:{s:{s?s,s:o,s:s}}}", "data","msg","body",&body,"headers",obj,"method",&method) ;
+            json_unpack( pMsg->value(), "{s:{s:s,s:{s?s,s:o}}}", "data","method", &method, "msg","body",&body,"headers",obj) ;
  
             if( !method ) {
                 throw std::runtime_error("method is required") ;
