@@ -279,7 +279,7 @@ namespace drachtio {
         try {
 
             json_unpack(pMsg->value(), "{s:{s:s,s:s,s?s,s:{s:s,s:s,s:s}}}","data","method",&method,"request_uri",&request_uri,
-                "body",&body,"headers","content_type",&content_type,"to",&to,"from",&from) ;
+                "body",&body,"headers","content-type",&content_type,"to",&to,"from",&from) ;
 
             if( !method ) {
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
