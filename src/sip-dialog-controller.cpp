@@ -275,11 +275,11 @@ namespace drachtio {
         const char *from = NULL, *to = NULL, *request_uri = NULL, *method = NULL, *body = NULL, *content_type = NULL ;
 
         try {
-
-            if( 0 > json_unpack(pMsg->value(), "{s:{s:s,s:s,s:{s?s,s:{s?s,s?s,s?s}}}","data","method",&method,"request_uri",&request_uri,
+            json_error_t error ;
+            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:s,s:s,s:{s?s,s:{s?s,s?s,s?s}}}}","data","method",&method,"request_uri",&request_uri,
                 "msg","body",&body,"headers","content-type",&content_type,"to",&to,"from",&from) ) {
 
-                DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - failed parsing message" << endl ;
+                DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - failed parsing message: " << error.text <<  endl ;
                 return  ;
             }
 
