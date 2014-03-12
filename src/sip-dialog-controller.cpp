@@ -144,7 +144,7 @@ namespace drachtio {
             const char *body=NULL, *method=NULL ;
             json_error_t err ;
             json_t* obj = NULL;
-            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s,s:{s?s,s:o}}}", "data","method", &method, "msg","body",&body,"headers",&obj) ) {
+            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s,s?{s?s,s:o}}}", "data","method", &method, "msg","body",&body,"headers",&obj) ) {
                 DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - failed parsing message: " << err.text << endl ;
                 throw std::runtime_error(string("error parsing json message: ") + err.text) ;
             }
@@ -358,7 +358,10 @@ namespace drachtio {
 
             json_t* obj ;
             if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:{s:o}}}","data","msg", "headers", &obj) ) {
-                DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - error parsing " << error.text << endl ;
+                string err = string("error parsing message: ") + error.text ;
+                DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - " << err << endl ;
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason",err.c_str()) ) ; 
                 return  ;
             }
             if( json_object_size(obj) > 0 ) {
@@ -401,8 +404,11 @@ namespace drachtio {
             json_t* json = json_pack_ex(&error, JSON_COMPACT | JSON_ENCODE_ANY, "{s:b,s:s,s:o}", 
                     "success", true, "transactionId",transactionId.c_str(),"message",req.value() ) ;
             if( !json ) {
-                DR_LOG(log_error) << "doSendRequestOutsideDialog - error packing request message: " << error.text << endl ;
-                return ;
+                string err = string("error packing message: ") + error.text ;
+                DR_LOG(log_error) << "doSendRequestOutsideDialog - " << err.c_str() << endl ;
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason",err.c_str()) ) ; 
+              return ;
             }
             m_pController->getClientController()->sendResponseToClient( rid, json, transactionId ) ; 
 
