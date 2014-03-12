@@ -599,9 +599,13 @@ namespace drachtio {
     }
     int DrachtioController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
         boost::shared_ptr<SipDialog> dlg ;
-        const char *dialogId ;
+        const char *dialogId=NULL ;
+        json_error_t err ;
         
-        json_unpack(pMsg->value(), "{s:{s:s}}", "data", "dialogId", &dialogId) ;
+        if( 0 > json_unpack_ex(pMsg->value(), &err, 0, "{s:{s:s}}", "data", "dialogId", &dialogId) ) {
+            DR_LOG(log_error) << "DrachtioController::sendRequestInsideDialog - failed parsing message: " << err.text << endl ;
+            return -1 ;
+        }
         if( !m_pDialogController->findDialogById( dialogId, dlg ) ) {
             //DO I need to look in dialog maker also ?  What about an UPDATE sent during an INVITE transaction?
             return -1;

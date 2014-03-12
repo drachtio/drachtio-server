@@ -142,8 +142,12 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::doSendSipRequestInsideDialog in thread " << boost::this_thread::get_id() << " with rid " << rid << endl ;
 
             const char *body=NULL, *method=NULL ;
+            json_error_t err ;
             json_t* obj = NULL;
-            json_unpack( pMsg->value(), "{s:{s:s,s:{s?s,s:o}}}", "data","method", &method, "msg","body",&body,"headers",obj) ;
+            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s,s:{s?s,s:o}}}", "data","method", &method, "msg","body",&body,"headers",&obj) ) {
+                DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - failed parsing message: " << err.text << endl ;
+                throw std::runtime_error(string("error parsing json message: ") + err.text) ;
+            }
  
             if( !method ) {
                 throw std::runtime_error("method is required") ;
@@ -218,8 +222,12 @@ namespace drachtio {
         void* place = su_msg_data( msg ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        const char* transactionId ;
-        json_unpack( pMsg->value(), "{s:{s:s}}", "data","transactionId",&transactionId) ;
+        const char* transactionId=NULL ;
+        json_error_t err ;
+        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s}}", "data","transactionId",&transactionId) ) {
+            DR_LOG(log_error) << "SipDialogController::sendCancelRequest - error parsing message: " << err.text << endl ;
+            return false ;
+        }
         SipMessageData* msgData = new(place) SipMessageData( transactionId, rid, pMsg ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
@@ -484,14 +492,13 @@ namespace drachtio {
     void SipDialogController::respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg  ) {
         DR_LOG(log_debug) << "respondToSipRequest thread id: " << boost::this_thread::get_id() << endl ;
 
-        json_t* hdrs ;
-        if( 0 > json_unpack( pMsg->value(), "{s:{s:{s:o}}}", "data", "msg", "headers", &hdrs) ) {
-            DR_LOG(log_debug) << "SipDialogController::respondToSipRequest - failed to parse sip headers " << endl ;
-        }
-        else {
-            DR_LOG(log_debug) << "SipDialogController::respondToSipRequest - count of headers " << json_object_size(hdrs) << endl ;
-        }
+        json_t* hdrs=NULL ;
+        json_error_t err ;
 
+        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:{s:o}}}", "data", "msg", "headers", &hdrs) ) {
+            DR_LOG(log_debug) << "SipDialogController::respondToSipRequest - failed to parse sip headers: " << err.text  << endl ;
+        }
+ 
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneRespondToSipRequest, 
         	sizeof( SipDialogController::SipMessageData ) );
@@ -514,10 +521,11 @@ namespace drachtio {
 
         int code ;
         const char* status = NULL ;
+        json_error_t err ;
         json_t* obj ;
         json_t* json = pMsg->value() ;
-        if( 0 > json_unpack( json, "{s:{s:i,s?s,s:{s:o}}}", "data","code",&code,"status",&status,"msg","headers",&obj) ) {
-            DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed unpacking json message" << endl ;
+        if( 0 > json_unpack_ex( json, &err, 0, "{s:{s:i,s?s,s:{s:o}}}", "data","code",&code,"status",&status,"msg","headers",&obj) ) {
+            DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed unpacking json message: " << err.text << endl ;
             return ;
         }
 

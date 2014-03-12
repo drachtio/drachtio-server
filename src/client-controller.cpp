@@ -282,19 +282,26 @@ namespace drachtio {
     bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
         ostringstream o ;
         m_mapRequests.insert( mapRequests::value_type( rid, client)) ;   
-        const char* dialogId ;
-        if( 0 == json_unpack( pMsg->value(), "{s:{s:s}}","data","dialogId",&dialogId)) {
+        const char* dialogId = NULL ;
+        json_error_t err ;
+        if( 0 >  json_unpack_ex( pMsg->value(), &err, 0, "{s:{s?s}}","data","dialogId",&dialogId) ) {
+            DR_LOG(log_error) << "ClientController::sendSipRequest failed parsing dialogId from json message: " << err.text << endl ;
+            return false ;
+        }
+        if( dialogId ) {
             if( m_pController->sendRequestInsideDialog( pMsg, rid ) < 0 ) {
                 json_t* data = json_pack("{s:b,s:s}","success",false,"reason","unknown sip dialog") ;
                 client->sendResponse( rid, data ) ;
-                json_decref(data) ;
                 return false ;
             }
             return true ;            
         }
         else {
-            const char *method, *transactionId ;
-            json_unpack( pMsg->value(), "{s:{s:s,s?s}}","data","method",&method,"transactionId",&transactionId) ;
+            const char *method=NULL, *transactionId=NULL ;
+            if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s,s?s}}","data","method",&method,"transactionId",&transactionId) ) {
+                DR_LOG(log_error) << "ClientController::sendSipRequest failed parsing transactionId from json message: " << err.text << endl ;
+                return false ;       
+            }
             if( 0 == strcmp( method,"CANCEL") ) {
                  return m_pController->getDialogController()->sendCancelRequest( pMsg, rid ) ;
             }

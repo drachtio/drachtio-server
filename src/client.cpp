@@ -191,11 +191,13 @@ read_again:
 
     bool Client::processAuthentication( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse  ) {
         bool bReturn = false ;
-        const char *id, *type, *command, *secret, *appName ;
-        int rc = json_unpack( pMsg->value(), "{s:s,s:s,s:s,s:{s:s,s?s}}", "rid", &id, "type", &type, "command", &command, 
+        const char *id=NULL, *type=NULL, *command=NULL, *secret=NULL, *appName=NULL ;
+        json_error_t err ;
+        int rc = json_unpack_ex( pMsg->value(), &err, 0, "{s:s,s:s,s:s,s:{s:s,s?s}}", "rid", &id, "type", &type, "command", &command, 
             "data","secret",&secret,"appName",&appName) ;
         json_t* json = NULL ;
         if( rc < 0 ) {
+            DR_LOG(log_error) << "Client::processAuthentication - failed to parse message: " << err.text << endl ;
             bReturn = false ;
             json = json_pack("{s:s,s:s,s:{s:b,s:s}}", "type","response","rid",id,"data","authenticated",false,"reason","invalid auth message") ;
         }
@@ -212,8 +214,13 @@ read_again:
     } 
     void Client::processMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
         bDisconnect = false ;
-        const char* type ;
-        int rc = json_unpack( pMsg->value(), "{s:s}", "type", &type) ;
+        const char* type=NULL ;
+        json_error_t err ;
+        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:s}", "type", &type) ) {
+            DR_LOG(log_error) << "Client::processMessage - failed to parse message: " << err.text << endl ;
+            bDisconnect = true ;  
+            return ;
+        }
 
         if( 0 == strcmp( type, "notify") ) this->processNotify( pMsg, msgResponse, bDisconnect ) ;
         else if( 0 == strcmp( type, "request") ) this->processRequest( pMsg, msgResponse, bDisconnect ) ;
@@ -224,11 +231,15 @@ read_again:
     }
     void Client::processNotify( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
         bDisconnect = false ;
-        const char *command, *transactionId ;
+        const char *command=NULL, *transactionId=NULL ;
+        json_error_t err ;
 
-        int rc = json_unpack( pMsg->value(), "{s:s,s:{s:s}}", "command", &command, "data", "transactionId", &transactionId) ;
-        DR_LOG(log_debug) << "Client::processNotify - command " << command << " transactionId " << transactionId << endl ;
-
+        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:s,s:{s:s}}", "command", &command, "data", "transactionId", &transactionId) ) {
+            DR_LOG(log_error) << "Client::processNotify - failed to parse message: " << err.text << endl ;
+            bDisconnect = true ;  
+            return ;           
+        }
+ 
         if( 0 == strcmp( command,"respondToSipRequest") ) {
             m_controller.respondToSipRequest( transactionId, pMsg ) ;
         }
@@ -239,9 +250,14 @@ read_again:
     }
     void Client::processRequest( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
         bDisconnect = false ;
-        const char *command, *id, *verb ;
+        const char *command=NULL, *id=NULL, *verb=NULL ;
+        json_error_t err ;
 
-        int rc = json_unpack( pMsg->value(), "{s:s,s:s,s:{s?s}}", "command", &command, "rid", &id, "data", "verb", &verb) ;
+        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:s,s:s,s:{s?s}}", "command", &command, "rid", &id, "data", "verb", &verb) ) {
+            DR_LOG(log_error) << "Client::processRequest - failed to parse message: " << err.text << endl ;
+            bDisconnect = true ;  
+            return ;           
+         }
 
         if( 0 == strcmp(command, "route") ) { 
             if( !m_controller.wants_requests( shared_from_this(), verb ) ) {
