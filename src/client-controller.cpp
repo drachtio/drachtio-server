@@ -320,6 +320,7 @@ namespace drachtio {
         }
         m_ioservice.post( boost::bind(&Client::sendResponse, client, rid, data) ) ;   
         if( !transactionId.empty() ) {
+            boost::lock_guard<boost::mutex> l( m_lock ) ;
             m_mapTransactions.insert( mapTransactions::value_type( transactionId, client) ) ; //TODO: need to think about when this gets cleared
         }     
     }

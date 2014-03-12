@@ -404,7 +404,7 @@ namespace drachtio {
                 DR_LOG(log_error) << "doSendRequestOutsideDialog - error packing request message: " << error.text << endl ;
                 return ;
             }
-            m_pController->getClientController()->sendResponseToClient( rid, json ) ; 
+            m_pController->getClientController()->sendResponseToClient( rid, json, transactionId ) ; 
 
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << err.what() << endl;
