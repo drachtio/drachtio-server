@@ -284,7 +284,7 @@ read_again:
         generateUuid( strUuid ) ;
 
         json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "message", sm->value() ) ;
+            "data","transactionId",transactionId.c_str(), "message", sm->detach() ) ;
 
         send(json) ;
     }
@@ -293,7 +293,7 @@ read_again:
         generateUuid( strUuid ) ;
 
         json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "dialogId", dialogId.c_str(), "message",sm->value()) ;
+            "data","transactionId",transactionId.c_str(), "dialogId", dialogId.c_str(), "message",sm->detach()) ;
 
         send(json) ;
     }
@@ -303,7 +303,7 @@ read_again:
 
         json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
             "data","transactionId",transactionId.c_str(), "inviteTransactionId", inviteTransactionId.c_str(), 
-            "dialogId", dialogId.c_str(), "message",sm->value()) ;
+            "dialogId", dialogId.c_str(), "message",sm->detach()) ;
 
         send(json) ;
     }
@@ -315,12 +315,12 @@ read_again:
         if( !dialogId.empty() ) {
             json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
                 "data","transactionId",transactionId.c_str(), 
-                "dialogId", dialogId.c_str(), "message",sm->value()) ;
+                "dialogId", dialogId.c_str(), "message",sm->detach()) ;
         }
         else {
             json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
                 "data","transactionId",transactionId.c_str(), 
-                "message",sm->value()) ;            
+                "message",sm->detach()) ;            
         }
         send(json) ;
    }
@@ -333,7 +333,7 @@ read_again:
         generateUuid( strUuid ) ;
 
         json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "message",sm->value()) ;
+            "data","transactionId",transactionId.c_str(), "message",sm->detach()) ;
 
        send(json) ;
      }
@@ -342,7 +342,7 @@ read_again:
         generateUuid( strUuid ) ;
 
         json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(),"dialogId",dialogId.c_str(),"message",sm->value()) ;
+            "data","transactionId",transactionId.c_str(),"dialogId",dialogId.c_str(),"message",sm->detach()) ;
 
        send(json) ;
      }
