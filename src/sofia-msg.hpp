@@ -56,12 +56,19 @@ namespace drachtio {
 		void populateHeaders( sip_t const *sip, json_t* json ) ;
 
 		json_t* value(void) const { assert(m_json); return m_json; }
+		json_t* detach(void) { 
+			assert(m_json); 
+			json_t* json = m_json ;
+			m_json = NULL ;
+			return json ;
+		}
 
 		bool str(string& str) const { 
 			if( !m_json ) return false ;
 
-			char* c = json_dumps( m_json, JSON_COMPACT | JSON_SORT_KEYS ) ;
+			char* c = json_dumps( m_json, JSON_COMPACT | JSON_SORT_KEYS | JSON_ENCODE_ANY) ;
 			assert( c != NULL ) ;
+			if( NULL == c ) return false ;
 
 			str.assign( c ) ;
 #ifdef DEBUG
