@@ -327,7 +327,6 @@ read_again:
     void Client::sendResponse( const string& rid, json_t* obj) {
         json_t* json = json_pack("{s:s,s:s,s:o}", "type","response","rid",rid.c_str(),"data",obj) ;            
         send(json) ;
-        json_decref(obj) ;
      }
     void Client::sendRequestInsideInvite( const string& transactionId, boost::shared_ptr<SofiaMsg> sm) {
         string strUuid ;
