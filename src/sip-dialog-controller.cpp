@@ -908,7 +908,7 @@ namespace drachtio {
         while( tags[i].t_tag != tag_null ) {
             if( tags[i].t_value ) {
                 char *p = (char *) tags[i].t_value ;
-                delete p ;
+                delete [] p ;
             }
              i++ ;
         }       
@@ -946,9 +946,10 @@ namespace drachtio {
                 tag_type_t tt ;
                 if( getTagTypeForHdr( hdr, tt ) ) {
                 	/* well-known header */
-                    char *p = new char[value.length()+1] ;
-                    memset(p, '\0', value.length()+1) ;
-                    strcpy( p, value.c_str() ) ;
+                    int len = value.length() ;
+                    char *p = new char[len+1] ;
+                    memset(p, '\0', len+1) ;
+                    strncpy( p, value.c_str(), len ) ;
                     tags[i].t_tag = tt;
                     tags[i].t_value = (tag_value_t) p ;
                     DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << strKey << "' with value '" << p << "'" << endl ;
