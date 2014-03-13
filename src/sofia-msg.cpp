@@ -144,7 +144,7 @@ namespace drachtio {
  
 		json_object_set_new_nocheck(json,"headers",headers) ;
 
-		json_object_set_new_nocheck(json,"body",payload_parser::toJson( sip->sip_payload )) ;
+		if(  sip->sip_payload ) json_object_set_new_nocheck(json,"body",payload_parser::toJson( sip->sip_payload )) ;
 
 	}
 }
