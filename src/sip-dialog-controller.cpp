@@ -401,7 +401,7 @@ namespace drachtio {
             addOutgoingInviteTransaction( leg, orq, sip, transactionId, dlg ) ;
 
             SofiaMsg req( orq, sip ) ;
-            json_t* json = json_pack_ex(&error, JSON_COMPACT | JSON_ENCODE_ANY, "{s:b,s:s,s:o}", 
+            json_t* json = json_pack_ex(&error, JSON_COMPACT, "{s:b,s:s,s:o}", 
                     "success", true, "transactionId",transactionId.c_str(),"message",req.value() ) ;
             if( !json ) {
                 string err = string("error packing message: ") + error.text ;
@@ -410,13 +410,17 @@ namespace drachtio {
                     "success", false, "reason",err.c_str()) ) ; 
               return ;
             }
+
+            //need to increment the reference count on req.value() as the SofiaMsg dtor will decrement it 
+            //after leaving here, and before message is sent
+            json_incref( req.value() ) ;
             m_pController->getClientController()->sendResponseToClient( rid, json, transactionId ) ; 
 
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << err.what() << endl;
         }                       
 
-        /* we must explicitly delete an object allocated with placement new */
+        /* we must explicitly call the destructor of an object allocated with placement new */
 
         pData->~SipMessageData() ;
     }
