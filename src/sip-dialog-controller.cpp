@@ -190,12 +190,20 @@ namespace drachtio {
             addRIP( orq, p ) ;
 
             SofiaMsg req( orq, sip ) ;
-            string jsonMsg ;
-            req.str( jsonMsg ) ;
-            json_t* data = json_pack("{s:b,s:s,s:s,s:s}","success",true,"transactionId",transactionId.c_str(),
-                "dialogId",dialogId.c_str(),"message",jsonMsg.c_str()) ;
+            json_t* data = json_pack_ex(&error, JSON_COMPACT, "{s:b,s:s,s:s,s:o}","success",true,"transactionId",transactionId.c_str(),
+                "dialogId",dialogId.c_str(),"message",req.value()) ;
+            if( !json ) {
+                string err = string("error packing message: ") + error.text ;
+                DR_LOG(log_error) << "doSendRequestInsideDialog - " << err.c_str() << endl ;
+                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason",err.c_str()) ) ; 
+                return ;
+            }
 
-            m_pController->getClientController()->sendResponseToClient( rid, data, transactionId ) ; 
+            //need to increment the reference count on req.value() as the SofiaMsg dtor will decrement it 
+            //after leaving here, and before message is sent
+            json_incref( req.value() ) ;
+             m_pController->getClientController()->sendResponseToClient( rid, data, transactionId ) ; 
 
             if( sip_method_bye == mtype ) {
                 this->clearDialog( dialogId ) ;
