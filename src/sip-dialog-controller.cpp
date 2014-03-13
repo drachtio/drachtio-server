@@ -144,7 +144,7 @@ namespace drachtio {
             const char *body=NULL, *method=NULL ;
             json_error_t err ;
             json_t* obj = NULL;
-            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s,s?{s?s,s:o}}}", "data","method", &method, "msg","body",&body,"headers",&obj) ) {
+            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:{s:s,s?{s?s,s:o}}}", "data","message","method", &method, "msg","body",&body,"headers",&obj) ) {
                 DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - failed parsing message: " << err.text << endl ;
                 throw std::runtime_error(string("error parsing json message: ") + err.text) ;
             }
@@ -292,7 +292,7 @@ namespace drachtio {
 
         try {
             json_error_t error ;
-            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:s,s:s,s:{s?s,s:{s?s,s?s,s?s}}}}","data","method",&method,"request_uri",&request_uri,
+            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:{s:s,s:s,s:{s?s,s:{s?s,s?s,s?s}}}}","data","message","method",&method,"request_uri",&request_uri,
                 "msg","body",&body,"headers","content-type",&content_type,"to",&to,"from",&from) ) {
 
                 DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - failed parsing message: " << error.text <<  endl ;
