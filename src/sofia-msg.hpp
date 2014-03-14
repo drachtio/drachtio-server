@@ -36,14 +36,7 @@ THE SOFTWARE.
 
 using namespace std ;
 
-namespace {
-	const std::string doublequote("\"");
-	const std::string slashquote("\\\"");
-} ;
-
 namespace drachtio {
-	const std::string doublequote("\"");
-	const std::string slashquote("\\\"");
 	
 	class SofiaMsg {
 	public:
@@ -112,7 +105,6 @@ namespace drachtio {
 				if( params ) {
 					for (const msg_param_t* p = params; p && *p; p++) {
 						string val = *p ;
-						boost::replace_all( val, doublequote, slashquote) ;
 						json_array_append_new( json, json_string( val.c_str() ) ) ;
 					}			
 				}
@@ -745,7 +737,6 @@ namespace drachtio {
 			static json_t* toJson( sip_payload_t* p ) {
 				string payload( p->pl_data, p->pl_len ) ;
 				boost::replace_all( payload, "\r\n","\n") ;
-				boost::replace_all( payload, doublequote, slashquote) ;
 				return json_string( payload.c_str() );				
 			}
 		} ;
