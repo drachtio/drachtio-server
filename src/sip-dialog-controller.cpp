@@ -562,7 +562,7 @@ namespace drachtio {
             bool bReliable = false ;
             if( code > 100 && code < 200 ) {
                 int i = 0 ;
-                while( tags[i].t_tag != 0 ) {
+                while( tags[i].t_tag != tag_null ) {
                     if( tags[i].t_tag == siptag_require_str && NULL != strstr( (const char*) tags[i].t_value, "100rel") ) {
                         bReliable = true ;
                         break ;

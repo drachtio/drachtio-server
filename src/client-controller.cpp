@@ -110,6 +110,7 @@ namespace drachtio {
     ///NB: route_XXX handles incoming messages from the network
     bool ClientController::route_request_outside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
 
+        //TOD: this constructor jsonifies the message, which we would like to move out of this (sip stack) thread
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
 
         string method_name = sip->sip_request->rq_method_name ;
@@ -160,15 +161,6 @@ namespace drachtio {
            return false ;
         }
 
-        /* we've selected a client for this message */
-        string json ;
-        if( !sm->str(json) ) {
-            DR_LOG(log_error) << "Error converting incoming sip message to json" << endl ;
-            return false ;            
-        }
-
-        //JsonMsg jmsg( json ) ;
-
         m_mapTransactions.insert( mapTransactions::value_type(transactionId,client)) ;
         DR_LOG(log_info) << "ClientController::route_request_outside_dialog - added invite transaction, map size is now: " << m_mapTransactions.size() << " request" << endl ;
  
@@ -192,11 +184,6 @@ namespace drachtio {
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-        string json  ;
-        if( !sm->str( json ) ) {
-            DR_LOG(log_error) << "ClientController::route_request_inside_dialog - Error converting incoming sip message to json" << endl ;
-            return false ;            
-        }
  
         m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, sm) ) ;
 
@@ -218,11 +205,6 @@ namespace drachtio {
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-        string json  ;
-        if( !sm->str( json ) ) {
-            DR_LOG(log_error) << "ClientController::route_ack_request_inside_dialog - Error converting incoming sip message to json" << endl ;
-            return false ;            
-        }
 
         m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, sm) ) ;
 
