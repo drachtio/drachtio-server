@@ -39,6 +39,11 @@
 // Clang supports "long long" in all compilation modes.
 #define BOOST_HAS_LONG_LONG
 
+//DH: per http://boost.2283326.n4.nabble.com/config-clang-int128-support-td4653826.html
+#if defined(__SIZEOF_INT128__) 
+#  define BOOST_HAS_INT128 
+#endif 
+
 //
 // Dynamic shared object (DSO) and dynamic-link library (DLL) support
 //
