@@ -218,7 +218,7 @@ namespace drachtio {
             return false ;
         }
 
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( orq, sip ) ;
+        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( orq, sip, true ) ;
  
         m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, sm) ) ;
 

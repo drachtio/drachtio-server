@@ -41,7 +41,7 @@ namespace drachtio {
 	class SofiaMsg {
 	public:
 		SofiaMsg(  nta_incoming_t* irq, sip_t const *sip ) ;
-		SofiaMsg(  nta_outgoing_t* orq, sip_t const *sip ) ;
+		SofiaMsg(  nta_outgoing_t* orq, sip_t const *sip, bool response = false ) ;
 		~SofiaMsg() {
 			if( m_json ) json_decref( m_json ) ;
 		}

@@ -24,6 +24,7 @@ while(0);
 
 namespace drachtio {
 
+	//an incoming request
 	SofiaMsg::SofiaMsg( nta_incoming_t* irq, sip_t const *sip ) : m_json( json_object() ) {
 
 		string host ;
@@ -43,12 +44,13 @@ namespace drachtio {
 
 	}	
 
-	SofiaMsg::SofiaMsg( nta_outgoing_t* orq, sip_t const *sip ) : m_json( json_object() ) {
+	//an incoming response
+	SofiaMsg::SofiaMsg( nta_outgoing_t* orq, sip_t const *sip, bool response ) : m_json( json_object() ) {
 
 		su_time_t tv = su_now() ;
 
 		json_object_set_new_nocheck(m_json,"time",json_integer(tv.tv_sec)) ;
-		json_object_set_new_nocheck(m_json,"source",json_string("application")) ;
+		json_object_set_new_nocheck(m_json,"source",json_string(response ? "network" : "application")) ;
 
 		if( sip->sip_request ) json_object_set_new_nocheck(m_json,"request_uri",request_parser::toJson( sip->sip_request )) ;
 		else if( sip->sip_status ) json_object_set_new_nocheck(m_json,"status", status_parser::toJson( sip->sip_status )) ;
