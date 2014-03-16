@@ -134,6 +134,8 @@ namespace drachtio {
             if( i < nPossibles ) nOffset = i ;
             else nOffset = 0;
         }
+        DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - there are " << nPossibles << 
+            " possible clients, we are starting with offset " << nOffset << endl ;
 
         m_map_of_request_type_offsets.erase( itOffset ) ;
         m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(method_name, nOffset + 1)) ;
@@ -147,9 +149,11 @@ namespace drachtio {
             if( !client ) {
                 DR_LOG(log_debug) << "Removing disconnected client while iterating" << endl ;
                 m_request_types.erase( it ) ;
+                pair = m_request_types.equal_range( method_name ) ;
                 if( nOffset >= m_request_types.size() ) {
                     nOffset = m_request_types.size() - 1 ;
                 }
+                DR_LOG(log_debug) << "Offset has been set to " << nOffset << " size of range is " << m_request_types.size() << endl ;
             }
             else {
                 DR_LOG(log_debug) << "Selected client at offset " << nOffset << endl ;                
