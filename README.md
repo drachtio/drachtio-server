@@ -6,42 +6,29 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based applicatio
 
 ## Building
 
-Currently, you must build the dependencies by hand.  This will be fixed in a future release
-
-### sofia
-
-```bash
-cd ${srcdir}/deps/sofia-sip-1.12.11
-./configure CPPFLAGS=-DNDEBUG 
-..or..
-./configure CPPFLAGS=-DDEBUG CXXFLAGS='-g -O0'
-make
-make install
 ```
-
-### boost
-```bash
-cd ${srcdir}/deps/boost_1_55_0
-./bootstrap.sh
-./b2 stage install
-```
-
-### json spirit 
-Requires cmake
-```bash
-cd ${srcdir}/deps/json-spirit
+git clone https://github.com/davehorton/drachtio-server.git
+cd drachtio-server
 mkdir build
 cd build
-cmake ..
+../configure
 make
 ```
+> Note: cmake 2.8 or higher is required in order to build the jansson JSON parsing library, which is a dependency of drachtio-server
 
-### drachtio
-```bash
-cd ${srcdir}
-autoreconf -fvi
-mkdir build/debug
-cd build/debug
-../../configure CPPFLAGS='-DDEBUG' CXXFLAGS='-g -O0'
-make
-```
+> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the jansson JSON parsing library, the sofia sip stack, and the boost C++ libraries.  Building drachtio-server can take a while, mainly because the boost build is rather time-consuming.
+
+## Installing
+
+The output of the build process is an executable named 'drachtio'.  You can run `make install` to copy it into /usr/local/bin, or you can run it directly from the build directory.  If run with no command line parameters, it will look for a configuration file in /etc/drachtio.conf.xml; alternatively you can specify the config file location by starting the executable with the -f option (e.g. `./drachtio -f ../drachtio.conf.xml`).
+
+The server can be run as a daemon process by running with the --daemon command line parameter.
+
+The process can be installed as a Linux init script using the example script that can be found in drachtio-init-script
+
+## Configuration
+
+Process configuration is supplied in an xml configuration which, as described above, by default is expected to be /etc/drachtio.conf.xml but can be specified otherwise via a command line parameter.
+
+The configuration file includes section for the configuring the sip stack, the port to listen on for client connections, and logging.  It is all fairly self-explanatory; refer to the [sample configuration file](drachtio.conf.xml) for details.
+
