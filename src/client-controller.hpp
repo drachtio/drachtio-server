@@ -80,6 +80,8 @@ namespace drachtio {
 
         void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
 
+        void logStorageCount(void) ;
+
     protected:
 
         class RequestSpecifier {

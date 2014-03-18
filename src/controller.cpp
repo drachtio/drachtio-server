@@ -776,6 +776,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer" << endl ;
         this->printStats() ;
         m_pDialogController->logStorageCount() ;
+        m_pClientController->logStorageCount() ;
     }
 
 }
