@@ -14,7 +14,7 @@ drachtio_LDADD += -lrt
 timer_LDADD += -lrt
 endif
 
-BUILT_SOURCES=${srcdir}/deps/jansson/build/include/jansson.h ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a
+BUILT_SOURCES=${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a
 
 #clean-local:
 #	cd ${srcdir}/deps/boost_1_55_0 && b2 --clean
@@ -27,5 +27,3 @@ ${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 
 ${srcdir}/deps/jansson/src/.libs/libjansson.a:
 	cd ${srcdir}/deps/jansson && autoreconf -f -i && $(MAKE) && $(MAKE) test
-
-${srcdir}/deps/jansson/build/include/jansson.h: ${srcdir}/deps/jansson/build/lib/libjansson.a
