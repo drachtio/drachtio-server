@@ -23,7 +23,7 @@ ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_5
 	cd ${srcdir}/deps/boost_1_55_0 && ./bootstrap.sh && ./b2 stage
 
 ${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
-	cd ${srcdir}/deps/sofia-sip-1.12.11 && ./configure && $(MAKE)
+	cd ${srcdir}/deps/sofia-sip-1.12.11 && autoreconf -fvi && ./configure && $(MAKE)
 
 ${srcdir}/deps/jansson-2.6/src/.libs/libjansson.a:
-	cd ${srcdir}/deps/jansson-2.6 && ./configure && $(MAKE) && $(MAKE) check
+	cd ${srcdir}/deps/jansson-2.6 && autoreconf -fvi && ./configure && $(MAKE) && $(MAKE) check
