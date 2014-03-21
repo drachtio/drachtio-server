@@ -9,14 +9,11 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based applicatio
 ```
 git clone https://github.com/davehorton/drachtio-server.git
 cd drachtio-server
-mkdir build
-cd build
-../configure
-make
+autoreconf -fvi && mkdir build && cd build && ../configure && make
+sudo make install
 ```
-> Note: cmake 2.8 or higher is required in order to build the jansson JSON parsing library, which is a dependency of drachtio-server
 
-> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the jansson JSON parsing library, the sofia sip stack, and the boost C++ libraries.  Building drachtio-server can take a while, mainly because the boost build is rather time-consuming.
+> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the jansson JSON parsing library, the sofia sip stack, and the boost C++ libraries.  
 
 ## Installing
 
