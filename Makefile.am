@@ -1,4 +1,4 @@
-INCLUDES= -I/usr/local/include -I${srcdir}/deps/boost_1_55_0 -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/tport -I$(srcdir)/deps/jansson-2.6-2.6/src
+INCLUDES= -I/usr/local/include -I${srcdir}/deps/boost_1_55_0 -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip-1.12.11/libsofia-sip-ua/tport -I$(srcdir)/deps/jansson-2.6/src
 AM_LDFLAGS= -L/usr/local/lib 
 LDADD= -lboost_thread -lpthread -lssl
 bin_PROGRAMS= drachtio timer
