@@ -196,23 +196,82 @@ namespace drachtio {
         if( distance( tok.begin(), tok.end() ) > 1 ) hvalue = *(++tok.begin() ) ;
  	}
 
-    void normalizeSipUri( std::string& uri ) {
-        if( string::npos == uri.find("sip:") ) {
+    bool normalizeSipUri( std::string& uri ) {
+        url_t url ;
+        char s[255] ;
+        char hp[64] ;
+
+        /* decode the url */
+        strncpy( s, uri.c_str(), 255 ) ;
+        if( url_d(&url, s ) < 0 ) {
+            DR_LOG(log_error) << "normalizeSipUri: invalid url " << uri << endl ;
+            return false ;       
+          }
+
+        /* we have may just been given a user part */
+        if( NULL == url.url_scheme ) {
             uri = "sip:" + uri ;
+            if( NULL == url.url_user ) uri = uri + "@localhost" ;
+            strncpy( s, uri.c_str(), 255 ) ;
+            if( url_d(&url, s ) < 0 ) {
+                DR_LOG(log_error) << "normalizeSipUri: invalid url " << uri << endl ;
+                return false ;       
+            }   
+         }
+
+        /* encode the url */
+        if( url_e(s, 255, &url) < 0 ) {
+           DR_LOG(log_error) << "normalizeSipUri: error encoding url  " << s << endl ;
+            return false ;
         }
+
+        uri.assign( s ) ;
+        return true ;
     }
 
-    void replaceHostInUri( std::string& uri, const std::string& hostport ) {
-        url_t *url = url_make(theOneAndOnlyController->getHome(), uri.c_str() ) ;
-        uri = url->url_scheme ;
-        uri.append(":") ;
-        if( url->url_user ) {
-            uri.append( url->url_user ) ;
-            uri.append("@") ;
+    bool replaceHostInUri( std::string& uri, const std::string& hostport ) {
+        url_t url ;
+        char s[255] ;
+        char hp[64] ;
+
+        /* decode the url */
+        strncpy( s, uri.c_str(), 255 ) ;
+        if( url_d(&url, s ) < 0 ) {
+            DR_LOG(log_error) << "replaceHostInUri: invalid url " << uri << endl ;
+            return false ;       
+          }
+
+        /* we have may just been given a user part */
+        if( NULL == url.url_scheme ) {
+            uri = "sip:" + uri ;
+            if( NULL == url.url_user ) uri = uri + "@localhost" ;
+            strncpy( s, uri.c_str(), 255 ) ;
+            if( url_d(&url, s ) < 0 ) {
+                DR_LOG(log_error) << "replaceHostInUri: invalid url " << uri << endl ;
+                return false ;       
+            }   
+         }
+
+        /* insert the provided host and port */
+        url.url_host = NULL ;
+        url.url_port = NULL ;
+
+        strcpy( hp, hostport.c_str() ) ;
+        int n = strcspn(hp, ":");
+        if( hp[n] == ':' ) {
+            hp[n] = '\0' ;
+            url.url_port = hp + n + 1 ;
         }
-        uri.append( hostport ) ;
+        url.url_host = hp ;
 
+        /* encode the url */
+        if( url_e(s, 255, &url) < 0 ) {
+           DR_LOG(log_error) << "replaceHostInUri: error encoding url  " << s << endl ;
+            return false ;
+        }
 
+        uri.assign( s ) ;
+        return true ;
     }
 
     sip_method_t methodType( const string& method ) {

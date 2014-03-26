@@ -87,9 +87,9 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	bool getTagTypeForHdr( const std::string& hdr, tag_type_t& tag ) ;
 
-	void normalizeSipUri( std::string& uri ) ;
+	bool normalizeSipUri( std::string& uri ) ;
   
-	void replaceHostInUri( std::string& uri, const std::string& hostport )  ;
+	bool replaceHostInUri( std::string& uri, const std::string& hostport )  ;
 
 	sip_method_t methodType( const std::string& method ) ;
 

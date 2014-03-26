@@ -319,10 +319,16 @@ namespace drachtio {
 
             /* if body was provided, content-type is required */
             if( body && (!content_type || 0 == strlen(content_type) ) ) {
-                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
-                "success", false, "reason","missing content-type header") ) ; 
-                throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - missing content-type") ;
-            }
+                if( body == strstr( body, "v=0") ) {
+                    content_type = "application/sdp" ;
+                    DR_LOG(log_debug) << "SipDialogController::doSendSipRequestOutsideDialog - automatically detecting content-type as application/sdp" << endl ;
+                }
+                else {
+                    m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                    "success", false, "reason","missing content-type header") ) ; 
+                    throw std::runtime_error("SipDialogController::doSendSipRequestOutsideDialog - missing content-type") ;                   
+                }
+             }
 
             string strRequestUri = request_uri ;
             normalizeSipUri( strRequestUri ) ;
@@ -338,7 +344,9 @@ namespace drachtio {
             m_pController->getMyHostport( myHostport ) ;
             if( from ) {
                 strFrom = from ;
-                replaceHostInUri( strFrom, myHostport ) ; 
+                if( !replaceHostInUri( strFrom, myHostport ) ) {
+                    throw std::runtime_error(string("SipDialogController::doSendSipRequestOutsideDialog - invalid from value provided by client: ") + from ) ;
+                }
             }
             else {
                 /* set a default From, since none provided */
@@ -348,6 +356,8 @@ namespace drachtio {
 
             /* default To header to the request uri, if no To provided */
             if( !to ) to = request_uri ;
+
+            // TODO: set other headers where a user value only may be supplied, e.g. P-Asserted-Identity, P-Charge-Info
 
             leg = nta_leg_tcreate( m_pController->getAgent(),
                 uacLegCallback, (nta_leg_magic_t *) m_pController,
@@ -370,7 +380,7 @@ namespace drachtio {
                     "success", false, "reason",err.c_str()) ) ; 
                 return  ;
             }
-            if( json_object_size(obj) > 0 ) {
+            //if( json_object_size(obj) > 0 ) {
 
                 tagi_t* tags = this->makeTags( obj ) ;
 
@@ -382,7 +392,9 @@ namespace drachtio {
                     ,TAG_NEXT(tags) ) ;
 
                  deleteTags( tags ) ;
+            /*
             }
+            
             else {
                orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     NULL, mtype, method
@@ -391,6 +403,7 @@ namespace drachtio {
                     ,TAG_IF( body, SIPTAG_PAYLOAD_STR(body))
                     ,TAG_END() ) ;
             }
+            */
             if( NULL == orq ) {
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
                     "success", false, "reason","internal error attempting to create sip transaction") )  ;  
@@ -736,7 +749,7 @@ namespace drachtio {
                 boost::shared_ptr<SipDialog> dlg ;
                 if( !this->findDialogByLeg( leg, dlg ) ) {
                     DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg" << endl ;
-                    return 200 ;
+                    return 481 ;
                     assert(0) ;
                 }
 
@@ -923,6 +936,9 @@ namespace drachtio {
 
         DR_LOG(log_debug) << "SipDialogController::makeTags - " << nHdrs << " tags were provided" << endl ;
 
+        string myHostport ;
+        m_pController->getMyHostport( myHostport ) ;
+
         json_object_foreach(hdrs, k, v) {
 
             /* default to skip, as this may not be a header we are allowed to set, or value might not be provided correctly (as a string) */
@@ -935,7 +951,8 @@ namespace drachtio {
 
             /* check to make sure this isn't a header that is not client-editable */
             if( isImmutableHdr( hdr ) ) {
-                DR_LOG(log_warning) << "SipDialogController::makeTags - client provided a value for header '" << strKey << "' which is not modfiable by client" << endl;
+                if( 0 == hdr.compare("from") || 0 == hdr.compare("to") ) DR_LOG(log_warning) << "SipDialogController::makeTags - to or from header " << endl ;
+                else DR_LOG(log_warning) << "SipDialogController::makeTags - client provided a value for header '" << strKey << "' which is not modfiable by client" << endl;
                 i++ ;
                 continue ;                       
             }
@@ -946,6 +963,13 @@ namespace drachtio {
                 tag_type_t tt ;
                 if( getTagTypeForHdr( hdr, tt ) ) {
                 	/* well-known header */
+
+                    if( 0 == hdr.compare("p_asserted_identity") || 
+                        0 == hdr.compare("p_preferred_identity") || 
+                        string::npos != value.find("localhost") ) {
+
+                        replaceHostInUri( value, myHostport ) ;
+                    }
                     int len = value.length() ;
                     char *p = new char[len+1] ;
                     memset(p, '\0', len+1) ;
@@ -958,17 +982,22 @@ namespace drachtio {
                     /* custom header */
                     if( string::npos != strKey.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
                        DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header name '" << strKey << "'" << endl;
+                       i++ ;
                        continue ;
                     }
                     else if( string::npos != value.find("\r\n") ) {
-                      DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << strKey << "'" << endl;
-                       continue ;
+                        DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << strKey << "'" << endl;
+                        i++ ;
+                        continue ;
                     }
                     int nLength = strKey.length() + 2 + value.length() + 1;
                     char *p = new char[nLength] ;
                     memset(p, '\0', nLength) ;
                     strcpy( p, k ) ;
                     strcat( p, ": ") ;
+                    if(  string::npos != value.find("localhost") ) {
+                        replaceHostInUri( value, myHostport ) ;                       
+                    }
                     strcat( p, value.c_str() ) ;
 
                     tags[i].t_tag = siptag_unknown_str ;
