@@ -1032,12 +1032,14 @@ namespace drachtio {
     void SipDialogController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
-        DR_LOG(log_debug) << "m_mapIrq2IIP size " << m_mapIrq2IIP.size() << endl ;
-        DR_LOG(log_debug) << "m_mapOrq2IIP size " << m_mapOrq2IIP.size() << endl ;
-        DR_LOG(log_debug) << "m_mapTransactionId2IIP size " << m_mapTransactionId2IIP.size() << endl ;
-        DR_LOG(log_debug) << "m_mapLeg2Dialog size " << m_mapLeg2Dialog.size() << endl ;
-        DR_LOG(log_debug) << "m_mapId2Dialog size " << m_mapId2Dialog.size() << endl ;
-        DR_LOG(log_debug) << "m_mapOrq2RIP size " << m_mapOrq2RIP.size() << endl ;
+        DR_LOG(log_debug) << "SipDialogController storage counts" << endl ;
+        DR_LOG(log_debug) << "----------------------------------" << endl ;
+        DR_LOG(log_debug) << "m_mapIrq2IIP size:                                               " << m_mapIrq2IIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapOrq2IIP size:                                               " << m_mapOrq2IIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapTransactionId2IIP size:                                     " << m_mapTransactionId2IIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapLeg2Dialog size:                                            " << m_mapLeg2Dialog.size() << endl ;
+        DR_LOG(log_debug) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size() << endl ;
+        DR_LOG(log_debug) << "m_mapOrq2RIP size:                                               d " << m_mapOrq2RIP.size() << endl ;
     }
 
 }

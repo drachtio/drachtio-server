@@ -409,14 +409,16 @@ namespace drachtio {
     void ClientController::logStorageCount() {
         boost::lock_guard<boost::mutex> lock(m_lock) ;
 
-        DR_LOG(log_debug) << "m_clients size " << m_clients.size() << endl ;
-        DR_LOG(log_debug) << "m_services size " << m_services.size() << endl ;
-        DR_LOG(log_debug) << "m_request_types size " << m_request_types.size() << endl ;
-        DR_LOG(log_debug) << "m_map_of_request_type_offsets size " << m_map_of_request_type_offsets.size() << endl ;
-        DR_LOG(log_debug) << "m_mapDialogs size " << m_mapDialogs.size() << endl ;
-        DR_LOG(log_debug) << "m_mapTransactions size " << m_mapTransactions.size() << endl ;
-        DR_LOG(log_debug) << "m_mapRequests size " << m_mapRequests.size() << endl ;
-        DR_LOG(log_debug) << "m_mapDialogId2Appname size " << m_mapDialogId2Appname.size() << endl ;
+        DR_LOG(log_debug) << "ClientController storage counts" << endl ;
+        DR_LOG(log_debug) << "----------------------------------" << endl ;
+        DR_LOG(log_debug) << "m_clients size:                                                  " << m_clients.size() << endl ;
+        DR_LOG(log_debug) << "m_services size:                                                 " << m_services.size() << endl ;
+        DR_LOG(log_debug) << "m_request_types size:                                            " << m_request_types.size() << endl ;
+        DR_LOG(log_debug) << "m_map_of_request_type_offsets size:                              " << m_map_of_request_type_offsets.size() << endl ;
+        DR_LOG(log_debug) << "m_mapDialogs size:                                               " << m_mapDialogs.size() << endl ;
+        DR_LOG(log_debug) << "m_mapTransactions size:                                          " << m_mapTransactions.size() << endl ;
+        DR_LOG(log_debug) << "m_mapRequests size:                                              " << m_mapRequests.size() << endl ;
+        DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size() << endl ;
 
 
     }
