@@ -569,6 +569,9 @@ namespace drachtio {
             irq = iip->irq() ;
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
+            /* if this is a final non-success response, tell client controller to clear his data for this transaction */
+            if( code > 200 ) m_pController->getClientController()->clearTransactionData( transactionId ) ;
+
             dlg->setSipStatus( code ) ;
 
             /* if the client included Require: 100rel on a provisional, send it reliably */
@@ -626,6 +629,8 @@ namespace drachtio {
             }
         }
         else {
+            /* for a non-INVITE transaction, tell client controller to flush transaction data on any final response */
+            if( code >= 200 ) m_pController->getClientController()->clearTransactionData( transactionId ) ;
             nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
             if( irq ) {
                 //TODO: if we have already generated a response (BYE, INFO with msml) then don't try again

@@ -240,7 +240,7 @@ namespace drachtio {
             m_mapDialogs.insert( mapDialogs::value_type(dialogId, it->second ) ) ;
             m_mapTransactions.erase( transactionId ) ;
             DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog, now tracking: " << 
-                m_mapDialogs.size() << "dialogs and " << m_mapTransactions.size() << " transactions" << endl ;
+                m_mapDialogs.size() << " dialogs and " << m_mapTransactions.size() << " transactions" << endl ;
          }
         else {
             DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found" << endl ;
@@ -406,6 +406,11 @@ namespace drachtio {
         if( m_mapTransactions.end() != it ) client = it->second.lock() ;
         return client ;
     }
+    void ClientController::clearTransactionData( const string& transactionId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapTransactions.erase( transactionId ) ;        
+    }
+
     void ClientController::logStorageCount() {
         boost::lock_guard<boost::mutex> lock(m_lock) ;
 

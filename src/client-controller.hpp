@@ -78,6 +78,8 @@ namespace drachtio {
 
         void addDialogForTransaction( const string& transactionId, const string& dialogId ) ;
 
+        void clearTransactionData( const string& transactionId ) ;
+
         void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
 
         void logStorageCount(void) ;
