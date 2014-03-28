@@ -1039,7 +1039,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "m_mapTransactionId2IIP size:                                     " << m_mapTransactionId2IIP.size() << endl ;
         DR_LOG(log_debug) << "m_mapLeg2Dialog size:                                            " << m_mapLeg2Dialog.size() << endl ;
         DR_LOG(log_debug) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size() << endl ;
-        DR_LOG(log_debug) << "m_mapOrq2RIP size:                                               d " << m_mapOrq2RIP.size() << endl ;
+        DR_LOG(log_debug) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size() << endl ;
     }
 
 }

@@ -238,6 +238,7 @@ namespace drachtio {
         mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
         if( m_mapTransactions.end() != it ) {
             m_mapDialogs.insert( mapDialogs::value_type(dialogId, it->second ) ) ;
+            m_mapTransactions.erase( transactionId ) ;
             DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog, now tracking: " << 
                 m_mapDialogs.size() << "dialogs and " << m_mapTransactions.size() << " transactions" << endl ;
          }
@@ -251,7 +252,6 @@ namespace drachtio {
         client_ptr client = this->findClientForDialog_nolock( dialogId );
         if( !client ) {
             m_mapDialogs.erase( dialogId ) ;
-            m_mapTransactions.erase( transactionId ) ;
             DR_LOG(log_warning) << "ClientController::addDialogForTransaction - client managing dialog has disconnected: " << dialogId << endl ;
             return  ;
         }
