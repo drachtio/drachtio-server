@@ -852,7 +852,7 @@ namespace drachtio {
                 return 0 ;
             }
             boost::shared_ptr<SipDialog> dlg = this->clearIIP( iip->leg() ) ;
-             DR_LOG(log_debug) << "Most recent sip response on this dialog was " << dlg->getSipStatus() << endl ;
+            
             //NB: when we get a CANCEL sofia sends the 487 response to the INVITE itself, so our latest sip status will be a provisional
             //not sure that we need to do anything particular about that however....though it we write cdrs we would want to capture the 487 final response
         }
