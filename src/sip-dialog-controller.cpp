@@ -144,7 +144,7 @@ namespace drachtio {
             const char *body=NULL, *method=NULL ;
             json_error_t err ;
             json_t* obj = NULL;
-            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:{s:s,s?s,s:o}}}", "data","message","method", &method, "body",&body,"headers",&obj) ) {
+            if( json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:s,s?s,s:o}}", "data","method", &method, "body",&body,"headers",&obj) ) {
                 DR_LOG(log_error) << "SipDialogController::doSendSipRequestInsideDialog - failed parsing message: " << err.text << endl ;
                 throw std::runtime_error(string("error parsing json message: ") + err.text) ;
             }
@@ -289,8 +289,8 @@ namespace drachtio {
 
         try {
             json_error_t error ;
-            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:{s:s,s:s,s?s,s:{s?s,s?s,s?s}}}}",
-                "data","message","method",&method,"request_uri",&request_uri,"body",&body,
+            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:s,s:s,s?s,s:{s?s,s?s,s?s}}}",
+                "data","method",&method,"request_uri",&request_uri,"body",&body,
                 "headers","content-type",&content_type,"to",&to,"from",&from) ) {
 
                 DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - failed parsing message: " << error.text <<  endl ;
@@ -373,7 +373,7 @@ namespace drachtio {
             nta_leg_tag( leg, NULL ) ;
 
             json_t* obj ;
-            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:{s:o}}}","data","message", "headers", &obj) ) {
+            if( 0 > json_unpack_ex(pMsg->value(), &error, 0, "{s:{s:o}}","data","headers", &obj) ) {
                 string err = string("error parsing message: ") + error.text ;
                 DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - " << err << endl ;
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
@@ -521,7 +521,7 @@ namespace drachtio {
         json_t* hdrs=NULL ;
         json_error_t err ;
 
-        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:{s:o}}}", "data", "message", "headers", &hdrs) ) {
+        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s:o}}", "data", "headers", &hdrs) ) {
             DR_LOG(log_debug) << "SipDialogController::respondToSipRequest - failed to parse sip headers: " << err.text  << endl ;
         }
  
@@ -550,7 +550,7 @@ namespace drachtio {
         json_error_t err ;
         json_t* obj ;
         json_t* json = pMsg->value() ;
-        if( 0 > json_unpack_ex( json, &err, 0, "{s:{s:i,s?s,s:{s:o}}}", "data","code",&code,"status",&status,"message","headers",&obj) ) {
+        if( 0 > json_unpack_ex( json, &err, 0, "{s:{s:i,s?s,s:o}}", "data","code",&code,"status",&status,"headers",&obj) ) {
             DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed unpacking json message: " << err.text << endl ;
             return ;
         }
