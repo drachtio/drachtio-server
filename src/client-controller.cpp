@@ -284,7 +284,7 @@ namespace drachtio {
         }
         else {
             const char *method=NULL, *transactionId=NULL ;
-            if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s?s,s:{s?s}}}","data","transactionId",&transactionId, "message","method",&method) ) {
+            if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:{s?s,s?s}}","data","transactionId",&transactionId, "method",&method) ) {
                 DR_LOG(log_error) << "ClientController::sendSipRequest failed parsing transactionId from json message: " << err.text << endl ;
                 return false ;       
             }
