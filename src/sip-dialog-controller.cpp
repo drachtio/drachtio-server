@@ -380,30 +380,18 @@ namespace drachtio {
                     "success", false, "reason",err.c_str()) ) ; 
                 return  ;
             }
-            //if( json_object_size(obj) > 0 ) {
+ 
+            tagi_t* tags = this->makeTags( obj ) ;
+            orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
+                NULL, mtype, method
+                ,URL_STRING_MAKE(strRequestUri.c_str())
+                ,TAG_IF( 0 == strcmp(method,"INVITE"), SIPTAG_CONTACT( m_my_contact ) )
+                ,TAG_IF( body, SIPTAG_PAYLOAD_STR(body))
+                ,TAG_IF( content_type, SIPTAG_CONTENT_TYPE_STR(content_type))
+                ,TAG_NEXT(tags) ) ;
 
-                tagi_t* tags = this->makeTags( obj ) ;
+            deleteTags( tags ) ;
 
-                orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    NULL, mtype, method
-                    ,URL_STRING_MAKE(strRequestUri.c_str())
-                    ,TAG_IF( 0 == strcmp(method,"INVITE"), SIPTAG_CONTACT( m_my_contact ) )
-                    ,TAG_IF( body, SIPTAG_PAYLOAD_STR(body))
-                    ,TAG_NEXT(tags) ) ;
-
-                 deleteTags( tags ) ;
-            /*
-            }
-            
-            else {
-               orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    NULL, mtype, method
-                    ,URL_STRING_MAKE(strRequestUri.c_str())
-                    ,TAG_IF( 0 == strcmp(method,"INVITE"), SIPTAG_CONTACT( m_my_contact ))
-                    ,TAG_IF( body, SIPTAG_PAYLOAD_STR(body))
-                    ,TAG_END() ) ;
-            }
-            */
             if( NULL == orq ) {
                 m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
                     "success", false, "reason","internal error attempting to create sip transaction") )  ;  
