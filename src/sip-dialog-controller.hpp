@@ -273,6 +273,16 @@ namespace drachtio {
 			dlg = it->second ;
 			return true ;
 		}
+		bool findDialogByCallId( const string& strCallId, boost::shared_ptr<SipDialog>& dlg ) {
+			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+			mapId2Dialog::iterator it = m_mapId2Dialog.find( strCallId + ";uas" ) ;
+			if( m_mapId2Dialog.end() == it ) it = m_mapId2Dialog.find( strCallId + ";uac" ) ;
+			if( m_mapId2Dialog.end() == it ) {
+				return false ;
+			}
+			dlg = it->second ;
+			return true ;
+		}
 
 		/// RIP helpers
 		void addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) {

@@ -92,7 +92,7 @@ namespace drachtio {
                 int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
                 /* client --> network messages */
-                int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) ;
+                int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id = NULL ) ;
 
                 /* called by dialog maker when a dialog has been produced */
                 void notifyDialogConstructionComplete( boost::shared_ptr<SipDialog> dlg ) ;
