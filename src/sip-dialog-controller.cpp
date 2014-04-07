@@ -568,7 +568,8 @@ namespace drachtio {
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
             /* if this is a final non-success response, tell client controller to clear his data for this transaction */
-            if( code > 200 ) m_pController->getClientController()->clearTransactionData( transactionId ) ;
+            //DH: now that we're sending all ACKs (including for non-success) through client controller, let him clear then
+            //if( code > 200 ) m_pController->getClientController()->clearTransactionData( transactionId ) ;
 
             dlg->setSipStatus( code ) ;
 
@@ -823,10 +824,6 @@ namespace drachtio {
     }
 
     int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
-        if( !sip ) {
-            DR_LOG(log_warning) << "SipDialogController::processCancelOrAck - received null sip message, irq is " << irq << endl ;
-            return -1 ;
-        }
         DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name << endl ;
         if( !sip ) {
             DR_LOG(log_debug) << "SipDialogController::processCancel called with null sip pointer" << endl ;
@@ -857,6 +854,10 @@ namespace drachtio {
                 return 0 ;
             }
             boost::shared_ptr<SipDialog> dlg = this->clearIIP( iip->leg() ) ;
+            string transactionId ;
+            generateUuid( transactionId ) ;
+
+            m_pController->getClientController()->route_ack_request_inside_dialog( irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;   
             
             //NB: when we get a CANCEL sofia sends the 487 response to the INVITE itself, so our latest sip status will be a provisional
             //not sure that we need to do anything particular about that however....though it we write cdrs we would want to capture the 487 final response

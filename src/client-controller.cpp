@@ -202,16 +202,22 @@ namespace drachtio {
     bool ClientController::route_ack_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
- 
-           //TODO: try to find another client providing the same service
-             return false ;
+            /* if final response was non-success, we won't have a dialog so search by transaction id */
+            client = this->findClientForTransaction( inviteTransactionId );
+            if( !client ) {
+               DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;            
+                //TODO: try to find another client providing the same service
+                return false ;
+            }
         }
 
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
 
         m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, sm) ) ;
 
+        this->clearTransactionData( inviteTransactionId ) ;
+        DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - removed invite transaction, map size is now: " << m_mapTransactions.size() << " request" << endl ;
+ 
         return true ;
     }
 
