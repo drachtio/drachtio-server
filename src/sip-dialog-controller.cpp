@@ -534,11 +534,11 @@ namespace drachtio {
         boost::shared_ptr<JsonMsg> pMsg = pData->getMsg() ;
 
         int code ;
-        const char* status = NULL ;
+        const char* status = NULL, *body=NULL, *content_type=NULL ;
         json_error_t err ;
         json_t* obj ;
         json_t* json = pMsg->value() ;
-        if( 0 > json_unpack_ex( json, &err, 0, "{s:{s:i,s?s,s:o}}", "data","code",&code,"status",&status,"headers",&obj) ) {
+        if( 0 > json_unpack_ex( json, &err, 0, "{s:{s:i,s?s,s:o,s?s}}", "data","code",&code,"status",&status,"headers",&obj, "body", &body) ) {
             DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed unpacking json message: " << err.text << endl ;
             return ;
         }
@@ -550,6 +550,16 @@ namespace drachtio {
         int rc = -1 ;
 
         boost::shared_ptr<IIP> iip ;
+
+        json_t* jtype = json_object_get(obj, "content-type") ;
+
+        /* if body was provided, content-type is required */
+        if( body && !jtype ) {
+            if( body == strstr( body, "v=0") ) {
+                content_type = "application/sdp" ;
+                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - automatically detecting content-type as application/sdp" << endl ;
+            }
+        }
 
         /* search for invites in progress first, then requests within a dialog (could check to see if this is an INVITE here) */
         if( findIIPByTransactionId( transactionId, iip ) ) {
@@ -601,6 +611,8 @@ namespace drachtio {
                 DR_LOG(log_debug) << "Sending " << code << " response reliably" << endl ;
                 nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status
                     ,SIPTAG_CONTACT(m_pController->getMyContact())
+                    ,TAG_IF(body, SIPTAG_PAYLOAD_STR(body))
+                    ,TAG_IF(content_type, SIPTAG_CONTENT_TYPE_STR(content_type))
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
                 assert( rel ) ;
@@ -611,9 +623,11 @@ namespace drachtio {
                 DR_LOG(log_debug) << "Sending " << code << " response (not reliably)" << endl ;
                 rc = nta_incoming_treply( irq, code, status
                     ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
+                    ,TAG_IF(body, SIPTAG_PAYLOAD_STR(body))
+                    ,TAG_IF(content_type, SIPTAG_CONTENT_TYPE_STR(content_type))
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
-                assert(0 == rc) ;
+            assert(0 == rc) ;
             }
         }
         else {
@@ -623,7 +637,10 @@ namespace drachtio {
             if( irq ) {
                 //TODO: if we have already generated a response (BYE, INFO with msml) then don't try again
                 rc = nta_incoming_treply( irq, code, status
-                    ,TAG_NEXT(tags), TAG_END() ) ;                                 
+                    ,TAG_NEXT(tags)
+                    ,TAG_IF(body, SIPTAG_PAYLOAD_STR(body))
+                    ,TAG_IF(content_type, SIPTAG_CONTENT_TYPE_STR(content_type)) 
+                    ,TAG_END() ) ;                                 
                 assert( 0 == rc ) ; 
                 DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq << endl ;
                 nta_incoming_destroy(irq) ;                           

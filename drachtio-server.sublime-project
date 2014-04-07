@@ -36,6 +36,10 @@
 			,"folder_exclude_patterns": [".*","images"]
 		}
 		,{
+			"name": "jansson"
+			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/deps/jansson-2.6"
+		}
+		,{
 			"name": "all dependencies"
 			,"path": "/Users/dhorton/beachdog-enterprises/beachdog-networks/git/drachtio-server/deps"
 		}

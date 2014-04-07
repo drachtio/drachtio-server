@@ -553,6 +553,7 @@ namespace drachtio {
             case sip_method_register:
             case sip_method_message:
             case sip_method_options:
+            case sip_method_info:
             case sip_method_notify:
             {
                 string transactionId ;
