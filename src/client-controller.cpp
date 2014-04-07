@@ -243,8 +243,12 @@ namespace drachtio {
                 m_mapDialogs.size() << " dialogs and " << m_mapTransactions.size() << " transactions" << endl ;
          }
         else {
-            DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found" << endl ;
-            assert(false) ;
+            /* dialog will already exist if we received a reliable provisional response */
+            mapDialogs::iterator itDialog = m_mapDialogs.find( dialogId ) ;
+            if( m_mapDialogs.end() == itDialog ) {
+                DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found" << endl ;
+                assert(false) ;               
+            }
         }
         DR_LOG(log_debug) << "ClientController::addDialogForTransaction - transaction id " << transactionId << 
             " has associated dialog " << dialogId << endl ;
@@ -317,8 +321,11 @@ namespace drachtio {
     bool ClientController::route_request_inside_invite( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& dialogId  ) {
         client_ptr client = findClientForTransaction( transactionId ) ;
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client that was sent the transaction has disconnected: " << transactionId << endl ;
-            return false;            
+            client = findClientForDialog( dialogId ) ;
+            if( !client ) {
+                DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client that was sent the transaction has disconnected: " << transactionId << endl ;
+                return false;  
+            }          
         }
         boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
         string json ;
