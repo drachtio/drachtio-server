@@ -475,17 +475,21 @@ namespace drachtio {
                         iip->dlg()->setSessionTimer( std::max((unsigned long) 90, se->x_delta), !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::we_are_refresher : SipDialog::they_are_refresher ) ;
                     }
  
-                   // TODO: don't send the ACK if the INVITE had no body: the ACK must have a body in that case, and the client must supply it
                     nta_leg_t* leg = iip->leg() ;
                     nta_leg_rtag( leg, sip->sip_to->a_tag) ;
                     nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, false );
 
-                    nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
-                                                                   SIP_METHOD_ACK,
-                                                                   (url_string_t*) sip->sip_contact->m_url ,
-                                                                   TAG_END());
-                    nta_outgoing_destroy( ack_request ) ;
-
+                    if( !iip->dlg()->getLocalEndpoint().m_strSdp.empty() ) {
+                        DR_LOG(log_debug) << "SipDialogController::processResponse - generating ACK for call-id " << sip->sip_call_id->i_id << endl ;
+                        nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
+                                                                       SIP_METHOD_ACK,
+                                                                       (url_string_t*) sip->sip_contact->m_url ,
+                                                                       TAG_END());
+                        nta_outgoing_destroy( ack_request ) ;
+                    }
+                    else {
+                        DR_LOG(log_debug) << "SipDialogController::processResponse - not generating ACK automatically because client has yet to provide an offer for call-id " << sip->sip_call_id->i_id << endl ;                        
+                    }
                 }
               
                 //TODO: handle redirection (should this be client specified?)
