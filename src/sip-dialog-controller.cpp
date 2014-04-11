@@ -157,53 +157,62 @@ namespace drachtio {
             if( sip_method_unknown == mtype ) {
                 throw std::runtime_error("unknown method") ;
             }
-
-            if( obj && json_object_size( obj ) > 0 ) {
-                tagi_t* tags = this->makeTags( obj ) ;
-
-                orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
-                                                            NULL,
-                                                            mtype, method,
-                                                            NULL,
-                                                            TAG_IF(body, SIPTAG_PAYLOAD_STR(body)),
-                                                            TAG_NEXT(tags),
-                                                            TAG_END() ) ;
-                deleteTags( tags ) ;
+            else if( sip_method_ack == mtype && dlg->hasAckBeenSent() ) {
+               /* NB: don't send an ACK if we have already generated one automatically */
+                DR_LOG(log_info) << "SipDialogController::doSendSipRequestInsideDialog - discarding ACK from client because we have already generated one " << endl ;
             }
             else {
-                orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
-                                                            NULL,
-                                                            mtype, method,
-                                                            NULL,
-                                                            TAG_IF(body, SIPTAG_PAYLOAD_STR(body)),
-                                                            TAG_END() ) ;
-            }
-           if( NULL == orq ) throw std::runtime_error("internal error attempting to create sip transaction") ;               
-            
-            msg_t* m = nta_outgoing_getrequest(orq) ;
-            sip_t* sip = sip_object( m ) ;
 
-            string transactionId ;
-            generateUuid( transactionId ) ;
+                if( obj && json_object_size( obj ) > 0 ) {
+                    tagi_t* tags = this->makeTags( obj ) ;
 
-            boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid, dialogId ) ;
-            addRIP( orq, p ) ;
+                    orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
+                                                                NULL,
+                                                                mtype, method,
+                                                                NULL,
+                                                                TAG_IF(body, SIPTAG_PAYLOAD_STR(body)),
+                                                                TAG_NEXT(tags),
+                                                                TAG_END() ) ;
+                    deleteTags( tags ) ;
+                }
+                else {
+                    orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t *) m_pController,
+                                                                NULL,
+                                                                mtype, method,
+                                                                NULL,
+                                                                TAG_IF(body, SIPTAG_PAYLOAD_STR(body)),
+                                                                TAG_END() ) ;
+                }
+               if( NULL == orq ) throw std::runtime_error("internal error attempting to create sip transaction") ;               
+                
+                msg_t* m = nta_outgoing_getrequest(orq) ;
+                sip_t* sip = sip_object( m ) ;
 
-            SofiaMsg req( orq, sip ) ;
-            json_t* json = json_pack_ex(&err, JSON_COMPACT, "{s:b,s:s,s:s,s:o}","success",true,"transactionId",transactionId.c_str(),
-                "dialogId",dialogId.c_str(),"message",req.detach()) ;
-            if( !json ) {
-                string error = string("error packing message: ") + err.text ;
-                DR_LOG(log_error) << "doSendRequestInsideDialog - " << error.c_str() << endl ;
-                m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
-                    "success", false, "reason",error.c_str()) ) ; 
-                return ;
-            }
+                string transactionId ;
+                generateUuid( transactionId ) ;
 
-             m_pController->getClientController()->sendResponseToClient( rid, json, transactionId ) ; 
+                boost::shared_ptr<RIP> p = boost::make_shared<RIP>( transactionId, rid, dialogId ) ;
+                addRIP( orq, p ) ;
 
-            if( sip_method_bye == mtype ) {
-                this->clearDialog( dialogId ) ;
+                SofiaMsg req( orq, sip ) ;
+                json_t* json = json_pack_ex(&err, JSON_COMPACT, "{s:b,s:s,s:s,s:o}","success",true,"transactionId",transactionId.c_str(),
+                    "dialogId",dialogId.c_str(),"message",req.detach()) ;
+                if( !json ) {
+                    string error = string("error packing message: ") + err.text ;
+                    DR_LOG(log_error) << "doSendRequestInsideDialog - " << error.c_str() << endl ;
+                    m_pController->getClientController()->sendResponseToClient( rid, json_pack("{s:b,s:s}", 
+                        "success", false, "reason",error.c_str()) ) ; 
+                    return ;
+                }
+
+                 m_pController->getClientController()->sendResponseToClient( rid, json, transactionId ) ; 
+
+                if( sip_method_bye == mtype ) {
+                    this->clearDialog( dialogId ) ;
+                }
+                else if( sip_method_ack == mtype ) {
+                    dlg->ackSent() ;
+                }
             }
 
        } catch( std::runtime_error& err ) {
@@ -486,6 +495,7 @@ namespace drachtio {
                                                                        (url_string_t*) sip->sip_contact->m_url ,
                                                                        TAG_END());
                         nta_outgoing_destroy( ack_request ) ;
+                        iip->dlg()->ackSent() ;
                     }
                     else {
                         DR_LOG(log_debug) << "SipDialogController::processResponse - not generating ACK automatically because client has yet to provide an offer for call-id " << sip->sip_call_id->i_id << endl ;                        

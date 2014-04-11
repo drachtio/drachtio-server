@@ -125,6 +125,9 @@ namespace drachtio {
 		unsigned long getMinSE(void) { return m_nMinSE; }
 		void setMinSE(unsigned long secs) { m_nMinSE = secs;}
 
+		bool hasAckBeenSent(void) { return m_bAckSent;}
+		void ackSent(void) { m_bAckSent = true;}
+
 	protected:
 		string 			m_dialogId ;
 		string 			m_transactionId ;
@@ -145,12 +148,12 @@ namespace drachtio {
         SessionRefresher_t	m_refresher ;
         boost::weak_ptr<SipDialog>* m_ppSelf ;
 
-
-
-
 		/* only populated/relevant when we are UAS, and UAC may be natted */
 		string 			m_sourceAddress ;
 		unsigned int 	m_sourcePort ;
+
+		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
+		bool			m_bAckSent ;
 	}  ;
 
 }
