@@ -8,16 +8,38 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based applicatio
 
 ```
 git clone https://github.com/davehorton/drachtio-server.git
+git submodule init
+git submodule update
 cd drachtio-server
-autoreconf -fvi && mkdir build && cd build && ../configure && make
+autoreconf -fvi 
+mkdir build 
+cd build 
+../configure 
+make
 sudo make install
 ```
 
-> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the jansson JSON parsing library, the sofia sip stack, and the boost C++ libraries.  
+> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the jansson JSON parsing library, the sofia sip stack, and the boost C++ libraries.  The sofia sip library is a [submodule](https://github.com/davehorton/sofia-sip).
+
+## Platform support and dependencies
+
+drachtio-server has undergone at least some level of testing on the following platforms:
+* Centos 6.x
+* Ubuntu
+* Fedora 20
+* Linux Mint
+* Mac OSX (10.9.2)
+
+The following libraries are required to build:
+* gcc and c++ compilers
+* libssl-dev
+* libtool
+* autoconf
+* automake
 
 ## Installing
 
-The output of the build process is an executable named 'drachtio'.  You can run `make install` to copy it into /usr/local/bin, or you can run it directly from the build directory.  If run with no command line parameters, it will look for a configuration file in /etc/drachtio.conf.xml; alternatively you can specify the config file location by starting the executable with the -f option (e.g. `./drachtio -f ../drachtio.conf.xml`).
+The output of the build process is an executable named 'drachtio'.  You can run `sudo make install` to copy it into /usr/local/bin, or you can run the executable directly from the build directory.  If run with no command line parameters, it will look for a configuration file in /etc/drachtio.conf.xml; alternatively you can specify the config file location by starting the executable with the -f option (e.g. `./drachtio -f ../drachtio.conf.xml`).
 
 The server can be run as a daemon process by running with the --daemon command line parameter.
 
