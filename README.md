@@ -1,4 +1,4 @@
-# drachtio-server [![Build Status](https://secure.travis-ci.org/davehorton/drachtio-server.png)](http://travis-ci.org/davehorton/drachtio-server)
+# drachtio-server [![Build Status](https://secure.travis-ci.org/davehorton/drachtio-server.png)](http://travis-ci.org/davehorton/drachtio-server) [![NPM version](https://badge.fury.io/js/drachtio.svg)](http://badge.fury.io/js/drachtio-server)
 
 [![drachtio logo](http://www.dracht.io/images/definition_only.png)](http://dracht.io/)
 
