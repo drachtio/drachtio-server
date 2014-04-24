@@ -2477,16 +2477,20 @@ msg_hclass_offset(msg_mclass_t const *mc, msg_pub_t const *mo, msg_hclass_t *hc)
 
   if (hc->hc_hash > 0) {
     unsigned j, N = mc->mc_hash_size;
-    for (j = hc->hc_hash % N; mc->mc_hash[j].hr_class; j = (j + 1) % N)
+    for (j = hc->hc_hash % N; mc->mc_hash[j].hr_class; j = (j + 1) % N) {
       if (mc->mc_hash[j].hr_class == hc) {
-	return (msg_header_t **)((char *)mo + mc->mc_hash[j].hr_offset);
+        return (msg_header_t **)((char *)mo + mc->mc_hash[j].hr_offset);
       }
-  }
-  else
+    }
+   }
+  else {
     /* Header has no name. */
-    for (i = 0; i <= 6; i++)
-      if (hc->hc_hash == mc->mc_request[i].hr_class->hc_hash)
-	return (msg_header_t **)((char *)mo + mc->mc_request[i].hr_offset);
+    for (i = 0; i <= 6; i++) {
+      if (hc->hc_hash == mc->mc_request[i].hr_class->hc_hash) {
+        return (msg_header_t **)((char *)mo + mc->mc_request[i].hr_offset);
+      }
+    }
+  }
 
   return NULL;
 }
