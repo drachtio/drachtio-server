@@ -8,9 +8,9 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based applicatio
 
 ```
 git clone https://github.com/davehorton/drachtio-server.git
+cd drachtio-server
 git submodule init
 git submodule update
-cd drachtio-server
 autoreconf -fvi 
 mkdir build 
 cd build 
@@ -49,5 +49,7 @@ The process can be installed as a Linux init script using the example script tha
 
 Process configuration is supplied in an xml configuration which, as described above, by default is expected to be /etc/drachtio.conf.xml but can be specified otherwise via a command line parameter.
 
-The configuration file includes section for the configuring the sip stack, the port to listen on for client connections, and logging.  It is all fairly self-explanatory; refer to the [sample configuration file](drachtio.conf.xml) for details.
+The configuration file includes section for the configuring the sip stack, the port to listen on for client connections, and logging.  
+
+It is all fairly self-explanatory; refer to the [sample configuration file](drachtio.conf.xml) for details.
 
