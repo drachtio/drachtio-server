@@ -345,10 +345,10 @@ namespace drachtio {
 		struct replaces_parser {
 			static json_t* toJson( sip_replaces_t* p ) {
 				json_t* json = json_object() ;
-				json_object_set_new_nocheck(json,"call_id",json_string(p->rp_call_id)) ;
-				json_object_set_new_nocheck(json,"to_tag",json_string(p->rp_to_tag)) ;
-				json_object_set_new_nocheck(json,"from_tag",json_string(p->rp_from_tag)) ;
-				json_object_set_new_nocheck(json,"early_only",json_boolean(1 == p->rp_early_only)) ;
+				json_object_set_new_nocheck(json,"call-id",json_string(p->rp_call_id)) ;
+				json_object_set_new_nocheck(json,"to-tag",json_string(p->rp_to_tag)) ;
+				json_object_set_new_nocheck(json,"from-tag",json_string(p->rp_from_tag)) ;
+				json_object_set_new_nocheck(json,"early-only",json_boolean(1 == p->rp_early_only)) ;
 				json_object_set_new_nocheck(json,"params", generic_msg_params_parser::toJson( p->rp_params)) ;
 				return json ;				
 			}
@@ -412,15 +412,15 @@ namespace drachtio {
 				json_object_set_new_nocheck(json,"params", generic_msg_params_parser::toJson( p->ss_params)) ;
 				if( p->ss_reason ) json_object_set_new_nocheck(json,"reason",json_string(p->ss_reason)) ;
 				if( p->ss_expires ) json_object_set_new_nocheck(json,"expires",json_string(p->ss_expires)) ;
-				if( p->ss_retry_after ) json_object_set_new_nocheck(json,"retry_after",json_string(p->ss_retry_after)) ;
+				if( p->ss_retry_after ) json_object_set_new_nocheck(json,"retry-after",json_string(p->ss_retry_after)) ;
 				return json;				
 			}
 		} ;
 		struct timestamp_parser {
 			static json_t* toJson( sip_timestamp_t* p ) {
 				json_t* json = json_object() ;
-				if( p->ts_stamp ) json_object_set_new_nocheck(json,"ts_stamp",json_string(p->ts_stamp)) ;
-				if( p->ts_delay ) json_object_set_new_nocheck(json,"ts_delay",json_string(p->ts_delay)) ;
+				if( p->ts_stamp ) json_object_set_new_nocheck(json,"ts-stamp",json_string(p->ts_stamp)) ;
+				if( p->ts_delay ) json_object_set_new_nocheck(json,"ts-delay",json_string(p->ts_delay)) ;
 				return json ;				
 			}
 		} ;
@@ -431,10 +431,10 @@ namespace drachtio {
 				do {
 					json_t* obj = json_object() ;
 					if( p->sa_mec ) json_object_set_new_nocheck(obj,"msec",json_string(p->sa_mec)) ;
-					if( p->sa_q ) json_object_set_new_nocheck(obj,"msec",json_string(p->sa_q)) ;
-					if( p->sa_d_alg ) json_object_set_new_nocheck(obj,"msec",json_string(p->sa_d_alg)) ;
-					if( p->sa_d_qop ) json_object_set_new_nocheck(obj,"msec",json_string(p->sa_d_qop)) ;
-					if( p->sa_d_ver ) json_object_set_new_nocheck(obj,"msec",json_string(p->sa_d_ver)) ;
+					if( p->sa_q ) json_object_set_new_nocheck(obj,"q",json_string(p->sa_q)) ;
+					if( p->sa_d_alg ) json_object_set_new_nocheck(obj,"d-alg",json_string(p->sa_d_alg)) ;
+					if( p->sa_d_qop ) json_object_set_new_nocheck(obj,"d-qop",json_string(p->sa_d_qop)) ;
+					if( p->sa_d_ver ) json_object_set_new_nocheck(obj,"d-ver",json_string(p->sa_d_ver)) ;
 					json_object_set_new_nocheck(json,"params", generic_msg_params_parser::toJson( p->sa_params)) ;
 					json_array_append_new( json, obj ) ;
 				} while( (ss = ss->sa_next) ) ; 
