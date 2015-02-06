@@ -1,7 +1,7 @@
 <drachtio>
 
     <!-- udp port to listen on for client connections (default 8022), and shared secret used to authenticate clients -->
-	<admin port="8022" secret="cymru">localhost</admin>
+	<admin port="9022" secret="cymru">localhost</admin>
   
     <!-- sip configuration -->
     <sip>
@@ -19,17 +19,26 @@
     <logging>
 
         <!-- all logging is done via syslog.  Logging can be sent to local host or remote, depending on configuration below -->
+        <!--
         <syslog>
-            <address>localhost</address>
+            <address>ec2-54-86-228-3.compute-1.amazonaws.com</address>
             <port>514</port>
-            <facility>local7</facility>
+            <facility>local6</facility>
         </syslog>
+    -->
+
+        <file>
+            <name>/Users/dhorton/tmp/drachtioLogs/file_%5N.log</name>
+            <archive>/Users/dhorton/tmp/drachtioLogs/archive</archive>
+            <size>5</size>
+            <auto-flush>true</auto-flush>
+        </file>
 
         <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
         <sofia-loglevel>9</sofia-loglevel>
         
         <!-- notice, warning, error, info, debug.  Default: info -->
-        <loglevel>debug</loglevel>
+        <loglevel>info</loglevel>
     </logging>
         
 </drachtio>

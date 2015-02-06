@@ -32,14 +32,17 @@ THE SOFTWARE.
 #include "sofia-msg.hpp"
 #include "json-msg.hpp"
 
+
 namespace drachtio {
 
 	class ClientController ;
 
+	class SipDialogController ;
+
 	class Client : public boost::enable_shared_from_this<Client> {
 	public:
 	    Client( boost::asio::io_service& io_service, ClientController& controller ) ;
-	    ~Client() ;
+	    ~Client() {}
 	    
 	    boost::asio::ip::tcp::socket& socket() {
 	        return m_sock;
@@ -52,16 +55,10 @@ namespace drachtio {
 	    void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
 	    void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
 
-	    bool processOneMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
-
-	    void sendRequestOutsideDialog( const string& transactionId, boost::shared_ptr<SofiaMsg> sm ) ;
-	    void sendRequestInsideDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
-	    void sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
-	    void sendResponseInsideTransaction( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
-	    void sendRequestInsideInvite( const string& transactionId, boost::shared_ptr<SofiaMsg> sm  ) ;
-	    void sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) ;
-	    void sendResponse( const string& rid, json_t* json) ;
-	    void sendEventInsideDialog( const string& transactionId, const string& dialogId, const string& event ) ;
+		bool processClientMessage( const string& msg, string& msgResponse ) ;
+	    void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+	    void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+	    void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
 
 		bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
 
@@ -71,17 +68,14 @@ namespace drachtio {
 			initial = 0,
 			authenticated,
 		} ;
-
-		bool processAuthentication(boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) ;
-		void processMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
-		void processNotify( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
-		void processRequest( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) ;
-		void processResponse( boost::shared_ptr<JsonMsg> pMsg,  JsonMsg& msgResponse, bool& bDisconnect ) ;
 	  
-		void send( json_t* json ) ;  
 
 	    bool readMessageLength( unsigned int& len ) ;
-		    
+	    void createResponseMsg( const string& msgId, string& msg, bool ok = true, const char* szReason = NULL ) ;
+		void send( const string& str ) ;  
+		boost::shared_ptr<SipDialogController> getDialogController(void) ;
+
+
 	private:
 		ClientController& m_controller ;
 		state m_state ;

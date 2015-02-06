@@ -38,9 +38,11 @@ THE SOFTWARE.
 #include <boost/log/attributes.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/syslog_backend.hpp>
+#include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/thread.hpp>
+#include <boost/unordered_map.hpp>
 
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
@@ -50,6 +52,12 @@ THE SOFTWARE.
 #include <sofia-sip/sip_tag.h>
 #include <sofia-sip/sip_extra.h>
 #include <sofia-sip/msg_types.h>
+#include <sofia-sip/nta.h>
+
+using namespace std ;
+
+const string CRLF = "\r\n" ;
+const string CRLF2 = "\r\n\r\n" ;
 
 namespace logging = boost::log;
 namespace sinks = boost::log::sinks;
@@ -71,6 +79,9 @@ namespace drachtio {
 	    log_info,
 	    log_debug
 	};
+
+    typedef boost::unordered_map<string, string> mapSipHeader_t ;
+
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
@@ -98,7 +109,53 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 	void* my_json_malloc( size_t bytes ) ;
 
 	void my_json_free( void* ptr ) ;
- 
+
+	void splitLines( const std::string& s, std::vector<std::string>& vec ) ;
+
+	void splitTokens( const std::string& s, std::vector<std::string>& vec ) ;
+
+	void splitMsg( const string& msg, string& meta, string& startLine, string& headers, string& body ) ;
+
+	sip_method_t parseStartLine( const string& startLine, string& methodName, string& requestUri ) ;
+
+	bool FindValueForHeader( const string& headers, const char* hdrName, string& hdrValue) ;
+
+	bool FindCSeqMethod( const string& headers, string& method ) ;
+
+	void EncodeStackMessage( const sip_t* sip, string& encodedMessage ) ;
+
+	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
+
+	class SipMsgData_t {
+	public:
+		SipMsgData_t() {} ;
+		SipMsgData_t(const string& str ) ;
+		SipMsgData_t(msg_t* msg, nta_incoming_t* irq, const char* source = "network") ;
+		SipMsgData_t(msg_t* msg, nta_outgoing_t* orq, const char* source = "application") ;
+
+		const string& getProtocol() const { return m_protocol; }
+		const string& getBytes() const { return m_bytes; }
+		const string& getAddress() const { return m_address; }
+		const string& getPort() const { return m_port; }
+		const string& getTime() const { return m_time; }
+		const string& getSource() const { return m_source; }
+
+		void toMessageFormat(string& s) const {
+			s = getSource() + "|" + getBytes() + "|" + getProtocol() + "|" + getAddress() + 
+            "|" + getPort() + "|" + getTime() ;
+		}
+
+	private:
+		void init(msg_t* msg) ;
+
+		string 		m_protocol ;
+		string 		m_bytes ;
+		string 		m_address ;
+		string 		m_port ;
+		string 		m_time ;
+		string 		m_source ;
+
+	} ;
  }
 
 typedef boost::tokenizer<boost::char_separator<char> > tokenizer ;

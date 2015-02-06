@@ -63,22 +63,48 @@ namespace drachtio {
 
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
+                    cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
+                    return ;
                 }
                 
                 /* logging configuration  */
-                m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address", "localhost") ;
-                m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.address", 516) ;
-                m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility","local7") ;
+ 
+                try {
+                    m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
+                    m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
+                    m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
+                    cout << "logging to syslog at " << m_syslogAddress << ":" << m_sysLogPort << ", using facility " 
+                        << m_syslogFacility << endl ;
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    cout << "syslog logging not enabled" << endl ;
+                }
+
+                try {
+                    m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
+                    m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
+                    m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
+                    m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
+                    cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
+                        << ",, rotatation size: " << m_rotationSize << "MB " << endl ; 
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    cout << "text file logging not enabled" << endl ;
+                }
+
+                if( 0 == m_logFileName.length() && 0 == m_syslogAddress.length() ) {
+                    cerr << "Continuing without either syslog or text file logging configured; this is not a recommended configuration" << endl ;
+                }
+                else {
+                    string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
+                    
+                    if( 0 == loglevel.compare("notice") ) m_loglevel = log_notice ;
+                    else if( 0 == loglevel.compare("error") ) m_loglevel = log_error ;
+                    else if( 0 == loglevel.compare("warning") ) m_loglevel = log_warning ;
+                    else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
+                    else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
+                    else m_loglevel = log_info ;                    
+                }
+
                 m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
-               
-                string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
-                
-                if( 0 == loglevel.compare("notice") ) m_loglevel = log_notice ;
-                else if( 0 == loglevel.compare("error") ) m_loglevel = log_error ;
-                else if( 0 == loglevel.compare("warning") ) m_loglevel = log_warning ;
-                else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
-                else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
-                else m_loglevel = log_info ;
                 
                 fb.close() ;
                                                
@@ -94,10 +120,24 @@ namespace drachtio {
         const string& getSyslogAddress() const { return m_syslogAddress; }
         unsigned int getSyslogPort() const { return m_sysLogPort ; }        
         bool getSyslogTarget( std::string& address, unsigned int& port ) const {
-            address = m_syslogAddress ;
-            port = m_sysLogPort  ;
-            return true ;
+            if( m_syslogAddress.length() > 0 ) {
+                address = m_syslogAddress ;
+                port = m_sysLogPort  ;
+                return true ;
+            }
+            return false ;
         }
+        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush ) {
+            if( m_logFileName.length() > 0 ) {
+                fileName = m_logFileName ;
+                archiveDirectory = m_logArchiveDirectory ;
+                rotationSize = m_rotationSize ;
+                autoFlush = m_bAutoFlush;
+                return true ;
+            }
+            return false ;
+        }
+
 		severity_levels getLoglevel() {
 			return m_loglevel ;
 		}
@@ -148,6 +188,10 @@ namespace drachtio {
         bool m_bIsValid ;
         string m_sipUrl ;
         string m_syslogAddress ;
+        string m_logFileName ;
+        string m_logArchiveDirectory ;
+        bool m_bAutoFlush ;
+        unsigned int m_rotationSize ;
         unsigned int m_sysLogPort ;
         string m_syslogFacility ;
         severity_levels m_loglevel ;
@@ -180,6 +224,11 @@ namespace drachtio {
     bool DrachtioConfig::getSyslogFacility( sinks::syslog::facility& facility ) const {
         return m_pimpl->getSyslogFacility( facility ) ;
     }
+    bool DrachtioConfig::getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
+        bool& autoFlush ) {
+        return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush ) ;
+    }
+
     bool DrachtioConfig::getSipUrl( std::string& sipUrl ) const {
         sipUrl = m_pimpl->getSipUrl() ;
         return true ;

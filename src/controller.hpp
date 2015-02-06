@@ -69,6 +69,29 @@ namespace drachtio {
 	using boost::shared_ptr;
 	using boost::scoped_ptr;
 
+        class StackMsg {
+        public:
+                StackMsg( const char *szLine ) ;
+                ~StackMsg() {}
+
+                void appendLine(char *szLine, bool done) ;
+                bool isIncoming(void) const { return m_bIncoming; }
+                bool isComplete(void) const { return m_bComplete ;}
+                const string& getSipMessage(void) const { return m_sipMessage; }
+                const SipMsgData_t& getSipMetaData(void) const { return m_meta; }
+                const string& getFirstLine(void) const { return m_firstLine;}
+
+        private:
+                StackMsg() {}
+
+                SipMsgData_t    m_meta ;
+                bool            m_bIncoming ;
+                bool            m_bComplete ;
+                string          m_sipMessage ;
+                string          m_firstLine ;
+                ostringstream   m_os ;
+        } ;
+
 	class DrachtioController {
 	public:
 
@@ -94,9 +117,7 @@ namespace drachtio {
                 /* client --> network messages */
                 int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id = NULL ) ;
 
-                /* called by dialog maker when a dialog has been produced */
-                void notifyDialogConstructionComplete( boost::shared_ptr<SipDialog> dlg ) ;
-
+ 
                 bool isSecret( const string& secret ) {
                 	return m_Config->isSecret( secret ) ;
                 }
@@ -112,12 +133,23 @@ namespace drachtio {
                 		str.append( m_my_contact->m_url->url_port ) ;
                 	}
                 }
+                const char* getMySipAddress(void) {
+                        return m_my_contact->m_url->url_host ;
+                }
+                const char* getMySipPort(void) {
+                        return m_my_contact->m_url->url_port ? m_my_contact->m_url->url_port : "5060";
+                }
 
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
 
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
+
+                //shared_ptr<StackMsg> getLastSentStackMessage(void) { return m_lastSentMsg; }
+                //shared_ptr<StackMsg> getLastRecvStackMessage(void) { return m_lastRecvMsg; }
+                void setLastSentStackMessage(shared_ptr<StackMsg> msg) { m_lastSentMsg = msg; }
+                void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
 	private:
         	DrachtioController() ;
@@ -142,14 +174,20 @@ namespace drachtio {
                 
                 string  m_user ;    //system user to run as
 
-                shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sink ;
+                shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
+                shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
+
                 shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
                 int m_bDaemonize ;
                 severity_levels m_current_severity_threshold ;
 
                 shared_ptr< ClientController > m_pClientController ;
 
-                boost::shared_ptr<SipDialogController> m_pDialogController ;
+                shared_ptr<SipDialogController> m_pDialogController ;
+
+                shared_ptr<StackMsg> m_lastSentMsg ;
+                shared_ptr<StackMsg> m_lastRecvMsg ;
+
  
                 su_home_t* 	m_home ;
                 su_root_t* 	m_root ;

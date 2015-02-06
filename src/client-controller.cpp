@@ -49,7 +49,7 @@ namespace drachtio {
     }
     void ClientController::threadFunc() {
         
-        DR_LOG(log_debug) << "Client controller thread id: " << boost::this_thread::get_id() << endl ;
+        DR_LOG(log_debug) << "Client controller thread id: " << boost::this_thread::get_id()  ;
          
         /* to make sure the event loop doesn't terminate when there is no work to do */
         boost::asio::io_service::work work(m_ioservice);
@@ -57,13 +57,13 @@ namespace drachtio {
         for(;;) {
             
             try {
-                DR_LOG(log_notice) << "ClientController: io_service run loop started" << endl ;
+                DR_LOG(log_notice) << "ClientController: io_service run loop started"  ;
                 m_ioservice.run() ;
-                DR_LOG(log_notice) << "ClientController: io_service run loop ended normally" << endl ;
+                DR_LOG(log_notice) << "ClientController: io_service run loop ended normally"  ;
                 break ;
             }
             catch( std::exception& e) {
-                DR_LOG(log_error) << "Error in event thread: " << string( e.what() ) << endl ;
+                DR_LOG(log_error) << "Error in event thread: " << string( e.what() )  ;
                 break ;
             }
         }
@@ -71,11 +71,11 @@ namespace drachtio {
     void ClientController::join( client_ptr client ) {
         m_clients.insert( client ) ;
         client_weak_ptr p( client ) ;
-        DR_LOG(log_debug) << "Added client, count of connected clients is now: " << m_clients.size() << endl ;       
+        DR_LOG(log_debug) << "Added client, count of connected clients is now: " << m_clients.size()  ;       
     }
     void ClientController::leave( client_ptr client ) {
         m_clients.erase( client ) ;
-        DR_LOG(log_debug) << "Removed client, count of connected clients is now: " << m_clients.size() << endl ;
+        DR_LOG(log_debug) << "Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
     void ClientController::addNamedService( client_ptr client, string& strAppName ) {
         //TODO: should we be locking here?  need to review entire locking strategy for this class
@@ -88,16 +88,14 @@ namespace drachtio {
 		m_acceptor.async_accept( new_session->socket(), boost::bind(&ClientController::accept_handler, this, new_session, boost::asio::placeholders::error));
     }
 	void ClientController::accept_handler( client_ptr session, const boost::system::error_code& ec) {
-        if(!ec) {
-            session->start() ;
-        }
+        if(!ec) session->start() ;
         start_accept(); 
     }
     bool ClientController::wants_requests( client_ptr client, const string& verb ) {
         RequestSpecifier spec( client ) ;
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_request_types.insert( map_of_request_types::value_type(verb, spec)) ;  
-        DR_LOG(log_debug) << "Added client for " << verb << " requests" << endl ;
+        DR_LOG(log_debug) << "Added client for " << verb << " requests"  ;
 
         //initialize the offset if this is the first client registering for that verb
         map_of_request_type_offsets::iterator it = m_map_of_request_type_offsets.find( verb ) ;
@@ -107,12 +105,8 @@ namespace drachtio {
         return true ;  
     }
 
-    ///NB: route_XXX handles incoming messages from the network
-    bool ClientController::route_request_outside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
 
-        //TOD: this constructor jsonifies the message, which we would like to move out of this (sip stack) thread
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-
+    client_ptr ClientController::selectClientForRequestOutsideDialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
         string method_name = sip->sip_request->rq_method_name ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
 
@@ -123,8 +117,8 @@ namespace drachtio {
         pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range( method_name ) ;
         unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
         if( 0 == nPossibles ) {
-            DR_LOG(log_info) << "No connected clients found to handle incoming " << method_name << " request" << endl ;
-           return false ;           
+            DR_LOG(log_info) << "No connected clients found to handle incoming " << method_name << " request"  ;
+           return client ;           
         }
 
         unsigned int nOffset = 0 ;
@@ -135,7 +129,7 @@ namespace drachtio {
             else nOffset = 0;
         }
         DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - there are " << nPossibles << 
-            " possible clients, we are starting with offset " << nOffset << endl ;
+            " possible clients, we are starting with offset " << nOffset  ;
 
         m_map_of_request_type_offsets.erase( itOffset ) ;
         m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(method_name, nOffset + 1)) ;
@@ -147,51 +141,77 @@ namespace drachtio {
             RequestSpecifier& spec = it->second ;
             client = spec.client() ;
             if( !client ) {
-                DR_LOG(log_debug) << "Removing disconnected client while iterating" << endl ;
+                DR_LOG(log_debug) << "Removing disconnected client while iterating"  ;
                 m_request_types.erase( it ) ;
                 pair = m_request_types.equal_range( method_name ) ;
                 if( nOffset >= m_request_types.size() ) {
                     nOffset = m_request_types.size() - 1 ;
                 }
-                DR_LOG(log_debug) << "Offset has been set to " << nOffset << " size of range is " << m_request_types.size() << endl ;
+                DR_LOG(log_debug) << "Offset has been set to " << nOffset << " size of range is " << m_request_types.size()  ;
             }
             else {
-                DR_LOG(log_debug) << "Selected client at offset " << nOffset << endl ;                
+                DR_LOG(log_debug) << "Selected client at offset " << nOffset  ;                
             }
         } while( !client && ++nTries < nPossibles ) ;
 
         if( !client ) {
-            DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request" << endl ;
-           return false ;
+            DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request"  ;
+            return client ;
+        }
+ 
+        return client ;
+    }
+    bool ClientController::route_ack_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, 
+        sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
+        client_ptr client = this->findClientForDialog( dialogId );
+        if( !client ) {
+            client = this->findClientForNetTransaction( inviteTransactionId );
+            if( !client ) {
+               DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;            
+                //TODO: try to find another client providing the same service
+                return false ;
+            }
         }
 
-        m_mapTransactions.insert( mapTransactions::value_type(transactionId,client)) ;
-        DR_LOG(log_info) << "ClientController::route_request_outside_dialog - added invite transaction, map size is now: " << m_mapTransactions.size() << " request" << endl ;
+        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+
+        this->removeNetTransaction( inviteTransactionId ) ;
+        DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - removed incoming invite transaction, map size is now: " << m_mapNetTransactions.size() << " request"  ;
  
-        m_ioservice.post( boost::bind(&Client::sendRequestOutsideDialog, client, transactionId, sm) ) ;
+        return true ;
+
+    }
+    bool ClientController::route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
+        const string& transactionId, const string& dialogId  ) {
+        //client_ptr client = this->findClientForDialog( dialogId );
+        //if( !client ) {
+            client_ptr client = this->findClientForNetTransaction( transactionId );
+            if( !client ) {
+                DR_LOG(log_warning) << "ClientController::route_response_inside_invite - client managing transaction has disconnected: " << transactionId  ;
+                return false ;
+            }
+        //}
  
+        DR_LOG(log_debug) << "ClientController::route_response_inside_invite - sending response to client"  ;
+        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+
         return true ;
     }
 
-    //client has sent us a response to an incoming request from the network
-    void ClientController::respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) {
-         m_pController->getDialogController()->respondToSipRequest( transactionId, pMsg ) ;
-    }
-
-    bool ClientController::route_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& dialogId ) {
+    bool ClientController::route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
+        const string& transactionId, const string& dialogId ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
+            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;
             
             //TODO: try to find another client providing the same service
             return false ;
         }
-
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
+        this->addNetTransaction( client, transactionId ) ;
  
-        m_ioservice.post( boost::bind(&Client::sendRequestInsideDialog, client, transactionId, dialogId, sm) ) ;
+        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
-        /* if this is a BYE from the network, it ends the dialog */
+        // if this is a BYE from the network, it ends the dialog 
         string method_name = sip->sip_request->rq_method_name ;
         if( 0 == method_name.compare("BYE") ) {
             removeDialog( dialogId ) ;
@@ -199,70 +219,62 @@ namespace drachtio {
 
         return true ;
     }
-    bool ClientController::route_ack_request_inside_dialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
-        client_ptr client = this->findClientForDialog( dialogId );
+
+    bool ClientController::route_response_inside_transaction( const string& rawSipMsg, const SipMsgData_t& meta, nta_outgoing_t* orq, sip_t const *sip, 
+        const string& transactionId, const string& dialogId ) {
+        
+        client_ptr client = this->findClientForAppTransaction( transactionId );
         if( !client ) {
-            /* if final response was non-success, we won't have a dialog so search by transaction id */
-            client = this->findClientForTransaction( inviteTransactionId );
-            if( !client ) {
-               DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;            
-                //TODO: try to find another client providing the same service
-                return false ;
-            }
-        }
-
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-
-        m_ioservice.post( boost::bind(&Client::sendAckRequestInsideDialog, client, transactionId, inviteTransactionId, dialogId, sm) ) ;
-
-        this->clearTransactionData( inviteTransactionId ) ;
-        DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - removed invite transaction, map size is now: " << m_mapTransactions.size() << " request" << endl ;
- 
-        return true ;
-    }
-
-    bool ClientController::route_response_inside_transaction( nta_outgoing_t* orq, sip_t const *sip, const string& transactionId, const string& dialogId ) {
-        client_ptr client = this->findClientForTransaction( transactionId );
-        if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId << endl ;
+            DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId  ;
             return false ;
         }
 
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( orq, sip, true ) ;
- 
-        m_ioservice.post( boost::bind(&Client::sendResponseInsideTransaction, client, transactionId, dialogId, sm) ) ;
+        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         string method_name = sip->sip_cseq->cs_method_name ;
+
+        if( sip->sip_status->st_status >= 200 ) {
+            removeAppTransaction( transactionId ) ;
+        }
+
         if( 0 == method_name.compare("BYE") ) {
             removeDialog( dialogId ) ;
         }
 
         return true ;
     }
+    
     void ClientController::addDialogForTransaction( const string& transactionId, const string& dialogId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
-        mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
-        if( m_mapTransactions.end() != it ) {
-            m_mapDialogs.insert( mapDialogs::value_type(dialogId, it->second ) ) ;
-            m_mapTransactions.erase( transactionId ) ;
-            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog, now tracking: " << 
-                m_mapDialogs.size() << " dialogs and " << m_mapTransactions.size() << " transactions" << endl ;
+        mapId2Client::iterator it = m_mapNetTransactions.find( transactionId ) ;
+        if( m_mapNetTransactions.end() != it ) {
+            m_mapDialogs.insert( mapId2Client::value_type(dialogId, it->second ) ) ;
+            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog (uas), now tracking: " << 
+                m_mapDialogs.size() << " dialogs and " << m_mapNetTransactions.size() << " net transactions"  ;
          }
         else {
             /* dialog will already exist if we received a reliable provisional response */
-            mapDialogs::iterator itDialog = m_mapDialogs.find( dialogId ) ;
+            mapId2Client::iterator itDialog = m_mapDialogs.find( dialogId ) ;
             if( m_mapDialogs.end() == itDialog ) {
-                DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found" << endl ;
-                assert(false) ;               
+                mapId2Client::iterator itApp = m_mapAppTransactions.find( transactionId ) ;
+                if( m_mapAppTransactions.end() != itApp ) {
+                    m_mapDialogs.insert( mapId2Client::value_type(dialogId, itApp->second ) ) ;
+                    DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog (uac), now tracking: " << 
+                        m_mapDialogs.size() << " dialogs and " << m_mapAppTransactions.size() << " app transactions"  ;
+                }
+                else {
+                   DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found"  ;
+                    assert(false) ;                           
+                }
             }
         }
         DR_LOG(log_debug) << "ClientController::addDialogForTransaction - transaction id " << transactionId << 
-            " has associated dialog " << dialogId << endl ;
+            " has associated dialog " << dialogId  ;
 
         client_ptr client = this->findClientForDialog_nolock( dialogId );
         if( !client ) {
             m_mapDialogs.erase( dialogId ) ;
-            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - client managing dialog has disconnected: " << dialogId << endl ;
+            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - client managing dialog has disconnected: " << dialogId  ;
             return  ;
         }
         else {
@@ -271,101 +283,65 @@ namespace drachtio {
                 m_mapDialogId2Appname.insert( mapDialogId2Appname::value_type( dialogId, strAppName ) ) ;
                 
                 DR_LOG(log_debug) << "ClientController::addDialogForTransaction - dialog id " << dialogId << 
-                    " has been established for client app " << strAppName << "; count of tracked dialogs is " << m_mapDialogId2Appname.size() << endl ;
+                    " has been established for client app " << strAppName << "; count of tracked dialogs is " << m_mapDialogId2Appname.size()  ;
             }
         }
     } 
-    bool ClientController::sendSipRequest( client_ptr client, boost::shared_ptr<JsonMsg> pMsg, const string& rid ) {
-        ostringstream o ;
-        m_mapRequests.insert( mapRequests::value_type( rid, client)) ;   
-        const char* dialogId = NULL, *method=NULL,*transactionId=NULL,*call_id=NULL ;
-        json_error_t err ;
-        if( 0 >  json_unpack_ex( pMsg->value(), &err, 0, "{s:{s?s,s?s,s?s,s?{s?s}}}","data","dialogId",&dialogId,
-            "transactionId",&transactionId,"method",&method,"headers","call-id",&call_id) ) {
-            DR_LOG(log_error) << "ClientController::sendSipRequest failed parsing dialogId from json message: " << err.text << endl ;
-            return false ;
+    bool ClientController::sendRequestInsideDialog( client_ptr client, const string& clientMsgId, const string& dialogId, const string& startLine, 
+        const string& headers, const string& body, string& transactionId ) {
+
+        bool rc = m_pController->getDialogController()->sendRequestInsideDialog( clientMsgId, dialogId, startLine, headers, body, transactionId) ;
+        if( 0 != startLine.find("ACK") && rc ) {
+            addAppTransaction( client, transactionId ) ;
         }
-        if( dialogId ) { 
-            if( m_pController->sendRequestInsideDialog( pMsg, rid, dialogId ) < 0 ) {
-                json_t* data = json_pack("{s:b,s:s}","success",false,"reason","unknown sip dialog") ;
-                client->sendResponse( rid, data ) ;
-                return false ;
-            }
-            return true ;            
-        }
-        else if( call_id ) {
-            if( m_pController->sendRequestInsideDialog( pMsg, rid, dialogId, call_id ) < 0 ) {
-                json_t* data = json_pack("{s:b,s:s}","success",false,"reason","unknown sip dialog") ;
-                client->sendResponse( rid, data ) ;
-                return false ;
-            }
-            return true ;            
-        }
-        else if( 0 == strcmp( method,"CANCEL") ) {
-            return m_pController->getDialogController()->sendCancelRequest( pMsg, rid ) ;
-        }
-        else {
-            return m_pController->getDialogController()->sendRequestOutsideDialog( pMsg, rid ) ;        
-        }
+        addApiRequest( client, clientMsgId )  ;
+
+        return rc ;
     }
-    void ClientController::sendResponseToClient( const string& rid, json_t* data ) {
-        string null;
-        sendResponseToClient( rid, data, null) ;
+    bool ClientController::sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, 
+            const string& body, string& transactionId, string& dialogId ) {
+        
+        bool rc = m_pController->getDialogController()->sendRequestOutsideDialog( clientMsgId, startLine, headers, body, transactionId, dialogId) ;
+        if( 0 != startLine.find("ACK") && rc ) {
+            addAppTransaction( client, transactionId ) ;
+        }
+        addApiRequest( client, clientMsgId )  ;
+        return rc ;        
     }
-    void ClientController::sendResponseToClient( const string& rid, json_t* data, const string& transactionId ) {
-        client_ptr client = findClientForRequest( rid ) ;
+    bool ClientController::respondToSipRequest( client_ptr client, const string& clientMsgId, const string& transactionId, const string& startLine, const string& headers, 
+        const string& body ) {
+
+        bool rc = m_pController->getDialogController()->respondToSipRequest( clientMsgId, transactionId, startLine, headers, body ) ;
+        addApiRequest( client, clientMsgId )  ;
+        return rc ;               
+    }   
+    bool ClientController::sendCancelRequest( client_ptr client, const string& clientMsgId, const string& transactionId, const string& startLine, const string& headers, 
+        const string& body ) {
+
+        bool rc = m_pController->getDialogController()->sendCancelRequest( clientMsgId, transactionId, startLine, headers, body ) ;
+        addApiRequest( client, clientMsgId )  ;
+        return rc ;               
+    }
+    bool ClientController::route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) {
+       client_ptr client = this->findClientForApiRequest( clientMsgId );
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::sendResponseToClient - client that sent the request has disconnected: " << rid << endl ;
-            return ;
+            DR_LOG(log_warning) << "ClientController::route_api_response - client that has sent the request has disconnected: " << clientMsgId  ;
+            return false ;             
         }
-        m_ioservice.post( boost::bind(&Client::sendResponse, client, rid, data) ) ;   
-        if( !transactionId.empty() ) {
-            boost::lock_guard<boost::mutex> l( m_lock ) ;
-            m_mapTransactions.insert( mapTransactions::value_type( transactionId, client) ) ; //TODO: need to think about when this gets cleared
-        }     
+        removeApiRequest( clientMsgId ) ;
+        m_ioservice.post( boost::bind(&Client::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
+        return true ;                
     }
-    bool ClientController::route_request_inside_invite( nta_incoming_t* irq, sip_t const *sip, const string& transactionId, const string& dialogId  ) {
-        client_ptr client = findClientForTransaction( transactionId ) ;
-        if( !client ) {
-            client = findClientForDialog( dialogId ) ;
-            if( !client ) {
-                DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client that was sent the transaction has disconnected: " << transactionId << endl ;
-                return false;  
-            }          
-        }
-        boost::shared_ptr<SofiaMsg> sm = boost::make_shared<SofiaMsg>( irq, sip ) ;
-        string json ;
-        if( !sm->str( json ) ) {
-            DR_LOG(log_error) << "ClientController::route_request_inside_invite - Error converting incoming sip message to json" << endl ;
-            return false ;            
-        }
- 
-        if( dialogId.length() > 0 )  m_ioservice.post( boost::bind(&Client::sendRequestInsideInviteWithDialog, client, transactionId, dialogId, sm) ) ;
-        else m_ioservice.post( boost::bind(&Client::sendRequestInsideInvite, client, transactionId, sm) ) ;
-
-        return true ;
-    }
-    bool ClientController::route_event_inside_dialog( const string& event, const string& transactionId, const string& dialogId ) {
-        client_ptr client = this->findClientForDialog( dialogId );
-        if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_event_inside_dialog - client managing dialog has disconnected: " << dialogId << endl ;
-            return false ;
-        }
-
-        m_ioservice.post( boost::bind(&Client::sendEventInsideDialog, client, transactionId, dialogId, event) ) ;
-
-        return true ;
-    }
-
+    
     void ClientController::removeDialog( const string& dialogId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
-        mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
+        mapId2Client::iterator it = m_mapDialogs.find( dialogId ) ;
         if( m_mapDialogs.end() == it ) {
-            DR_LOG(log_warning) << "ClientController::removeDialog - dialog not found: " << dialogId << endl ;
+            DR_LOG(log_warning) << "ClientController::removeDialog - dialog not found: " << dialogId  ;
             return ;
         }
         m_mapDialogs.erase( it ) ;
-        DR_LOG(log_info) << "ClientController::removeDialog - after removing dialogs count is now: " << m_mapDialogs.size() << endl ;
+        DR_LOG(log_info) << "ClientController::removeDialog - after removing dialogs count is now: " << m_mapDialogs.size()  ;
     }
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
@@ -375,7 +351,7 @@ namespace drachtio {
     client_ptr ClientController::findClientForDialog_nolock( const string& dialogId ) {
         client_ptr client ;
 
-        mapDialogs::iterator it = m_mapDialogs.find( dialogId ) ;
+        mapId2Client::iterator it = m_mapDialogs.find( dialogId ) ;
         if( m_mapDialogs.end() != it ) client = it->second.lock() ;
 
         // if that client is no longer connected, randomly select another client that is running that app 
@@ -383,12 +359,12 @@ namespace drachtio {
             mapDialogId2Appname::iterator it = m_mapDialogId2Appname.find( dialogId ) ;
             if( m_mapDialogId2Appname.end() != it ) {
                 string appName = it->second ;
-                DR_LOG(log_info) << "Attempting to find another client for app " << appName << endl ;
+                DR_LOG(log_info) << "Attempting to find another client for app " << appName  ;
 
                 pair<map_of_services::iterator,map_of_services::iterator> pair = m_services.equal_range( appName ) ;
                 unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
                 if( 0 == nPossibles ) {
-                   DR_LOG(log_warning) << "No other clients found for app " << appName << endl ;
+                   DR_LOG(log_warning) << "No other clients found for app " << appName  ;
                    return client ;
                 }
                 unsigned int nOffset = rand() % nPossibles ;
@@ -402,49 +378,83 @@ namespace drachtio {
                     }
                 } while( !client && ++nTries < nPossibles ) ;
 
-                if( !client ) DR_LOG(log_warning) << "No other connected clients found for app " << appName << endl ;
-                else DR_LOG(log_info) << "Found alternative client for app " << appName << " " << nOffset << ":" << nPossibles << endl ;
+                if( !client ) DR_LOG(log_warning) << "No other connected clients found for app " << appName  ;
+                else DR_LOG(log_info) << "Found alternative client for app " << appName << " " << nOffset << ":" << nPossibles  ;
             }
         }
         return client ;
     }
 
-    client_ptr ClientController::findClientForRequest( const string& rid ) {
+    client_ptr ClientController::findClientForAppTransaction( const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         client_ptr client ;
-        mapRequests::iterator it = m_mapRequests.find( rid ) ;
-        if( m_mapRequests.end() != it ) client = it->second.lock() ;
+        mapId2Client::iterator it = m_mapAppTransactions.find( transactionId ) ;
+        if( m_mapAppTransactions.end() != it ) client = it->second.lock() ;
         return client ;
     }
-    client_ptr ClientController::findClientForTransaction( const string& transactionId ) {
+    client_ptr ClientController::findClientForNetTransaction( const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         client_ptr client ;
-        mapTransactions::iterator it = m_mapTransactions.find( transactionId ) ;
-        if( m_mapTransactions.end() != it ) client = it->second.lock() ;
+        mapId2Client::iterator it = m_mapNetTransactions.find( transactionId ) ;
+        if( m_mapNetTransactions.end() != it ) client = it->second.lock() ;
         return client ;
     }
-    void ClientController::clearTransactionData( const string& transactionId ) {
+    client_ptr ClientController::findClientForApiRequest( const string& clientMsgId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
-        m_mapTransactions.erase( transactionId ) ;        
+        client_ptr client ;
+        mapId2Client::iterator it = m_mapApiRequests.find( clientMsgId ) ;
+        if( m_mapApiRequests.end() != it ) client = it->second.lock() ;
+        return client ;
+    }
+    void ClientController::removeAppTransaction( const string& transactionId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapAppTransactions.erase( transactionId ) ;        
+    }
+    void ClientController::removeNetTransaction( const string& transactionId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapNetTransactions.erase( transactionId ) ;        
+        DR_LOG(log_debug) << "removeNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+    }
+    void ClientController::removeApiRequest( const string& clientMsgId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapApiRequests.erase( clientMsgId ) ;        
+    }
+    void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapAppTransactions.insert( make_pair( transactionId, client ) ) ;        
+    }
+    void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;        
+        DR_LOG(log_debug) << "addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+    }
+    void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
+       boost::lock_guard<boost::mutex> l( m_lock ) ;
+        m_mapApiRequests.insert( make_pair( clientMsgId, client ) ) ;        
     }
 
     void ClientController::logStorageCount() {
         boost::lock_guard<boost::mutex> lock(m_lock) ;
 
-        DR_LOG(log_debug) << "ClientController storage counts" << endl ;
-        DR_LOG(log_debug) << "----------------------------------" << endl ;
-        DR_LOG(log_debug) << "m_clients size:                                                  " << m_clients.size() << endl ;
-        DR_LOG(log_debug) << "m_services size:                                                 " << m_services.size() << endl ;
-        DR_LOG(log_debug) << "m_request_types size:                                            " << m_request_types.size() << endl ;
-        DR_LOG(log_debug) << "m_map_of_request_type_offsets size:                              " << m_map_of_request_type_offsets.size() << endl ;
-        DR_LOG(log_debug) << "m_mapDialogs size:                                               " << m_mapDialogs.size() << endl ;
-        DR_LOG(log_debug) << "m_mapTransactions size:                                          " << m_mapTransactions.size() << endl ;
-        DR_LOG(log_debug) << "m_mapRequests size:                                              " << m_mapRequests.size() << endl ;
-        DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size() << endl ;
+        DR_LOG(log_debug) << "ClientController storage counts"  ;
+        DR_LOG(log_debug) << "----------------------------------"  ;
+        DR_LOG(log_debug) << "m_clients size:                                                  " << m_clients.size()  ;
+        DR_LOG(log_debug) << "m_services size:                                                 " << m_services.size()  ;
+        DR_LOG(log_debug) << "m_request_types size:                                            " << m_request_types.size()  ;
+        DR_LOG(log_debug) << "m_map_of_request_type_offsets size:                              " << m_map_of_request_type_offsets.size()  ;
+        DR_LOG(log_debug) << "m_mapDialogs size:                                               " << m_mapDialogs.size()  ;
+        DR_LOG(log_debug) << "m_mapNetTransactions size:                                       " << m_mapNetTransactions.size()  ;
+        DR_LOG(log_debug) << "m_mapAppTransactions size:                                       " << m_mapAppTransactions.size()  ;
+        DR_LOG(log_debug) << "m_mapApiRequests size:                                           " << m_mapApiRequests.size()  ;
+        DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size()  ;
 
 
     }
-     void ClientController::stop() {
+    boost::shared_ptr<SipDialogController> ClientController::getDialogController(void) {
+        return m_pController->getDialogController();
+    }
+
+    void ClientController::stop() {
         m_acceptor.cancel() ;
         m_ioservice.stop() ;
         m_thread.join() ;

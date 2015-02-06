@@ -33,6 +33,8 @@ THE SOFTWARE.
 //#include <boost/log/filters.hpp>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
+
+
 #include <boost/log/core.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/sources/severity_logger.hpp>
@@ -41,6 +43,22 @@ THE SOFTWARE.
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/attributes/scoped_attribute.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+
+#include <boost/lambda/lambda.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/log/trivial.hpp>
+
+#include <boost/log/common.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/attributes.hpp>
+#include <boost/log/sinks.hpp>
+#include <boost/log/sources/logger.hpp>
+
+
+
+#include <boost/algorithm/string/replace.hpp>
+
 
 #include <sofia-sip/msg_addr.h>
 
@@ -64,6 +82,14 @@ namespace drachtio {
 
 /* clone static functions, used to post a message into the main su event loop from the worker client controller thread */
 namespace {
+    void my_formatter(logging::record_view const& rec, logging::formatting_ostream& strm) {
+        strm << std::hex << std::setw(8) << std::setfill('0') << logging::extract< unsigned int >("LineID", rec) << "|";
+        strm << logging::extract<boost::posix_time::ptime>("TimeStamp", rec) << "| ";
+        //strm << logging::extract<unsigned int>("Severity", rec) << "| ";
+
+        strm << rec[expr::smessage];
+    }
+
     int clone_init( su_root_t* root, drachtio::DrachtioController* pController ) {
         return 0 ;
     }
@@ -83,45 +109,42 @@ namespace {
 	/* sofia logging is redirected to this function */
 	static void __sofiasip_logger_func(void *logarg, char const *fmt, va_list ap) {
         
-        if( theOneAndOnlyController->getCurrentLoglevel() < drachtio::log_error ) return ;
-        
         static bool loggingSipMsg = false ;
-        static ostringstream sipMsg ;
- 
-        if( loggingSipMsg && 0 == strcmp(fmt, "\n") ) {
-            sipMsg << endl ;
-            return ;
-        }
+        static boost::shared_ptr<drachtio::StackMsg> msg ;
+
         char output[MAXLOGLEN+1] ;
         vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
         va_end(ap) ;
 
-        if( !loggingSipMsg ) {
-            if( ::strstr( output, "recv ") == output || ::strstr( output, "send ") == output ) {
-                loggingSipMsg = true ;
-                sipMsg.str("") ;
-                /* remove the message separator that sofia puts in there */
-                char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
-                if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
-             }
-        }
-        else if( NULL != ::strstr( fmt, MSG_SEPARATOR) ) {
-            loggingSipMsg = false ;
-            sipMsg.flush() ;
-            DR_LOG( drachtio::log_info ) << sipMsg.str() <<  " " << endl;
-            return ;
-        }
-        
         if( loggingSipMsg ) {
-            int i = 0 ;
-            while( ' ' == output[i] && '\0' != output[i]) i++ ;
-            sipMsg << ( output + i ) ;
+            loggingSipMsg = NULL == ::strstr( fmt, MSG_SEPARATOR) ;
+            msg->appendLine( output, !loggingSipMsg ) ;
+
+            if( !loggingSipMsg ) {
+                //DR_LOG(drachtio::log_debug) << "Completed logging sip message"  ;
+
+                DR_LOG( drachtio::log_info ) << msg->getFirstLine()  << msg->getSipMessage() <<  " " ;            
+
+                msg->isIncoming() 
+                    ? theOneAndOnlyController->setLastRecvStackMessage( msg ) 
+                    : theOneAndOnlyController->setLastSentStackMessage( msg ) ;
+            }
+        }
+        else if( ::strstr( output, "recv ") == output || ::strstr( output, "send ") == output ) {
+            //DR_LOG(drachtio::log_debug) << "started logging sip message: " << output  ;
+            loggingSipMsg = true ;
+
+            char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
+            if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
+
+            msg = boost::make_shared<drachtio::StackMsg>( output ) ;
         }
         else {
+            //boost::replace_all(output, "\n", " ") ;
+            int len = strlen(output) ;
+            output[len-1] = '\0' ;
             DR_LOG(drachtio::log_info) << output ;
         }
-        
-        
 	} ;
 
     int defaultLegCallback( nta_leg_magic_t* controller,
@@ -143,6 +166,25 @@ namespace {
 
 namespace drachtio {
 
+    StackMsg::StackMsg( const char *szLine ) : m_firstLine( szLine ), m_meta( szLine ), m_os(""), m_bIncoming(::strstr( szLine, "recv ") == szLine) {
+    }
+    void StackMsg::appendLine( char *szLine, bool complete ) {
+        if( complete ) {
+            m_os.flush() ;
+            m_sipMessage = m_os.str() ;
+            m_sipMessage.resize( m_sipMessage.length() - 1) ;
+            boost::replace_all(m_sipMessage, "\n", CRLF);
+        }
+        else if( 0 == strcmp(szLine, "\n") ) {
+            m_os << endl ;
+        }
+        else {
+            int i = 0 ;
+            while( ' ' == szLine[i] && '\0' != szLine[i]) i++ ;
+            m_os << ( szLine + i ) ;
+        }
+    }
+ 
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME) {
         
@@ -150,7 +192,9 @@ namespace drachtio {
             usage() ;
             exit(-1) ;
         }
-        
+
+        logging::add_common_attributes();
+
         m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str() ) ;
 
         if( !m_Config->isValid() ) {
@@ -166,7 +210,7 @@ namespace drachtio {
 
     DrachtioController::~DrachtioController() {
     }
-    
+
     bool DrachtioController::installConfig() {
 
         if( m_ConfigNew ) {
@@ -180,21 +224,21 @@ namespace drachtio {
         
     }
     void DrachtioController::logConfig() {
-        DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold << endl ;
+        DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
     }
 
     void DrachtioController::handleSigHup( int signal ) {
         
         if( !m_ConfigNew ) {
-            DR_LOG(log_notice) << "Re-reading configuration file" << endl ;
+            DR_LOG(log_notice) << "Re-reading configuration file"  ;
             m_ConfigNew.reset( new DrachtioConfig( m_configFilename.c_str() ) ) ;
             if( !m_ConfigNew->isValid() ) {
-                DR_LOG(log_error) << "Error reading configuration file; no changes will be made.  Please correct the configuration file and try to reload again" << endl ;
+                DR_LOG(log_error) << "Error reading configuration file; no changes will be made.  Please correct the configuration file and try to reload again"  ;
                 m_ConfigNew.reset() ;
             }
         }
         else {
-            DR_LOG(log_error) << "Ignoring signal; already have a new configuration file to install" << endl ;
+            DR_LOG(log_error) << "Ignoring signal; already have a new configuration file to install"  ;
         }
         
     
@@ -231,7 +275,7 @@ namespace drachtio {
                     /* If this option set a flag, do nothing else now. */
                     if (long_options[option_index].flag != 0)
                         break;
-                    cout << "option " << long_options[option_index].name << endl;
+                    cout << "option " << long_options[option_index].name ;
                     if (optarg)
                         cout << " with arg " << optarg;
                     cout << endl ;
@@ -258,14 +302,14 @@ namespace drachtio {
         {
             cout << "non-option ARGV-elements: ";
             while (optind < argc)
-                cout << argv[optind++] << endl;
+                cout << argv[optind++] ;
         }
                 
         return true ;
     }
 
     void DrachtioController::usage() {
-        cout << "drachtio -f <filename> --daemon" << endl ;
+        cout << "drachtio -f <filename> --daemon"  ;
     }
 
     void DrachtioController::daemonize() {
@@ -280,7 +324,7 @@ namespace drachtio {
         /* If we got a good PID, then
          we can exit the parent process. */
         if (pid > 0) {
-            cout << pid << endl ;
+            cout << pid  ;
             exit(EXIT_SUCCESS);
         }
         if( !m_user.empty() ) {
@@ -289,7 +333,7 @@ namespace drachtio {
             if( pw ) {
                 int rc = setuid( pw->pw_uid ) ;
                 if( 0 != rc ) {
-                    cerr << "Error setting userid to user " << m_user << ": " << errno << endl ;
+                    cerr << "Error setting userid to user " << m_user << ": " << errno  ;
                 }
             }
             
@@ -325,47 +369,83 @@ namespace drachtio {
    }
 
     void DrachtioController::deinitializeLogging() {
-       logging::core::get()->remove_sink( m_sink ) ;
-        m_sink.reset() ;
+        if( m_sinkSysLog ) {
+           logging::core::get()->remove_sink( m_sinkSysLog ) ;
+            m_sinkSysLog.reset() ;
+        }
+        if( m_sinkTextFile ) {
+           logging::core::get()->remove_sink( m_sinkTextFile ) ;
+            m_sinkTextFile.reset() ;            
+        }
     }
     void DrachtioController::initializeLogging() {
         try {
             // Create a syslog sink
             sinks::syslog::facility facility  ;
-            string syslogAddress = "localhost" ;
-            unsigned int syslogPort = 516 ;
+            string syslogAddress ;
+            unsigned int syslogPort;
             
-            m_Config->getSyslogFacility( facility ) ;
-            m_Config->getSyslogTarget( syslogAddress, syslogPort ) ;
-            
-            m_sink.reset(
-                new sinks::synchronous_sink< sinks::syslog_backend >(
-                     keywords::use_impl = sinks::syslog::udp_socket_based
-                    , keywords::facility = facility
-                )
-            );
+            // iniitalize syslog sink, if configuredd
+            if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
+                m_Config->getSyslogFacility( facility ) ;
 
-            // We'll have to map our custom levels to the syslog levels
-            sinks::syslog::custom_severity_mapping< severity_levels > mapping("Severity");
-            mapping[log_debug] = sinks::syslog::debug;
-            mapping[log_notice] = sinks::syslog::notice;
-            mapping[log_info] = sinks::syslog::info;
-            mapping[log_warning] = sinks::syslog::warning;
-            mapping[log_error] = sinks::syslog::critical;
+                m_sinkSysLog.reset(
+                    new sinks::synchronous_sink< sinks::syslog_backend >(
+                         keywords::use_impl = sinks::syslog::udp_socket_based
+                        , keywords::facility = facility
+                    )
+                );
 
-            m_sink->locked_backend()->set_severity_mapper(mapping);
+                // We'll have to map our custom levels to the syslog levels
+                sinks::syslog::custom_severity_mapping< severity_levels > mapping("Severity");
+                mapping[log_debug] = sinks::syslog::debug;
+                mapping[log_notice] = sinks::syslog::notice;
+                mapping[log_info] = sinks::syslog::info;
+                mapping[log_warning] = sinks::syslog::warning;
+                mapping[log_error] = sinks::syslog::critical;
 
-            // Set the remote address to sent syslog messages to
-            m_sink->locked_backend()->set_target_address( syslogAddress.c_str() );
-            
-            logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
-            
-            logging::core::get()->set_filter(
-               expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
-            ) ;
+                m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
 
-            // Add the sink to the core
-            logging::core::get()->add_sink(m_sink);
+                // Set the remote address to sent syslog messages to
+                m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
+
+                logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
+
+                logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
+                ) ;
+
+                // Add the sink to the core
+                logging::core::get()->add_sink(m_sinkSysLog);
+
+            }
+
+            //initialie text file sink, of configured
+            string name, archiveDirectory ;
+            unsigned int rotationSize ;
+            bool autoFlush ;
+            if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush ) ) {
+
+                m_sinkTextFile.reset(
+                    new sinks::synchronous_sink< sinks::text_file_backend >(
+                        keywords::file_name = name,                                          
+                        keywords::rotation_size = rotationSize * 1024 * 1024,
+                        keywords::auto_flush = autoFlush,
+                        keywords::format = 
+                        (
+                            expr::stream
+                                << expr::attr< unsigned int >("RecordID")
+                                << ": "
+                                << expr::attr< boost::posix_time::ptime >("TimeStamp")
+                                << "> " << expr::smessage
+                        )
+                    )
+                );        
+
+                m_sinkTextFile->set_formatter( &my_formatter ) ;
+                           
+                logging::core::get()->add_sink(m_sinkTextFile);
+            }
             
             m_bLoggingInitialized = true ;
 
@@ -386,7 +466,7 @@ namespace drachtio {
 		m_logger.reset( this->createLogger() );
 		this->logConfig() ;
 
-        DR_LOG(log_debug) << "Main thread id: " << boost::this_thread::get_id() << endl ;
+        DR_LOG(log_debug) << "Main thread id: " << boost::this_thread::get_id() ;
 
        /* open stats connection */
         string adminAddress ;
@@ -397,23 +477,23 @@ namespace drachtio {
 
         string url ;
         m_Config->getSipUrl( url ) ;
-        DR_LOG(log_notice) << "starting sip stack on " << url << endl ;
+        DR_LOG(log_notice) << "starting sip stack on " << url ;
         
         int rv = su_init() ;
         if( rv < 0 ) {
-            DR_LOG(log_error) << "Error calling su_init: " << rv << endl ;
+            DR_LOG(log_error) << "Error calling su_init: " << rv ;
             return ;
         }
         ::atexit(su_deinit);
         
         m_root = su_root_create( NULL ) ;
         if( NULL == m_root ) {
-            DR_LOG(log_error) << "Error calling su_root_create: " << endl ;
+            DR_LOG(log_error) << "Error calling su_root_create: "  ;
             return  ;
         }
         m_home = su_home_create() ;
         if( NULL == m_home ) {
-            DR_LOG(log_error) << "Error calling su_home_create" << endl ;
+            DR_LOG(log_error) << "Error calling su_home_create"  ;
         }
         su_log_redirect(NULL, __sofiasip_logger_func, NULL);
         
@@ -425,13 +505,13 @@ namespace drachtio {
         su_root_threading( m_root, 0 ) ;
         rv = su_clone_start( m_root, m_clone, this, clone_init, clone_destroy ) ;
         if( rv < 0 ) {
-           DR_LOG(log_error) << "Error calling su_clone_start" << endl ;
+           DR_LOG(log_error) << "Error calling su_clone_start"  ;
            return  ;
         }
         
         /* enable extended headers */
         if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
-            DR_LOG(log_error) << "Error calling sip_update_default_mclass" << endl ;
+            DR_LOG(log_error) << "Error calling sip_update_default_mclass"  ;
             return  ;
         }
  
@@ -448,7 +528,7 @@ namespace drachtio {
                                  TAG_END() ) ;
         
         if( NULL == m_nta ) {
-            DR_LOG(log_error) << "Error calling nta_agent_create" << endl ;
+            DR_LOG(log_error) << "Error calling nta_agent_create"  ;
             return ;
         }
         
@@ -456,7 +536,7 @@ namespace drachtio {
                                       NTATAG_NO_DIALOG(1),
                                       TAG_END());
         if( NULL == m_defaultLeg ) {
-            DR_LOG(log_error) << "Error creating default leg" << endl ;
+            DR_LOG(log_error) << "Error creating default leg"  ;
             return ;
         }
         
@@ -467,19 +547,19 @@ namespace drachtio {
         s << "SIP/2.0/UDP " <<  m_my_contact->m_url[0].url_host ;
         if( m_my_contact->m_url[0].url_port ) s << ":" <<  m_my_contact->m_url[0].url_port  ;
         m_my_via.assign( s.str().c_str(), s.str().length() ) ;
-        DR_LOG(log_debug) << "My via header: " << m_my_via << endl ;
+        DR_LOG(log_debug) << "My via header: " << m_my_via  ;
 
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
               
         /* sofia event loop */
-        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id() << endl ;
+        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id()  ;
 
         /* start a timer */
         m_timer = su_timer_create( su_root_task(m_root), 30000) ;
         su_timer_set_for_ever(m_timer, watchdogTimerHandler, this) ;
  
         su_root_run( m_root ) ;
-        DR_LOG(log_notice) << "Sofia event loop ended" << endl ;
+        DR_LOG(log_notice) << "Sofia event loop ended"  ;
         
         su_root_destroy( m_root ) ;
         m_root = NULL ;
@@ -492,18 +572,20 @@ namespace drachtio {
         
     }
     int DrachtioController::processRequestOutsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
-        DR_LOG(log_debug) << "processRequestOutsideDialog" << endl ;
+        DR_LOG(log_debug) << "processRequestOutsideDialog"  ;
         int rc = validateSipMessage( sip ) ;
         if( 0 != rc ) {
             return rc ;
         }
-
+ 
         switch (sip->sip_request->rq_method ) {
             case sip_method_invite:
             {
                 /* TODO:  should support optional config to only allow invites from defined addresses */
 
-                /* system-wide minimum session-expires is 90 seconds */
+                nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
+
+               /* system-wide minimum session-expires is 90 seconds */
                 if( sip->sip_session_expires && sip->sip_session_expires->x_delta < 90 ) {
                       nta_incoming_treply( irq, SIP_422_SESSION_TIMER_TOO_SMALL, 
                         SIPTAG_MIN_SE_STR("90"),
@@ -513,13 +595,22 @@ namespace drachtio {
 
                 string transactionId ;
                 generateUuid( transactionId ) ;
-
-                nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
  
-                 if( !m_pClientController->route_request_outside_dialog( irq, sip, transactionId ) )  {
-                    DR_LOG(log_error) << "No providers available for invite" << endl ;
-                    return 503 ;
+                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( irq, sip, transactionId ) ;
+                if( !client ) {
+                    DR_LOG(log_error) << "No providers available for invite"  ;
+                    return 503 ;                    
                 }
+
+                string encodedMessage ;
+                EncodeStackMessage( sip, encodedMessage ) ;
+                msg_t* msg = nta_incoming_getrequest( irq ) ;
+                SipMsgData_t meta( msg, irq ) ;
+
+                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, 
+                    encodedMessage, meta ) ) ;
+                
+                m_pClientController->addNetTransaction( client, transactionId ) ;
 
                 nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
                                                    SIPTAG_CALL_ID(sip->sip_call_id),
@@ -528,7 +619,7 @@ namespace drachtio {
                                                    SIPTAG_FROM(sip->sip_to),
                                                    TAG_END());
                 if( NULL == leg ) {
-                    DR_LOG(log_error) << "Error creating a leg for  origination" << endl ;
+                    DR_LOG(log_error) << "Error creating a leg for  origination"  ;
                     //TODO: we got a client out there with a dead INVITE now...
                     return 500 ;
                 }
@@ -540,7 +631,6 @@ namespace drachtio {
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
                 m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
-
 
             }
             break ;
@@ -559,22 +649,30 @@ namespace drachtio {
                 string transactionId ;
                 generateUuid( transactionId ) ;
 
-                if( !m_pClientController->route_request_outside_dialog( irq, sip, transactionId ) )  {
-                    DR_LOG(log_error) << "No providers available for register" << endl ;
-                    return 503 ;
+                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( irq, sip, transactionId ) ;
+                if( !client ) {
+                    DR_LOG(log_error) << "No providers available for invite"  ;
+                    return 503 ;                    
                 }
+                msg_t* msg = nta_incoming_getrequest( irq ) ;
+                string encodedMessage ;
+                EncodeStackMessage( sip, encodedMessage ) ;
+                SipMsgData_t meta( msg, irq ) ;
 
+                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, 
+                    encodedMessage, meta ) ) ;
+                m_pClientController->addNetTransaction( client, transactionId ) ;
                 m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
                 return 0 ;
             }
             
             case sip_method_bye:
             case sip_method_cancel:
-                DR_LOG(log_error) << "Received BYE or CANCEL for unknown dialog: " << sip->sip_call_id->i_id << endl ;
+                DR_LOG(log_error) << "Received BYE or CANCEL for unknown dialog: " << sip->sip_call_id->i_id  ;
                 return 481 ;
                 
             default:
-                DR_LOG(log_error) << "DrachtioController::processRequestOutsideDialog - unsupported method type: " << sip->sip_request->rq_method_name << ": " << sip->sip_call_id->i_id << endl ;
+                DR_LOG(log_error) << "DrachtioController::processRequestOutsideDialog - unsupported method type: " << sip->sip_request->rq_method_name << ": " << sip->sip_call_id->i_id  ;
                 return 501 ;
                 break ;
                 
@@ -583,7 +681,7 @@ namespace drachtio {
         return 0 ;
     }
     int DrachtioController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
-        DR_LOG(log_debug) << "DrachtioController::processRequestInsideDialog" << endl ;
+        DR_LOG(log_debug) << "DrachtioController::processRequestInsideDialog"  ;
 
         int rc = validateSipMessage( sip ) ;
         if( 0 != rc ) {
@@ -598,6 +696,7 @@ namespace drachtio {
 
         return 0 ;
     }
+    /*
     int DrachtioController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id ) {
         boost::shared_ptr<SipDialog> dlg ;
 
@@ -613,20 +712,8 @@ namespace drachtio {
 
         return 0 ;
     }
-    void DrachtioController::notifyDialogConstructionComplete( boost::shared_ptr<SipDialog> dlg ) {
-        DR_LOG(log_debug) << "notifyDialogConstructionComplete: final sip status " << dlg->getSipStatus() << endl ;
-        int finalStatus =  dlg->getSipStatus() ;
-        if( 200 == finalStatus ) {
-            /* hand stable dialogs over to this guy for further management */
-            m_pDialogController->addDialog( dlg ) ;
-        }
-        else {
-            /* the rest are destroyed at this point */
-            DR_LOG(log_debug) << "notifyDialogConstructionComplete: dialog with call-id " << dlg->getCallId() << 
-                " has final sip status of " << finalStatus << " and will be destroyed" << endl ;
-        }
-    }
-    sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
+    */
+     sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
         return nta_incoming_received( irq, NULL ) ;
     }
     void DrachtioController::getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) {
@@ -663,7 +750,7 @@ namespace drachtio {
         }
         o << ">" ;
         
-        DR_LOG(log_debug) << "generated Contact: " << o.str() << endl ;
+        DR_LOG(log_debug) << "generated Contact: " << o.str()  ;
         
         strContact = o.str() ;
     }
@@ -671,19 +758,19 @@ namespace drachtio {
 
     int DrachtioController::validateSipMessage( sip_t const *sip ) {
         if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_contact || !sip->sip_contact->m_url[0].url_host ) ) {
-            DR_LOG(log_error) << "Invalid or missing contact header" << endl ;
+            DR_LOG(log_error) << "Invalid or missing contact header"  ;
             return 400 ;
         }
         if( !sip->sip_call_id || !sip->sip_call_id->i_id ) {
-            DR_LOG(log_error) << "Invalid or missing call-id header" << endl ;
+            DR_LOG(log_error) << "Invalid or missing call-id header"  ;
             return 400 ;
         }
         if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_to || !sip->sip_to->a_url[0].url_user ) ) {
-            DR_LOG(log_error) << "Invalid or missing to header or dialed number information" << endl ;
+            DR_LOG(log_error) << "Invalid or missing to header or dialed number information"  ;
             return 400 ;            
         }
         if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_from || !sip->sip_from->a_tag ) )  {
-            DR_LOG(log_error) << "Missing tag on From header on invite" << endl ;
+            DR_LOG(log_error) << "Missing tag on From header on invite"  ;
             return 400 ;            
         }
         return 0 ;
@@ -739,40 +826,40 @@ namespace drachtio {
                                 NTATAG_S_TOUT_RESPONSE_REF(tout_response),
                            TAG_END()) ;
        
-       DR_LOG(log_debug) << "size of hash table for server-side transactions                  " << irq_hash << endl ;
-       DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash << endl ;
-       DR_LOG(log_info) << "size of hash table for dialogs                                   " << leg_hash << endl ;
-       DR_LOG(log_info) << "number of server-side transactions in the hash table             " << irq_used << endl ;
-       DR_LOG(log_info) << "number of client-side transactions in the hash table             " << orq_used << endl ;
-       DR_LOG(log_info) << "number of dialogs in the hash table                              " << leg_used << endl ;
-       DR_LOG(log_info) << "number of sip messages received                                  " << recv_msg << endl ;
-       DR_LOG(log_info) << "number of sip messages sent                                      " << sent_msg << endl ;
-       DR_LOG(log_info) << "number of sip requests received                                  " << recv_request << endl ;
-       DR_LOG(log_info) << "number of sip requests sent                                      " << sent_request << endl ;
-       DR_LOG(log_debug) << "number of bad sip messages received                              " << bad_message << endl ;
-       DR_LOG(log_debug) << "number of bad sip requests received                              " << bad_request << endl ;
-       DR_LOG(log_debug) << "number of bad sip requests dropped                               " << drop_request << endl ;
-       DR_LOG(log_debug) << "number of bad sip reponses dropped                               " << drop_response << endl ;
-       DR_LOG(log_debug) << "number of client transactions created                            " << client_tr << endl ;
-       DR_LOG(log_debug) << "number of server transactions created                            " << server_tr << endl ;
-       DR_LOG(log_info) << "number of in-dialog server transactions created                  " << dialog_tr << endl ;
-       DR_LOG(log_debug) << "number of server transactions that have received ack             " << acked_tr << endl ;
-       DR_LOG(log_debug) << "number of server transactions that have received cancel          " << canceled_tr << endl ;
-       DR_LOG(log_debug) << "number of requests that were processed stateless                 " << trless_request << endl ;
-       DR_LOG(log_debug) << "number of requests converted to transactions by message callback " << trless_to_tr << endl ;
-       DR_LOG(log_debug) << "number of responses without matching request                     " << trless_response << endl ;
-       DR_LOG(log_debug) << "number of successful responses missing INVITE client transaction " << trless_200 << endl ;
-       DR_LOG(log_debug) << "number of requests merged by UAS                                 " << merged_request << endl ;
-       DR_LOG(log_info) << "number of SIP requests sent by stack                             " << sent_request << endl ;
-       DR_LOG(log_info) << "number of SIP responses sent by stack                            " << sent_response << endl ;
-       DR_LOG(log_info) << "number of SIP requests retransmitted by stack                    " << retry_request << endl ;
-       DR_LOG(log_info) << "number of SIP responses retransmitted by stack                   " << retry_response << endl ;
-       DR_LOG(log_info) << "number of retransmitted SIP requests received by stack           " << recv_retry << endl ;
-       DR_LOG(log_debug) << "number of SIP client transactions that has timeout               " << tout_request << endl ;
-       DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response << endl ;
+       DR_LOG(log_debug) << "size of hash table for server-side transactions                  " << irq_hash  ;
+       DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash  ;
+       DR_LOG(log_info) << "size of hash table for dialogs                                   " << leg_hash  ;
+       DR_LOG(log_info) << "number of server-side transactions in the hash table             " << irq_used  ;
+       DR_LOG(log_info) << "number of client-side transactions in the hash table             " << orq_used  ;
+       DR_LOG(log_info) << "number of dialogs in the hash table                              " << leg_used  ;
+       DR_LOG(log_info) << "number of sip messages received                                  " << recv_msg  ;
+       DR_LOG(log_info) << "number of sip messages sent                                      " << sent_msg  ;
+       DR_LOG(log_info) << "number of sip requests received                                  " << recv_request  ;
+       DR_LOG(log_info) << "number of sip requests sent                                      " << sent_request  ;
+       DR_LOG(log_debug) << "number of bad sip messages received                              " << bad_message  ;
+       DR_LOG(log_debug) << "number of bad sip requests received                              " << bad_request  ;
+       DR_LOG(log_debug) << "number of bad sip requests dropped                               " << drop_request  ;
+       DR_LOG(log_debug) << "number of bad sip reponses dropped                               " << drop_response  ;
+       DR_LOG(log_debug) << "number of client transactions created                            " << client_tr  ;
+       DR_LOG(log_debug) << "number of server transactions created                            " << server_tr  ;
+       DR_LOG(log_info) << "number of in-dialog server transactions created                  " << dialog_tr  ;
+       DR_LOG(log_debug) << "number of server transactions that have received ack             " << acked_tr  ;
+       DR_LOG(log_debug) << "number of server transactions that have received cancel          " << canceled_tr  ;
+       DR_LOG(log_debug) << "number of requests that were processed stateless                 " << trless_request  ;
+       DR_LOG(log_debug) << "number of requests converted to transactions by message callback " << trless_to_tr  ;
+       DR_LOG(log_debug) << "number of responses without matching request                     " << trless_response  ;
+       DR_LOG(log_debug) << "number of successful responses missing INVITE client transaction " << trless_200  ;
+       DR_LOG(log_debug) << "number of requests merged by UAS                                 " << merged_request  ;
+       DR_LOG(log_info) << "number of SIP requests sent by stack                             " << sent_request  ;
+       DR_LOG(log_info) << "number of SIP responses sent by stack                            " << sent_response  ;
+       DR_LOG(log_info) << "number of SIP requests retransmitted by stack                    " << retry_request  ;
+       DR_LOG(log_info) << "number of SIP responses retransmitted by stack                   " << retry_response  ;
+       DR_LOG(log_info) << "number of retransmitted SIP requests received by stack           " << recv_retry  ;
+       DR_LOG(log_debug) << "number of SIP client transactions that has timeout               " << tout_request  ;
+       DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response  ;
     }
     void DrachtioController::processWatchdogTimer() {
-        DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer" << endl ;
+        DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
         this->printStats() ;
         m_pDialogController->logStorageCount() ;
         m_pClientController->logStorageCount() ;

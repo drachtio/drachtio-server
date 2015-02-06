@@ -33,17 +33,26 @@ THE SOFTWARE.
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/thread.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/foreach.hpp>
+#include <boost/algorithm/string/find.hpp>
+#include <boost/regex.hpp>
 
 #include <sofia-sip/url.h>
-#include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
 #include <sofia-sip/tport.h>
-
-
+#include <sofia-sip/msg.h>
+#include <sofia-sip/msg_addr.h>
+#include <sofia-sip/msg_addr.h>
+#include <sofia-sip/su_string.h>
+#include <sofia-sip/su_addrinfo.h>
 
 
 #include "drachtio.h"
 #include "controller.hpp"
+
+#define MAX_LINELEN 2047
 
 using namespace std ;
  
@@ -146,9 +155,9 @@ namespace drachtio {
 		( string("cseq") ) 
         ( string("via") ) 
         ( string("route") ) 
-        ( string("contact") ) 
+//        ( string("contact") ) 
         ( string("rseq") ) 
-        ( string("rack") ) 
+//        ( string("rack") ) 
         ( string("record_route") ) 
         ( string("content_length") ) 
 		;
@@ -195,6 +204,43 @@ namespace drachtio {
         tokenizer tok( str, sep) ;
         if( distance( tok.begin(), tok.end() ) > 1 ) hvalue = *(++tok.begin() ) ;
  	}
+
+    bool FindCSeqMethod( const string& headers, string& method ) {
+        boost::regex e("^CSeq:\\s+\\d+\\s+(\\w+)$", boost::regex::extended);
+        boost::smatch mr;
+        if( boost::regex_search( headers, mr, e ) ) {
+            method = mr[1] ;
+            return true ;
+        }
+        return false ;
+    }
+
+    void EncodeStackMessage( const sip_t* sip, string& encodedMessage ) {
+        encodedMessage.clear() ;
+        const sip_common_t* p = NULL ;
+        if( sip->sip_request ) {
+            sip_header_t* hdr = (sip_header_t *) sip->sip_request ;
+            p = hdr->sh_common ;
+        }
+        else if( sip->sip_status ) {
+            sip_header_t* hdr = (sip_header_t *) sip->sip_status ;
+            p = hdr->sh_common ;
+        }
+
+        while( NULL != p) {
+            if( NULL != p->h_data ) {
+                //take the original fragment if it exists since this will be more efficient
+               encodedMessage.append( (char *)p->h_data, p->h_len ) ;            
+            }
+            else {
+                //otherwise, encode the sip header 
+                char buf[1024] ;
+                issize_t n = msg_header_e(buf, 1024, reinterpret_cast<const msg_header_t *>(p), 0) ;
+                encodedMessage.append( buf, n ) ;
+            }
+            p = p->h_succ->sh_common ;
+        }
+    }
 
     bool normalizeSipUri( std::string& uri ) {
         url_t url ;
@@ -346,6 +392,181 @@ namespace drachtio {
         memset( ptr, 0, size + 8 ) ;
 
     }
+
+    void splitLines( const string& s, vector<string>& vec ) {
+        split( vec, s, boost::is_any_of("\r\n"), boost::token_compress_on ); 
+    }
+
+    void splitTokens( const string& s, vector<string>& vec ) {
+        split( vec, s, boost::is_any_of("|") /*, boost::token_compress_on */); 
+    }
+
+    void splitMsg( const string& msg, string& meta, string& startLine, string& headers, string& body ) {
+        size_t pos = msg.find( CRLF ) ;
+        if( string::npos == pos ) {
+            meta = msg ;
+            return ;
+        }
+        meta = msg.substr(0, pos) ;
+        string chunk = msg.substr(pos+CRLF.length()) ;
+
+        pos = chunk.find( CRLF2 ) ;
+        if( string::npos != pos  ) {
+            body = chunk.substr( pos + CRLF2.length() ) ;
+            chunk = chunk.substr( 0, pos ) ;
+        }
+
+        pos = chunk.find( CRLF ) ;
+        if( string::npos == pos ) {
+            startLine = chunk ;
+        }
+        else {
+            startLine = chunk.substr(0, pos) ;
+            headers = chunk.substr(pos + CRLF.length()) ;
+        }
+    }
+
+    sip_method_t parseStartLine( const string& startLine, string& methodName, string& requestUri ) {
+        boost::char_separator<char> sep(" ");
+        boost::tokenizer< boost::char_separator<char> > tokens(startLine, sep);
+        int i = 0 ;
+        sip_method_t method = sip_method_invalid ;
+        BOOST_FOREACH (const string& t, tokens) {
+            switch( i++ ) {
+                case 0:
+                    methodName = t ;
+                    if( 0 == t.compare("INVITE") ) method = sip_method_invite ;
+                    else if( 0 == t.compare("ACK") ) method = sip_method_ack ;
+                    else if( 0 == t.compare("PRACK") ) method = sip_method_prack ;
+                    else if( 0 == t.compare("CANCEL") ) method = sip_method_cancel ;
+                    else if( 0 == t.compare("BYE") ) method = sip_method_bye ;
+                    else if( 0 == t.compare("OPTIONS") ) method = sip_method_options ;
+                    else if( 0 == t.compare("REGISTER") ) method = sip_method_register ;
+                    else if( 0 == t.compare("INFO") ) method = sip_method_info ;
+                    else if( 0 == t.compare("UPDATE") ) method = sip_method_update ;
+                    else if( 0 == t.compare("MESSAGE") ) method = sip_method_message ;
+                    else if( 0 == t.compare("SUBSCRIBE") ) method = sip_method_subscribe ;
+                    else if( 0 == t.compare("NOTIFY") ) method = sip_method_notify ;
+                    else if( 0 == t.compare("REFER") ) method = sip_method_refer ;
+                    else if( 0 == t.compare("PUBLISH") ) method = sip_method_publish ;
+                    else method = sip_method_unknown ;
+                    break ;
+
+                case 1:
+                    requestUri = t ;
+                    break ;
+
+                default:
+                break ;
+            }
+        }
+        return method ;
+    }
+
+    bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) {
+        vector<string> vec ;
+        splitLines( headers, vec ) ;
+        for( std::vector<string>::const_iterator it = vec.begin(); it != vec.end(); ++it )  {
+            string hdrName ;
+            size_t pos = (*it).find_first_of(":") ;
+            if( string::npos != pos ) {
+                hdrName = (*it).substr(0,pos) ;
+                boost::trim( hdrName );
+
+                if( boost::iequals( hdrName, szHeaderName ) ) {
+                    headerValue = (*it).substr(pos+1) ;
+                    boost::trim( headerValue ) ;    
+                    return true ;                
+                }
+            }
+        }
+        return false ;
+    }
  
+    SipMsgData_t::SipMsgData_t(const string& str ) {
+        boost::char_separator<char> sep(" []//:") ;
+        tokenizer tok( str, sep) ;
+        tokenizer::iterator it = tok.begin() ;
+
+        m_source = 0 == (*it).compare("recv") ? "network" : "application" ;
+        it++ ;
+        m_bytes = *(it) ;
+        it++; it++; it++ ;
+        m_protocol = *(it) ;
+        m_address = *(++it) ;
+        m_port = *(++it) ;
+        it++ ;  
+        string t = *(++it) + ":" + *(++it) + ":" + *(++it) + "." + *(++it) ;
+        m_time = t.substr(0, t.size()-2);
+    }
+
+    SipMsgData_t::SipMsgData_t( msg_t* msg, nta_incoming_t* irq, const char* source ) : m_source(source) {
+        su_time_t now = su_now() ;
+        unsigned short second, minute, hour;
+        char time[64] ;
+        tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ;
+
+        second = (unsigned short)(now.tv_sec % 60);
+        minute = (unsigned short)((now.tv_sec / 60) % 60);
+        hour = (unsigned short)((now.tv_sec / 3600) % 24);
+        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+ 
+        m_time.assign( time ) ;
+        if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
+        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+
+        tport_unref( tport ) ;
+
+        init( msg ) ;
+    }
+    SipMsgData_t::SipMsgData_t( msg_t* msg, nta_outgoing_t* orq, const char* source ) : m_source(source) {
+        su_time_t now = su_now() ;
+        unsigned short second, minute, hour;
+        char time[64] ;
+        tport_t *tport = nta_outgoing_transport( orq ) ;
+
+        second = (unsigned short)(now.tv_sec % 60);
+        minute = (unsigned short)((now.tv_sec / 60) % 60);
+        hour = (unsigned short)((now.tv_sec / 3600) % 24);
+        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+ 
+        m_time.assign( time ) ;
+
+        if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
+        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+
+        init( msg ) ;
+
+        if( 0 == strcmp(source, "application") ) {
+            if( NULL != tport ) {
+                const tp_name_t* name = tport_name(tport) ;
+                m_address = name->tpn_host ;
+                m_port = name->tpn_port ;                
+            }
+            else {
+                m_address = theOneAndOnlyController->getMySipAddress() ;
+                m_port = theOneAndOnlyController->getMySipPort() ;
+            }
+        }
+
+        tport_unref( tport ) ;
+
+    }
+    void SipMsgData_t::init( msg_t* msg ) {
+        su_sockaddr_t const *su = msg_addr(msg);
+        short port ;
+        char name[SU_ADDRSIZE] = "";
+        char szTmp[10] ;
+
+        su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
+
+        m_address.assign( name ) ;
+        sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
+        m_port.assign( szTmp );
+        sprintf( szTmp, "%u", msg_size( msg ) ) ;
+        m_bytes.assign( szTmp ) ;
+    }
  }
 

@@ -24,11 +24,12 @@ THE SOFTWARE.
 
 #include <boost/bind.hpp>
 #include <boost/tokenizer.hpp>
-#include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/foreach.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/foreach.hpp>
 
+
+#include "drachtio.h"
 #include "client.hpp"
 #include "controller.hpp"
 
@@ -43,14 +44,15 @@ namespace drachtio {
 	Client::Client( boost::asio::io_service& io_service, ClientController& controller ) : m_sock(io_service), m_controller( controller ),  
         m_state(initial), m_buffer(12228), m_nMessageLength(0) {
     }
-    Client::~Client() {
+
+    boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
+        return m_controller.getDialogController(); 
     }
 
     void Client::start() {
 
-        DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port() << endl ;
+        DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
 
-        /* wait for authentication challenge */
         m_controller.join( shared_from_this() ) ;
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
@@ -86,31 +88,15 @@ namespace drachtio {
         return continueOn ;
     }
 
-    bool Client::processOneMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse ) {
-        bool bDisconnect = false ;
-        switch( m_state ) {
-            case initial:
-                if( this->processAuthentication( pMsg, msgResponse ) ) {
-                    m_state = authenticated ;
-                }     
-                else bDisconnect = true ;    
-                break ;              
-            default:
-                this->processMessage( pMsg, msgResponse, bDisconnect ) ;
-                break ;
-        }      
-        return bDisconnect ;
-    }
-
     void Client::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
 
         if( ec ) {
-            DR_LOG(log_error) << ec << endl ;
+            DR_LOG(log_error) << ec ;
             m_controller.leave( shared_from_this() ) ;
             return ;
         }
 
-        DR_LOG(log_debug) << "Client::read_handler read raw message of " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
+        //DR_LOG(log_debug) << "Client::read_handler read raw message of " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
 
         /* append the data to our in-process buffer */
         m_buffer.insert( m_buffer.end(), m_readBuf.begin(),  m_readBuf.begin() + bytes_transferred ) ;
@@ -120,12 +106,12 @@ namespace drachtio {
 
             try {
                 if( !readMessageLength( m_nMessageLength ) ) {
-                    DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength << endl ;                     
+                    DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength  ;                     
                     goto read_again ;
                 }
             }
             catch( std::runtime_error& err ) {
-                DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly" << endl ;                     
+                DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly"  ;                     
                 m_controller.leave( shared_from_this() ) ;               
                 return ;
             }
@@ -133,26 +119,24 @@ namespace drachtio {
 
         /* while we have at least one full message, process it */
         while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
-            JsonMsg msgResponse ;
-            bool bDisconnect = false ;
+            string msgResponse ;
+            bool bContinue = true ;
             try {
-                DR_LOG(log_debug) << "Client::read_handler read JSON: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
-                boost::shared_ptr<JsonMsg> pMsg = boost::make_shared<JsonMsg>( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) ;
-                bDisconnect = processOneMessage( pMsg, msgResponse ) ;
+                DR_LOG(log_debug) << "Client::read_handler read: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
+                bContinue = processClientMessage( string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength), msgResponse ) ;
             } catch( std::runtime_error& err ) {
-                DR_LOG(log_error) << "Error parsing JSON message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what() << endl ;
+                DR_LOG(log_error) << "Error parsing JSON message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
 
             /* send response if indicated */
-            if( msgResponse.value() ) {
-                string strJson ;
-                msgResponse.stringify(strJson) ;
-                DR_LOG(log_info) << "Sending " << strJson << endl ;
-                boost::asio::write( m_sock, boost::asio::buffer( strJson ) ) ;
+            if( !msgResponse.empty() ) {
+                msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
+                //DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
+                boost::asio::write( m_sock, boost::asio::buffer( msgResponse ) ) ;
             }
-            if( bDisconnect ) {
+            if( !bContinue ) {
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
@@ -160,19 +144,19 @@ namespace drachtio {
             /* reload for next message */
             m_buffer.erase_begin( m_nMessageLength ) ;
             if( m_buffer.size() ) {
-                DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer, remaining bytes to process: " << m_buffer.size() << endl ;
+                DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer, remaining bytes to process: " << m_buffer.size()  ;
                 try {
                     if( !readMessageLength( m_nMessageLength ) ) {
-                        DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength << endl ;                     
+                        DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength  ;                     
                         break ;
                     }
                 }
                 catch( std::runtime_error& err ) {
-                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly" << endl ;                     
+                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly"  ;                     
                     m_controller.leave( shared_from_this() ) ;               
                     return ;
                 }
-                DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << m_nMessageLength << " bytes " << endl ; 
+                DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << m_nMessageLength << " bytes "  ; 
             }
             else {
                 m_nMessageLength = 0 ;
@@ -186,190 +170,147 @@ read_again:
        
     }
     void Client::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-    	DR_LOG(log_debug) << "Wrote " << bytes_transferred << " bytes: " << endl ;
+    	DR_LOG(log_debug) << "Wrote " << bytes_transferred << " bytes: "  ;
     }
 
-    bool Client::processAuthentication( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse  ) {
-        bool bReturn = false ;
-        const char *id=NULL, *type=NULL, *command=NULL, *secret=NULL, *appName=NULL ;
-        json_error_t err ;
-        int rc = json_unpack_ex( pMsg->value(), &err, 0, "{s:s,s:s,s:s,s:{s:s,s?s}}", "rid", &id, "type", &type, "command", &command, 
-            "data","secret",&secret,"appName",&appName) ;
-        json_t* json = NULL ;
-        if( rc < 0 ) {
-            DR_LOG(log_error) << "Client::processAuthentication - failed to parse message: " << err.text << endl ;
-            bReturn = false ;
-            json = json_pack("{s:s,s:s,s:{s:b,s:s}}", "type","response","rid",id,"data","authenticated",false,"reason","invalid auth message") ;
-        }
-        else if( !(bReturn = theOneAndOnlyController->isSecret( secret ) ) ) {
-            json = json_pack("{s:s,s:s,s:{s:b,s:s}}", "type","response","rid",id,"data","authenticated",false,"reason","invalid credentials") ;
-        } 
-        else {
-            string hostport ;
-            theOneAndOnlyController->getMyHostport( hostport ) ;
-            json = json_pack("{s:s,s:s,s:{s:b,s:s}}", "type","response","rid",id,"data","authenticated",true,"hostport",hostport.c_str()) ;
-        }
-        msgResponse.set(json) ;
-        return bReturn ;
-    } 
-    void Client::processMessage( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
-        bDisconnect = false ;
-        const char* type=NULL ;
-        json_error_t err ;
-        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:s}", "type", &type) ) {
-            DR_LOG(log_error) << "Client::processMessage - failed to parse message: " << err.text << endl ;
-            bDisconnect = true ;  
-            return ;
+    bool Client::processClientMessage( const string& msg, string& msgResponse ) {
+        string meta, startLine, headers, body ;
+       
+        splitMsg( msg, meta, startLine, headers, body ) ;
+        vector<string>tokens ;
+        splitTokens( meta, tokens) ;
+
+        if( tokens.size() < 2 ) {
+            DR_LOG(log_error) << "Client::processClientMessage - invalid message: " << msg  ;
+            createResponseMsg( tokens[0], msgResponse, false, "Invalid message format" ) ;
+            return false ;
         }
 
-        if( 0 == strcmp( type, "notify") ) this->processNotify( pMsg, msgResponse, bDisconnect ) ;
-        else if( 0 == strcmp( type, "request") ) this->processRequest( pMsg, msgResponse, bDisconnect ) ;
-        else {
-            DR_LOG(log_error) << "Unknown message type: " << type << endl ;
-            bDisconnect = true ;           
-        }
-    }
-    void Client::processNotify( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
-        bDisconnect = false ;
-        const char *command=NULL, *transactionId=NULL ;
-        json_error_t err ;
-
-        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:s,s:{s:s}}", "command", &command, "data", "transactionId", &transactionId) ) {
-            DR_LOG(log_error) << "Client::processNotify - failed to parse message: " << err.text << endl ;
-            bDisconnect = true ;  
-            return ;           
-        }
- 
-        if( 0 == strcmp( command,"respondToSipRequest") ) {
-            m_controller.respondToSipRequest( transactionId, pMsg ) ;
-        }
-        else {
-            DR_LOG(log_error) << "Unknown notify: " << command << endl ;
-            bDisconnect = true ;
-        }
-    }
-    void Client::processRequest( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
-        bDisconnect = false ;
-        const char *command=NULL, *id=NULL, *verb=NULL ;
-        json_error_t err ;
-
-        if( 0 > json_unpack_ex( pMsg->value(), &err, 0, "{s:s,s:s,s:{s?s}}", "command", &command, "rid", &id, "data", "verb", &verb) ) {
-            DR_LOG(log_error) << "Client::processRequest - failed to parse message: " << err.text << endl ;
-            bDisconnect = true ;  
-            return ;           
-         }
-
-        if( 0 == strcmp(command, "route") ) { 
-            if( !m_controller.wants_requests( shared_from_this(), verb ) ) {
-               DR_LOG(log_error) << "Route request includes unsupported verb: " << verb << endl ;   
-               bDisconnect = true ;       
-               return ;        
+        if( 0 == tokens[1].compare("route") ) {
+            if( !m_controller.wants_requests( shared_from_this(), tokens[2] ) ) {
+                DR_LOG(log_error) << "Route request includes unsupported verb: " << tokens[2]  ;   
+                createResponseMsg( tokens[0], msgResponse, false, "Route request includes unsupported verb" ) ;
+                return false ;        
             }
-            json_t* json = json_pack("{s:s,s:s,s:{s:b}}", "type","response","rid",id,"data","success",true) ;
-            msgResponse.set( json ) ;
+            createResponseMsg( tokens[0], msgResponse ) ;
         }
-        else if( 0 == strcmp( command,"sendSipRequest") ) {
-            m_controller.sendSipRequest( shared_from_this(), pMsg, id ) ;
-        }   
+        else if( 0 == tokens[1].compare("authenticate") ) {
+            string secret = tokens[2] ;
+            DR_LOG(log_info) << "Client::processAuthentication - validating secret " << secret  ;
+            if( !theOneAndOnlyController->isSecret( secret ) ) {
+                DR_LOG(log_info) << "Client::processAuthentication - secret validation failed: " << secret  ;
+                createResponseMsg( tokens[0], msgResponse, false, "incorrect secret" ) ;
+                return false ;       
+            } 
+            else {
+                string hostport ;
+                theOneAndOnlyController->getMyHostport( hostport ) ;
+                createResponseMsg( tokens[0], msgResponse, true, hostport.c_str() ) ;
+                DR_LOG(log_info) << "Client::processAuthentication - secret validated successfully: " << secret ;
+                return true ;
+            }            
+        }
+        else if( 0 == tokens[1].compare("sip") ) {
+            bool bOK = false ;
+            string transactionId, dialogId ;
+
+            DR_LOG(log_debug) << "Client::processMessage - got request with " << tokens.size() << " tokens"  ;
+            assert( 4 == tokens.size() ) ;
+
+            transactionId = tokens[2] ;
+            dialogId = tokens[3] ;
+
+            DR_LOG(log_debug) << "Client::processMessage - request id " << tokens[0] << ", request type: " << tokens[1] 
+                << " transaction id: " << transactionId << ", dialog id: " << dialogId  ;
+
+            if( 0 == startLine.find("SIP/") ) {
+                //response: must have a transaction id for the associated request
+                if( 0 == transactionId.length() ) {
+                    DR_LOG(log_error) << "Client::processMessage - invalid sip response message; transaction id missing"  ;
+                    createResponseMsg( tokens[0], msgResponse, false, "transaction id missing" ) ;
+                    return false; 
+                }
+                m_controller.respondToSipRequest( shared_from_this(), tokens[0], transactionId, startLine, headers, body ) ;
+            }
+            else if( dialogId.length() > 0 ) { 
+                //has dialog id - request within a dialog
+                DR_LOG(log_debug) << "Client::processMessage - sending a request inside a dialog (dialogId provided)"  ;
+                bOK = m_controller.sendRequestInsideDialog( shared_from_this(), tokens[0], dialogId, startLine, headers, body, transactionId ) ;
+            }
+            else if( transactionId.length() > 0 ) {
+                if( 0 == startLine.find("CANCEL") ) {
+                    DR_LOG(log_debug) << "Client::processMessage - sending a CANCEL request inside a transaction" ;
+                    bOK = m_controller.sendCancelRequest( shared_from_this(), tokens[0], transactionId, startLine, headers, body) ;
+                }
+                else {
+                    assert(false) ;// are there other requests within a transaction, besides CANCEL??
+                }
+            }
+            else {
+                string strCallId ;
+
+                //if provided, check if Call-ID is for an existing dialog 
+                if( GetValueForHeader( headers, "Call-ID", strCallId ) ) {
+                    boost::shared_ptr<SipDialog> dlg ;
+                    if( getDialogController()->findDialogByCallId( strCallId, dlg ) ) {
+                        DR_LOG(log_debug) << "Client::processMessage - sending a request inside a dialog (call-id provided)"  ;
+                        m_controller.sendRequestInsideDialog( shared_from_this(), tokens[0], dlg->getDialogId(), startLine, headers, body, transactionId ) ;
+                        return true ;
+                    }
+                }
+                DR_LOG(log_debug) << "Client::processMessage - sending a request outsid of a dialog"  ;
+                bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId ) ;
+             }
+
+             return true ;
+        }
         else {
-            DR_LOG(log_error) << "Unknown request: " << command << endl ;
-            bDisconnect = true ;
+            DR_LOG(log_error) << "Unknown message type: '" << tokens[1] << "'"  ;
+            createResponseMsg( tokens[0], msgResponse, false, "Unknown message type" ) ;
+            return false ;           
         }
+        createResponseMsg( tokens[0], msgResponse ) ;
+        return true ;
     }
-    void Client::processResponse( boost::shared_ptr<JsonMsg> pMsg, JsonMsg& msgResponse, bool& bDisconnect ) {
-        throw std::runtime_error("Client::processResponse not implemented") ;
+    void Client::sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) {
+        string strUuid, s ;
+        generateUuid( strUuid ) ;
+        meta.toMessageFormat(s) ;
+
+        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + dialogId + "|" + CRLF + rawSipMsg) ;
     }
-    void Client::sendRequestOutsideDialog( const string& transactionId, boost::shared_ptr<SofiaMsg> sm ) {
+    void Client::sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) {
+        string strUuid, s ;
+        generateUuid( strUuid ) ;
+        meta.toMessageFormat(s) ;
+
+        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + CRLF + rawSipMsg) ;
+    }
+    void Client::sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) {
         string strUuid ;
         generateUuid( strUuid ) ;
-
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "message", sm->detach() ) ;
-
-        send(json) ;
-    }
-    void Client::sendRequestInsideDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) {
-        string strUuid ;
-        generateUuid( strUuid ) ;
-
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "dialogId", dialogId.c_str(), "message",sm->detach()) ;
-
-        send(json) ;
-    }
-    void Client::sendAckRequestInsideDialog( const string& transactionId, const string& inviteTransactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm  ) {
-        string strUuid ;
-        generateUuid( strUuid ) ;
-
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "inviteTransactionId", inviteTransactionId.c_str(), 
-            "dialogId", dialogId.c_str(), "message",sm->detach()) ;
-
-        send(json) ;
-    }
-    void Client::sendResponseInsideTransaction( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm ) {
-        string strUuid ;
-        generateUuid( strUuid ) ;
-
-        json_t* json = NULL ;
-        if( !dialogId.empty() ) {
-            json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-                "data","transactionId",transactionId.c_str(), 
-                "dialogId", dialogId.c_str(), "message",sm->detach()) ;
+        string msg = strUuid + "|response|" + clientMsgId + "|" ;
+        msg.append( responseText ) ;
+        if( !additionalResponseText.empty() ) {
+            msg.append("|") ;
+            msg.append( additionalResponseText ) ;
         }
-        else {
-            json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-                "data","transactionId",transactionId.c_str(), 
-                "message",sm->detach()) ;            
-        }
-        send(json) ;
-   }
-    void Client::sendResponse( const string& rid, json_t* obj) {
-        json_t* json = json_pack("{s:s,s:s,s:o}", "type","response","rid",rid.c_str(),"data",obj) ;            
-        send(json) ;
-     }
-    void Client::sendRequestInsideInvite( const string& transactionId, boost::shared_ptr<SofiaMsg> sm) {
-        string strUuid ;
-        generateUuid( strUuid ) ;
-
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(), "message",sm->detach()) ;
-
-       send(json) ;
-     }
-    void Client::sendRequestInsideInviteWithDialog( const string& transactionId, const string& dialogId, boost::shared_ptr<SofiaMsg> sm ) {
-        string strUuid ;
-        generateUuid( strUuid ) ;
-
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:o}}", "type","notify","rid",strUuid.c_str(),"command", "sip", 
-            "data","transactionId",transactionId.c_str(),"dialogId",dialogId.c_str(),"message",sm->detach()) ;
-
-       send(json) ;
-     }
-   void Client::sendEventInsideDialog( const string& transactionId, const string& dialogId, const string& event ) {
-        string strUuid ;
-        generateUuid( strUuid ) ;
-
-        json_t* json = json_pack("{s:s,s:s,s:s,s:{s:s,s:s,s:s}}", "type","notify","rid",strUuid.c_str(),"command", "dialog", 
-            "data","transactionId",transactionId.c_str(),"dialogId",dialogId.c_str(),"event",event.c_str()) ;
-
-        send(json) ;
+        send(msg) ;
     }
-    void Client::send( json_t* json ) {
-        char * c = json_dumps(json, JSON_SORT_KEYS | JSON_COMPACT | JSON_ENCODE_ANY ) ;
-        if( !c ) {
-            throw std::runtime_error("JsonMsg::stringify: encode operation failed") ;
-        }
-
+    void Client::send( const string& str ) {
         ostringstream o ;
-        o << strlen(c) << "#" << c ;
-#ifdef DEBUG 
-        my_json_free(c) ;
-#else
-        free(c) ;
-#endif        
+        o << str.length() << "#" << str ;
         boost::asio::write( m_sock, boost::asio::buffer( o.str() ) ) ;
-        DR_LOG(log_debug) << "sending " << o.str() << endl ;   
-        json_decref(json) ;    
+        //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
+    }
+    void Client::createResponseMsg(const string& msgId, string& msg, bool ok, const char* szReason ) {
+        string strUuid ;
+        generateUuid( strUuid ) ;
+        msg = strUuid + "|response|" + msgId + "|" ;
+        msg.append( ok ? "OK" : "NO") ;
+        if( szReason ) {
+            msg.append("|") ;
+            msg.append( szReason ) ;
+        }
     }
 }

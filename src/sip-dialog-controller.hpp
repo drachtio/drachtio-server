@@ -40,6 +40,9 @@ THE SOFTWARE.
 #include "client-controller.hpp"
 
 #define MSG_ID_LEN (64)
+#define START_LEN (512)
+#define HDR_LEN (4192)
+#define BODY_LEN (4192)
 
 namespace drachtio {
 
@@ -54,7 +57,8 @@ namespace drachtio {
 		IIP( nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
 			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role),m_rel(NULL) {}
 
-		~IIP() {}
+		~IIP() {
+		}
 
 		nta_leg_t* leg(void) { return m_leg; }
 		nta_incoming_t* irq(void) { return m_irq; }
@@ -67,7 +71,7 @@ namespace drachtio {
 				m_rel = NULL ;
 			}
 		}
-		const string& transactionId(void) { return m_strTransactionId; }
+		const string& getTransactionId(void) { return m_strTransactionId; }
 		boost::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
 
 	private:
@@ -80,24 +84,22 @@ namespace drachtio {
 		agent_role		m_role ;
 	} ;
 
-	/* requests in progress (inside a dialog ) */
+	/* requests in progress (sent by application, may be inside or outside a dialog) */
 	class RIP {
 	public:
-		RIP( const string& transactionId, const string& rid ) : 
-			m_transactionId(transactionId), m_rid(rid) {}
-		RIP( const string& transactionId, const string& rid, const string& dialogId ) : 
-			m_transactionId(transactionId), m_rid(rid), m_dialogId(dialogId) {}
+		RIP( const string& transactionId ) : 
+			m_transactionId(transactionId) {}
+		RIP( const string& transactionId, const string& dialogId ) : 
+			m_transactionId(transactionId), m_dialogId(dialogId) {}
 
 		~RIP() {}
 
-		const string& transactionId(void) { return m_transactionId; }
-		const string& dialogId(void) { return m_dialogId; }
-		const string& rid(void) { return m_rid; }
+		const string& getTransactionId(void) { return m_transactionId; }
+		const string& getDialogId(void) { return m_dialogId; }
 
 	private:
 		string 			m_transactionId ;
 		string			m_dialogId ;
-		string 			m_rid ;
 	} ;
 
 
@@ -109,53 +111,68 @@ namespace drachtio {
 		class SipMessageData {
 		public:
 			SipMessageData() {
+				memset(m_szClientMsgId, 0, sizeof(m_szClientMsgId) ) ;
 				memset(m_szTransactionId, 0, sizeof(m_szTransactionId) ) ;
 				memset(m_szRequestId, 0, sizeof(m_szRequestId) ) ;
 				memset(m_szDialogId, 0, sizeof(m_szDialogId) ) ;
+				memset(m_szStartLine, 0, sizeof(m_szStartLine) ) ;
+				memset(m_szHeaders, 0, sizeof(m_szHeaders) ) ;
+				memset(m_szBody, 0, sizeof(m_szBody) ) ;
 			}
-			SipMessageData(const string& dialogId, const string& transactionId, const string& requestId, boost::shared_ptr<JsonMsg> pMsg ) : m_pMsg(pMsg) {
-				strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
-				strncpy( m_szRequestId, requestId.c_str(), MSG_ID_LEN ) ;
-				strncpy( m_szDialogId, dialogId.c_str(), MSG_ID_LEN ) ;
-			}
-			SipMessageData(const string& transactionId, const string& requestId, boost::shared_ptr<JsonMsg> pMsg ) : m_pMsg(pMsg) {
-				strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
-				strncpy( m_szRequestId, requestId.c_str(), MSG_ID_LEN ) ;
+			SipMessageData(const string& clientMsgId, const string& transactionId, const string& requestId, const string& dialogId,
+				const string& startLine, const string& headers, const string& body ) {
+				strncpy( m_szClientMsgId, clientMsgId.c_str(), MSG_ID_LEN ) ;
+				if( !transactionId.empty() ) strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
+				if( !requestId.empty() ) strncpy( m_szRequestId, requestId.c_str(), MSG_ID_LEN ) ;
+				if( !dialogId.empty() ) strncpy( m_szDialogId, dialogId.c_str(), MSG_ID_LEN ) ;
+				strncpy( m_szStartLine, startLine.c_str(), START_LEN ) ;
+				strncpy( m_szHeaders, headers.c_str(), HDR_LEN ) ;
+				strncpy( m_szBody, body.c_str(), BODY_LEN ) ;
 			}
 			~SipMessageData() {}
 			SipMessageData& operator=(const SipMessageData& md) {
-				m_pMsg = md.m_pMsg ;
+				strncpy( m_szClientMsgId, md.m_szClientMsgId, MSG_ID_LEN) ;
 				strncpy( m_szTransactionId, md.m_szTransactionId, MSG_ID_LEN) ;
+				strncpy( m_szDialogId, md.m_szDialogId, MSG_ID_LEN) ;
 				strncpy( m_szRequestId, md.m_szRequestId, MSG_ID_LEN) ;
+				strncpy( m_szStartLine, md.m_szStartLine, START_LEN ) ;
+				strncpy( m_szHeaders, md.m_szHeaders, HDR_LEN ) ;
+				strncpy( m_szBody, md.m_szBody, BODY_LEN ) ;
 				return *this ;
 			}
 
-			const char* getDialogId() { return m_szDialogId; } 
+			const char* getClientMsgId() { return m_szClientMsgId; } 
 			const char* getTransactionId() { return m_szTransactionId; } 
+			const char* getDialogId() { return m_szDialogId; } 
 			const char* getRequestId() { return m_szRequestId; } 
-			boost::shared_ptr<JsonMsg> getMsg(void) { return m_pMsg; }
+			const char* getHeaders() { return m_szHeaders; } 
+			const char* getStartLine() { return m_szStartLine; } 
+			const char* getBody() { return m_szBody; } 
 
 		private:
+			char	m_szClientMsgId[MSG_ID_LEN];
 			char	m_szTransactionId[MSG_ID_LEN];
 			char	m_szRequestId[MSG_ID_LEN];
 			char	m_szDialogId[MSG_ID_LEN];
-			boost::shared_ptr<JsonMsg> m_pMsg ;
+			char	m_szStartLine[START_LEN];
+			char	m_szHeaders[HDR_LEN];
+			char	m_szBody[BODY_LEN];
 		} ;
 
-        void respondToSipRequest( const string& transactionId, boost::shared_ptr<JsonMsg> pMsg ) ;		//called from worker thread, posts message into main thread
-        void doRespondToSipRequest( SipMessageData* pData ) ;	//does the actual sip messaging, within main thread
+		//NB: sendXXXX are called when client is sending a message
+		bool sendRequestInsideDialog( const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) ;
+		bool sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) ;
+        bool respondToSipRequest( const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;		
+		bool sendCancelRequest( const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
 
-		bool sendRequestOutsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& transactionId ) ;
-		void doSendRequestOutsideDialog( SipMessageData* pData ) ;
-
-		int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, boost::shared_ptr<SipDialog>& dlg ) ;
+		//NB: doSendXXX correspond to the above, and are run in the stack thread
 		void doSendRequestInsideDialog( SipMessageData* pData ) ;
-
-		bool sendCancelRequest( boost::shared_ptr<JsonMsg> pMsg, const string& rid ) ;
+		void doSendRequestOutsideDialog( SipMessageData* pData ) ;
+        void doRespondToSipRequest( SipMessageData* pData ) ;	
 		void doSendCancelRequest( SipMessageData* pData ) ;
 
+		//NB: processXXX are called when an incoming message is received from the network
         int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
-
         int processResponseOutsideDialog( nta_outgoing_t* request, sip_t const* sip )  ;
         int processResponseInsideDialog( nta_outgoing_t* request, sip_t const* sip ) ;
 		int processResponseToRefreshingReinvite( nta_outgoing_t* request, sip_t const* sip ) ;
@@ -186,13 +203,17 @@ namespace drachtio {
 
 	        this->bindIrq( irq ) ;
 		}
-		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) {
+		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
-			boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, transactionId, dlg) ;
+			boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, dlg->getTransactionId(), dlg) ;
 			m_mapOrq2IIP.insert( mapOrq2IIP::value_type(orq, p) ) ;
-			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
+			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(dlg->getTransactionId(), p) ) ;   
 			m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   			
+		}
+		void addIncomingPrackTransaction( const string& transactionId, boost::shared_ptr<IIP> p ) {
+			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   			
 		}
 		void addReliable( nta_reliable_t* rel, boost::shared_ptr<IIP>& iip) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
@@ -328,40 +349,8 @@ namespace drachtio {
 
 
 	protected:
-		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
-			mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
-			assert( it != m_mapLeg2IIP.end() ) ;
-			boost::shared_ptr<IIP> iip = it->second ;
-			nta_incoming_t* irq = iip->irq() ;
-			nta_outgoing_t* orq = iip->orq() ;
-			nta_reliable_t* rel = iip->rel(); 
-			boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
-			mapIrq2IIP::iterator itIrq = m_mapIrq2IIP.find( iip->irq() ) ;
-			mapOrq2IIP::iterator itOrq = m_mapOrq2IIP.find( iip->orq() ) ;
-			mapTransactionId2IIP::iterator itTransaction = m_mapTransactionId2IIP.find( iip->transactionId() ) ;
-			assert( itTransaction != m_mapTransactionId2IIP.end() ) ;
-
-			assert( !(m_mapIrq2IIP.end() == itIrq && m_mapOrq2IIP.end() == itOrq )) ;
-
-			m_mapLeg2IIP.erase( it ) ;
-			if( itIrq != m_mapIrq2IIP.end() ) m_mapIrq2IIP.erase( itIrq ) ;
-			if( itOrq != m_mapOrq2IIP.end() ) m_mapOrq2IIP.erase( itOrq ) ;
-			m_mapTransactionId2IIP.erase( itTransaction ) ;
-
-			if( irq ) nta_incoming_destroy( irq ) ;
-			if( orq ) nta_outgoing_destroy( orq ) ;
-
-			if( rel ) {
-				mapRel2IIP::iterator itRel = m_mapRel2IIP.find( rel ) ;
-				if( m_mapRel2IIP.end() != itRel ) {
-					m_mapRel2IIP.erase( itRel ) ;
-				}
-				nta_reliable_destroy( rel ) ;
-			}
-			return dlg ;			
-		}
+		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;
+		
 		void clearDialog( const string& strDialogId ) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
 			
@@ -401,11 +390,12 @@ namespace drachtio {
 			m_mapId2Dialog.erase( itId );			
 		}
 
-		tagi_t* makeTags( json_t*  hdrs ) ;
+		tagi_t* makeTags( const string& hdrs ) ;
  		void deleteTags( tagi_t* tags ) ;
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
 
 		void bindIrq( nta_incoming_t* irq ) ;
+
 
 	private:
 		DrachtioController* m_pController ;

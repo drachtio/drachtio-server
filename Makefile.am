@@ -4,7 +4,7 @@ LDADD= -lboost_thread -lpthread -lssl
 bin_PROGRAMS= drachtio timer
 drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/sofia-msg.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp
 drachtio_CPPFLAGS=-D_REENTRANT
-drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/jansson-2.6/src/.libs/libjansson.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_log.a -lpthread -lssl -lcrypto
+drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/jansson-2.6/src/.libs/libjansson.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto
 timer_SOURCES= src/test-timer.c
 timer_CPPFLAGS=-D_REENTRANT
 timer_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a -lpthread -lssl -lcrypto
@@ -19,8 +19,8 @@ BUILT_SOURCES=${srcdir}/deps/jansson-2.6/src/.libs/libjansson.a ${srcdir}/deps/b
 #clean-local:
 #	cd ${srcdir}/deps/boost_1_55_0 && b2 --clean
 
-${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_log.a:
-	cd ${srcdir}/deps/boost_1_55_0 && ./bootstrap.sh --with-libraries=thread,system,log && ./b2 stage
+${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_regex.a:
+	cd ${srcdir}/deps/boost_1_55_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && autoreconf -fvi && ./configure && $(MAKE)
