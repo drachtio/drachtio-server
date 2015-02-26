@@ -27,7 +27,7 @@ THE SOFTWARE.
 #include <boost/algorithm/string.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/foreach.hpp>
-
+#include <boost/algorithm/string/join.hpp>
 
 #include "drachtio.h"
 #include "client.hpp"
@@ -258,11 +258,30 @@ read_again:
                         return true ;
                     }
                 }
-                DR_LOG(log_debug) << "Client::processMessage - sending a request outsid of a dialog"  ;
+                DR_LOG(log_debug) << "Client::processMessage - sending a request outside of a dialog"  ;
                 bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId ) ;
              }
 
              return true ;
+        }
+        else if( 0 == tokens[1].compare("proxy") ) {
+            DR_LOG(log_debug) << "Client::processMessage - received proxy request " << boost::algorithm::join(tokens, ",");
+            if( tokens.size() < 4 ) {
+                DR_LOG(log_error) << "Invalid proxy request: insufficient tokens: '" <<  boost::algorithm::join(tokens, ",") ;
+                createResponseMsg( tokens[0], msgResponse, false, "Invalid proxy request: not enough information provided" ) ;
+                return false ;             
+            }
+            if( 0 != tokens[3].compare("stateful") && 0 != tokens[3].compare("stateless") ) {
+                DR_LOG(log_error) << "Invalid proxy request type: must be either stateful or stateless: '" <<  tokens[3] << "'" ;
+                createResponseMsg( tokens[0], msgResponse, false, "Invalid proxy request type: must be either stateful or stateless" ) ;
+                return false ;                             
+            }
+            string transactionId = tokens[2] ;
+            string proxyType = tokens[3] ;
+            bool fullResponse = 0 == tokens[4].compare("fullResponse") ;
+            vector<string> vecDestinations( tokens.begin() + 5, tokens.end() ) ;
+            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, proxyType, fullResponse, vecDestinations, headers ) ;
+            return true ;
         }
         else {
             DR_LOG(log_error) << "Unknown message type: '" << tokens[1] << "'"  ;

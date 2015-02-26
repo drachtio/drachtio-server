@@ -35,6 +35,8 @@ THE SOFTWARE.
 #include <sofia-sip/su_log.h>
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_stateless.h>
+#include <sofia-sip/nta_tport.h>
+#include <sofia-sip/tport.h>
 
 #include <sys/stat.h>
 #include <stdexcept>
@@ -59,6 +61,9 @@ THE SOFTWARE.
 #include "client-controller.hpp"
 #include "sip-dialog-controller.hpp"
 #include "sip-dialog.hpp"
+#include "pending-request-controller.hpp"
+#include "sip-proxy-controller.hpp"
+#include "redis-service.hpp"
 
 using namespace std ;
 
@@ -106,6 +111,8 @@ namespace drachtio {
                 boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
                 boost::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
                 boost::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
+                boost::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
+                boost::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
                 su_root_t* getRoot(void) { return m_root; }
                 
                 enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
@@ -117,7 +124,11 @@ namespace drachtio {
                 /* client --> network messages */
                 int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id = NULL ) ;
 
- 
+                /* stateless callback for messages not associated with a leg */
+                int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
+
+                bool setupLegForIncomingRequest( const string& transactionId ) ;
+
                 bool isSecret( const string& secret ) {
                 	return m_Config->isSecret( secret ) ;
                 }
@@ -126,6 +137,7 @@ namespace drachtio {
                 su_home_t* getHome(void) { return m_home; }
 
                 const sip_contact_t* getMyContact(void) { return m_my_contact; }
+                const sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
                 void getMyHostport( string& str ) {
                 	str = m_my_contact->m_url->url_host ;
                 	if( m_my_contact->m_url->url_port ) {
@@ -146,8 +158,6 @@ namespace drachtio {
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
 
-                //shared_ptr<StackMsg> getLastSentStackMessage(void) { return m_lastSentMsg; }
-                //shared_ptr<StackMsg> getLastRecvStackMessage(void) { return m_lastRecvMsg; }
                 void setLastSentStackMessage(shared_ptr<StackMsg> msg) { m_lastSentMsg = msg; }
                 void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
@@ -182,8 +192,10 @@ namespace drachtio {
                 severity_levels m_current_severity_threshold ;
 
                 shared_ptr< ClientController > m_pClientController ;
-
                 shared_ptr<SipDialogController> m_pDialogController ;
+                shared_ptr<SipProxyController> m_pProxyController ;
+                shared_ptr<PendingRequestController> m_pPendingRequestController ;
+                shared_ptr<RedisService> m_pRedisService ;
 
                 shared_ptr<StackMsg> m_lastSentMsg ;
                 shared_ptr<StackMsg> m_lastRecvMsg ;
@@ -196,6 +208,7 @@ namespace drachtio {
                 nta_leg_t*      m_defaultLeg ;
                 string          m_my_via ;
                 sip_contact_t*  m_my_contact ;
+                sip_record_route_t* m_my_record_route ;
 
         	su_clone_r 	m_clone ;
 

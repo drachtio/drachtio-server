@@ -44,7 +44,6 @@ THE SOFTWARE.
 #include <sofia-sip/tport.h>
 #include <sofia-sip/msg.h>
 #include <sofia-sip/msg_addr.h>
-#include <sofia-sip/msg_addr.h>
 #include <sofia-sip/su_string.h>
 #include <sofia-sip/su_addrinfo.h>
 
@@ -482,6 +481,93 @@ namespace drachtio {
         }
         return false ;
     }
+    void deleteTags( tagi_t* tags ) {
+        int i = 0 ;
+        while( tags[i].t_tag != tag_null ) {
+            if( tags[i].t_value ) {
+                char *p = (char *) tags[i].t_value ;
+                delete [] p ;
+            }
+             i++ ;
+        }       
+        delete [] tags ; 
+    }
+
+    tagi_t* makeTags( const string&  hdrs ) {
+        vector<string> vec ;
+
+        splitLines( hdrs, vec ) ;
+        int nHdrs = vec.size() ;
+        tagi_t *tags = new tagi_t[nHdrs+1] ;
+        int i = 0; 
+        for( std::vector<string>::const_iterator it = vec.begin(); it != vec.end(); ++it )  {
+            tags[i].t_tag = tag_skip ;
+            tags[i].t_value = (tag_value_t) 0 ;                     
+            bool bValid = true ;
+            string hdrName, hdrValue ;
+
+            //parse header name and value
+            size_t pos = (*it).find_first_of(":") ;
+            if( string::npos == pos ) {
+                bValid = false ;
+            }
+            else {
+                hdrName = (*it).substr(0,pos) ;
+                boost::trim( hdrName );
+                if( string::npos != hdrName.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
+                    bValid = false ;
+                }
+                else {
+                    hdrValue = (*it).substr(pos+1) ;
+                    boost::trim( hdrValue ) ;
+                }
+            }
+            if( !bValid ) {
+                DR_LOG(log_error) << "SipDialogController::makeTags - invalid header: '" << *it << "'"  ;
+                i++ ;
+                continue ;
+            }
+            else if( string::npos != hdrValue.find(CRLF) ) {
+                DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
+                i++ ;
+                continue ;
+            }
+
+            //treat well-known headers differently than custom headers 
+            tag_type_t tt ;
+            string hdr = boost::to_lower_copy( boost::replace_all_copy( hdrName, "-", "_" ) );
+            if( isImmutableHdr( hdr ) ) {
+                //DR_LOG(log_debug) << "SipDialogController::makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
+            }
+            else if( getTagTypeForHdr( hdr, tt ) ) {
+                //well-known header
+                int len = hdrValue.length() ;
+                char *p = new char[len+1] ;
+                memset(p, '\0', len+1) ;
+                strncpy( p, hdrValue.c_str(), len ) ;
+                tags[i].t_tag = tt;
+                tags[i].t_value = (tag_value_t) p ;
+                //DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
+            }
+            else {
+                //custom header
+                int len = (*it).length() ;                  
+                char *p = new char[len+1] ;
+                memset(p, '\0', len+1) ;
+                strncpy( p, (*it).c_str(), len) ;
+
+                tags[i].t_tag = siptag_unknown_str ;
+                tags[i].t_value = (tag_value_t) p ;
+                //DR_LOG(log_debug) << "SipDialogController::makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
+            }
+
+            i++ ;
+        }
+        tags[nHdrs].t_tag = tag_null ;
+        tags[nHdrs].t_value = (tag_value_t) 0 ;       
+
+        return tags ;   //NB: caller responsible to delete after use to free memory      
+    }
  
     SipMsgData_t::SipMsgData_t(const string& str ) {
         boost::char_separator<char> sep(" []//:") ;
@@ -500,11 +586,32 @@ namespace drachtio {
         m_time = t.substr(0, t.size()-2);
     }
 
+    SipMsgData_t::SipMsgData_t( msg_t* msg ) : m_source("network") {
+        su_time_t now = su_now() ;
+        unsigned short second, minute, hour;
+        char time[64] ;
+        tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), NULL, msg) ;        
+        assert(NULL != tport) ;
+
+        second = (unsigned short)(now.tv_sec % 60);
+        minute = (unsigned short)((now.tv_sec / 60) % 60);
+        hour = (unsigned short)((now.tv_sec / 3600) % 24);
+        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+ 
+        m_time.assign( time ) ;
+        if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
+        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+
+        tport_unref( tport ) ;
+
+        init( msg ) ;
+    }
     SipMsgData_t::SipMsgData_t( msg_t* msg, nta_incoming_t* irq, const char* source ) : m_source(source) {
         su_time_t now = su_now() ;
         unsigned short second, minute, hour;
         char time[64] ;
-        tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ;
+        tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ;  
 
         second = (unsigned short)(now.tv_sec % 60);
         minute = (unsigned short)((now.tv_sec / 60) % 60);

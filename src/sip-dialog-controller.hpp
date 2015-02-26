@@ -39,7 +39,6 @@ THE SOFTWARE.
 #include "json-msg.hpp"
 #include "client-controller.hpp"
 
-#define MSG_ID_LEN (64)
 #define START_LEN (512)
 #define HDR_LEN (4192)
 #define BODY_LEN (4192)
@@ -390,8 +389,6 @@ namespace drachtio {
 			m_mapId2Dialog.erase( itId );			
 		}
 
-		tagi_t* makeTags( const string& hdrs ) ;
- 		void deleteTags( tagi_t* tags ) ;
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
 
 		void bindIrq( nta_incoming_t* irq ) ;

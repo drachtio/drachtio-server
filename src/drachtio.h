@@ -59,6 +59,8 @@ using namespace std ;
 const string CRLF = "\r\n" ;
 const string CRLF2 = "\r\n\r\n" ;
 
+#define MSG_ID_LEN (64)
+
 namespace logging = boost::log;
 namespace sinks = boost::log::sinks;
 namespace src = boost::log::sources;
@@ -126,10 +128,14 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
 
+	tagi_t* makeTags( const string& hdrs ) ;
+	void deleteTags( tagi_t* tags ) ;
+
 	class SipMsgData_t {
 	public:
 		SipMsgData_t() {} ;
 		SipMsgData_t(const string& str ) ;
+		SipMsgData_t(msg_t* msg) ;
 		SipMsgData_t(msg_t* msg, nta_incoming_t* irq, const char* source = "network") ;
 		SipMsgData_t(msg_t* msg, nta_outgoing_t* orq, const char* source = "application") ;
 

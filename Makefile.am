@@ -1,8 +1,8 @@
-INCLUDES= -I/usr/local/include -I${srcdir}/deps/boost_1_55_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I$(srcdir)/deps/jansson-2.6/src
+INCLUDES= -I/usr/local/include -I${srcdir}/deps/boost_1_55_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I$(srcdir)/deps/jansson-2.6/src -I$(srcdir)/deps/redisclient/src/redisclient
 AM_LDFLAGS= -L/usr/local/lib 
 LDADD= -lboost_thread -lpthread -lssl
 bin_PROGRAMS= drachtio timer
-drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/sofia-msg.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp
+drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/sofia-msg.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/redis-service.cpp
 drachtio_CPPFLAGS=-D_REENTRANT
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/jansson-2.6/src/.libs/libjansson.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto
 timer_SOURCES= src/test-timer.c

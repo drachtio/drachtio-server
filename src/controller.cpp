@@ -54,11 +54,7 @@ THE SOFTWARE.
 #include <boost/log/attributes.hpp>
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
-
-
-
 #include <boost/algorithm/string/replace.hpp>
-
 
 #include <sofia-sip/msg_addr.h>
 
@@ -161,6 +157,13 @@ namespace {
         
         return controller->processRequestInsideDialog( leg, irq, sip ) ;
     }
+    int stateless_callback(nta_agent_magic_t *controller,
+                       nta_agent_t *agent,
+                       msg_t *msg,
+                       sip_t *sip) {
+        return controller->processMessageStatelessly( msg, sip ) ;
+    }
+
 
  }
 
@@ -485,6 +488,10 @@ namespace drachtio {
             return ;
         }
         ::atexit(su_deinit);
+        if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
+            DR_LOG(log_error) << "Error calling sip_update_default_mclass"  ;
+            return  ;
+        }        
         
         m_root = su_root_create( NULL ) ;
         if( NULL == m_root ) {
@@ -508,13 +515,7 @@ namespace drachtio {
            DR_LOG(log_error) << "Error calling su_clone_start"  ;
            return  ;
         }
-        
-        /* enable extended headers */
-        if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
-            DR_LOG(log_error) << "Error calling sip_update_default_mclass"  ;
-            return  ;
-        }
- 
+         
          /* create our agent */
         char str[URL_MAXLEN] ;
         memset(str, 0, URL_MAXLEN) ;
@@ -522,8 +523,8 @@ namespace drachtio {
         
 		m_nta = nta_agent_create( m_root,
                                  URL_STRING_MAKE(str),               /* our contact address */
-                                 NULL,         /* no callback function */
-                                 NULL,                  /* therefore no context */
+                                 stateless_callback,         /* no callback function */
+                                 this,                  /* therefore no context */
                                  TAG_NULL(),
                                  TAG_END() ) ;
         
@@ -531,7 +532,7 @@ namespace drachtio {
             DR_LOG(log_error) << "Error calling nta_agent_create"  ;
             return ;
         }
-        
+        /*
         m_defaultLeg = nta_leg_tcreate(m_nta, defaultLegCallback, this,
                                       NTATAG_NO_DIALOG(1),
                                       TAG_END());
@@ -539,7 +540,7 @@ namespace drachtio {
             DR_LOG(log_error) << "Error creating default leg"  ;
             return ;
         }
-        
+        */
         
         /* save my contact url, via, etc */
         m_my_contact = nta_agent_contact( m_nta ) ;
@@ -549,7 +550,22 @@ namespace drachtio {
         m_my_via.assign( s.str().c_str(), s.str().length() ) ;
         DR_LOG(log_debug) << "My via header: " << m_my_via  ;
 
+        const char* szRR = su_sprintf(m_home, "<" URL_PRINT_FORMAT ";lr>", URL_PRINT_ARGS(m_my_contact->m_url));
+        m_my_record_route = sip_route_make(m_home, szRR);
+
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
+        m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
+        m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
+
+        string redisAddress ;
+        unsigned int redisPort ;
+        if( m_Config->getRedisAddress( redisAddress, redisPort ) ) {
+            m_pRedisService = boost::make_shared<RedisService>( this, redisAddress, redisPort ) ;
+        }
+        else {
+            DR_LOG(log_warning) << "No redis configuration found in configuration file" ;
+        }
+
               
         /* sofia event loop */
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id()  ;
@@ -571,8 +587,112 @@ namespace drachtio {
 
         
     }
+    int DrachtioController::processMessageStatelessly( msg_t* msg, sip_t* sip ) {
+        DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
+            " does not match an existing call leg"  ;
+
+        if( sip->sip_request ) {
+
+            //check if we are in the first Route header; if so proxy accordingly
+            if( sip->sip_route && 
+                url_has_param(sip->sip_route->r_url, "lr") &&
+                url_cmp(m_my_record_route->r_url, sip->sip_route->r_url) == 0) {
+
+                //request within an established dialog in which we are a stateful proxy
+                if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
+                   nta_msg_discard( m_nta, msg ) ;                
+                }
+            }
+            else {
+                //CANCEL or other request within a proxy transaction
+                if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
+                    m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
+                }
+                else {
+                    switch (sip->sip_request->rq_method ) {
+                        case sip_method_invite:
+                        case sip_method_register:
+                        case sip_method_message:
+                        case sip_method_options:
+                        case sip_method_info:
+                        case sip_method_notify:
+                        case sip_method_subscribe:
+                        {
+                            m_pPendingRequestController->processNewRequest( msg, sip ) ;
+                        }
+                        break ;
+
+                        case sip_method_prack:
+                            assert(0) ;//should not get here
+                        break ;
+
+                        default:
+                            nta_msg_discard( m_nta, msg ) ;
+                        break ;
+                    }             
+
+                }
+            }
+        }
+        else {
+            if( !m_pProxyController->processResponse( msg, sip ) ) {
+                DR_LOG(log_debug) << "processMessageStatelessly - unknown response (possibly late arriving?) - discarding" ;
+                nta_msg_discard( m_nta, msg ) ;
+            } 
+        }
+        return 0 ;
+    }
+    bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
+        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
+        if( !p ) {
+            return false ;
+        }
+        sip_t* sip = p->getSipObject() ;
+        msg_t* msg = p->getMsg() ;
+        tport_t* tp = p->getTport() ;
+
+        if( sip_method_invite == sip->sip_request->rq_method ) {
+
+            nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+            if( NULL == irq ) {
+                DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
+                return false ;
+            }
+
+            nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
+                                           SIPTAG_CALL_ID(sip->sip_call_id),
+                                           SIPTAG_CSEQ(sip->sip_cseq),
+                                           SIPTAG_TO(sip->sip_from),
+                                           SIPTAG_FROM(sip->sip_to),
+                                           TAG_END());
+
+            if( NULL == leg ) {
+                DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a leg for new incoming invite"  ;
+                return false ;
+            }
+
+            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
+            dlg->setTransactionId( transactionId ) ;
+
+            string contactStr ;
+            generateOutgoingContact( sip->sip_contact, contactStr ) ;
+            nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
+
+            m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;            
+        }
+        else {
+            nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+            if( NULL == irq ) {
+                DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
+                return false ;
+            }
+            m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
+        }
+        return true ;
+    }
     int DrachtioController::processRequestOutsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
         DR_LOG(log_debug) << "processRequestOutsideDialog"  ;
+        assert(0) ;//deprecating this
         int rc = validateSipMessage( sip ) ;
         if( 0 != rc ) {
             return rc ;
@@ -592,15 +712,14 @@ namespace drachtio {
                         TAG_END() ) ; 
                       return 0;
                 } 
-
-                string transactionId ;
-                generateUuid( transactionId ) ;
  
-                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( irq, sip, transactionId ) ;
+                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip ) ;
                 if( !client ) {
                     DR_LOG(log_error) << "No providers available for invite"  ;
                     return 503 ;                    
                 }
+                string transactionId ;
+                generateUuid( transactionId ) ;
 
                 string encodedMessage ;
                 EncodeStackMessage( sip, encodedMessage ) ;
@@ -649,7 +768,7 @@ namespace drachtio {
                 string transactionId ;
                 generateUuid( transactionId ) ;
 
-                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( irq, sip, transactionId ) ;
+                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip ) ;
                 if( !client ) {
                     DR_LOG(log_error) << "No providers available for invite"  ;
                     return 503 ;                    
@@ -863,6 +982,9 @@ namespace drachtio {
         this->printStats() ;
         m_pDialogController->logStorageCount() ;
         m_pClientController->logStorageCount() ;
+        m_pPendingRequestController->logStorageCount() ;
+        m_pProxyController->logStorageCount() ;
+        DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
     }
 
 }

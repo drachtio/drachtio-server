@@ -66,7 +66,7 @@ namespace drachtio {
         void removeNetTransaction( const string& transactionId ) ;
         void removeApiRequest( const string& clientMsgId ) ;
 
-        client_ptr selectClientForRequestOutsideDialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) ;
+        client_ptr selectClientForRequestOutsideDialog( sip_t const *sip ) ;
         client_ptr findClientForDialog( const string& dialogId ) ;
         client_ptr findClientForAppTransaction( const string& transactionId ) ;
         client_ptr findClientForNetTransaction( const string& transactionId ) ;
@@ -76,6 +76,8 @@ namespace drachtio {
         bool sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) ;
         bool respondToSipRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;      
         bool sendCancelRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
+        bool proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, const string& proxyType, bool fullResponse,
+            const vector<string>& vecDestination, const string& headers ) ;
 
         //this sends the client a response to the request it made to send a sip message
         bool route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) ;
@@ -91,19 +93,6 @@ namespace drachtio {
         bool route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip,  const string& transactionId, const string& dialogId ) ;
 
         bool route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, sip_t const *sip, const string& transactionId, const string& dialogId  = "" ) ;
-/*
-        bool route_request_outside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) ;
-        //bool route_event_inside_dialog( const string& event,  const string& transactionId, const string& dialogId ) ;
-        
-
-
-        bool respondToSipRequest( const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
-        bool sendSipRequest( client_ptr client, const string& rid, const string& startLine, const string& headers, const string& body ) ;
-
-        void sendResponseToClient( const string& rid, json_t* json ) ;
-        void sendResponseToClient( const string& rid, json_t* json, const string& transactionId ) ;
-*/
-
 
         void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
 

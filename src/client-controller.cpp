@@ -105,8 +105,7 @@ namespace drachtio {
         return true ;  
     }
 
-
-    client_ptr ClientController::selectClientForRequestOutsideDialog( nta_incoming_t* irq, sip_t const *sip, const string& transactionId ) {
+    client_ptr ClientController::selectClientForRequestOutsideDialog( sip_t const *sip ) {
         string method_name = sip->sip_request->rq_method_name ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
 
@@ -322,13 +321,20 @@ namespace drachtio {
         addApiRequest( client, clientMsgId )  ;
         return rc ;               
     }
+    bool ClientController::proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, 
+        const string& proxyType, bool fullResponse, const vector<string>& vecDestination, const string& headers ) {
+        m_pController->getProxyController()->proxyRequest( clientMsgId, transactionId, proxyType, fullResponse, vecDestination, headers ) ;
+        addApiRequest( client, clientMsgId )  ;
+        removeNetTransaction( transactionId ) ;
+        return true;
+    }
     bool ClientController::route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) {
        client_ptr client = this->findClientForApiRequest( clientMsgId );
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_api_response - client that has sent the request has disconnected: " << clientMsgId  ;
             return false ;             
         }
-        removeApiRequest( clientMsgId ) ;
+        if( string::npos == additionalResponseData.find("|continue") ) removeApiRequest( clientMsgId ) ;
         m_ioservice.post( boost::bind(&Client::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
         return true ;                
     }

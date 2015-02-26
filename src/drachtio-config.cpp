@@ -39,7 +39,7 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename) : m_bIsValid(false), m_adminPort(0) {
+        Impl( const char* szFilename) : m_bIsValid(false), m_adminPort(0), m_redisPort(0) {
             try {
                 std::filebuf fb;
                 if( !fb.open (szFilename,std::ios::in) ) {
@@ -102,6 +102,15 @@ namespace drachtio {
                     else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
                     else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
                     else m_loglevel = log_info ;                    
+                }
+
+                //redis config
+                try {
+                    m_redisAddress = pt.get<string>("drachtio.redis.address") ;
+                    m_redisPort = pt.get<unsigned int>("drachtio.redis.port", 6379) ;
+                    cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    cout << "redis not enabled" << endl ;
                 }
 
                 m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
@@ -168,6 +177,14 @@ namespace drachtio {
         bool isSecret( const string& secret ) {
             return 0 == secret.compare( m_secret ) ;
         }
+        bool getRedisAddress( std::string& address, unsigned int& port ) const {
+            if( m_redisAddress.length() > 0 ) {
+                address = m_redisAddress ;
+                port = m_redisPort  ;
+                return true ;
+            }
+            return false ;
+        }
  
     private:
         
@@ -199,6 +216,8 @@ namespace drachtio {
         string m_adminAddress ;
         unsigned int m_adminPort ;
         string m_secret ;
+        string m_redisAddress ;
+        unsigned int m_redisPort ;
   } ;
     
     /*
@@ -246,5 +265,9 @@ namespace drachtio {
     bool DrachtioConfig::isSecret( const string& secret ) const {
         return m_pimpl->isSecret( secret ) ;
     }
+    bool DrachtioConfig::getRedisAddress( std::string& address, unsigned int& port ) const {
+        return m_pimpl->getRedisAddress( address, port ) ;
+    }
+
  
 }

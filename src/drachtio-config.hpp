@@ -51,6 +51,8 @@ namespace drachtio {
         unsigned int getSofiaLogLevel(void) ;
  
          unsigned int getAdminPort( string& address ) ;
+
+         bool getRedisAddress( std::string& address, unsigned int& port ) const ;
        
         void Log() const ;
         
