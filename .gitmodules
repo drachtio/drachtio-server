@@ -3,4 +3,4 @@
 	url = git://github.com/davehorton/sofia-sip
 [submodule "deps/redisclient"]
 	path = deps/redisclient
-	url = git@github.com:davehorton/redisclient.git
+	url = git://github.com:davehorton/redisclient
