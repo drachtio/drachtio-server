@@ -984,7 +984,7 @@ namespace drachtio {
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
-        DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
+        //DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
     }
 
 }
