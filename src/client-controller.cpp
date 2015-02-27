@@ -29,7 +29,6 @@ THE SOFTWARE.
 
 #include "client-controller.hpp"
 #include "controller.hpp"
-#include "sofia-msg.hpp"
 
 namespace drachtio {
      
@@ -322,8 +321,8 @@ namespace drachtio {
         return rc ;               
     }
     bool ClientController::proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, 
-        const string& proxyType, bool fullResponse, const vector<string>& vecDestination, const string& headers ) {
-        m_pController->getProxyController()->proxyRequest( clientMsgId, transactionId, proxyType, fullResponse, vecDestination, headers ) ;
+        const string& proxyType, bool fullResponse, bool followRedirects, const vector<string>& vecDestination, const string& headers ) {
+        m_pController->getProxyController()->proxyRequest( clientMsgId, transactionId, proxyType, fullResponse, followRedirects, vecDestination, headers ) ;
         addApiRequest( client, clientMsgId )  ;
         removeNetTransaction( transactionId ) ;
         return true;

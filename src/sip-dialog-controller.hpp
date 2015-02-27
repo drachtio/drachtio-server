@@ -36,7 +36,6 @@ THE SOFTWARE.
 #include <sofia-sip/nta.h>
 
 #include "sip-dialog.hpp"
-#include "json-msg.hpp"
 #include "client-controller.hpp"
 
 #define START_LEN (512)

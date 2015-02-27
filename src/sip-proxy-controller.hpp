@@ -40,8 +40,9 @@ namespace drachtio {
 
   class Proxy_t {
   public:
-    Proxy_t(const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, const string& type, bool fullResponse,
-      const vector<string>& vecDestination, const string& headers );
+    Proxy_t(const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, const string& type, 
+      bool fullResponse, const vector<string>& vecDestination, const string& headers );
+
     ~Proxy_t() ;
 
     msg_t* getMsg() ;
@@ -53,18 +54,21 @@ namespace drachtio {
     bool isStateless(void) { return m_stateless; }
     bool isStateful(void) { return !m_stateless; }
     bool wantsFullResponse(void) { return m_fullResponse; }
-    const vector<string>& getDestinations(void) { return m_vecDestination; }
+    vector<string>& getDestinations(void) { return m_vecDestination; }
     const string& getHeaders(void) { return m_headers; }
     int getLastStatus(void) { return m_lastResponse; }
     void setLastStatus(int status) { m_lastResponse = status; }
     bool hasMoreTargets(void) { return m_nCurrentDest + 1 < m_vecDestination.size(); }
     const string& getCurrentTarget(void) { return m_vecDestination[m_nCurrentDest]; }
+    unsigned int getCurrentOffset(void) { return m_nCurrentDest; }
     const string& getNextTarget(void) { return m_vecDestination[++m_nCurrentDest]; }
     bool isCanceled(void) { return m_canceled; }
     void setCanceled(void) { m_canceled = true; }
     bool isFirstTarget(void) { return 0 == m_nCurrentDest; }
     void setCurrentBranch(const string& branch) { m_currentBranch = branch ;}
     const string& getCurrentBranch(void) { return m_currentBranch; }
+    bool shouldFollowRedirects(void) { return m_bFollowRedirects; }
+    void shouldFollowRedirects(bool bValue) { m_bFollowRedirects = bValue;}
 
   private:
     msg_t*  m_msg ;
@@ -74,6 +78,7 @@ namespace drachtio {
     bool m_canceled ;
     bool m_stateless ;
     bool m_fullResponse ;
+    bool m_bFollowRedirects ;
     vector<string> m_vecDestination ;
     string m_headers ;
     unsigned int m_nCurrentDest ;
@@ -113,7 +118,7 @@ namespace drachtio {
     } ;
 
     void proxyRequest( const string& clientMsgId, const string& transactionId, const string& proxyType, bool fullResponse,
-      const vector<string>& vecDestination, const string& headers )  ;
+      bool followRedirects, const vector<string>& vecDestination, const string& headers )  ;
     void doProxy( ProxyData* pData ) ;
     bool processResponse( msg_t* msg, sip_t* sip ) ;
     bool processRequestWithRouteHeader( msg_t* msg, sip_t* sip ) ;
@@ -130,9 +135,12 @@ namespace drachtio {
     int ackResponse( msg_t* response ) ;
 
     boost::shared_ptr<Proxy_t> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
-      const string& proxyType, bool fullResponse, vector<string> vecDestination, const string& headers ) {
+      const string& proxyType, bool fullResponse, bool followRedirects, vector<string> vecDestination, const string& headers ) {
+
       boost::shared_ptr<Proxy_t> p = boost::make_shared<Proxy_t>( clientMsgId, transactionId, msg, sip, tp, proxyType, 
         fullResponse, vecDestination, headers ) ;
+      p->shouldFollowRedirects( followRedirects ) ;
+      
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;
       m_mapTxnId2Proxy.insert( mapTxnId2Proxy::value_type(p->getTransactionId(), p) ) ;   

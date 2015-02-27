@@ -45,7 +45,7 @@ namespace drachtio {
     Proxy_t::Proxy_t(const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp,const string& type, 
         bool fullResponse, const vector<string>& vecDestination, const string& headers ) : 
         m_clientMsgId(clientMsgId), m_transactionId(transactionId), m_msg( msg ), m_tp(tp), m_canceled(false), m_headers(headers),
-        m_fullResponse(fullResponse), m_vecDestination(vecDestination), m_stateless(0==type.compare("stateless")),
+        m_fullResponse(fullResponse), m_vecDestination(vecDestination), m_stateless(0==type.compare("stateless")), 
         m_nCurrentDest(0), m_lastResponse(0) {
 
         msg_ref( m_msg ) ; 
@@ -67,8 +67,8 @@ namespace drachtio {
     SipProxyController::~SipProxyController() {
     }
 
-    void SipProxyController::proxyRequest( const string& clientMsgId, const string& transactionId, const string& proxyType, bool fullResponse,
-        const vector<string>& vecDestinations, const string& headers )  {
+    void SipProxyController::proxyRequest( const string& clientMsgId, const string& transactionId, const string& proxyType, 
+        bool fullResponse, bool followRedirects, const vector<string>& vecDestinations, const string& headers )  {
 
         DR_LOG(log_debug) << "SipProxyController::proxyRequest - transactionId: " << transactionId ;
         boost::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
@@ -79,7 +79,7 @@ namespace drachtio {
             return ;
         }
         else {
-            addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), proxyType, fullResponse, 
+            addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), proxyType, fullResponse, followRedirects, 
                 vecDestinations, headers ) ;
         }
 
@@ -199,7 +199,22 @@ namespace drachtio {
                 msg_unref( msg ) ;
                 return true ;  //in stateful mode we've already sent a 100 Trying  
             }
-            
+
+            //follow a redirect response if we are configured to do so
+            if( status >= 300 && status < 399 && p->shouldFollowRedirects() && sip->sip_contact ) {
+                sip_contact_t* contact = sip->sip_contact ;
+                int i = 0 ;
+                vector<string>& vec = p->getDestinations() ;
+                for (sip_contact_t* m = sip->sip_contact; m; m = m->m_next, i++) {
+                    char buffer[URL_MAXLEN] = "" ;
+                    url_e(buffer, URL_MAXLEN, m->m_url) ;
+
+                    DR_LOG(log_debug) << "SipProxyController::processResponse -- adding contact from redirect response " << buffer ;
+                    vec.insert( vec.begin() + p->getCurrentOffset() + 1 + i, buffer ) ;
+                }
+                crankback = true ;
+            }
+
             //don't send back to client if we are going to fork a new INVITE
             if( crankback ) {
                 ackResponse( msg ) ;
@@ -311,7 +326,7 @@ namespace drachtio {
             SIPTAG_CALL_ID(sip->sip_call_id),
             TAG_END());
 
-        if (sip->sip_contact) {
+        if (sip->sip_contact && sip->sip_status->st_status > 399 ) {
             ruri = (url_string_t const *)sip->sip_contact->m_url;
         } else {
             su_sockaddr_t const *su = msg_addr(msg);

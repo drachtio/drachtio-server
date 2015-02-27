@@ -121,9 +121,6 @@ namespace drachtio {
                 int processRequestOutsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
                 int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
-                /* client --> network messages */
-                int sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id = NULL ) ;
-
                 /* stateless callback for messages not associated with a leg */
                 int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
 

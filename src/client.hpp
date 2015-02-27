@@ -29,9 +29,6 @@ THE SOFTWARE.
 #include <boost/circular_buffer.hpp>
 #include <boost/unordered_map.hpp>
 
-#include "sofia-msg.hpp"
-#include "json-msg.hpp"
-
 
 namespace drachtio {
 

@@ -279,8 +279,9 @@ read_again:
             string transactionId = tokens[2] ;
             string proxyType = tokens[3] ;
             bool fullResponse = 0 == tokens[4].compare("fullResponse") ;
-            vector<string> vecDestinations( tokens.begin() + 5, tokens.end() ) ;
-            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, proxyType, fullResponse, vecDestinations, headers ) ;
+            bool followRedirects = 0 == tokens[5].compare("followRedirects") ;
+            vector<string> vecDestinations( tokens.begin() + 6, tokens.end() ) ;
+            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, proxyType, fullResponse, followRedirects, vecDestinations, headers ) ;
             return true ;
         }
         else {

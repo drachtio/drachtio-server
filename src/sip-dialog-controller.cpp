@@ -31,7 +31,6 @@ namespace drachtio {
 #define NTA_RELIABLE_MAGIC_T drachtio::SipDialogController
 
 #include "controller.hpp"
-#include "sofia-msg.hpp"
 #include "sip-dialog-controller.hpp"
 
 namespace {

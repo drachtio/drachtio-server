@@ -204,11 +204,6 @@ namespace drachtio {
             exit(-1) ;
         }
         this->installConfig() ;
-
-#ifdef DEBUG
-        json_set_alloc_funcs(my_json_malloc, my_json_free);
-#endif
-
     }
 
     DrachtioController::~DrachtioController() {

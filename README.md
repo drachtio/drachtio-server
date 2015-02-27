@@ -19,7 +19,7 @@ make
 sudo make install
 ```
 
-> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the jansson JSON parsing library, the sofia sip stack, and the boost C++ libraries.  The sofia sip library is a [submodule](https://github.com/davehorton/sofia-sip).
+> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include the sofia sip stack and the boost C++ libraries.  The sofia sip library is a [submodule](https://github.com/davehorton/sofia-sip).
 
 ## Platform support and dependencies
 
