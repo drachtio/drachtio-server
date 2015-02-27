@@ -58,8 +58,6 @@ THE SOFTWARE.
 
 #include <sofia-sip/msg_addr.h>
 
-#include <jansson.h>
-
 #define DEFAULT_CONFIG_FILENAME "/etc/drachtio.conf.xml"
 #define MAXLOGLEN (8192)
 /* from sofia */
