@@ -45,6 +45,7 @@ THE SOFTWARE.
 #include <sofia-sip/msg.h>
 #include <sofia-sip/msg_addr.h>
 #include <sofia-sip/su_string.h>
+#include <sofia-sip/su_uniqueid.h>
 #include <sofia-sip/su_addrinfo.h>
 
 
@@ -52,6 +53,8 @@ THE SOFTWARE.
 #include "controller.hpp"
 
 #define MAX_LINELEN 2047
+
+#define BOOST_UUID (1)
 
 using namespace std ;
  
@@ -193,8 +196,25 @@ namespace drachtio {
 	}
 
 	void generateUuid(string& uuid) {
+#ifdef BOOST_UUID
 	    boost::uuids::uuid id = boost::uuids::random_generator()();
         uuid = boost::lexical_cast<string>(id) ;
+#else
+        su_guid_t guid[1];
+        char b[su_guid_strlen + 1] ;
+
+        su_guid_generate(guid);
+
+        /*
+         * Guid looks like "NNNNNNNN-NNNN-NNNN-NNNN-XXXXXXXXXXXX"
+         * where NNNNNNNN-NNNN-NNNN-NNNN is timestamp and XX is MAC address
+         * (but we use usually random ID for MAC because we do not have
+         *  guid generator available for all processes within node)
+         */
+        su_guid_sprintf(b, su_guid_strlen + 1, guid);
+        uuid.assign( b ) ;
+#endif
+
     }	
 
 	void parseGenericHeader( msg_common_t* p, string& hvalue) {

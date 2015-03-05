@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include <boost/shared_ptr.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
 #include <sofia-sip/nta.h>
@@ -33,6 +34,7 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 #include "pending-request-controller.hpp"
+#include "timer-queue.hpp"
 
 namespace drachtio {
 
@@ -59,9 +61,11 @@ namespace drachtio {
     int getLastStatus(void) { return m_lastResponse; }
     void setLastStatus(int status) { m_lastResponse = status; }
     bool hasMoreTargets(void) { return m_nCurrentDest + 1 < m_vecDestination.size(); }
+    bool isForking(void) { return m_vecDestination.size() > 1; }
     const string& getCurrentTarget(void) { return m_vecDestination[m_nCurrentDest]; }
     unsigned int getCurrentOffset(void) { return m_nCurrentDest; }
     const string& getNextTarget(void) { return m_vecDestination[++m_nCurrentDest]; }
+    bool hasNextTarget(void) { return m_nCurrentDest + 1 < m_vecDestination.size(); }
     bool isCanceled(void) { return m_canceled; }
     void setCanceled(void) { m_canceled = true; }
     bool isFirstTarget(void) { return 0 == m_nCurrentDest; }
@@ -69,6 +73,21 @@ namespace drachtio {
     const string& getCurrentBranch(void) { return m_currentBranch; }
     bool shouldFollowRedirects(void) { return m_bFollowRedirects; }
     void shouldFollowRedirects(bool bValue) { m_bFollowRedirects = bValue;}
+    uint32_t getProvisionalTimeout(void) { return m_provisionalTimeout; }
+    uint32_t getFinalTimeout(void) { return m_finalTimeout; }
+    void setProvisionalTimeout(const string& t ) ;
+    void setFinalTimeout(const string& t) ;
+    void setProvisionalHandle(TimerEventHandle h) { m_handleProvisionalResponse = h ;}
+    void setFinalHandle(TimerEventHandle h) { m_handleFinalResponse = h ;}
+    TimerEventHandle getProvisionalHandle(void) { return m_handleProvisionalResponse;}
+    TimerEventHandle getFinalHandle(void) { return m_handleFinalResponse;}
+    void clearProvisionalHandle(void) { m_handleProvisionalResponse = 0 ;}
+    void clearFinalHandle(void) { m_handleFinalResponse = 0 ;}
+    bool isCanceledBranch(const char *branch) ;
+    bool isUnresponsiveBranch(const char *branch) { return m_setUnresponsiveBranches.find(branch) != m_setUnresponsiveBranches.end(); }
+    void addCanceledBranch(const char* branch) {m_setCanceledBranches.insert(branch);}
+    void addUnresponsiveBranch(const char* branch) {m_setUnresponsiveBranches.insert(branch);}
+
 
   private:
     msg_t*  m_msg ;
@@ -84,6 +103,12 @@ namespace drachtio {
     unsigned int m_nCurrentDest ;
     int m_lastResponse ;
     string m_currentBranch ;
+    uint32_t m_provisionalTimeout ;
+    uint32_t m_finalTimeout ;
+    TimerEventHandle m_handleProvisionalResponse ;
+    TimerEventHandle m_handleFinalResponse ;   
+    boost::unordered_set<string>  m_setCanceledBranches ; 
+    boost::unordered_set<string>  m_setUnresponsiveBranches ; 
   } ;
 
 
@@ -118,7 +143,8 @@ namespace drachtio {
     } ;
 
     void proxyRequest( const string& clientMsgId, const string& transactionId, const string& proxyType, bool fullResponse,
-      bool followRedirects, const vector<string>& vecDestination, const string& headers )  ;
+      bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+      const vector<string>& vecDestination, const string& headers )  ;
     void doProxy( ProxyData* pData ) ;
     bool processResponse( msg_t* msg, sip_t* sip ) ;
     bool processRequestWithRouteHeader( msg_t* msg, sip_t* sip ) ;
@@ -128,18 +154,28 @@ namespace drachtio {
 
     void logStorageCount(void) ;
 
+    void timerProvisional( boost::shared_ptr<Proxy_t> p ) ;
+    void timerFinal( boost::shared_ptr<Proxy_t> p ) ;
+
   protected:
 
     int proxyToTarget( boost::shared_ptr<Proxy_t> p, const string& dest ) ;
 
     int ackResponse( msg_t* response ) ;
+    int cancelCurrentRequest( boost::shared_ptr<Proxy_t> p ) ;
+
+    void clearTimerProvisional( boost::shared_ptr<Proxy_t> p );
+    void clearTimerFinal( boost::shared_ptr<Proxy_t> p ) ;
 
     boost::shared_ptr<Proxy_t> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
-      const string& proxyType, bool fullResponse, bool followRedirects, vector<string> vecDestination, const string& headers ) {
+      const string& proxyType, bool fullResponse, bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+      vector<string> vecDestination, const string& headers ) {
 
       boost::shared_ptr<Proxy_t> p = boost::make_shared<Proxy_t>( clientMsgId, transactionId, msg, sip, tp, proxyType, 
         fullResponse, vecDestination, headers ) ;
       p->shouldFollowRedirects( followRedirects ) ;
+      p->setProvisionalTimeout( provisionalTimeout ) ;
+      p->setFinalTimeout( finalTimeout ) ;
       
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;
@@ -176,6 +212,8 @@ namespace drachtio {
     nta_agent_t*    m_agent ;
 
     boost::mutex    m_mutex ;
+
+    TimerQueue      m_queue ;
 
     typedef boost::unordered_map<string, boost::shared_ptr<Proxy_t> > mapTxnId2Proxy ;
     mapTxnId2Proxy m_mapTxnId2Proxy ;

@@ -32,7 +32,6 @@ THE SOFTWARE.
 #include <iostream>
 #include <boost/shared_ptr.hpp>
 #include <boost/scoped_ptr.hpp>
-
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/attributes.hpp>
@@ -173,6 +172,6 @@ extern drachtio::DrachtioController* theOneAndOnlyController ;
 #endif
 
 
-#define DR_LOG(level) BOOST_LOG_SEV(theOneAndOnlyController->getLogger(), level)
+#define DR_LOG(level) BOOST_LOG_SEV(theOneAndOnlyController->getLogger(), level) 
 
 #endif

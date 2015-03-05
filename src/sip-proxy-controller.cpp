@@ -23,6 +23,8 @@ THE SOFTWARE.
 namespace drachtio {
     class SipDialogController ;
 }
+#include <boost/regex.hpp>
+#include <boost/bind.hpp>
 
 #include <sofia-sip/sip_util.h>
 #include <sofia-sip/msg_header.h>
@@ -46,9 +48,11 @@ namespace drachtio {
         bool fullResponse, const vector<string>& vecDestination, const string& headers ) : 
         m_clientMsgId(clientMsgId), m_transactionId(transactionId), m_msg( msg ), m_tp(tp), m_canceled(false), m_headers(headers),
         m_fullResponse(fullResponse), m_vecDestination(vecDestination), m_stateless(0==type.compare("stateless")), 
-        m_nCurrentDest(0), m_lastResponse(0) {
+        m_nCurrentDest(0), m_lastResponse(0),m_provisionalTimeout(0), m_finalTimeout(0),m_handleProvisionalResponse(0),
+        m_handleFinalResponse(0) {
 
         msg_ref( m_msg ) ; 
+
     }
     Proxy_t::~Proxy_t() {
         msg_unref( m_msg ) ;
@@ -57,9 +61,47 @@ namespace drachtio {
     sip_t* Proxy_t::getSipObject() { return sip_object(m_msg); }
     const string& Proxy_t::getTransactionId() { return m_transactionId; }
     tport_t* Proxy_t::getTport() { return m_tp; }
+    void Proxy_t::setProvisionalTimeout(const string& t ) {
+        boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
+        boost::smatch mr;
+        if( boost::regex_search( t, mr, e ) ) {
+            string s = mr[1] ;
+            m_provisionalTimeout = ::atoi( s.c_str() ) ;
+            if( 0 == mr[2].compare("s") ) {
+                m_provisionalTimeout *= 1000 ;
+            }
+            DR_LOG(log_debug) << "provisional timeout is " << m_provisionalTimeout << "ms" ;
+        }
+        else if( t.length() > 0 ) {
+            DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
+        }
+    }
+    void Proxy_t::setFinalTimeout(const string& t ) {
+        boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
+        boost::smatch mr;
+        if( boost::regex_search( t, mr, e ) ) {
+            string s = mr[1] ;
+            m_finalTimeout = ::atoi( s.c_str() ) ;
+            if( 0 == mr[2].compare("s") ) {
+                m_finalTimeout *= 1000 ;
+            }
+            DR_LOG(log_debug) << "final timeout is " << m_finalTimeout << "ms" ;
+        }
+        else if( t.length() > 0 ) {
+            DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
+        }
+    }
+    bool Proxy_t::isCanceledBranch(const char *branch) { 
+        DR_LOG(log_debug) << "isCanceledBranch: checking for " << branch << " size of set is " << m_setCanceledBranches.size() ;
+        boost::unordered_set<string>::iterator it = m_setCanceledBranches.find(branch) ;
+        bool found = it != m_setCanceledBranches.end(); 
+        return found ;
+    }
+ 
+
 
     SipProxyController::SipProxyController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
-        m_agent(pController->getAgent()) {
+        m_agent(pController->getAgent()), m_queue(pController->getRoot()) {
 
             assert(m_agent) ;
 
@@ -68,7 +110,8 @@ namespace drachtio {
     }
 
     void SipProxyController::proxyRequest( const string& clientMsgId, const string& transactionId, const string& proxyType, 
-        bool fullResponse, bool followRedirects, const vector<string>& vecDestinations, const string& headers )  {
+        bool fullResponse, bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+        const vector<string>& vecDestinations, const string& headers )  {
 
         DR_LOG(log_debug) << "SipProxyController::proxyRequest - transactionId: " << transactionId ;
         boost::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
@@ -80,7 +123,7 @@ namespace drachtio {
         }
         else {
             addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), proxyType, fullResponse, followRedirects, 
-                vecDestinations, headers ) ;
+                provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
         }
 
         su_msg_r m = SU_MSG_R_INIT ;
@@ -162,18 +205,35 @@ namespace drachtio {
         string callId = sip->sip_call_id->i_id ;
         DR_LOG(log_debug) << "SipProxyController::processResponse " << std::dec << sip->sip_status->st_status << " " << callId ;
 
-        //TODO: we should try not to store state at all, just proxy the response based on via header
-        boost::shared_ptr<Proxy_t> p ;
         if( sip->sip_cseq->cs_method == sip_method_invite ) {
-            p = getProxyByCallId( sip->sip_call_id->i_id ) ;
+            boost::shared_ptr<Proxy_t> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
             if( !p ) {
                 DR_LOG(log_error) << "SipProxyController::processResponse unknown call-id for response " <<  std::dec << sip->sip_status->st_status << 
                     " " << sip->sip_call_id->i_id ;
-
                 return false ;
             }
+
             int status = sip->sip_status->st_status ;
+           
+            bool locallyCanceled = p->isCanceledBranch( sip->sip_via->v_branch ) ;
+            if( locallyCanceled ) {
+                //
+                //this is a response to a CANCEL we generated due to a timeout
+                //ack it and do nothing, as we have already generated a new INVITE to the next server
+                DR_LOG(log_debug) << "Received final response to an INVITE that we canceled, generate ack" ;
+                assert( 487 == status ) ;
+                ackResponse( msg ) ;
+                msg_unref( msg ) ;
+                return true ;
+            }
+
             p->setLastStatus( status ) ;
+
+            //clear timers, as appropriate 
+            clearTimerProvisional(p) ;
+            if( status >= 200 ) {
+                clearTimerFinal(p) ;
+            }
 
             bool crankback = status > 200 && !isTerminatingResponse( status ) && p->hasMoreTargets() && !p->isCanceled() ;
 
@@ -226,6 +286,14 @@ namespace drachtio {
                 return true ;
              }   
         }
+        else if( sip->sip_cseq->cs_method == sip_method_cancel ) {
+            boost::shared_ptr<Proxy_t> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
+            if( p && p->isCanceledBranch( sip->sip_via->v_branch ) ) {
+                DR_LOG(log_debug) << "Received response to our CANCEL, discarding" ;
+                msg_unref(msg) ;
+                return true ;
+            }
+        }
    
         int rc = nta_msg_tsend( m_pController->getAgent(), msg, NULL, TAG_END() ) ;
         if( rc < 0 ) {
@@ -262,6 +330,14 @@ namespace drachtio {
             return false ;
         }
 
+        if( p->isForking() ) {
+            //don't proxy retransmissions
+            if( sip->sip_request->rq_method == sip_method_invite ) {
+                DR_LOG(log_info) << "Discarding retransmitted message because we are a forking proxy" ;
+                nta_msg_discard( m_pController->getAgent(), msg ) ;
+                return false ;    
+            }
+        }
         string dest = p->getCurrentTarget() ;
         int rc = nta_msg_tsend( m_pController->getAgent(), msg, URL_STRING_MAKE(dest.c_str()), 
             NTATAG_BRANCH_KEY(p->getCurrentBranch().c_str()),
@@ -303,6 +379,25 @@ namespace drachtio {
             TAG_NEXT(tags) ) ;
 
         deleteTags( tags ) ;
+
+        //set timers if client requested, and we have other servers to crank back to 
+        if( p->hasMoreTargets() ) {
+            if( p->getProvisionalTimeout() > 0 ) {
+                TimerEventHandle handle = m_queue.add( boost::bind(&SipProxyController::timerProvisional, this, p), 
+                    NULL, p->getProvisionalTimeout() ) ;
+                assert( handle ) ;
+                if( handle ) p->setProvisionalHandle( handle ) ;
+                DR_LOG(log_debug) << "set a provisional timeout" ;
+            }
+            if(  p->getFinalTimeout() > 0 ) {
+                TimerEventHandle handle = m_queue.add( boost::bind(&SipProxyController::timerFinal, this, p), 
+                    NULL, p->getFinalTimeout() ) ;
+                assert( handle ) ;
+                if( handle ) p->setFinalHandle( handle ) ;
+                DR_LOG(log_debug) << "set a final timeout" ;
+            }
+        }
+
         return rc ;
     }
     int SipProxyController::ackResponse( msg_t* msg ) {
@@ -361,8 +456,82 @@ namespace drachtio {
         err:
             if( amsg ) msg_unref(amsg);
             return -1;
-
     }
+    int SipProxyController::cancelCurrentRequest( boost::shared_ptr<Proxy_t> p ) {
+        nta_agent_t* agent = m_pController->getAgent() ;
+        
+        msg_t* msg = p->getMsg() ;
+        sip_t *sip = p->getSipObject() ;
+
+        msg_t *cmsg = nta_msg_create(agent, 0);
+        sip_t *csip = sip_object(cmsg);
+        url_string_t const *ruri;
+
+        nta_outgoing_t *cancel = NULL ;
+        sip_request_t *rq;
+        sip_cseq_t *cseq;
+        su_home_t *home = msg_home(cmsg);
+
+        if (csip == NULL)
+        return -1;
+
+        sip_add_tl(cmsg, csip,
+            SIPTAG_TO(sip->sip_to),
+            SIPTAG_FROM(sip->sip_from),
+            SIPTAG_CALL_ID(sip->sip_call_id),
+            TAG_END());
+
+        if (!(cseq = sip_cseq_create(home, sip->sip_cseq->cs_seq, SIP_METHOD_CANCEL)))
+            goto err;
+        else
+            msg_header_insert(cmsg, (msg_pub_t *)csip, (msg_header_t *)cseq);
+
+        if (!(rq = sip_request_format(home, "CANCEL %s SIP/2.0", p->getCurrentTarget().c_str() )))
+            goto err;
+        else
+            msg_header_insert(cmsg, (msg_pub_t *)csip, (msg_header_t *)rq);
+
+        if( nta_msg_tsend( agent, cmsg, NULL, 
+            NTATAG_BRANCH_KEY(p->getCurrentBranch().c_str()),
+            TAG_END() ) < 0 )
+ 
+            goto err ;
+
+         return 0;
+
+        err:
+            if( cmsg ) msg_unref(cmsg);
+            return -1;
+    }
+
+    void SipProxyController::timerProvisional( boost::shared_ptr<Proxy_t> p ) {
+        DR_LOG(log_debug) << "provisional timer fired, queue length " << m_queue.size() ;
+        
+        //if we later get a response we'll generate a CANCEL then
+        p->addUnresponsiveBranch( p->getCurrentBranch().c_str() ) ;
+
+        //clear the provisional timer handle as it is no longer valid
+        p->clearProvisionalHandle() ;
+
+        //we shouldn't be here unless we have a next server to try; send the request there
+        assert( p->hasNextTarget() ) ;
+        proxyToTarget( p, p->getNextTarget() ) ;
+    }
+    void SipProxyController::timerFinal( boost::shared_ptr<Proxy_t> p ) {
+        DR_LOG(log_debug) << "CANCEL request due to lack of final within specified timeout, queue length " << m_queue.size() ;
+        
+        //generate a CANCEL
+        cancelCurrentRequest( p ) ;
+        p->addCanceledBranch( p->getCurrentBranch().c_str() ) ;
+
+        //clear the final timer handle as it is no longer valid
+        p->clearFinalHandle() ;
+
+        //we shouldn't be here unless we have a next server to try; send the request there
+        assert( p->hasNextTarget() ) ;
+        proxyToTarget( p, p->getNextTarget() ) ;
+    }
+
     bool SipProxyController::isProxyingRequest( msg_t* msg, sip_t* sip )  {
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( sip->sip_call_id->i_id ) ;
@@ -409,6 +578,21 @@ namespace drachtio {
                 return false ;
         }
     }
+    void SipProxyController::clearTimerProvisional( boost::shared_ptr<Proxy_t> p ) {
+      if( p->getProvisionalHandle() ) {
+          m_queue.remove( p->getProvisionalHandle() ) ;
+          p->clearProvisionalHandle() ;
+          DR_LOG(log_debug) << "cleared provisional timeout, queue length is now " << m_queue.size() ;
+      }     
+    }
+    void SipProxyController::clearTimerFinal( boost::shared_ptr<Proxy_t> p ) {
+      if( p->getProvisionalHandle() ) {
+          m_queue.remove( p->getProvisionalHandle() ) ;
+          p->clearProvisionalHandle() ;
+          DR_LOG(log_debug) << "cleared final timeout, queue length is now " << m_queue.size() ;
+      }     
+    }
+
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 

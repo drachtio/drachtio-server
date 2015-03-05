@@ -280,8 +280,11 @@ read_again:
             string proxyType = tokens[3] ;
             bool fullResponse = 0 == tokens[4].compare("fullResponse") ;
             bool followRedirects = 0 == tokens[5].compare("followRedirects") ;
-            vector<string> vecDestinations( tokens.begin() + 6, tokens.end() ) ;
-            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, proxyType, fullResponse, followRedirects, vecDestinations, headers ) ;
+            string provisionalTimeout = tokens[6] ;
+            string finalTimeout = tokens[7]; 
+            vector<string> vecDestinations( tokens.begin() + 8, tokens.end() ) ;
+            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, proxyType, fullResponse, followRedirects, 
+                provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
             return true ;
         }
         else {
