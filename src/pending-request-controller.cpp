@@ -27,6 +27,7 @@ namespace drachtio {
 
 #include "pending-request-controller.hpp"
 #include "controller.hpp"
+#include "cdr.hpp"
 
 
 namespace drachtio {
@@ -59,20 +60,21 @@ namespace drachtio {
   PendingRequestController::~PendingRequestController() {
   }
 
-  void PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip ) {
+  int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, string& transactionId ) {
     assert(sip->sip_request->rq_method != sip_method_invite || NULL == sip->sip_to->a_tag ) ; //new INVITEs only
     if( isRetransmission( sip ) ) {
       DR_LOG(log_info) << "processNewRequest - received retransmission of INVITE " << sip->sip_call_id->i_id  ;
 
       nta_msg_discard(m_agent, msg) ;  //TODO: proxy in some cases ??
+      return -1 ;
     }
     else {
 
-      client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip ) ;
+      client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
       if( !client ) {
         DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
-        nta_msg_treply( m_agent, msg, 503, "Service Unavailable", TAG_END() ) ;
-        return ;                    
+        generateUuid( transactionId ) ;
+        return 503 ;
       }
 
       boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
@@ -88,7 +90,9 @@ namespace drachtio {
       
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
+      transactionId = p->getTransactionId() ;
     }
+    return 0 ;
   }
 
   boost::shared_ptr<PendingRequest_t> PendingRequestController::add( msg_t* msg, sip_t* sip ) {

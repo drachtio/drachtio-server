@@ -40,75 +40,167 @@ namespace drachtio {
 
   class DrachtioController ;
 
-  class Proxy_t {
+  class ProxyCore : public boost::enable_shared_from_this<ProxyCore> {
   public:
-    Proxy_t(const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, const string& type, 
-      bool fullResponse, const vector<string>& vecDestination, const string& headers );
 
-    ~Proxy_t() ;
+    class ServerTransaction {
+    public:
+
+      ServerTransaction(boost::shared_ptr<ProxyCore> pCore, msg_t* msg) ;
+      ~ServerTransaction() ;
+
+      msg_t* msgDup(void) ;
+      msg_t* msg(void) { return m_msg; }
+
+      void processRequest( msg_t* msg, sip_t* sip ) ;
+      void proxyResponse( msg_t* msg ) ;
+
+      bool isCanceled(void) { return m_canceled; }
+      int getSipStatus(void) { return m_sipStatus ;}
+
+      bool isRetransmission(sip_t* sip) ;
+
+      bool forwardResponse( msg_t* msg, sip_t* sip ) ;
+      bool generateResponse( int status, const char *szReason = NULL ) ;
+
+    protected:
+      void writeCdr( msg_t* msg, sip_t* sip ) ;
+
+      boost::weak_ptr<ProxyCore>  m_pCore ;
+      msg_t*  m_msg ;
+      bool    m_canceled ;
+      int     m_sipStatus ;
+
+    } ;
+
+    class ClientTransaction : public boost::enable_shared_from_this<ClientTransaction>  {
+    public:
+
+      enum State_t {
+        not_started = 0,
+        calling,
+        proceeding, 
+        completed,
+        terminated
+      } ;
+
+      ClientTransaction(boost::shared_ptr<ProxyCore> pCore, const string& target) ;
+      ~ClientTransaction() ;
+
+      int getSipStatus(void) const { return m_sipStatus ;}
+      bool isCanceled(void) const { return m_canceled; }
+      const string& getBranch(void) const { return m_branch; }
+      State_t getTransactionState(void) const { return m_state;}
+      msg_t* getFinalResponse(void) { return m_msgFinal; }
+      void setState( State_t newState ) ;
+
+      bool matchesResponse(sip_t* sip) ;
+      bool processResponse( msg_t* msg, sip_t* sip ) ;
+      
+      bool forwardRequest() ;
+      bool retransmitRequest() ;
+      bool forwardDifferentRequest(msg_t* msg, sip_t* sip) ;
+      int cancelRequest() ;
+
+      void clearTimerA(void) { m_timerA = NULL;}
+      void clearTimerB(void) { m_timerB = NULL;}
+      void clearTimerC(void) { m_timerC = NULL;}
+      void clearTimerD(void) { m_timerD = NULL;}
+
+    protected:
+      void writeCdr( msg_t* msg, sip_t* sip ) ;
+      const char* getStateName( State_t state) ;
+      void removeTimer( TimerEventHandle& handle, const char *szTimer = NULL ) ;
+
+      boost::weak_ptr<ProxyCore>  m_pCore ;
+      msg_t*  m_msgFinal ;
+      sip_method_t m_method ;
+      string  m_target ;
+      string  m_branch ;
+      State_t m_state ;
+      int     m_sipStatus ;
+      bool    m_canceled ;
+      int     m_transmitCount ;
+      int     m_durationTimerA ;
+
+      //timers
+      TimerEventHandle  m_timerA ;
+      TimerEventHandle  m_timerB ;
+      TimerEventHandle  m_timerC ;
+      TimerEventHandle  m_timerD ;
+    } ;
+
+    enum LaunchType_t {
+      serial,
+      simultaneous
+    } ;
+
+
+    ProxyCore(const string& clientMsgId, const string& transactionId, tport_t* tp, bool recordRoute, 
+      bool fullResponse, const string& headers );
+
+    ~ProxyCore() ;
+
+    void initializeTransactions( msg_t* msg, const vector<string>& vecDestination ) ;
+    boost::shared_ptr<ServerTransaction> getServerTransaction(void) { return m_pServerTransaction; }
+    boost::shared_ptr<ClientTransaction> getClientTransactionAt(int idx) {
+      assert(idx < m_vecClientTransactions.size()) ;
+      return m_vecClientTransactions.at(idx); 
+    }
 
     msg_t* getMsg() ;
     sip_t* getSipObject() ;
+
+    bool processResponse(msg_t* msg, sip_t* sip) ;
+    int startRequests(void) ;
+    void removeTerminated(void) ;
+    void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
+
+    void timerA( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerB( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerC( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerD( boost::shared_ptr<ClientTransaction> pClient ) ;
+
+    const char* getCallId(void) { return sip_object( m_pServerTransaction->msg() )->sip_call_id->i_id; }
+    const char* getMethodName(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method_name; }
+
+    void cancelOutstandingRequests(void) ;
     const string& getClientMsgId() { return m_clientMsgId; }
     const string& getTransactionId() ;
     tport_t* getTport() ;
-    const char* getCallId(void) { return getSipObject()->sip_call_id->i_id; }
-    bool isStateless(void) { return m_stateless; }
-    bool isStateful(void) { return !m_stateless; }
+    const sip_record_route_t* getMyRecordRoute(void) ;
     bool wantsFullResponse(void) { return m_fullResponse; }
-    vector<string>& getDestinations(void) { return m_vecDestination; }
     const string& getHeaders(void) { return m_headers; }
-    int getLastStatus(void) { return m_lastResponse; }
-    void setLastStatus(int status) { m_lastResponse = status; }
-    bool hasMoreTargets(void) { return m_nCurrentDest + 1 < m_vecDestination.size(); }
-    bool isForking(void) { return m_vecDestination.size() > 1; }
-    const string& getCurrentTarget(void) { return m_vecDestination[m_nCurrentDest]; }
-    unsigned int getCurrentOffset(void) { return m_nCurrentDest; }
-    const string& getNextTarget(void) { return m_vecDestination[++m_nCurrentDest]; }
-    bool hasNextTarget(void) { return m_nCurrentDest + 1 < m_vecDestination.size(); }
+
     bool isCanceled(void) { return m_canceled; }
     void setCanceled(void) { m_canceled = true; }
-    bool isFirstTarget(void) { return 0 == m_nCurrentDest; }
-    void setCurrentBranch(const string& branch) { m_currentBranch = branch ;}
-    const string& getCurrentBranch(void) { return m_currentBranch; }
     bool shouldFollowRedirects(void) { return m_bFollowRedirects; }
     void shouldFollowRedirects(bool bValue) { m_bFollowRedirects = bValue;}
-    uint32_t getProvisionalTimeout(void) { return m_provisionalTimeout; }
-    uint32_t getFinalTimeout(void) { return m_finalTimeout; }
-    void setProvisionalTimeout(const string& t ) ;
-    void setFinalTimeout(const string& t) ;
-    void setProvisionalHandle(TimerEventHandle h) { m_handleProvisionalResponse = h ;}
-    void setFinalHandle(TimerEventHandle h) { m_handleFinalResponse = h ;}
-    TimerEventHandle getProvisionalHandle(void) { return m_handleProvisionalResponse;}
-    TimerEventHandle getFinalHandle(void) { return m_handleFinalResponse;}
-    void clearProvisionalHandle(void) { m_handleProvisionalResponse = 0 ;}
-    void clearFinalHandle(void) { m_handleFinalResponse = 0 ;}
-    bool isCanceledBranch(const char *branch) ;
-    bool isUnresponsiveBranch(const char *branch) { return m_setUnresponsiveBranches.find(branch) != m_setUnresponsiveBranches.end(); }
-    void addCanceledBranch(const char* branch) {m_setCanceledBranches.insert(branch);}
-    void addUnresponsiveBranch(const char* branch) {m_setUnresponsiveBranches.insert(branch);}
 
+    bool shouldAddRecordRoute(void) { return m_bRecordRoute;}
+    bool getLaunchType(void) { return m_launchType; }
+    bool allClientsAreTerminated(void) ;
+
+  protected:
+    bool exhaustedAllTargets(void) ;
+    void forwardBestResponse(void) ;
 
   private:
-    msg_t*  m_msg ;
+    bool m_fullResponse ;
+    bool m_bFollowRedirects ;
+    bool m_bRecordRoute ;    
+    string m_headers ;
+
+    bool m_canceled ;
+    bool m_searching ;
+    
+    boost::shared_ptr<ServerTransaction> m_pServerTransaction ;
+    vector< boost::shared_ptr<ClientTransaction> > m_vecClientTransactions ;
+    LaunchType_t m_launchType ;
+
     string  m_transactionId ;
     string  m_clientMsgId ;
     tport_t* m_tp ;
-    bool m_canceled ;
-    bool m_stateless ;
-    bool m_fullResponse ;
-    bool m_bFollowRedirects ;
-    vector<string> m_vecDestination ;
-    string m_headers ;
-    unsigned int m_nCurrentDest ;
-    int m_lastResponse ;
-    string m_currentBranch ;
-    uint32_t m_provisionalTimeout ;
-    uint32_t m_finalTimeout ;
-    TimerEventHandle m_handleProvisionalResponse ;
-    TimerEventHandle m_handleFinalResponse ;   
-    boost::unordered_set<string>  m_setCanceledBranches ; 
-    boost::unordered_set<string>  m_setUnresponsiveBranches ; 
   } ;
 
 
@@ -142,7 +234,7 @@ namespace drachtio {
       char  m_szTransactionId[MSG_ID_LEN];
     } ;
 
-    void proxyRequest( const string& clientMsgId, const string& transactionId, const string& proxyType, bool fullResponse,
+    void proxyRequest( const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
       bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
       const vector<string>& vecDestination, const string& headers )  ;
     void doProxy( ProxyData* pData ) ;
@@ -150,40 +242,31 @@ namespace drachtio {
     bool processRequestWithRouteHeader( msg_t* msg, sip_t* sip ) ;
     bool processRequestWithoutRouteHeader( msg_t* msg, sip_t* sip ) ;
 
+    void removeProxy( boost::shared_ptr<ProxyCore> pCore ) ;
+
     bool isProxyingRequest( msg_t* msg, sip_t* sip )  ;
 
     void logStorageCount(void) ;
 
-    void timerProvisional( boost::shared_ptr<Proxy_t> p ) ;
-    void timerFinal( boost::shared_ptr<Proxy_t> p ) ;
+    TimerEventHandle addTimer( const char* szTimerClass, TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
+    void removeTimer( TimerEventHandle handle, const char* szTimer ) ;
+
+    void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;
+    void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
   protected:
 
-    int proxyToTarget( boost::shared_ptr<Proxy_t> p, const string& dest ) ;
+    //int proxyToTarget( boost::shared_ptr<ProxyCore> p, const string& dest ) ;
 
-    int ackResponse( msg_t* response ) ;
-    int cancelCurrentRequest( boost::shared_ptr<Proxy_t> p ) ;
+    void clearTimerProvisional( boost::shared_ptr<ProxyCore> p );
+    void clearTimerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
-    void clearTimerProvisional( boost::shared_ptr<Proxy_t> p );
-    void clearTimerFinal( boost::shared_ptr<Proxy_t> p ) ;
+    boost::shared_ptr<ProxyCore> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
+      bool recordRoute, bool fullResponse, bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+      vector<string> vecDestination, const string& headers ) ;
 
-    boost::shared_ptr<Proxy_t> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
-      const string& proxyType, bool fullResponse, bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
-      vector<string> vecDestination, const string& headers ) {
-
-      boost::shared_ptr<Proxy_t> p = boost::make_shared<Proxy_t>( clientMsgId, transactionId, msg, sip, tp, proxyType, 
-        fullResponse, vecDestination, headers ) ;
-      p->shouldFollowRedirects( followRedirects ) ;
-      p->setProvisionalTimeout( provisionalTimeout ) ;
-      p->setFinalTimeout( finalTimeout ) ;
-      
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;
-      m_mapTxnId2Proxy.insert( mapTxnId2Proxy::value_type(p->getTransactionId(), p) ) ;   
-      return p ;         
-    }
-    boost::shared_ptr<Proxy_t> getProxyByTransactionId( const string& transactionId ) {
-      boost::shared_ptr<Proxy_t> p ;
+    boost::shared_ptr<ProxyCore> getProxyByTransactionId( const string& transactionId ) {
+      boost::shared_ptr<ProxyCore> p ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       mapTxnId2Proxy::iterator it = m_mapTxnId2Proxy.find( transactionId ) ;
       if( it != m_mapTxnId2Proxy.end() ) {
@@ -191,8 +274,8 @@ namespace drachtio {
       }
       return p ;
     }
-    boost::shared_ptr<Proxy_t> getProxyByCallId( const string& callId ) {
-      boost::shared_ptr<Proxy_t> p ;
+    boost::shared_ptr<ProxyCore> getProxyByCallId( const string& callId ) {
+      boost::shared_ptr<ProxyCore> p ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( callId ) ;
       if( it != m_mapCallId2Proxy.end() ) {
@@ -200,8 +283,8 @@ namespace drachtio {
       }
       return p ;
     }
-    boost::shared_ptr<Proxy_t> removeProxyByTransactionId( const string& transactionId );
-    boost::shared_ptr<Proxy_t> removeProxyByCallId( const string& callId );
+    boost::shared_ptr<ProxyCore> removeProxyByTransactionId( const string& transactionId );
+    boost::shared_ptr<ProxyCore> removeProxyByCallId( const string& callId );
 
     bool isTerminatingResponse( int status ) ;
 
@@ -214,11 +297,14 @@ namespace drachtio {
     boost::mutex    m_mutex ;
 
     TimerQueue      m_queue ;
+    TimerQueue      m_queueB ;
+    TimerQueue      m_queueC ;
+    TimerQueue      m_queueD ;
 
-    typedef boost::unordered_map<string, boost::shared_ptr<Proxy_t> > mapTxnId2Proxy ;
+    typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapTxnId2Proxy ;
     mapTxnId2Proxy m_mapTxnId2Proxy ;
 
-    typedef boost::unordered_map<string, boost::shared_ptr<Proxy_t> > mapCallId2Proxy ;
+    typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapCallId2Proxy ;
     mapCallId2Proxy m_mapCallId2Proxy ;
 
   } ;

@@ -18,6 +18,8 @@
     <redis>
         <address>127.0.0.1</address>
     </redis>
+
+    <cdrs>true</cdrs>
             
     <!-- logging configuration -->
     <logging>

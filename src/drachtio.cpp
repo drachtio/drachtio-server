@@ -695,5 +695,64 @@ namespace drachtio {
         sprintf( szTmp, "%u", msg_size( msg ) ) ;
         m_bytes.assign( szTmp ) ;
     }
+
+     int ackResponse( msg_t* msg ) {
+        nta_agent_t* nta = theOneAndOnlyController->getAgent() ;
+        sip_t *sip = sip_object(msg);
+        msg_t *amsg = nta_msg_create(nta, 0);
+        sip_t *asip = sip_object(amsg);
+        url_string_t const *ruri;
+        nta_outgoing_t *ack = NULL, *bye = NULL;
+        sip_cseq_t *cseq;
+        sip_request_t *rq;
+        sip_route_t *route = NULL, *r, r0[1];
+        su_home_t *home = msg_home(amsg);
+
+        if (asip == NULL)
+        return -1;
+
+        sip_add_tl(amsg, asip,
+            SIPTAG_TO(sip->sip_to),
+            SIPTAG_FROM(sip->sip_from),
+            SIPTAG_CALL_ID(sip->sip_call_id),
+            TAG_END());
+
+        if (sip->sip_contact && sip->sip_status->st_status > 399 ) {
+            ruri = (url_string_t const *)sip->sip_contact->m_url;
+        } else {
+            su_sockaddr_t const *su = msg_addr(msg);
+            char name[SU_ADDRSIZE] = "";
+            char uri[SU_ADDRSIZE] = "" ;
+            char szTmp[10] ;
+
+            su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
+            sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
+            sprintf(uri, "sip:%s:%s", name, szTmp) ;
+            ruri = URL_STRING_MAKE(uri) ;
+        }
+
+        if (!(cseq = sip_cseq_create(home, sip->sip_cseq->cs_seq, SIP_METHOD_ACK)))
+            goto err;
+        else
+            msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)cseq);
+
+        if (!(rq = sip_request_create(home, SIP_METHOD_ACK, ruri, NULL)))
+            goto err;
+        else
+            msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)rq);
+
+        if( nta_msg_tsend( nta, amsg, NULL, 
+            NTATAG_BRANCH_KEY(sip->sip_via->v_branch),
+            TAG_END() ) < 0 )
+ 
+            goto err ;
+
+         return 0;
+
+        err:
+            if( amsg ) msg_unref(amsg);
+            return -1;
+    }
+   
  }
 

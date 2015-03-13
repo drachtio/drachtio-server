@@ -53,6 +53,8 @@ namespace drachtio {
          unsigned int getAdminPort( string& address ) ;
 
          bool getRedisAddress( std::string& address, unsigned int& port ) const ;
+
+         bool generateCdrs(void) const ;
        
         void Log() const ;
         

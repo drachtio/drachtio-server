@@ -57,6 +57,7 @@ THE SOFTWARE.
 #include <boost/algorithm/string/replace.hpp>
 
 #include <sofia-sip/msg_addr.h>
+#include <sofia-sip/sip_util.h>
 
 #define DEFAULT_CONFIG_FILENAME "/etc/drachtio.conf.xml"
 #define MAXLOGLEN (8192)
@@ -72,6 +73,7 @@ namespace drachtio {
 #define NTA_AGENT_MAGIC_T drachtio::DrachtioController
 #define NTA_LEG_MAGIC_T drachtio::DrachtioController
 
+#include "cdr.hpp"
 #include "controller.hpp"
 
 /* clone static functions, used to post a message into the main su event loop from the worker client controller thread */
@@ -586,6 +588,11 @@ namespace drachtio {
 
         if( sip->sip_request ) {
 
+            if( sip_sanity_check(sip) < 0 ) {
+                DR_LOG(log_error) << "invalid incoming request message; discarding call-id " << sip->sip_call_id->i_id ;
+                nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
+                return -1 ;
+            }
             //check if we are in the first Route header; if so proxy accordingly
             if( sip->sip_route && 
                 url_has_param(sip->sip_route->r_url, "lr") &&
@@ -611,7 +618,27 @@ namespace drachtio {
                         case sip_method_notify:
                         case sip_method_subscribe:
                         {
-                            m_pPendingRequestController->processNewRequest( msg, sip ) ;
+                            string transactionId ;
+                            int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
+
+                            //write attempt record
+                            if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
+
+                                Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
+                            }
+
+                            //reject message if necessary, write stop record
+                            if( status > 0  ) {
+                                msg_t* reply = nta_msg_create(m_nta, 0) ;
+                                msg_ref(reply) ;
+                                nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
+
+                                if( sip->sip_request->rq_method == sip_method_invite ) {
+                                    Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                                }
+                                msg_unref(reply) ;
+                                return false ;                    
+                            }
                         }
                         break ;
 
@@ -629,8 +656,14 @@ namespace drachtio {
         }
         else {
             if( !m_pProxyController->processResponse( msg, sip ) ) {
-                DR_LOG(log_debug) << "processMessageStatelessly - unknown response (possibly late arriving?) - discarding" ;
-                nta_msg_discard( m_nta, msg ) ;
+                if( sip->sip_via->v_next ) {
+                    DR_LOG(log_error) << "processMessageStatelessly - forwarding response upstream" ;
+                    nta_msg_tsend( m_nta, msg, NULL, TAG_END() ) ; 
+                }
+                else {
+                    DR_LOG(log_error) << "processMessageStatelessly - unknown response (possibly late arriving?) - discarding" ;
+                    nta_msg_discard( m_nta, msg ) ;                    
+                }
             } 
         }
         return 0 ;
@@ -706,7 +739,7 @@ namespace drachtio {
                       return 0;
                 } 
  
-                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip ) ;
+                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
                 if( !client ) {
                     DR_LOG(log_error) << "No providers available for invite"  ;
                     return 503 ;                    
@@ -761,7 +794,7 @@ namespace drachtio {
                 string transactionId ;
                 generateUuid( transactionId ) ;
 
-                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip ) ;
+                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
                 if( !client ) {
                     DR_LOG(log_error) << "No providers available for invite"  ;
                     return 503 ;                    
@@ -977,7 +1010,7 @@ namespace drachtio {
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
-        //DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
+        DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
     }
 
 }

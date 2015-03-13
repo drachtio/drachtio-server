@@ -69,6 +69,7 @@ namespace drachtio {
                 
                 /* logging configuration  */
  
+                m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
                 try {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
                     m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
@@ -113,7 +114,9 @@ namespace drachtio {
                     cout << "redis not enabled" << endl ;
                 }
 
-                m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
+                string cdrs = pt.get<string>("drachtio.cdrs", "") ;
+                transform(cdrs.begin(), cdrs.end(), cdrs.begin(), ::tolower);
+                m_bGenerateCdrs = ( 0 == cdrs.compare("true") || 0 == cdrs.compare("yes") ) ;
                 
                 fb.close() ;
                                                
@@ -185,6 +188,9 @@ namespace drachtio {
             }
             return false ;
         }
+        bool generateCdrs(void) const {
+            return m_bGenerateCdrs ;
+        }
  
     private:
         
@@ -218,6 +224,7 @@ namespace drachtio {
         string m_secret ;
         string m_redisAddress ;
         unsigned int m_redisPort ;
+        bool m_bGenerateCdrs ;
   } ;
     
     /*
@@ -267,6 +274,9 @@ namespace drachtio {
     }
     bool DrachtioConfig::getRedisAddress( std::string& address, unsigned int& port ) const {
         return m_pimpl->getRedisAddress( address, port ) ;
+    }
+    bool DrachtioConfig::generateCdrs(void) const {
+        return m_pimpl->generateCdrs() ;
     }
 
  

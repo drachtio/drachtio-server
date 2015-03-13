@@ -51,7 +51,7 @@ namespace drachtio {
   public:
     
 
-    TimerQueue(su_root_t* root) ;
+    TimerQueue(su_root_t* root, const char*szName = NULL) ;
     ~TimerQueue() ;
 
     TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
@@ -65,7 +65,10 @@ namespace drachtio {
     void doTimer(su_timer_t* timer) ;      
 
   protected:
+    int          numberOfElements(void) ;
+
     su_root_t*    m_root ;
+    std::string   m_name ;
     su_timer_t*   m_timer ;
     queueEntry_t* m_head ;
     queueEntry_t* m_tail ;

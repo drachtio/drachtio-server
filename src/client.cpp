@@ -271,19 +271,14 @@ read_again:
                 createResponseMsg( tokens[0], msgResponse, false, "Invalid proxy request: not enough information provided" ) ;
                 return false ;             
             }
-            if( 0 != tokens[3].compare("stateful") && 0 != tokens[3].compare("stateless") ) {
-                DR_LOG(log_error) << "Invalid proxy request type: must be either stateful or stateless: '" <<  tokens[3] << "'" ;
-                createResponseMsg( tokens[0], msgResponse, false, "Invalid proxy request type: must be either stateful or stateless" ) ;
-                return false ;                             
-            }
             string transactionId = tokens[2] ;
-            string proxyType = tokens[3] ;
+            bool recordRoute = 0 == tokens[3].compare("remainInDialog") ;
             bool fullResponse = 0 == tokens[4].compare("fullResponse") ;
             bool followRedirects = 0 == tokens[5].compare("followRedirects") ;
             string provisionalTimeout = tokens[6] ;
             string finalTimeout = tokens[7]; 
             vector<string> vecDestinations( tokens.begin() + 8, tokens.end() ) ;
-            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, proxyType, fullResponse, followRedirects, 
+            m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, recordRoute, fullResponse, followRedirects, 
                 provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
             return true ;
         }
@@ -308,6 +303,12 @@ read_again:
         meta.toMessageFormat(s) ;
 
         send(strUuid + "|sip|" + s + "|" + transactionId + "|" + CRLF + rawSipMsg) ;
+    }
+    void Client::sendCdrToClient( const string& rawSipMsg, const string& meta ) {
+        string strUuid, s ;
+        generateUuid( strUuid ) ;
+
+        send(strUuid + "|" + meta + CRLF + rawSipMsg) ;
     }
     void Client::sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) {
         string strUuid ;

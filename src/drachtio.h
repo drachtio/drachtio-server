@@ -130,6 +130,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 	tagi_t* makeTags( const string& hdrs ) ;
 	void deleteTags( tagi_t* tags ) ;
 
+	int ackResponse( msg_t* msg ) ;
+
 	class SipMsgData_t {
 	public:
 		SipMsgData_t() {} ;

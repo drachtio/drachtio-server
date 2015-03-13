@@ -66,7 +66,7 @@ namespace drachtio {
         void removeNetTransaction( const string& transactionId ) ;
         void removeApiRequest( const string& clientMsgId ) ;
 
-        client_ptr selectClientForRequestOutsideDialog( sip_t const *sip ) ;
+        client_ptr selectClientForRequestOutsideDialog( const char* keyword ) ;
         client_ptr findClientForDialog( const string& dialogId ) ;
         client_ptr findClientForAppTransaction( const string& transactionId ) ;
         client_ptr findClientForNetTransaction( const string& transactionId ) ;
@@ -76,7 +76,7 @@ namespace drachtio {
         bool sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) ;
         bool respondToSipRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;      
         bool sendCancelRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
-        bool proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, const string& proxyType, bool fullResponse,
+        bool proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
             bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
             const vector<string>& vecDestination, const string& headers ) ;
 

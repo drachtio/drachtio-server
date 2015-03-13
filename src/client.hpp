@@ -52,9 +52,10 @@ namespace drachtio {
 	    void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
 	    void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
 
-		bool processClientMessage( const string& msg, string& msgResponse ) ;
+			bool processClientMessage( const string& msg, string& msgResponse ) ;
 	    void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
 	    void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+	    void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
 	    void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
 
 		bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
@@ -67,8 +68,8 @@ namespace drachtio {
 		} ;
 	  
 
-	    bool readMessageLength( unsigned int& len ) ;
-	    void createResponseMsg( const string& msgId, string& msg, bool ok = true, const char* szReason = NULL ) ;
+		bool readMessageLength( unsigned int& len ) ;
+		void createResponseMsg( const string& msgId, string& msg, bool ok = true, const char* szReason = NULL ) ;
 		void send( const string& str ) ;  
 		boost::shared_ptr<SipDialogController> getDialogController(void) ;
 

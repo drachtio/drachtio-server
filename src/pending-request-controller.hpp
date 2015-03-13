@@ -68,7 +68,7 @@ namespace drachtio {
     PendingRequestController(DrachtioController* pController);
     ~PendingRequestController() ;
 
-    void processNewRequest( msg_t* msg, sip_t* sip ) ;
+    int processNewRequest( msg_t* msg, sip_t* sip, string& transactionId ) ;
 
     boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId ) ;
 

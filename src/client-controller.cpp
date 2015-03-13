@@ -104,8 +104,8 @@ namespace drachtio {
         return true ;  
     }
 
-    client_ptr ClientController::selectClientForRequestOutsideDialog( sip_t const *sip ) {
-        string method_name = sip->sip_request->rq_method_name ;
+    client_ptr ClientController::selectClientForRequestOutsideDialog( const char* keyword ) {
+        string method_name = keyword ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
 
         /* round robin select a client that has registered for this request type */
@@ -321,9 +321,9 @@ namespace drachtio {
         return rc ;               
     }
     bool ClientController::proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, 
-        const string& proxyType, bool fullResponse, bool followRedirects, const string& provisionalTimeout, 
+        bool recordRoute, bool fullResponse, bool followRedirects, const string& provisionalTimeout, 
         const string& finalTimeout, const vector<string>& vecDestination, const string& headers ) {
-        m_pController->getProxyController()->proxyRequest( clientMsgId, transactionId, proxyType, fullResponse, followRedirects, 
+        m_pController->getProxyController()->proxyRequest( clientMsgId, transactionId, recordRoute, fullResponse, followRedirects, 
             provisionalTimeout, finalTimeout, vecDestination, headers ) ;
         addApiRequest( client, clientMsgId )  ;
         removeNetTransaction( transactionId ) ;
