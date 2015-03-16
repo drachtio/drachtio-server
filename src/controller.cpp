@@ -96,7 +96,6 @@ namespace {
     void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
         theOneAndOnlyController->processWatchdogTimer() ;
     }
-
 }
 
 
@@ -195,7 +194,7 @@ namespace drachtio {
             usage() ;
             exit(-1) ;
         }
-
+        
         logging::add_common_attributes();
 
         m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str() ) ;
@@ -204,6 +203,8 @@ namespace drachtio {
             exit(-1) ;
         }
         this->installConfig() ;
+
+
     }
 
     DrachtioController::~DrachtioController() {
@@ -1010,7 +1011,9 @@ namespace drachtio {
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
+#ifdef SOFIA_MSG_DEBUG_TRACE
         DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
+#endif
     }
 
 }

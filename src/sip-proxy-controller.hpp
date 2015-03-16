@@ -63,6 +63,8 @@ namespace drachtio {
       bool forwardResponse( msg_t* msg, sip_t* sip ) ;
       bool generateResponse( int status, const char *szReason = NULL ) ;
 
+      uint32_t getReplacedRSeq( uint32_t rseq ) ;
+
     protected:
       void writeCdr( msg_t* msg, sip_t* sip ) ;
 
@@ -70,7 +72,8 @@ namespace drachtio {
       msg_t*  m_msg ;
       bool    m_canceled ;
       int     m_sipStatus ;
-
+      uint32_t m_rseq ;
+      boost::unordered_map<uint32_t,uint32_t> m_mapAleg2BlegRseq ;
     } ;
 
     class ClientTransaction : public boost::enable_shared_from_this<ClientTransaction>  {
@@ -93,13 +96,13 @@ namespace drachtio {
       State_t getTransactionState(void) const { return m_state;}
       msg_t* getFinalResponse(void) { return m_msgFinal; }
       void setState( State_t newState ) ;
+      uint32_t getRSeq(void) { return m_rseq ;}
 
-      bool matchesResponse(sip_t* sip) ;
       bool processResponse( msg_t* msg, sip_t* sip ) ;
       
       bool forwardRequest() ;
       bool retransmitRequest() ;
-      bool forwardDifferentRequest(msg_t* msg, sip_t* sip) ;
+      bool forwardPrack(msg_t* msg, sip_t* sip) ;
       int cancelRequest() ;
 
       void clearTimerA(void) { m_timerA = NULL;}
@@ -117,11 +120,13 @@ namespace drachtio {
       sip_method_t m_method ;
       string  m_target ;
       string  m_branch ;
+      string  m_branchPrack ;
       State_t m_state ;
       int     m_sipStatus ;
       bool    m_canceled ;
       int     m_transmitCount ;
       int     m_durationTimerA ;
+      uint32_t m_rseq ;
 
       //timers
       TimerEventHandle  m_timerA ;
@@ -152,6 +157,7 @@ namespace drachtio {
     sip_t* getSipObject() ;
 
     bool processResponse(msg_t* msg, sip_t* sip) ;
+    bool forwardPrack( msg_t* msg, sip_t* sip) ;
     int startRequests(void) ;
     void removeTerminated(void) ;
     void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;

@@ -132,6 +132,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	int ackResponse( msg_t* msg ) ;
 
+	static char const rfc3261prefix[] =  "z9hG4bK" ;
+
 	class SipMsgData_t {
 	public:
 		SipMsgData_t() {} ;

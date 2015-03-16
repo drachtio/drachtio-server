@@ -33,6 +33,7 @@ namespace drachtio {
 #include <sofia-sip/sip_util.h>
 #include <sofia-sip/msg_header.h>
 #include <sofia-sip/msg_addr.h>
+#include <sofia-sip/su_random.h>
 
 #include "sip-proxy-controller.hpp"
 #include "controller.hpp"
@@ -56,6 +57,15 @@ namespace {
 
 
 namespace drachtio {
+    struct has_rseq
+    {
+        has_rseq(uint32_t rseq) : m_rseq(rseq) {}
+        uint32_t m_rseq;
+        bool operator()(boost::shared_ptr<ProxyCore::ClientTransaction> pClient)
+        {
+            return m_rseq == pClient->getRSeq(); 
+        }
+    };
 
     bool ClientTransactionIsTerminated( const boost::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
         return pClient->getTransactionState() == ProxyCore::ClientTransaction::terminated ;
@@ -65,7 +75,7 @@ namespace drachtio {
             pClient->getTransactionState() == ProxyCore::ClientTransaction::proceeding;
     }
     bool bestResponseOrder( boost::shared_ptr<ProxyCore::ClientTransaction> c1, boost::shared_ptr<ProxyCore::ClientTransaction> c2 ) {
-        //prefer a final response over anything else
+        // per RFC 3261 16.7.6
         if( ProxyCore::ClientTransaction::completed == c1->getTransactionState() && 
             ProxyCore::ClientTransaction::completed != c2->getTransactionState() ) return true ;
 
@@ -75,7 +85,6 @@ namespace drachtio {
         if( ProxyCore::ClientTransaction::completed == c1->getTransactionState() && 
             ProxyCore::ClientTransaction::completed == c2->getTransactionState()) {
             
-            //ordering of final responses as per RFC 3261 16.7.6
             int c1Status = c1->getSipStatus() ;
             int c2Status = c2->getSipStatus()  ;
 
@@ -112,7 +121,7 @@ namespace drachtio {
 
     ///ServerTransaction
     ProxyCore::ServerTransaction::ServerTransaction(boost::shared_ptr<ProxyCore> pCore, msg_t* msg) : 
-        m_pCore(pCore), m_msg(msg), m_canceled(false), m_sipStatus(0) {
+        m_pCore(pCore), m_msg(msg), m_canceled(false), m_sipStatus(0), m_rseq(0) {
 
         msg_ref(m_msg) ;
     }
@@ -123,11 +132,37 @@ namespace drachtio {
     msg_t* ProxyCore::ServerTransaction::msgDup() {
         return msg_dup( m_msg ) ;
     }
+    uint32_t ProxyCore::ServerTransaction::getReplacedRSeq( uint32_t rseq ) {
+        //DR_LOG(log_debug) << "searching for original rseq that was replaced with " << rseq << " map size " << m_mapAleg2BlegRseq.size();
+        uint32_t original = 0 ;
+        boost::unordered_map<uint32_t,uint32_t>::const_iterator it = m_mapAleg2BlegRseq.find(rseq) ;
+        if( m_mapAleg2BlegRseq.end() != it ) original = it->second ;
+        //DR_LOG(log_debug) << "rseq that was replaced with " << rseq << " was originally " << original;
+        return original ;
+    }
+
+
     bool ProxyCore::ServerTransaction::isRetransmission(sip_t* sip) {
         return sip->sip_request->rq_method == sip_object( m_msg )->sip_request->rq_method ; //NB: we already know that the Call-Id matches
     }
     bool ProxyCore::ServerTransaction::forwardResponse( msg_t* msg, sip_t* sip ) {
-        int rc = nta_msg_tsend( nta, msg_ref(msg), NULL, TAG_END() ) ;
+
+        //if sending a reliable provisional response, we need to generate our own RSeq value
+        bool reliable = true ;
+        if( sip->sip_rseq && sip->sip_status->st_status < 200 ) {
+            if( 0 == m_rseq ) m_rseq = su_random() ;
+            m_rseq++ ;
+
+            //mapping of the re-written RSeq value on the UAS side to what the RSeq value recived on the UAC side was
+            //DR_LOG(log_debug) << "saving to map original rseq " << sip->sip_rseq->rs_response << " that was replaced by " << m_rseq ;
+            m_mapAleg2BlegRseq.insert( make_pair<uint32_t,uint32_t>(m_rseq,sip->sip_rseq->rs_response) ) ;
+
+            sip->sip_rseq->rs_response = m_rseq; 
+        }
+
+        int rc = nta_msg_tsend( nta, msg_ref(msg), NULL,
+            TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
+            TAG_END() ) ;
         if( rc < 0 ) {
             DR_LOG(log_error) << "ServerTransaction::forwardResponse failed proxying response " << std::dec << 
                 sip->sip_status->st_status << " " << sip->sip_call_id->i_id << ": error " << rc ; 
@@ -177,7 +212,7 @@ namespace drachtio {
 
         string random ;
         generateUuid( random ) ;
-        m_branch = string("z9hG4bK-") + random ;
+        m_branch = string(rfc3261prefix) + random ;
     }
     ProxyCore::ClientTransaction::~ClientTransaction() {
         DR_LOG(log_debug) << "ClientTransaction::~ClientTransaction" ;
@@ -258,27 +293,29 @@ namespace drachtio {
             }
         }
     }
-    bool ProxyCore::ClientTransaction::matchesResponse( sip_t* sip ) {
-        return 0 == m_branch.compare(sip->sip_via->v_branch) && sip->sip_cseq->cs_method == m_method ;
-    }
-    bool ProxyCore::ClientTransaction::forwardDifferentRequest(msg_t* msg, sip_t* sip) {
+    bool ProxyCore::ClientTransaction::forwardPrack(msg_t* msg, sip_t* sip) {
         boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
         assert( pCore ) ;
 
-        if( terminated == m_state ) {
-            DR_LOG(log_info) << "Not forwarding late-arriving request " << sip->sip_request->rq_method_name <<
-                " " << sip->sip_call_id->i_id ;
-            nta_msg_discard( nta, msg ) ;
-            return true ;
-        }
+        assert( sip->sip_rack ) ;
+        assert( sip_method_prack == sip->sip_request->rq_method ) ;
+        assert( 0 != m_rseq ) ;
+
+        sip->sip_rack->ra_response = m_rseq ;
+
+        string random ;
+        generateUuid( random ) ;
+        m_branchPrack =string(rfc3261prefix) + random ;
+
         int rc = nta_msg_tsend( nta, 
             msg, 
-            URL_STRING_MAKE(m_target.c_str()), 
+            NULL, 
             TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE(pCore->getMyRecordRoute() ) ),
-            NTATAG_BRANCH_KEY(m_branch.c_str()),
+            NTATAG_BRANCH_KEY( m_branchPrack.c_str() ),
+            SIPTAG_RACK( sip->sip_rack ),
             TAG_END() ) ;
         if( rc < 0 ) {
-            DR_LOG(log_error) << "forwardDifferentRequest: error forwarding request " ;
+            DR_LOG(log_error) << "forwardPrack: error forwarding request " ;
             return false ;
         }
         return true ;
@@ -297,7 +334,7 @@ namespace drachtio {
 
             string random ;
             generateUuid( random ) ;
-            m_branch = string("z9hG4bK-") + random ;
+            m_branch = string(rfc3261prefix) + random ;
             m_method = sip->sip_request->rq_method ;
 
             setState( calling ) ;
@@ -356,7 +393,11 @@ namespace drachtio {
      bool ProxyCore::ClientTransaction::processResponse( msg_t* msg, sip_t* sip ) {
         bool bForward = false ;
 
-        if( 0 != m_branch.compare(sip->sip_via->v_branch) ) return false ; 
+        DR_LOG(log_debug) << "client processing response, via branch is " << sip->sip_via->v_branch <<
+            " original request via branch was " << m_branch << " and PRACK via branch was " << m_branchPrack ;
+
+        if( 0 != m_branch.compare(sip->sip_via->v_branch) && sip_method_prack != sip->sip_cseq->cs_method ) return false ; 
+        if( 0 != m_branchPrack.compare(sip->sip_via->v_branch) && sip_method_prack == sip->sip_cseq->cs_method ) return false ;
 
         boost::shared_ptr<ClientTransaction> me = shared_from_this() ;
         boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
@@ -396,7 +437,7 @@ namespace drachtio {
                 //proxy core will attempt to cancel any invite not in the terminated state
                 //so set that first before announcing our success
                 setState( terminated ) ;
-                pCore->notifyForwarded200OK( me ) ; 
+                pCore->notifyForwarded200OK( me ) ;                 
             }
             else if( m_sipStatus >= 300 ) {
                 setState( completed ) ;
@@ -415,6 +456,9 @@ namespace drachtio {
             if( m_sipStatus > 100 && m_sipStatus < 300 ) {
                 //forward immediately: RFC 3261 16.7.5
                 bForward = true ;
+
+                //check if reliable provisional - stow RSeq to put in RAck header in PRACK later
+                if( m_sipStatus < 200 && sip->sip_rseq ) m_rseq = sip->sip_rseq->rs_response ;
             }
             if( m_sipStatus >= 300 ) {
                 
@@ -433,6 +477,22 @@ namespace drachtio {
             if( sip_method_invite == sip->sip_cseq->cs_method && m_sipStatus >= 200 ) {
                 writeCdr( msg, sip ) ;
             }       
+
+            //send response back if full responses requested and this is a final
+            if( pCore->wantsFullResponse() && m_sipStatus >= 200 ) {
+                string encodedMessage ;
+                EncodeStackMessage( sip, encodedMessage ) ;
+                SipMsgData_t meta(msg) ;
+                string s ;
+                meta.toMessageFormat(s) ;
+
+                string data = s + "|||continue" + CRLF + encodedMessage ; 
+
+                theOneAndOnlyController->getClientController()->route_api_response( pCore->getClientMsgId(), "OK", data ) ;   
+                if( m_sipStatus >= 200 && m_sipStatus <= 299 ) {
+                    theOneAndOnlyController->getClientController()->route_api_response( pCore->getClientMsgId(), "OK", "done" ) ;
+                 }             
+            }
         }
         else if( sip_method_cancel == sip->sip_cseq->cs_method ) {
             DR_LOG(log_debug) << "Received " << sip->sip_status->st_status << " response to CANCEL" ;
@@ -626,38 +686,6 @@ namespace drachtio {
 
     const string& ProxyCore::getTransactionId() { return m_transactionId; }
     tport_t* ProxyCore::getTport() { return m_tp; }
-    /*
-    void ProxyCore::setProvisionalTimeout(const string& t ) {
-        boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
-        boost::smatch mr;
-        if( boost::regex_search( t, mr, e ) ) {
-            string s = mr[1] ;
-            m_provisionalTimeout = ::atoi( s.c_str() ) ;
-            if( 0 == mr[2].compare("s") ) {
-                m_provisionalTimeout *= 1000 ;
-            }
-            DR_LOG(log_debug) << "provisional timeout is " << m_provisionalTimeout << "ms" ;
-        }
-        else if( t.length() > 0 ) {
-            DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
-        }
-    }
-    void ProxyCore::setFinalTimeout(const string& t ) {
-        boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
-        boost::smatch mr;
-        if( boost::regex_search( t, mr, e ) ) {
-            string s = mr[1] ;
-            m_finalTimeout = ::atoi( s.c_str() ) ;
-            if( 0 == mr[2].compare("s") ) {
-                m_finalTimeout *= 1000 ;
-            }
-            DR_LOG(log_debug) << "final timeout is " << m_finalTimeout << "ms" ;
-        }
-        else if( t.length() > 0 ) {
-            DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
-        }
-    }
-    */
     const sip_record_route_t* ProxyCore::getMyRecordRoute(void) {
         return theOneAndOnlyController->getMyRecordRoute() ;
     }
@@ -686,6 +714,18 @@ namespace drachtio {
         }
         return handled ;
     }
+    bool ProxyCore::forwardPrack( msg_t* msg, sip_t* sip ) {
+        uint32_t rseq = m_pServerTransaction->getReplacedRSeq( sip->sip_rack->ra_response ) ;
+        boost::shared_ptr< ClientTransaction > pClient ;
+        vector< boost::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
+            m_vecClientTransactions.end(), has_rseq(rseq) ) ;
+        if( m_vecClientTransactions.end() != it ) {
+            pClient = *it ;
+            pClient->forwardPrack( msg, sip ) ;
+            return true ;
+        }
+        return false ;
+    }
     bool ProxyCore::exhaustedAllTargets() {
         return  m_vecClientTransactions.end() == std::find_if( m_vecClientTransactions.begin(), m_vecClientTransactions.end(), 
             ClientTransactionIsCallingOrProceeding ) ;
@@ -707,8 +747,13 @@ namespace drachtio {
             msg_ref(msg); 
             m_pServerTransaction->forwardResponse( msg, sip_object(msg) ) ;      
         }
+
+        if( m_fullResponse  ) {
+            theOneAndOnlyController->getClientController()->route_api_response( getClientMsgId(), "OK", "done" ) ;
+         }             
     }
 
+    ///SipProxyController
     SipProxyController::SipProxyController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
         m_agent(pController->getAgent()), m_queue(pController->getRoot()), m_queueB(pController->getRoot(),"timerB"),
         m_queueC(pController->getRoot(),"timerC"), m_queueD(pController->getRoot(),"timerD")   {
@@ -983,7 +1028,19 @@ namespace drachtio {
             Cdr::postCdr( boost::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
         }
 
-        int rc = nta_msg_tsend( nta, msg_ref(msg), NULL, TAG_END() ) ;
+        if( sip_method_prack == sip->sip_request->rq_method ) {
+            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
+            if( !p ) {
+               DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader unknown call-id for PRACK " <<  
+                    sip->sip_call_id->i_id ;
+                nta_msg_discard( nta, msg ) ;
+                return true;                
+            }
+            p->forwardPrack( msg, sip ) ;
+            return true ;
+        }
+        int rc = nta_msg_tsend( nta, msg_ref(msg), NULL, 
+            TAG_END() ) ;
         if( rc < 0 ) {
             msg_unref(msg) ;
             DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader failed proxying request " << callId << ": error " << rc ; 
@@ -1011,9 +1068,9 @@ namespace drachtio {
 
         if( sip_method_ack == sip->sip_request->rq_method ) {
             //TODO: this is wrong:
-            //1. We may get ACKs for success if we Record-Route'd
-            //2. What about PRACK ?
-            DR_LOG(log_error) << "SipProxyController::processRequestWithoutRouteHeader discarding ACK for non-success response " <<  
+            //1. We may get ACKs for success if we Record-Route'd...(except we'd be terminated immediately after sending 200OK)
+            //2. What about PRACK ? (PRACK will either have route header or will not come through us)
+            DR_LOG(log_debug) << "SipProxyController::processRequestWithoutRouteHeader discarding ACK for non-success response " <<  
                 sip->sip_call_id->i_id ;
             nta_msg_discard( nta, msg ) ;
             return true ;
@@ -1116,7 +1173,6 @@ namespace drachtio {
       m_mapTxnId2Proxy.insert( mapTxnId2Proxy::value_type(p->getTransactionId(), p) ) ;   
       return p ;         
     }
-
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 

@@ -65,6 +65,8 @@ THE SOFTWARE.
 #include "sip-proxy-controller.hpp"
 #include "redis-service.hpp"
 
+typedef boost::mt19937 RNGType;
+
 using namespace std ;
 
 namespace drachtio {
@@ -208,7 +210,6 @@ namespace drachtio {
                 sip_record_route_t* m_my_record_route ;
 
         	su_clone_r 	m_clone ;
-
         } ;
 
 } ;
