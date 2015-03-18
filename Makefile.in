@@ -63,7 +63,8 @@ am_drachtio_OBJECTS = drachtio-main.$(OBJEXT) \
 	drachtio-sip-proxy-controller.$(OBJEXT) \
 	drachtio-pending-request-controller.$(OBJEXT) \
 	drachtio-redis-service.$(OBJEXT) \
-	drachtio-timer-queue.$(OBJEXT) drachtio-cdr.$(OBJEXT)
+	drachtio-timer-queue.$(OBJEXT) drachtio-cdr.$(OBJEXT) \
+	drachtio-timer-queue-manager.$(OBJEXT)
 drachtio_OBJECTS = $(am_drachtio_OBJECTS)
 am__DEPENDENCIES_1 =
 drachtio_DEPENDENCIES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
@@ -202,7 +203,7 @@ top_srcdir = @top_srcdir@
 INCLUDES = -I/usr/local/include -I${srcdir}/deps/boost_1_55_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I$(srcdir)/deps/redisclient/src/redisclient
 AM_LDFLAGS = -L/usr/local/lib 
 LDADD = -lboost_thread -lpthread -lssl
-drachtio_SOURCES = src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/redis-service.cpp src/timer-queue.cpp src/cdr.cpp
+drachtio_SOURCES = src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/redis-service.cpp src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp
 drachtio_CPPFLAGS = -D_REENTRANT
 drachtio_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a \
@@ -336,6 +337,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/drachtio-sip-dialog-controller.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/drachtio-sip-dialog.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/drachtio-sip-proxy-controller.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/drachtio-timer-queue-manager.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/drachtio-timer-queue.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/timer-test_timer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/timer-timer-queue.Po@am__quote@
@@ -535,6 +537,20 @@ drachtio-cdr.obj: src/cdr.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/cdr.cpp' object='drachtio-cdr.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o drachtio-cdr.obj `if test -f 'src/cdr.cpp'; then $(CYGPATH_W) 'src/cdr.cpp'; else $(CYGPATH_W) '$(srcdir)/src/cdr.cpp'; fi`
+
+drachtio-timer-queue-manager.o: src/timer-queue-manager.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT drachtio-timer-queue-manager.o -MD -MP -MF $(DEPDIR)/drachtio-timer-queue-manager.Tpo -c -o drachtio-timer-queue-manager.o `test -f 'src/timer-queue-manager.cpp' || echo '$(srcdir)/'`src/timer-queue-manager.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/drachtio-timer-queue-manager.Tpo $(DEPDIR)/drachtio-timer-queue-manager.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/timer-queue-manager.cpp' object='drachtio-timer-queue-manager.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o drachtio-timer-queue-manager.o `test -f 'src/timer-queue-manager.cpp' || echo '$(srcdir)/'`src/timer-queue-manager.cpp
+
+drachtio-timer-queue-manager.obj: src/timer-queue-manager.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT drachtio-timer-queue-manager.obj -MD -MP -MF $(DEPDIR)/drachtio-timer-queue-manager.Tpo -c -o drachtio-timer-queue-manager.obj `if test -f 'src/timer-queue-manager.cpp'; then $(CYGPATH_W) 'src/timer-queue-manager.cpp'; else $(CYGPATH_W) '$(srcdir)/src/timer-queue-manager.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/drachtio-timer-queue-manager.Tpo $(DEPDIR)/drachtio-timer-queue-manager.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/timer-queue-manager.cpp' object='drachtio-timer-queue-manager.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o drachtio-timer-queue-manager.obj `if test -f 'src/timer-queue-manager.cpp'; then $(CYGPATH_W) 'src/timer-queue-manager.cpp'; else $(CYGPATH_W) '$(srcdir)/src/timer-queue-manager.cpp'; fi`
 
 timer-test_timer.o: src/test_timer.cpp
 @am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(timer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT timer-test_timer.o -MD -MP -MF $(DEPDIR)/timer-test_timer.Tpo -c -o timer-test_timer.o `test -f 'src/test_timer.cpp' || echo '$(srcdir)/'`src/test_timer.cpp

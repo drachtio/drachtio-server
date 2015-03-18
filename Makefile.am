@@ -3,7 +3,7 @@ AM_LDFLAGS= -L/usr/local/lib
 LDADD= -lboost_thread -lpthread -lssl
 bin_PROGRAMS= drachtio timer
 
-drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/redis-service.cpp src/timer-queue.cpp src/cdr.cpp
+drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/redis-service.cpp src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp
 drachtio_CPPFLAGS=-D_REENTRANT
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_55_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto
 

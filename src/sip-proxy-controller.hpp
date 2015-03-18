@@ -35,6 +35,7 @@ THE SOFTWARE.
 #include "drachtio.h"
 #include "pending-request-controller.hpp"
 #include "timer-queue.hpp"
+#include "timer-queue-manager.hpp"
 
 namespace drachtio {
 
@@ -87,7 +88,7 @@ namespace drachtio {
         terminated
       } ;
 
-      ClientTransaction(boost::shared_ptr<ProxyCore> pCore, const string& target) ;
+      ClientTransaction(boost::shared_ptr<ProxyCore> pCore, boost::shared_ptr<TimerQueueManager> pTQM, const string& target) ;
       ~ClientTransaction() ;
 
       int getSipStatus(void) const { return m_sipStatus ;}
@@ -128,6 +129,7 @@ namespace drachtio {
       int     m_transmitCount ;
       int     m_durationTimerA ;
       uint32_t m_rseq ;
+      boost::shared_ptr<TimerQueueManager> m_pTQM ;
 
       //timers
       TimerEventHandle  m_timerA ;
@@ -255,8 +257,7 @@ namespace drachtio {
 
     void logStorageCount(void) ;
 
-    TimerEventHandle addTimer( const char* szTimerClass, TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
-    void removeTimer( TimerEventHandle handle, const char* szTimer ) ;
+    boost::shared_ptr<TimerQueueManager> getTimerQueueManager(void) { return m_pTQM; }
 
     void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;
     void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
@@ -303,10 +304,7 @@ namespace drachtio {
 
     boost::mutex    m_mutex ;
 
-    TimerQueue      m_queue ;
-    TimerQueue      m_queueB ;
-    TimerQueue      m_queueC ;
-    TimerQueue      m_queueD ;
+    boost::shared_ptr<TimerQueueManager> m_pTQM ;
 
     typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapTxnId2Proxy ;
     mapTxnId2Proxy m_mapTxnId2Proxy ;

@@ -214,10 +214,11 @@ namespace drachtio {
 
 
     ///ClientTransaction
-    ProxyCore::ClientTransaction::ClientTransaction(boost::shared_ptr<ProxyCore> pCore, const string& target) : 
+    ProxyCore::ClientTransaction::ClientTransaction(boost::shared_ptr<ProxyCore> pCore, 
+        boost::shared_ptr<TimerQueueManager> pTQM,  const string& target) : 
         m_pCore(pCore), m_target(target), m_canceled(false), m_sipStatus(0),
         m_timerA(NULL), m_timerB(NULL), m_timerC(NULL), m_timerD(NULL), m_msgFinal(NULL),
-        m_transmitCount(0), m_method(sip_method_unknown), m_state(not_started) {
+        m_transmitCount(0), m_method(sip_method_unknown), m_state(not_started), m_pTQM(pTQM) {
 
         string random ;
         generateUuid( random ) ;
@@ -243,7 +244,7 @@ namespace drachtio {
     }
     void ProxyCore::ClientTransaction::removeTimer( TimerEventHandle& handle, const char* szTimer ) {
         assert(handle) ;
-        theProxyController->removeTimer( handle, szTimer ) ;
+        m_pTQM->removeTimer( handle, szTimer ) ;
         handle = NULL ;
     }
     void ProxyCore::ClientTransaction::setState( State_t newState ) {
@@ -265,15 +266,15 @@ namespace drachtio {
                     assert( !m_timerC ) ;
 
                     //timer A = retransmission timer 
-                    m_timerA = theProxyController->addTimer("timerA", 
+                    m_timerA = m_pTQM->addTimer("timerA", 
                         boost::bind(&ProxyCore::timerA, pCore, shared_from_this()), NULL, m_durationTimerA = NTA_SIP_T1 ) ;
 
                     //timer B = timeout when all invite retransmissions have been exhausted
-                    m_timerB = theProxyController->addTimer("timerB", 
+                    m_timerB = m_pTQM->addTimer("timerB", 
                         boost::bind(&ProxyCore::timerB, pCore, shared_from_this()), NULL, TIMER_B_MSECS ) ;
                     
                     //timer C - timeout to wait for final response before returning 408 Request Timeout. 
-                    m_timerC = theProxyController->addTimer("timerC", 
+                    m_timerC = m_pTQM->addTimer("timerC", 
                         boost::bind(&ProxyCore::timerC, pCore, shared_from_this()), NULL, TIMER_C_MSECS ) ;
                 break ;
 
@@ -288,7 +289,7 @@ namespace drachtio {
 
                     //timer D - timeout when transaction can move from completed state to terminated
                     assert( !m_timerD ) ;
-                    m_timerD = theProxyController->addTimer("timerD", boost::bind(&ProxyCore::timerD, pCore, shared_from_this()), 
+                    m_timerD = m_pTQM->addTimer("timerD", boost::bind(&ProxyCore::timerD, pCore, shared_from_this()), 
                         NULL, TIMER_D_MSECS ) ;
                 break ;
 
@@ -389,7 +390,7 @@ namespace drachtio {
         if( forwardRequest(msg, headers) ) {
             boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
             assert( pCore ) ;
-            m_timerA = theProxyController->addTimer("timerA", 
+            m_timerA = m_pTQM->addTimer("timerA", 
                 boost::bind(&ProxyCore::timerA, pCore, shared_from_this()), NULL, m_durationTimerA) ;
             return true ;
         }
@@ -434,7 +435,7 @@ namespace drachtio {
                 if( 100 != m_sipStatus && sip_method_invite == sip->sip_cseq->cs_method ) {
                     assert( m_timerC ) ;
                     removeTimer( m_timerC, "timerC" ) ;
-                    m_timerC = theProxyController->addTimer("timerC", boost::bind(&ProxyCore::timerC, pCore, shared_from_this()), 
+                    m_timerC = m_pTQM->addTimer("timerC", boost::bind(&ProxyCore::timerC, pCore, shared_from_this()), 
                         NULL, TIMER_C_MSECS ) ;
                 }                  
             }
@@ -485,7 +486,8 @@ namespace drachtio {
 
                         DR_LOG(log_debug) << "ClientTransaction::processResponse -- adding contact from redirect response " << buffer ;
 
-                        boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>(pCore, buffer) ;
+                        boost::shared_ptr<TimerQueueManager> pTQM = theProxyController->getTimerQueueManager() ;
+                        boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>(pCore, pTQM, buffer) ;
                         vecNewTransactions.push_back( pClient ) ;
                     }
                     pCore->addClientTransactions( vecNewTransactions, shared_from_this() ) ;
@@ -619,7 +621,8 @@ namespace drachtio {
         m_pServerTransaction = boost::make_shared<ServerTransaction>( shared_from_this(), msg ) ;
 
         for( vector<string>::const_iterator it = vecDestination.begin(); it != vecDestination.end(); it++ ) {
-            boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>( shared_from_this(), *it ) ;
+            boost::shared_ptr<TimerQueueManager> pTQM = theProxyController->getTimerQueueManager() ;
+            boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>( shared_from_this(), pTQM, *it ) ;
             m_vecClientTransactions.push_back( pClient ) ;
         }
         DR_LOG(log_debug) << "initializeTransactions - added " << dec << m_vecClientTransactions.size() << " client transactions " ;
@@ -805,13 +808,12 @@ namespace drachtio {
 
     ///SipProxyController
     SipProxyController::SipProxyController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
-        m_agent(pController->getAgent()), m_queue(pController->getRoot()), m_queueB(pController->getRoot(),"timerB"),
-        m_queueC(pController->getRoot(),"timerC"), m_queueD(pController->getRoot(),"timerD")   {
+        m_agent(pController->getAgent())   {
 
             assert(m_agent) ;
             nta = m_agent ;
             theProxyController = this ;
-
+            m_pTQM = boost::make_shared<SipTimerQueueManager>( pController->getRoot() ) ;
     }
     SipProxyController::~SipProxyController() {
     }
@@ -1184,20 +1186,6 @@ namespace drachtio {
                 return false ;
         }
     }
-    TimerEventHandle SipProxyController::addTimer( const char* szTimerClass, TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
-        TimerEventHandle handle ;
-        if( 0 == strcmp("timerB", szTimerClass) ) handle = m_queueB.add( f, functionArgs, milliseconds );
-        else if( 0 == strcmp("timerC", szTimerClass) ) handle = m_queueC.add( f, functionArgs, milliseconds );
-        else if( 0 == strcmp("timerD", szTimerClass) ) handle = m_queueD.add( f, functionArgs, milliseconds );
-        else handle = m_queue.add( f, functionArgs, milliseconds );
-        return handle ;
-    }
-    void SipProxyController::removeTimer( TimerEventHandle handle, const char* szTimerClass ) {
-        if( 0 == strcmp("timerB", szTimerClass) ) m_queueB.remove( handle ) ;
-        else if( 0 == strcmp("timerC", szTimerClass) ) m_queueC.remove( handle ) ;
-        else if( 0 == strcmp("timerD", szTimerClass) ) m_queueD.remove( handle ) ;
-        else m_queue.remove( handle ) ;
-    }
 
     boost::shared_ptr<ProxyCore>  SipProxyController::addProxy( const string& clientMsgId, const string& transactionId, 
         msg_t* msg, sip_t* sip, tport_t* tp, bool recordRoute, bool fullResponse, bool followRedirects,
@@ -1221,10 +1209,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "----------------------------------"  ;
         DR_LOG(log_debug) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
         DR_LOG(log_debug) << "m_mapTxnId2Proxy size:                                           " << m_mapTxnId2Proxy.size()  ;
-        DR_LOG(log_debug) << "queue size:                                                      " << m_queue.size() ;
-        DR_LOG(log_debug) << "timer B queue size:                                              " << m_queueB.size() ;
-        DR_LOG(log_debug) << "timer C queue size:                                              " << m_queueC.size() ;
-        DR_LOG(log_debug) << "timer D queue size:                                              " << m_queueD.size() ;
+        m_pTQM->logQueueSizes() ;
     }
 
 
