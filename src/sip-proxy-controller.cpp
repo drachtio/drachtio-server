@@ -66,6 +66,15 @@ namespace drachtio {
             return m_rseq == pClient->getRSeq(); 
         }
     };
+    struct has_target
+    {
+        has_target(const string& target) : m_target(target) {}
+        string m_target;
+        bool operator()(boost::shared_ptr<ProxyCore::ClientTransaction> pClient)
+        {
+            return 0 == m_target.compare( pClient->getTarget() ); 
+        }
+    };
 
     bool ClientTransactionIsTerminated( const boost::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
         return pClient->getTransactionState() == ProxyCore::ClientTransaction::terminated ;
@@ -216,10 +225,10 @@ namespace drachtio {
     }
     ProxyCore::ClientTransaction::~ClientTransaction() {
         DR_LOG(log_debug) << "ClientTransaction::~ClientTransaction" ;
-        if( m_timerA ) theProxyController->removeTimer( m_timerA, "timerA" ) ;
-        if( m_timerB ) theProxyController->removeTimer( m_timerB, "timerB" ) ;
-        if( m_timerC ) theProxyController->removeTimer( m_timerC, "timerC" ) ;
-        if( m_timerD ) theProxyController->removeTimer( m_timerD, "timerD" ) ;
+        if( m_timerA ) removeTimer( m_timerA, "timerA" ) ;
+        if( m_timerB ) removeTimer( m_timerB, "timerB" ) ;
+        if( m_timerC ) removeTimer( m_timerC, "timerC" ) ;
+        if( m_timerD ) removeTimer( m_timerD, "timerD" ) ;
         if( m_msgFinal ) msg_unref( m_msgFinal ) ;
     }
     const char* ProxyCore::ClientTransaction::getStateName( State_t state) {
@@ -320,11 +329,10 @@ namespace drachtio {
         }
         return true ;
     }
-    bool ProxyCore::ClientTransaction::forwardRequest() {
+    bool ProxyCore::ClientTransaction::forwardRequest(msg_t* msg, const string& headers) {
         boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
         assert( pCore ) ;
 
-        msg_t* msg = pCore->getServerTransaction()->msgDup() ;
         sip_t* sip = sip_object(msg) ;
 
         m_transmitCount++ ;
@@ -351,7 +359,7 @@ namespace drachtio {
         sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
         msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
 
-        tagi_t* tags = makeTags( pCore->getHeaders() ) ;
+        tagi_t* tags = makeTags( headers ) ;
 
         int rc = nta_msg_tsend( nta, 
             msg_ref(msg), 
@@ -372,15 +380,13 @@ namespace drachtio {
         if( 1 == m_transmitCount && sip_method_invite == m_method ) {
             Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "application" ) );
         }
-
-         msg_unref(msg) ;
         
         return true ;
     }
-    bool ProxyCore::ClientTransaction::retransmitRequest() {
+    bool ProxyCore::ClientTransaction::retransmitRequest(msg_t* msg, const string& headers) {
         m_durationTimerA <<= 1 ;
         DR_LOG(log_debug) << "ClientTransaction - retransmitting request, timer A will be set to " << dec << m_durationTimerA << "ms" ;
-        if( forwardRequest() ) {
+        if( forwardRequest(msg, headers) ) {
             boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
             assert( pCore ) ;
             m_timerA = theProxyController->addTimer("timerA", 
@@ -414,7 +420,7 @@ namespace drachtio {
         if( m_method == sip->sip_cseq->cs_method ) {    
 
             //retransmission of final response?
-            if( m_sipStatus >= 200 && sip->sip_status->st_status >= 200 ) {
+            if( (completed == m_state || terminated == m_state) && sip->sip_status->st_status >= 200 ) {
                 ackResponse( msg ) ;
                 nta_msg_discard( nta, msg ) ;
                 return true ;               
@@ -455,6 +461,7 @@ namespace drachtio {
             }
             if( m_sipStatus > 100 && m_sipStatus < 300 ) {
                 //forward immediately: RFC 3261 16.7.5
+                //TODO: move this up to ProxyCore?
                 bForward = true ;
 
                 //check if reliable provisional - stow RSeq to put in RAck header in PRACK later
@@ -468,8 +475,20 @@ namespace drachtio {
 
                 ackResponse( msg ) ;
 
-                if( m_sipStatus >= 300 && m_sipStatus <= 399 && pCore->shouldFollowRedirects() ) {
-                    //TODO: put redirects into vector of clients
+                //TODO: move this up to ProxyCore??
+                if( m_sipStatus >= 300 && m_sipStatus <= 399 && pCore->shouldFollowRedirects() && sip->sip_contact ) {
+                    vector< boost::shared_ptr<ClientTransaction> > vecNewTransactions  ;
+                    sip_contact_t* contact = sip->sip_contact ;
+                    for (sip_contact_t* m = sip->sip_contact; m; m = m->m_next) {
+                        char buffer[URL_MAXLEN] = "" ;
+                        url_e(buffer, URL_MAXLEN, m->m_url) ;
+
+                        DR_LOG(log_debug) << "ClientTransaction::processResponse -- adding contact from redirect response " << buffer ;
+
+                        boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>(pCore, buffer) ;
+                        vecNewTransactions.push_back( pClient ) ;
+                    }
+                    pCore->addClientTransactions( vecNewTransactions, shared_from_this() ) ;
                 }
             }     
 
@@ -479,6 +498,7 @@ namespace drachtio {
             }       
 
             //send response back if full responses requested and this is a final
+            ////TODO: move this up to ProxyCore??
             if( pCore->wantsFullResponse() && m_sipStatus >= 200 ) {
                 string encodedMessage ;
                 EncodeStackMessage( sip, encodedMessage ) ;
@@ -505,26 +525,33 @@ namespace drachtio {
         }
 
         if( bForward ) {
-            bool bOK = pCore->getServerTransaction()->forwardResponse( msg, sip ) ;
+            bool bOK = pCore->forwardResponse( msg, sip ) ;
         }  
         else {
             nta_msg_discard( nta, msg ) ;
         }      
         return true ;
     }
-    int ProxyCore::ClientTransaction::cancelRequest() {
+    int ProxyCore::ClientTransaction::cancelRequest(msg_t* msg) {
 
+        //cancel retransmission timers 
+        if( m_timerA ) removeTimer( m_timerA, "timerA" ) ;
+        if( m_timerB ) removeTimer( m_timerB, "timerB" ) ;
+        if( m_timerC ) removeTimer( m_timerC, "timerC" ) ;
+
+        if( calling == m_state ) {
+            DR_LOG(log_debug) << "cancelRequest - client request in CALLING state has not received a response so not sending CANCEL" ;
+            setState(completed) ;
+            m_canceled = true ;
+            return 0 ;
+        }
         if( proceeding != m_state ) {
             DR_LOG(log_debug) << "cancelRequest - returning without canceling because state is not PROCEEDING it is " << 
                 getStateName(m_state) ;
             return 0 ;
         }
 
-        boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
-        assert( pCore ) ;
-
-        sip_t* sip = sip_object( pCore->getServerTransaction()->msgDup() );
-
+        sip_t* sip = sip_object(msg) ;
         msg_t *cmsg = nta_msg_create(nta, 0);
         sip_t *csip = sip_object(cmsg);
         url_string_t const *ruri;
@@ -580,9 +607,10 @@ namespace drachtio {
 
     ///ProxyCore
     ProxyCore::ProxyCore(const string& clientMsgId, const string& transactionId, tport_t* tp,bool recordRoute, 
-        bool fullResponse, const string& headers ) : 
+        bool fullResponse, bool simultaneous, const string& headers ) : 
         m_clientMsgId(clientMsgId), m_transactionId(transactionId), m_tp(tp), m_canceled(false), m_headers(headers),
-        m_fullResponse(fullResponse), m_bRecordRoute(recordRoute), m_launchType(ProxyCore::serial), m_searching(true) {
+        m_fullResponse(fullResponse), m_bRecordRoute(recordRoute), m_launchType(simultaneous ? ProxyCore::simultaneous : ProxyCore::serial), 
+        m_searching(true) {
     }
     ProxyCore::~ProxyCore() {
         DR_LOG(log_debug) << "ProxyCore::~ProxyCore" ;
@@ -614,15 +642,28 @@ namespace drachtio {
         m_searching = false ;
         cancelOutstandingRequests() ;
     }
+    void ProxyCore::addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
+        boost::shared_ptr<ClientTransaction> pClient ) {
+
+        vector< boost::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
+            m_vecClientTransactions.end(), has_target(pClient->getTarget()) ) ;
+        assert( m_vecClientTransactions.end() != it ) ;
+
+        m_vecClientTransactions.insert( ++it, vecClientTransactions.begin(), vecClientTransactions.end() ) ;
+    }
 
     //timer functions
     
 
+    //retransmission timer
     void ProxyCore::timerA(boost::shared_ptr<ClientTransaction> pClient) {
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerA() ;
-        pClient->retransmitRequest() ;
+        msg_t* msg = m_pServerTransaction->msgDup() ;
+        pClient->retransmitRequest(msg, m_headers) ;
+        msg_unref(msg) ;
     }
+    //max retransmission timer
     void ProxyCore::timerB(boost::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_debug) << "timer B fired for a client transaction" ;
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
@@ -630,18 +671,22 @@ namespace drachtio {
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
     }
+    //final invite response timer
     void ProxyCore::timerC(boost::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_debug) << "timer C fired for a client transaction" ;
         assert( pClient->getTransactionState() == ClientTransaction::proceeding || 
              pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerC() ;
         if( pClient->getTransactionState() == ClientTransaction::proceeding ) {
-            pClient->cancelRequest() ;
+            msg_t* msg = m_pServerTransaction->msgDup() ;
+            pClient->cancelRequest(msg) ;
+            msg_ref( msg ) ;
         }
         m_pServerTransaction->generateResponse(408) ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
     }
+    //completed state timer
     void ProxyCore::timerD(boost::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_debug) << "timer D fired for a client transaction" ;
         assert( pClient->getTransactionState() == ClientTransaction::completed ) ;
@@ -661,11 +706,13 @@ namespace drachtio {
         int idx = 0 ;
         vector< boost::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end(); ++it, idx++ ) {
-            DR_LOG(log_debug) << "startRequests: evalating client " << idx ; 
+            DR_LOG(log_debug) << "startRequests: evaluating client " << idx ; 
             boost::shared_ptr<ClientTransaction> pClient = *it ;
             if( ClientTransaction::not_started == pClient->getTransactionState() ) {
                 DR_LOG(log_debug) << "launching client " << idx ;
-                bool sent = pClient->forwardRequest() ;
+                msg_t* msg = m_pServerTransaction->msgDup();
+                bool sent = pClient->forwardRequest(msg, m_headers) ;
+                msg_unref( msg ) ;
                 if( sent ) count++ ;
                 if( sent && ProxyCore::serial == getLaunchType() ) {
                     break ;
@@ -680,7 +727,9 @@ namespace drachtio {
         vector< boost::shared_ptr<ProxyCore::ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end(); ++it ) {
             boost::shared_ptr<ProxyCore::ClientTransaction> pClient = *it ;
-            pClient->cancelRequest() ;
+            msg_t* msg = m_pServerTransaction->msgDup() ;
+            pClient->cancelRequest(msg) ;
+            msg_unref(msg) ;
         }        
     }
 
@@ -708,6 +757,7 @@ namespace drachtio {
             }
         }
         removeTerminated() ;
+        if( sip->sip_status->st_status > 200 ) startRequests() ;
 
         if( m_searching && exhaustedAllTargets() ) {
             forwardBestResponse() ;
@@ -767,7 +817,7 @@ namespace drachtio {
     }
 
     void SipProxyController::proxyRequest( const string& clientMsgId, const string& transactionId, bool recordRoute, 
-        bool fullResponse, bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+        bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, 
         const vector<string>& vecDestinations, const string& headers )  {
 
         DR_LOG(log_debug) << "SipProxyController::proxyRequest - transactionId: " << transactionId ;
@@ -780,7 +830,7 @@ namespace drachtio {
         }
         else {
             addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), recordRoute, fullResponse, followRedirects, 
-                provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
+                simultaneous, provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
         }
 
         su_msg_r m = SU_MSG_R_INIT ;
@@ -811,16 +861,18 @@ namespace drachtio {
         }
         else {
 
-            msg_t* msg = p->getServerTransaction()->msg() ; ;
+            msg_t* msg = p->msg() ;
             sip_t* sip = sip_object(msg);
 
             if( sip->sip_max_forwards && sip->sip_max_forwards->mf_count <= 0 ) {
                 DR_LOG(log_error) << "SipProxyController::doProxy rejecting request due to max forwards used up " << sip->sip_call_id->i_id ;
+                m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
+                    "Rejected with 483 Too Many Hops due to Max-Forwards value of 0" ) ;
 
                 msg_t* reply = nta_msg_create(nta, 0) ;
                 msg_ref(reply) ;
                 nta_msg_mreply( nta, reply, sip_object(reply), SIP_483_TOO_MANY_HOPS, 
-                    msg_ref(p->getServerTransaction()->msg()), //because it will lose a ref in here
+                    msg_ref(p->msg()), //because it will lose a ref in here
                     TAG_END() ) ;
 
                 Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
@@ -828,8 +880,6 @@ namespace drachtio {
                 msg_unref(reply) ;
 
                 removeProxyByTransactionId( transactionId )  ;
-                m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
-                    "Rejected with 483 Too Many Hops due to Max-Forwards value of 0" ) ;
                 pData->~ProxyData() ; 
                 return ;
             }
@@ -847,7 +897,7 @@ namespace drachtio {
                 msg_t* reply = nta_msg_create(nta, 0) ;
                 msg_ref(reply) ;
                 nta_msg_mreply( nta, reply, sip_object(reply), 500, NULL, 
-                    msg_ref(p->getServerTransaction()->msg()), //because it will lose a ref in here
+                    msg_ref(p->msg()), //because it will lose a ref in here
                     TAG_END() ) ;
 
                 Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
@@ -879,16 +929,6 @@ namespace drachtio {
             nta_msg_tsend( nta, msg, NULL, TAG_END() ) ;  
             return true ;          
         }
-
-        //we may be able to start some new requests now
-        int countStarted = 0 ;
-        if( sip->sip_status->st_status > 200 ) countStarted = p->startRequests() ;
-
-        //check if we are done
-        if( 0 == countStarted ) { // && all clients terminated
-
-        }
-
 /*
         if( sip->sip_cseq->cs_method == sip_method_invite ) {
             boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
@@ -1076,7 +1116,7 @@ namespace drachtio {
             return true ;
         }
 
-        bool bRetransmission = p->getServerTransaction()->isRetransmission( sip ) ;
+        bool bRetransmission = p->isRetransmission( sip ) ;
 
         if( bRetransmission ) {
             DR_LOG(log_debug) << "Discarding retransmitted message since we are a stateful proxy" ;
@@ -1088,7 +1128,7 @@ namespace drachtio {
         assert( sip_method_cancel == sip->sip_request->rq_method ) ;
 
         nta_msg_treply( nta, msg, 200, NULL, TAG_END() ) ;  //200 OK to the CANCEL
-        p->getServerTransaction()->generateResponse( 487 ) ;   //487 to INVITE
+        p->generateResponse( 487 ) ;   //487 to INVITE
 
         p->cancelOutstandingRequests() ;
     
@@ -1107,7 +1147,7 @@ namespace drachtio {
       if( it != m_mapTxnId2Proxy.end() ) {
         p = it->second ;
         m_mapTxnId2Proxy.erase(it) ;
-        mapCallId2Proxy::iterator it2 = m_mapCallId2Proxy.find( sip_object( p->getServerTransaction()->msg() )->sip_call_id->i_id ) ;
+        mapCallId2Proxy::iterator it2 = m_mapCallId2Proxy.find( sip_object( p->msg() )->sip_call_id->i_id ) ;
         assert( it2 != m_mapCallId2Proxy.end()) ;
         m_mapCallId2Proxy.erase( it2 ) ;
       }
@@ -1131,7 +1171,7 @@ namespace drachtio {
       return p ;
     }
     void SipProxyController::removeProxy( boost::shared_ptr<ProxyCore> pCore ) {
-        removeProxyByCallId( sip_object( pCore->getServerTransaction()->msg() )->sip_call_id->i_id ) ;
+        removeProxyByCallId( sip_object( pCore->msg() )->sip_call_id->i_id ) ;
     }
 
     bool SipProxyController::isTerminatingResponse( int status ) {
@@ -1161,10 +1201,11 @@ namespace drachtio {
 
     boost::shared_ptr<ProxyCore>  SipProxyController::addProxy( const string& clientMsgId, const string& transactionId, 
         msg_t* msg, sip_t* sip, tport_t* tp, bool recordRoute, bool fullResponse, bool followRedirects,
-        const string& provisionalTimeout, const string& finalTimeout, vector<string> vecDestination, const string& headers ) {
+        bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string> vecDestination, 
+        const string& headers ) {
 
       boost::shared_ptr<ProxyCore> p = boost::make_shared<ProxyCore>( clientMsgId, transactionId, tp, recordRoute, 
-        fullResponse, headers ) ;
+        fullResponse, simultaneous, headers ) ;
       p->shouldFollowRedirects( followRedirects ) ;
       p->initializeTransactions( msg, vecDestination ) ;
       

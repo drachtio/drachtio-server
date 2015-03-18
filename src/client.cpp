@@ -275,11 +275,12 @@ read_again:
             bool recordRoute = 0 == tokens[3].compare("remainInDialog") ;
             bool fullResponse = 0 == tokens[4].compare("fullResponse") ;
             bool followRedirects = 0 == tokens[5].compare("followRedirects") ;
-            string provisionalTimeout = tokens[6] ;
-            string finalTimeout = tokens[7]; 
-            vector<string> vecDestinations( tokens.begin() + 8, tokens.end() ) ;
+            bool simultaneous = 0 == tokens[6].compare("simultaneous") ;
+            string provisionalTimeout = tokens[7] ;
+            string finalTimeout = tokens[8]; 
+            vector<string> vecDestinations( tokens.begin() + 9, tokens.end() ) ;
             m_controller.proxyRequest( shared_from_this(), tokens[0], transactionId, recordRoute, fullResponse, followRedirects, 
-                provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
+                simultaneous, provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
             return true ;
         }
         else {

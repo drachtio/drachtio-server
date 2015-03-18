@@ -97,13 +97,14 @@ namespace drachtio {
       msg_t* getFinalResponse(void) { return m_msgFinal; }
       void setState( State_t newState ) ;
       uint32_t getRSeq(void) { return m_rseq ;}
+      const string& getTarget(void) { return m_target; }
 
       bool processResponse( msg_t* msg, sip_t* sip ) ;
       
-      bool forwardRequest() ;
-      bool retransmitRequest() ;
+      bool forwardRequest(msg_t* msg, const string& headers) ;
+      bool retransmitRequest(msg_t* msg, const string& headers) ;
       bool forwardPrack(msg_t* msg, sip_t* sip) ;
-      int cancelRequest() ;
+      int cancelRequest(msg_t* msg) ;
 
       void clearTimerA(void) { m_timerA = NULL;}
       void clearTimerB(void) { m_timerB = NULL;}
@@ -142,21 +143,19 @@ namespace drachtio {
 
 
     ProxyCore(const string& clientMsgId, const string& transactionId, tport_t* tp, bool recordRoute, 
-      bool fullResponse, const string& headers );
+      bool fullResponse, bool simultaneous, const string& headers );
 
     ~ProxyCore() ;
 
     void initializeTransactions( msg_t* msg, const vector<string>& vecDestination ) ;
-    boost::shared_ptr<ServerTransaction> getServerTransaction(void) { return m_pServerTransaction; }
-    boost::shared_ptr<ClientTransaction> getClientTransactionAt(int idx) {
-      assert(idx < m_vecClientTransactions.size()) ;
-      return m_vecClientTransactions.at(idx); 
-    }
 
-    msg_t* getMsg() ;
-    sip_t* getSipObject() ;
+    msg_t* msg() { return m_pServerTransaction->msg(); }
+    bool isRetransmission(sip_t* sip) { return m_pServerTransaction->isRetransmission(sip);}
+    bool generateResponse( int status, const char *szReason = NULL ) { return m_pServerTransaction->generateResponse(status,szReason);}
+
 
     bool processResponse(msg_t* msg, sip_t* sip) ;
+    bool forwardResponse( msg_t* msg, sip_t* sip ) { return m_pServerTransaction->forwardResponse(msg, sip);}
     bool forwardPrack( msg_t* msg, sip_t* sip) ;
     int startRequests(void) ;
     void removeTerminated(void) ;
@@ -186,6 +185,8 @@ namespace drachtio {
     bool shouldAddRecordRoute(void) { return m_bRecordRoute;}
     bool getLaunchType(void) { return m_launchType; }
     bool allClientsAreTerminated(void) ;
+    void addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
+      boost::shared_ptr<ClientTransaction> pClient ) ;
 
   protected:
     bool exhaustedAllTargets(void) ;
@@ -241,7 +242,7 @@ namespace drachtio {
     } ;
 
     void proxyRequest( const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
-      bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+      bool followRedirects, bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, 
       const vector<string>& vecDestination, const string& headers )  ;
     void doProxy( ProxyData* pData ) ;
     bool processResponse( msg_t* msg, sip_t* sip ) ;
@@ -268,8 +269,8 @@ namespace drachtio {
     void clearTimerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
     boost::shared_ptr<ProxyCore> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
-      bool recordRoute, bool fullResponse, bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
-      vector<string> vecDestination, const string& headers ) ;
+      bool recordRoute, bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, 
+      const string& finalTimeout, vector<string> vecDestination, const string& headers ) ;
 
     boost::shared_ptr<ProxyCore> getProxyByTransactionId( const string& transactionId ) {
       boost::shared_ptr<ProxyCore> p ;

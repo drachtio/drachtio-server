@@ -77,7 +77,7 @@ namespace drachtio {
         bool respondToSipRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;      
         bool sendCancelRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
         bool proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
-            bool followRedirects, const string& provisionalTimeout, const string& finalTimeout, 
+            bool followRedirects, bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, 
             const vector<string>& vecDestination, const string& headers ) ;
 
         //this sends the client a response to the request it made to send a sip message

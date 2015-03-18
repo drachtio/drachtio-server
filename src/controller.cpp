@@ -188,7 +188,7 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -245,6 +245,7 @@ namespace drachtio {
 
     bool DrachtioController::parseCmdArgs( int argc, char* argv[] ) {        
         int c ;
+        string port ;
         while (1)
         {
             static struct option long_options[] =
@@ -256,12 +257,14 @@ namespace drachtio {
                  We distinguish them by their indices. */
                 {"file",    required_argument, 0, 'f'},
                 {"user",    required_argument, 0, 'u'},
+                {"port",    required_argument, 0, 'p'},
+                {"contact",    required_argument, 0, 'c'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "f:i:",
+            c = getopt_long (argc, argv, "f:i:p:c:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -286,6 +289,15 @@ namespace drachtio {
 
                 case 'u':
                     m_user = optarg ;
+                    break;
+
+                case 'c':
+                    m_sipContact = optarg ;
+                    break;
+                                                            
+                case 'p':
+                    port = optarg ;
+                    m_adminPort = ::atoi( port.c_str() ) ;
                     break;
                                                             
                 case '?':
@@ -470,12 +482,14 @@ namespace drachtio {
        /* open stats connection */
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
+        if( 0 != m_adminPort ) adminPort = m_adminPort ;
         if( 0 != adminPort ) {
+            DR_LOG(log_notice) << "listening for client connections on " << adminAddress << ":" << adminPort ;
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
-        string url ;
-        m_Config->getSipUrl( url ) ;
+        string url = m_sipContact ;
+        if( 0 == url.length() ) m_Config->getSipUrl( url ) ;
         DR_LOG(log_notice) << "starting sip stack on " << url ;
         
         int rv = su_init() ;

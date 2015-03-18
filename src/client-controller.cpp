@@ -321,10 +321,10 @@ namespace drachtio {
         return rc ;               
     }
     bool ClientController::proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, 
-        bool recordRoute, bool fullResponse, bool followRedirects, const string& provisionalTimeout, 
+        bool recordRoute, bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, 
         const string& finalTimeout, const vector<string>& vecDestination, const string& headers ) {
         m_pController->getProxyController()->proxyRequest( clientMsgId, transactionId, recordRoute, fullResponse, followRedirects, 
-            provisionalTimeout, finalTimeout, vecDestination, headers ) ;
+            simultaneous, provisionalTimeout, finalTimeout, vecDestination, headers ) ;
         addApiRequest( client, clientMsgId )  ;
         removeNetTransaction( transactionId ) ;
         return true;
