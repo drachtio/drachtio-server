@@ -645,7 +645,7 @@ namespace drachtio {
     void ProxyCore::addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
         boost::shared_ptr<ClientTransaction> pClient ) {
 
-        vector< boost::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
+        vector< boost::shared_ptr< ClientTransaction > >::iterator it = std::find_if( m_vecClientTransactions.begin(), 
             m_vecClientTransactions.end(), has_target(pClient->getTarget()) ) ;
         assert( m_vecClientTransactions.end() != it ) ;
 
