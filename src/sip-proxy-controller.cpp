@@ -226,10 +226,11 @@ namespace drachtio {
     }
     ProxyCore::ClientTransaction::~ClientTransaction() {
         DR_LOG(log_debug) << "ClientTransaction::~ClientTransaction" ;
-        if( m_timerA ) removeTimer( m_timerA, "timerA" ) ;
-        if( m_timerB ) removeTimer( m_timerB, "timerB" ) ;
-        if( m_timerC ) removeTimer( m_timerC, "timerC" ) ;
-        if( m_timerD ) removeTimer( m_timerD, "timerD" ) ;
+        removeTimer( m_timerA, "timerA" ) ;
+        removeTimer( m_timerB, "timerB" ) ;
+        removeTimer( m_timerC, "timerC" ) ;
+        removeTimer( m_timerD, "timerD" ) ;
+
         if( m_msgFinal ) msg_unref( m_msgFinal ) ;
     }
     const char* ProxyCore::ClientTransaction::getStateName( State_t state) {
@@ -243,7 +244,7 @@ namespace drachtio {
         return szNames[ static_cast<int>( state ) ] ;
     }
     void ProxyCore::ClientTransaction::removeTimer( TimerEventHandle& handle, const char* szTimer ) {
-        assert(handle) ;
+        if( NULL == handle ) return ;
         m_pTQM->removeTimer( handle, szTimer ) ;
         handle = NULL ;
     }
@@ -284,18 +285,21 @@ namespace drachtio {
                 break; 
 
                 case completed:
-                    if( m_timerA ) removeTimer( m_timerA, "timerA" ) ;
-                    if( m_timerB ) removeTimer( m_timerB, "timerB" ) ;
+                    removeTimer( m_timerA, "timerA" ) ;
+                    removeTimer( m_timerB, "timerB" ) ;
 
                     //timer D - timeout when transaction can move from completed state to terminated
-                    assert( !m_timerD ) ;
+                    //note: in the case of a late-arriving provisional response after we've decided to cancel an invite, 
+                    //we can have a timer D set when we get here as state will go 
+                    //CALLING --> COMPLETED (when decide to cancel) --> PROCEEDING (when late response arrives) --> COMPLETED (as we send the CANCEL)
+                    removeTimer( m_timerD, "timerD" ) ;
                     m_timerD = m_pTQM->addTimer("timerD", boost::bind(&ProxyCore::timerD, pCore, shared_from_this()), 
                         NULL, TIMER_D_MSECS ) ;
                 break ;
 
                 case terminated:
-                    if( m_timerA ) removeTimer( m_timerA, "timerA" ) ;
-                    if( m_timerB ) removeTimer( m_timerB, "timerB" ) ;
+                    removeTimer( m_timerA, "timerA" ) ;
+                    removeTimer( m_timerB, "timerB" ) ;
                 break ;
 
                 default:
@@ -417,6 +421,16 @@ namespace drachtio {
             return true ;
         }
 
+        //late-arriving response to a request that is no longer desired by us, but which we did not cancel yet since there was no response
+        if( m_canceled && completed == m_state && 0 == m_sipStatus && m_method == sip->sip_cseq->cs_method ) {
+            DR_LOG(log_info) << "late-arriving response to a transaction that we want to cancel " <<
+                sip->sip_status->st_status << " " << sip->sip_cseq->cs_method << " " << sip->sip_call_id->i_id ;
+            setState (proceeding ); 
+            cancelRequest( msg ) ;
+            nta_msg_discard( nta, msg ) ;
+            return true ;
+        }
+
         //response to our original request?
         if( m_method == sip->sip_cseq->cs_method ) {    
 
@@ -451,7 +465,7 @@ namespace drachtio {
             }
 
             if( m_sipStatus >= 200 && sip_method_invite == sip->sip_cseq->cs_method ) {
-                if( m_timerC ) removeTimer(m_timerC, "timerC") ;
+                removeTimer(m_timerC, "timerC") ;
             }
 
             //determine whether to forward this response upstream
@@ -537,9 +551,9 @@ namespace drachtio {
     int ProxyCore::ClientTransaction::cancelRequest(msg_t* msg) {
 
         //cancel retransmission timers 
-        if( m_timerA ) removeTimer( m_timerA, "timerA" ) ;
-        if( m_timerB ) removeTimer( m_timerB, "timerB" ) ;
-        if( m_timerC ) removeTimer( m_timerC, "timerC" ) ;
+        removeTimer( m_timerA, "timerA" ) ;
+        removeTimer( m_timerB, "timerB" ) ;
+        removeTimer( m_timerC, "timerC" ) ;
 
         if( calling == m_state ) {
             DR_LOG(log_debug) << "cancelRequest - client request in CALLING state has not received a response so not sending CANCEL" ;
