@@ -1220,10 +1220,10 @@ namespace drachtio {
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
-        DR_LOG(log_debug) << "SipProxyController storage counts"  ;
-        DR_LOG(log_debug) << "----------------------------------"  ;
-        DR_LOG(log_debug) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
-        DR_LOG(log_debug) << "m_mapTxnId2Proxy size:                                           " << m_mapTxnId2Proxy.size()  ;
+        DR_LOG(log_info) << "SipProxyController storage counts"  ;
+        DR_LOG(log_info) << "----------------------------------"  ;
+        DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        DR_LOG(log_info) << "m_mapTxnId2Proxy size:                                           " << m_mapTxnId2Proxy.size()  ;
         m_pTQM->logQueueSizes() ;
     }
 
