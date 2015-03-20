@@ -766,6 +766,7 @@ namespace drachtio {
     }
     bool ProxyCore::processResponse(msg_t* msg, sip_t* sip) {
         bool handled = false ;
+        int status = sip->sip_status->st_status  ;
         vector< boost::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end() && !handled; ++it ) {
             boost::shared_ptr<ClientTransaction> pClient = *it ;
@@ -774,7 +775,7 @@ namespace drachtio {
             }
         }
         removeTerminated() ;
-        if( sip->sip_status->st_status > 200 ) startRequests() ;
+        if( status > 200 ) startRequests() ;
 
         if( m_searching && exhaustedAllTargets() ) {
             forwardBestResponse() ;
