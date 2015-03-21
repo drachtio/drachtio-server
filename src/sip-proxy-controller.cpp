@@ -780,6 +780,7 @@ namespace drachtio {
         if( m_searching && exhaustedAllTargets() ) {
             forwardBestResponse() ;
         }
+        DR_LOG(log_debug) << "ProxyCore::processResponse - done" ;
         return handled ;
     }
     bool ProxyCore::forwardPrack( msg_t* msg, sip_t* sip ) {
@@ -946,129 +947,7 @@ namespace drachtio {
             nta_msg_tsend( nta, msg, NULL, TAG_END() ) ;  
             return true ;          
         }
-/*
-        if( sip->sip_cseq->cs_method == sip_method_invite ) {
-            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
-            if( !p ) {
-                DR_LOG(log_error) << "SipProxyController::processResponse unknown call-id for response " <<  std::dec << sip->sip_status->st_status << 
-                    " " << sip->sip_call_id->i_id ;
-                return false ;
-            }
-            int status = sip->sip_status->st_status ;
-           
-            bool locallyCanceled = p->isCanceledBranch( sip->sip_via->v_branch ) ;
-            if( locallyCanceled ) {
-                DR_LOG(log_debug) << "Received final response to an INVITE that we canceled, generate ack" ;
-                assert( 487 == status ) ;
-                ackResponse( msg ) ;
-
-                Cdr::postCdr( boost::make_shared<CdrStop>( msg, "network", Cdr::call_canceled ) );                
-
-                msg_unref( msg ) ;
-
-                return true ;
-            }
-
-            p->setLastStatus( status ) ;
-
-            //clear timers, as appropriate 
-            clearTimerProvisional(p) ;
-            if( status >= 200 ) {
-                clearTimerFinal(p) ;
-            }
-
-            bool crankback = status > 200 && !isTerminatingResponse( status ) && p->hasMoreTargets() && !p->isCanceled() ;
-
-            //send response back to client
-            string encodedMessage ;
-            if( p->wantsFullResponse() ) {
-                EncodeStackMessage( sip, encodedMessage ) ;
-                SipMsgData_t meta(msg) ;
-                string s ;
-                meta.toMessageFormat(s) ;
-
-                string data = s + "|||continue" + CRLF + encodedMessage ; //no transaction id or dialog id
-
-                m_pController->getClientController()->route_api_response( p->getClientMsgId(), "OK", data ) ;   
-
-                if( status >= 200 && !crankback ) {
-                    m_pController->getClientController()->route_api_response( p->getClientMsgId(), "OK", "done" ) ;
-                 }             
-            }
-            if( 200 == status ) removeProxyByCallId( callId ) ;
-            
-            if( p->isStateful() && 100 == status ) {
-                msg_unref( msg ) ;
-                return true ;  //in stateful mode we've already sent a 100 Trying  
-            }
-
-            //follow a redirect response if we are configured to do so
-            if( status >= 300 && status < 399 && p->shouldFollowRedirects() && sip->sip_contact ) {
-                sip_contact_t* contact = sip->sip_contact ;
-                int i = 0 ;
-                vector<string>& vec = p->getDestinations() ;
-                for (sip_contact_t* m = sip->sip_contact; m; m = m->m_next, i++) {
-                    char buffer[URL_MAXLEN] = "" ;
-                    url_e(buffer, URL_MAXLEN, m->m_url) ;
-
-                    DR_LOG(log_debug) << "SipProxyController::processResponse -- adding contact from redirect response " << buffer ;
-                    vec.insert( vec.begin() + p->getCurrentOffset() + 1 + i, buffer ) ;
-                }
-                crankback = true ;
-            }
-
-            //write cdrs on the UAC side
-            if( 200 == status ) {
-                Cdr::postCdr( boost::make_shared<CdrStart>( msg, "network", Cdr::proxy_uac ), encodedMessage );                
-            }
-            else if( status > 200 ) {
-                Cdr::postCdr( boost::make_shared<CdrStop>( msg, "network",  
-                    487 == status ? Cdr::call_canceled : Cdr::call_rejected ), encodedMessage );
-            }
-
-            //don't send back to client if we are going to fork a new INVITE
-            if( crankback ) {
-                ackResponse( msg ) ;
-
-                DR_LOG(log_info) << "SipProxyController::processRequestWithoutRouteHeader - proxy crankback to attempt next destination " ;
-                proxyToTarget( p, p->getNextTarget() ) ;
-
-                msg_unref( msg ) ;
-
-                return true ;
-             }  
-        }
-        else if( sip->sip_cseq->cs_method == sip_method_cancel ) {
-            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
-            if( p && p->isCanceledBranch( sip->sip_via->v_branch ) ) {
-                DR_LOG(log_debug) << "Received response to our CANCEL, discarding" ;
-                msg_unref(msg) ;
-                return true ;
-            }
-        }
-   
-        int rc = nta_msg_tsend( m_pController->getAgent(), 
-            msg_ref(msg), 
-            NULL, 
-            TAG_END() ) ;
-        if( rc < 0 ) {
-            DR_LOG(log_error) << "SipProxyController::processResponse failed proxying response " << std::dec << sip->sip_status->st_status << 
-                " " << sip->sip_call_id->i_id << ": error " << rc ; 
-            msg_unref(msg) ;
-            return false ;            
-        }
-        if( sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status >= 200 ) {
-            //write cdrs on the UAS side
-            if( 200 == sip->sip_status->st_status ) {
-                Cdr::postCdr( boost::make_shared<CdrStart>( msg, "application", Cdr::proxy_uas ) );                
-            }
-            else if( sip->sip_status->st_status > 200 ) {
-                Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application",
-                    487 == sip->sip_status->st_status ? Cdr::call_canceled : Cdr::call_rejected ) );
-            }
-        }
-        msg_unref(msg) ;
-*/
+        DR_LOG(log_debug) << "SipProxyController::processResponse exiting " ;
         return true ;
     }
     bool SipProxyController::processRequestWithRouteHeader( msg_t* msg, sip_t* sip ) {
