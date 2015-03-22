@@ -986,7 +986,7 @@ namespace drachtio {
                                 NTATAG_S_TOUT_RESPONSE_REF(tout_response),
                            TAG_END()) ;
        
-       DR_LOG(log_debug) << "size of hash table for server-side transactions                  " << irq_hash  ;
+       DR_LOG(log_debug) << "size of hash table for server-side transactions                  " << dec << irq_hash  ;
        DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash  ;
        DR_LOG(log_info) << "size of hash table for dialogs                                   " << leg_hash  ;
        DR_LOG(log_info) << "number of server-side transactions in the hash table             " << irq_used  ;

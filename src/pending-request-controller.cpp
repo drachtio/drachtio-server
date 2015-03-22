@@ -85,11 +85,11 @@ namespace drachtio {
       EncodeStackMessage( sip, encodedMessage ) ;
       SipMsgData_t meta( msg ) ;
 
+      m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+
       m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
           encodedMessage, meta ) ) ;
       
-      m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
-
       transactionId = p->getTransactionId() ;
     }
     return 0 ;

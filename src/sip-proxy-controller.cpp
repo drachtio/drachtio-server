@@ -687,6 +687,7 @@ namespace drachtio {
         pClient->clearTimerB() ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
+        if( m_searching && exhaustedAllTargets() ) forwardBestResponse() ;
     }
     //final invite response timer
     void ProxyCore::timerC(boost::shared_ptr<ClientTransaction> pClient) {
@@ -702,6 +703,7 @@ namespace drachtio {
         m_pServerTransaction->generateResponse(408) ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
+        if( m_searching && exhaustedAllTargets() ) forwardBestResponse() ;
     }
     //completed state timer
     void ProxyCore::timerD(boost::shared_ptr<ClientTransaction> pClient) {
