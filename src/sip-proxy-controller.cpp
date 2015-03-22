@@ -1067,7 +1067,7 @@ namespace drachtio {
         m_mapTxnId2Proxy.erase( it2 ) ;
       }
       assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
-      DR_LOG(log_debug) << "SipProxyController::removeProxyByTransactionId - there are now " << m_mapCallId2Proxy.size() << " proxy instances" ;
+      DR_LOG(log_debug) << "SipProxyController::removeProxyByCallId - there are now " << m_mapCallId2Proxy.size() << " proxy instances" ;
       return p ;
     }
     void SipProxyController::removeProxy( boost::shared_ptr<ProxyCore> pCore ) {
@@ -1098,6 +1098,7 @@ namespace drachtio {
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;
       m_mapTxnId2Proxy.insert( mapTxnId2Proxy::value_type(p->getTransactionId(), p) ) ;   
+      assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
       return p ;         
     }
     void SipProxyController::logStorageCount(void)  {
