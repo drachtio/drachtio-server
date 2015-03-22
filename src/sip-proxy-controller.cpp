@@ -1092,7 +1092,7 @@ namespace drachtio {
 
       assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
       DR_LOG(log_debug) << "SipProxyController::addProxy - adding transaction id " << transactionId << ", call-id " << 
-        sip->sip_call_id->i_id << " before insert there are "<< m_mapCallId2Proxy << " proxy instances";
+        sip->sip_call_id->i_id << " before insert there are "<< m_mapCallId2Proxy.size() << " proxy instances";
 
       boost::shared_ptr<ProxyCore> p = boost::make_shared<ProxyCore>( clientMsgId, transactionId, tp, recordRoute, 
         fullResponse, simultaneous, headers ) ;
