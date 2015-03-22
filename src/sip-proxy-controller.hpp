@@ -99,6 +99,8 @@ namespace drachtio {
       void setState( State_t newState ) ;
       uint32_t getRSeq(void) { return m_rseq ;}
       const string& getTarget(void) { return m_target; }
+      const char* getCurrentStateName(void) { return getStateName(m_state);} ;
+
 
       bool processResponse( msg_t* msg, sip_t* sip ) ;
       

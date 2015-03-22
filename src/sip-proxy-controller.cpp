@@ -40,7 +40,7 @@ namespace drachtio {
 #include "pending-request-controller.hpp"
 #include "cdr.hpp"
 
-#define TIMER_C_MSECS (30 * 1000)
+#define TIMER_C_MSECS (185000)
 #define TIMER_B_MSECS (NTA_SIP_T1 * 64)
 #define TIMER_D_MSECS (32500)
 
@@ -300,6 +300,7 @@ namespace drachtio {
                 case terminated:
                     removeTimer( m_timerA, "timerA" ) ;
                     removeTimer( m_timerB, "timerB" ) ;
+                    removeTimer( m_timerC, "timerC" ) ;
                 break ;
 
                 default:
@@ -674,6 +675,7 @@ namespace drachtio {
 
     //retransmission timer
     void ProxyCore::timerA(boost::shared_ptr<ClientTransaction> pClient) {
+        DR_LOG(log_info) << "timer A fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerA() ;
         msg_t* msg = m_pServerTransaction->msgDup() ;
@@ -682,7 +684,7 @@ namespace drachtio {
     }
     //max retransmission timer
     void ProxyCore::timerB(boost::shared_ptr<ClientTransaction> pClient) {
-        DR_LOG(log_debug) << "timer B fired for a client transaction" ;
+        DR_LOG(log_info) << "timer B fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerB() ;
         pClient->setState( ClientTransaction::terminated ) ;
@@ -691,7 +693,7 @@ namespace drachtio {
     }
     //final invite response timer
     void ProxyCore::timerC(boost::shared_ptr<ClientTransaction> pClient) {
-        DR_LOG(log_debug) << "timer C fired for a client transaction" ;
+        DR_LOG(log_info) << "timer C fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::proceeding || 
              pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerC() ;
@@ -805,7 +807,7 @@ namespace drachtio {
         m_searching = false ;
         std::sort( m_vecClientTransactions.begin(), m_vecClientTransactions.end(), bestResponseOrder ) ;
         if( 0 == m_vecClientTransactions.size() || ClientTransaction::completed != m_vecClientTransactions.at(0)->getTransactionState() ) {
-            DR_LOG(log_debug) << "forwardBestResponse - sending 408 as there are no canidate final responses"  ;
+            DR_LOG(log_debug) << "forwardBestResponse - sending 408 as there are no candidate final responses"  ;
             m_pServerTransaction->generateResponse( 408 ) ;
         }
         else {
