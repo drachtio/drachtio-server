@@ -62,36 +62,29 @@ namespace drachtio {
 
   int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, string& transactionId ) {
     assert(sip->sip_request->rq_method != sip_method_invite || NULL == sip->sip_to->a_tag ) ; //new INVITEs only
-    if( isRetransmission( sip ) ) {
-      DR_LOG(log_info) << "processNewRequest - received retransmission of INVITE " << sip->sip_call_id->i_id  ;
 
-      nta_msg_discard(m_agent, msg) ;  //TODO: proxy in some cases ??
-      return -1 ;
+    client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
+    if( !client ) {
+      DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
+      generateUuid( transactionId ) ;
+      return 503 ;
     }
-    else {
 
-      client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
-      if( !client ) {
-        DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
-        generateUuid( transactionId ) ;
-        return 503 ;
-      }
+    boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
 
-      boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
+    msg_unref( msg ) ;  //our PendingRequest_t is now the holder of the message
 
-      msg_unref( msg ) ;  //our PendingRequest_t is now the holder of the message
+    string encodedMessage ;
+    EncodeStackMessage( sip, encodedMessage ) ;
+    SipMsgData_t meta( msg ) ;
 
-      string encodedMessage ;
-      EncodeStackMessage( sip, encodedMessage ) ;
-      SipMsgData_t meta( msg ) ;
+    m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
-      m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+    m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+        encodedMessage, meta ) ) ;
+    
+    transactionId = p->getTransactionId() ;
 
-      m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
-          encodedMessage, meta ) ) ;
-      
-      transactionId = p->getTransactionId() ;
-    }
     return 0 ;
   }
 

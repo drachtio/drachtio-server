@@ -259,6 +259,13 @@ namespace drachtio {
 
     void logStorageCount(void) ;
 
+    bool isRetransmission( sip_t* sip ) {
+      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( sip->sip_call_id->i_id ) ;   
+      return it != m_mapCallId2Proxy.end() ;
+    }
+
+
     boost::shared_ptr<TimerQueueManager> getTimerQueueManager(void) { return m_pTQM; }
 
     void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;

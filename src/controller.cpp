@@ -633,6 +633,14 @@ namespace drachtio {
                         case sip_method_notify:
                         case sip_method_subscribe:
                         {
+                            if( m_pPendingRequestController->isRetransmission( sip ) ||
+                                m_pProxyController->isRetransmission( sip ) ) {
+                            
+                                DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
+                                nta_msg_discard(m_nta, msg) ;  
+                                return -1 ;
+                            }
+
                             string transactionId ;
                             int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
 
@@ -652,7 +660,7 @@ namespace drachtio {
                                     Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                                 }
                                 msg_unref(reply) ;
-                                return false ;                    
+                                return -1 ;                    
                             }
                         }
                         break ;
