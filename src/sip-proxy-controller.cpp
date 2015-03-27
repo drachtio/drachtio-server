@@ -843,6 +843,7 @@ namespace drachtio {
         const vector<string>& vecDestinations, const string& headers )  {
 
         DR_LOG(log_debug) << "SipProxyController::proxyRequest - transactionId: " << transactionId ;
+        /*
         boost::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
         if( !p) {
             string failMsg = "Unknown transaction id: " + transactionId ;
@@ -854,7 +855,8 @@ namespace drachtio {
             addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), recordRoute, fullResponse, followRedirects, 
                 simultaneous, provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
         }
-
+        */
+       
         su_msg_r m = SU_MSG_R_INIT ;
         int rv = su_msg_create( m, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneProxy, sizeof( SipProxyController::ProxyData ) );
         if( rv < 0 ) {
@@ -864,7 +866,8 @@ namespace drachtio {
         void* place = su_msg_data( m ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        ProxyData* msgData = new(place) ProxyData( clientMsgId, transactionId ) ;
+        ProxyData* msgData = new(place) ProxyData( clientMsgId, transactionId, recordRoute, fullResponse, followRedirects, 
+            simultaneous, provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
         rv = su_msg_send(m);  
         if( rv < 0 ) {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", "Internal server error sending message") ;
@@ -875,15 +878,31 @@ namespace drachtio {
     } 
     void SipProxyController::doProxy( ProxyData* pData ) {
         string transactionId = pData->getTransactionId()  ;
-        DR_LOG(log_debug) << "SipProxyController::doProxy - transactionId: " <<transactionId ;
+        string clientMsgId = pData->getClientMsgId() ;
 
-        boost::shared_ptr<ProxyCore> p = getProxyByTransactionId( transactionId ) ;
-        if( !p ) {
-            m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", "transaction id no longer exists") ;
+        DR_LOG(log_debug) << "SipProxyController::doProxy - transactionId: " << transactionId << " clientMsgId: " << clientMsgId ;
+
+        boost::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
+        if( !p) {
+            string failMsg = "Unknown transaction id: " + transactionId ;
+            DR_LOG(log_error) << "SipProxyController::proxyRequest - " << failMsg;  
+            m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
         }
         else {
+            vector<string> vecDestination ;
+            pData->getDestinations( vecDestination ) ;
+            boost::shared_ptr<ProxyCore> pCore = addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), pData->getRecordRoute(), 
+                pData->getFullResponse(), pData->getFollowRedirects(), pData->getSimultaneous(), pData->getProvisionalTimeout(), 
+                pData->getFinalTimeout(), vecDestination, pData->getHeaders() ) ;
 
-            msg_t* msg = p->msg() ;
+
+            //boost::shared_ptr<ProxyCore> p = getProxyByTransactionId( transactionId ) ;
+            //if( !p ) {
+            //    m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", "transaction id no longer exists") ;
+            //}
+            //else {
+
+            msg_t* msg = p->getMsg() ;
             sip_t* sip = sip_object(msg);
 
             if( sip->sip_max_forwards && sip->sip_max_forwards->mf_count <= 0 ) {
@@ -894,14 +913,14 @@ namespace drachtio {
                 msg_t* reply = nta_msg_create(nta, 0) ;
                 msg_ref(reply) ;
                 nta_msg_mreply( nta, reply, sip_object(reply), SIP_483_TOO_MANY_HOPS, 
-                    msg_ref(p->msg()), //because it will lose a ref in here
+                    msg_ref(msg), //because it will lose a ref in here
                     TAG_END() ) ;
 
                 Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
 
                 msg_unref(reply) ;
 
-                removeProxyByTransactionId( transactionId )  ;
+                removeProxy( pCore )  ;
                 pData->~ProxyData() ; 
                 return ;
             }
@@ -909,7 +928,7 @@ namespace drachtio {
             //stateful proxy sends 100 Trying
             nta_msg_treply( m_agent, msg_dup(msg), 100, NULL, TAG_END() ) ;                
  
-            int clients = p->startRequests() ;
+            int clients = pCore->startRequests() ;
 
             //check to make sure we got at least one request out
             if( 0 == clients ) {
@@ -919,20 +938,20 @@ namespace drachtio {
                 msg_t* reply = nta_msg_create(nta, 0) ;
                 msg_ref(reply) ;
                 nta_msg_mreply( nta, reply, sip_object(reply), 500, NULL, 
-                    msg_ref(p->msg()), //because it will lose a ref in here
+                    msg_ref(msg), //because it will lose a ref in here
                     TAG_END() ) ;
 
                 Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
 
                 msg_unref(reply) ;
 
-                removeProxyByTransactionId( transactionId ) ;
+                removeProxy( pCore ) ;
              }
-            else if( !p->wantsFullResponse() ) {
-                m_pController->getClientController()->route_api_response( p->getClientMsgId(), "OK", "done" ) ;
+            else if( !pCore->wantsFullResponse() ) {
+                m_pController->getClientController()->route_api_response( clientMsgId, "OK", "done" ) ;
             }
+//          }
         }
-
         //N.B.: we must explicitly call the destructor of an object allocated with placement new
         pData->~ProxyData() ; 
 
@@ -1019,7 +1038,8 @@ namespace drachtio {
         bool bRetransmission = p->isRetransmission( sip ) ;
 
         if( bRetransmission ) {
-            DR_LOG(log_debug) << "Discarding retransmitted message since we are a stateful proxy" ;
+            DR_LOG(log_info) << "Discarding retransmitted message since we are a stateful proxy " << 
+                sip->sip_request->rq_method_name << " " << sip->sip_call_id->i_id ;
             nta_msg_discard( nta, msg ) ;
             return false ;
         }
@@ -1040,21 +1060,6 @@ namespace drachtio {
       return it != m_mapCallId2Proxy.end() ;
     }
 
-    boost::shared_ptr<ProxyCore> SipProxyController::removeProxyByTransactionId( const string& transactionId ) {
-      boost::shared_ptr<ProxyCore> p ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapTxnId2Proxy::iterator it = m_mapTxnId2Proxy.find( transactionId ) ;
-      if( it != m_mapTxnId2Proxy.end() ) {
-        p = it->second ;
-        m_mapTxnId2Proxy.erase(it) ;
-        mapCallId2Proxy::iterator it2 = m_mapCallId2Proxy.find( sip_object( p->msg() )->sip_call_id->i_id ) ;
-        assert( it2 != m_mapCallId2Proxy.end()) ;
-        m_mapCallId2Proxy.erase( it2 ) ;
-      }
-      assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
-      DR_LOG(log_debug) << "SipProxyController::removeProxyByTransactionId - there are now " << m_mapTxnId2Proxy.size() << " proxy instances" ;
-      return p ;
-    }
     boost::shared_ptr<ProxyCore> SipProxyController::removeProxyByCallId( const string& callId ) {
       boost::shared_ptr<ProxyCore> p ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
@@ -1062,11 +1067,7 @@ namespace drachtio {
       if( it != m_mapCallId2Proxy.end() ) {
         p = it->second ;
         m_mapCallId2Proxy.erase(it) ;
-        mapTxnId2Proxy::iterator it2 = m_mapTxnId2Proxy.find( p->getTransactionId() ) ;
-        assert( it2 != m_mapTxnId2Proxy.end()) ;
-        m_mapTxnId2Proxy.erase( it2 ) ;
       }
-      assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
       DR_LOG(log_debug) << "SipProxyController::removeProxyByCallId - there are now " << m_mapCallId2Proxy.size() << " proxy instances" ;
       return p ;
     }
@@ -1090,7 +1091,6 @@ namespace drachtio {
         bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string> vecDestination, 
         const string& headers ) {
 
-      assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
       DR_LOG(log_debug) << "SipProxyController::addProxy - adding transaction id " << transactionId << ", call-id " << 
         sip->sip_call_id->i_id << " before insert there are "<< m_mapCallId2Proxy.size() << " proxy instances";
 
@@ -1101,8 +1101,6 @@ namespace drachtio {
       
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;
-      m_mapTxnId2Proxy.insert( mapTxnId2Proxy::value_type(p->getTransactionId(), p) ) ;   
-      assert( m_mapTxnId2Proxy.size() == m_mapCallId2Proxy.size() );
       return p ;         
     }
     void SipProxyController::logStorageCount(void)  {
@@ -1111,7 +1109,6 @@ namespace drachtio {
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;
         DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
-        DR_LOG(log_info) << "m_mapTxnId2Proxy size:                                           " << m_mapTxnId2Proxy.size()  ;
         m_pTQM->logQueueSizes() ;
     }
 

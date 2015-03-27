@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/foreach.hpp>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/sip.h>
@@ -36,6 +37,10 @@ THE SOFTWARE.
 #include "pending-request-controller.hpp"
 #include "timer-queue.hpp"
 #include "timer-queue-manager.hpp"
+
+#define URI_LEN (256)
+#define MAX_DESTINATIONS (10)
+#define HDR_STR_LEN (1024)
 
 namespace drachtio {
 
@@ -225,24 +230,75 @@ namespace drachtio {
       ProxyData() {
         memset(m_szClientMsgId, 0, sizeof(m_szClientMsgId) ) ;
         memset(m_szTransactionId, 0, sizeof(m_szTransactionId) ) ;
+        memset(m_szProvisionalTimeout, 0, sizeof(m_szProvisionalTimeout)) ;
+        memset(m_szFinalTimeout, 0, sizeof(m_szFinalTimeout)) ;
+        memset(m_szDestination, 0, MAX_DESTINATIONS * URI_LEN) ;
+        memset(m_szHeaders, 0, sizeof(m_szHeaders)) ;
+        m_bRecordRoute = m_bFullResponse = m_bSimultaneous = m_bFollowRedirects = false ;
       }
-      ProxyData(const string& clientMsgId, const string& transactionId ) {
-        strncpy( m_szClientMsgId, clientMsgId.c_str(), MSG_ID_LEN ) ;
-        strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
+      ProxyData(const string& clientMsgId, const string& transactionId, bool recordRoute, 
+        bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, 
+        const vector<string>& vecDestinations, const string& headers ) {
+
+        strncpy( m_szClientMsgId, clientMsgId.c_str(), MSG_ID_LEN - 1) ;
+        strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN -1 ) ;
+        m_bRecordRoute = recordRoute ;
+        m_bFullResponse = fullResponse ;
+        m_bFollowRedirects = followRedirects ;
+        m_bSimultaneous = simultaneous ;
+        strncpy( m_szProvisionalTimeout, provisionalTimeout.c_str(), 15) ;
+        strncpy( m_szFinalTimeout, finalTimeout.c_str(), 15) ;
+        strncpy( m_szHeaders, headers.c_str(), HDR_STR_LEN - 1) ;
+        int i = 0 ;
+        BOOST_FOREACH( const string& dest, vecDestinations ) {
+          strncpy( m_szDestination[i++], dest.c_str(), URI_LEN - 1) ;
+        }
        }
       ~ProxyData() {}
       ProxyData& operator=(const ProxyData& md) {
         strncpy( m_szClientMsgId, md.m_szClientMsgId, MSG_ID_LEN) ;
         strncpy( m_szTransactionId, md.m_szTransactionId, MSG_ID_LEN) ;
+        m_bRecordRoute = md.m_bRecordRoute ;
+        m_bFullResponse = md.m_bFullResponse ;
+        m_bFollowRedirects = md.m_bFollowRedirects ;
+        m_bSimultaneous = md.m_bSimultaneous ;
+        strncpy( m_szProvisionalTimeout, md.m_szProvisionalTimeout, 15) ;
+        strncpy( m_szFinalTimeout, md.m_szFinalTimeout, 15) ;
+        strncpy( m_szHeaders, md.m_szHeaders, HDR_STR_LEN - 1) ;
+        memset(m_szDestination, 0, MAX_DESTINATIONS * URI_LEN) ;
+        for( int i = 0; i < MAX_DESTINATIONS && *md.m_szDestination[i]; i++ ) {
+          strcpy( m_szDestination[i], md.m_szDestination[i] ) ;
+        }
         return *this ;
       }
 
       const char* getClientMsgId() { return m_szClientMsgId; } 
       const char* getTransactionId() { return m_szTransactionId; } 
+      bool getRecordRoute() { return m_bRecordRoute;}
+      bool getFullResponse() { return m_bFullResponse;}
+      bool getFollowRedirects() { return m_bFollowRedirects;}
+      bool getSimultaneous() { return m_bSimultaneous;}
+      const char* getProvisionalTimeout() { return m_szProvisionalTimeout;}
+      const char* getFinalTimeout() { return m_szFinalTimeout;}
+      void getDestinations( vector<string>& vecDestination ) {
+        vecDestination.clear() ;
+        for( int i = 0; i < MAX_DESTINATIONS && *m_szDestination[i]; i++ ) {
+          vecDestination.push_back( m_szDestination[i] ) ;
+        }
+      }
+      const char* getHeaders() { return m_szHeaders;}
 
     private:
       char  m_szClientMsgId[MSG_ID_LEN];
       char  m_szTransactionId[MSG_ID_LEN];
+      bool  m_bRecordRoute ;
+      bool  m_bFullResponse ;
+      bool  m_bFollowRedirects ;
+      bool  m_bSimultaneous ;
+      char  m_szProvisionalTimeout[16] ;
+      char  m_szFinalTimeout[16] ;
+      char  m_szDestination[MAX_DESTINATIONS][URI_LEN] ;
+      char  m_szHeaders[HDR_STR_LEN] ;
     } ;
 
     void proxyRequest( const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
@@ -282,15 +338,6 @@ namespace drachtio {
       bool recordRoute, bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, 
       const string& finalTimeout, vector<string> vecDestination, const string& headers ) ;
 
-    boost::shared_ptr<ProxyCore> getProxyByTransactionId( const string& transactionId ) {
-      boost::shared_ptr<ProxyCore> p ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapTxnId2Proxy::iterator it = m_mapTxnId2Proxy.find( transactionId ) ;
-      if( it != m_mapTxnId2Proxy.end() ) {
-        p = it->second ;
-      }
-      return p ;
-    }
     boost::shared_ptr<ProxyCore> getProxyByCallId( const string& callId ) {
       boost::shared_ptr<ProxyCore> p ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
@@ -300,7 +347,6 @@ namespace drachtio {
       }
       return p ;
     }
-    boost::shared_ptr<ProxyCore> removeProxyByTransactionId( const string& transactionId );
     boost::shared_ptr<ProxyCore> removeProxyByCallId( const string& callId );
 
     bool isTerminatingResponse( int status ) ;
@@ -314,9 +360,6 @@ namespace drachtio {
     boost::mutex    m_mutex ;
 
     boost::shared_ptr<TimerQueueManager> m_pTQM ;
-
-    typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapTxnId2Proxy ;
-    mapTxnId2Proxy m_mapTxnId2Proxy ;
 
     typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapCallId2Proxy ;
     mapCallId2Proxy m_mapCallId2Proxy ;
