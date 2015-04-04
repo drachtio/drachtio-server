@@ -217,7 +217,7 @@ namespace drachtio {
     ProxyCore::ClientTransaction::ClientTransaction(boost::shared_ptr<ProxyCore> pCore, 
         boost::shared_ptr<TimerQueueManager> pTQM,  const string& target) : 
         m_pCore(pCore), m_target(target), m_canceled(false), m_sipStatus(0),
-        m_timerA(NULL), m_timerB(NULL), m_timerC(NULL), m_timerD(NULL), m_msgFinal(NULL),
+        m_timerA(NULL), m_timerB(NULL), m_timerC(NULL), m_timerD(NULL), m_timerProvisional(NULL), m_msgFinal(NULL),
         m_transmitCount(0), m_method(sip_method_unknown), m_state(not_started), m_pTQM(pTQM) {
 
         string random ;
@@ -230,6 +230,7 @@ namespace drachtio {
         removeTimer( m_timerB, "timerB" ) ;
         removeTimer( m_timerC, "timerC" ) ;
         removeTimer( m_timerD, "timerD" ) ;
+        removeTimer( m_timerProvisional, "timerProvisional" ) ;
 
         if( m_msgFinal ) msg_unref( m_msgFinal ) ;
     }
@@ -277,16 +278,24 @@ namespace drachtio {
                     //timer C - timeout to wait for final response before returning 408 Request Timeout. 
                     m_timerC = m_pTQM->addTimer("timerC", 
                         boost::bind(&ProxyCore::timerC, pCore, shared_from_this()), NULL, TIMER_C_MSECS ) ;
+
+                    if( pCore->getProvisionalTimeout() > 0 ) {
+                        m_timerProvisional = m_pTQM->addTimer("timerProvisional", 
+                            boost::bind(&ProxyCore::timerProvisional, pCore, shared_from_this()), NULL, pCore->getProvisionalTimeout() ) ;
+                    }
                 break ;
 
                 case proceeding:
                     removeTimer( m_timerA, "timerA" ) ;
                     removeTimer( m_timerB, "timerB" ) ;
+                    removeTimer( m_timerProvisional, "timerProvisional" ) ;
                 break; 
 
                 case completed:
                     removeTimer( m_timerA, "timerA" ) ;
                     removeTimer( m_timerB, "timerB" ) ;
+                    removeTimer( m_timerC, "timerC" ) ;
+                    removeTimer( m_timerProvisional, "timerProvisional" ) ;
 
                     //timer D - timeout when transaction can move from completed state to terminated
                     //note: in the case of a late-arriving provisional response after we've decided to cancel an invite, 
@@ -301,6 +310,7 @@ namespace drachtio {
                     removeTimer( m_timerA, "timerA" ) ;
                     removeTimer( m_timerB, "timerB" ) ;
                     removeTimer( m_timerC, "timerC" ) ;
+                    removeTimer( m_timerProvisional, "timerProvisional" ) ;
                 break ;
 
                 default:
@@ -627,7 +637,7 @@ namespace drachtio {
         bool fullResponse, bool simultaneous, const string& headers ) : 
         m_clientMsgId(clientMsgId), m_transactionId(transactionId), m_tp(tp), m_canceled(false), m_headers(headers),
         m_fullResponse(fullResponse), m_bRecordRoute(recordRoute), m_launchType(simultaneous ? ProxyCore::simultaneous : ProxyCore::serial), 
-        m_searching(true) {
+        m_searching(true), m_nProvisionalTimeout(0) {
     }
     ProxyCore::~ProxyCore() {
         DR_LOG(log_debug) << "ProxyCore::~ProxyCore" ;
@@ -668,6 +678,21 @@ namespace drachtio {
         assert( m_vecClientTransactions.end() != it ) ;
 
         m_vecClientTransactions.insert( ++it, vecClientTransactions.begin(), vecClientTransactions.end() ) ;
+    }
+    void ProxyCore::setProvisionalTimeout(const string& t ) {
+        boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
+        boost::smatch mr;
+        if( boost::regex_search( t, mr, e ) ) {
+            string s = mr[1] ;
+            m_nProvisionalTimeout = ::atoi( s.c_str() ) ;
+            if( 0 == mr[2].compare("s") ) {
+                m_nProvisionalTimeout *= 1000 ;
+            }
+            DR_LOG(log_debug) << "provisional timeout is " << m_nProvisionalTimeout << "ms" ;
+        }
+        else if( t.length() > 0 ) {
+            DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
+        }        
     }
 
     //timer functions
@@ -714,6 +739,16 @@ namespace drachtio {
         pClient->clearTimerD() ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
+    }
+    void ProxyCore::timerProvisional( boost::shared_ptr<ClientTransaction> pClient ) {
+        DR_LOG(log_info) << "timer Provisional fired for a client transaction in " << pClient->getCurrentStateName() ;
+        assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
+        pClient->clearTimerProvisional() ;
+        m_canceled = true ;        
+        pClient->setState( ClientTransaction::completed ) ;
+        removeTerminated() ;
+        startRequests() ;
+        if( m_searching && exhaustedAllTargets() ) forwardBestResponse() ;
     }
 
     int ProxyCore::startRequests() {
@@ -843,19 +878,6 @@ namespace drachtio {
         const vector<string>& vecDestinations, const string& headers )  {
 
         DR_LOG(log_debug) << "SipProxyController::proxyRequest - transactionId: " << transactionId ;
-        /*
-        boost::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
-        if( !p) {
-            string failMsg = "Unknown transaction id: " + transactionId ;
-            DR_LOG(log_error) << "SipProxyController::proxyRequest - " << failMsg;  
-            m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
-            return ;
-        }
-        else {
-            addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), recordRoute, fullResponse, followRedirects, 
-                simultaneous, provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
-        }
-        */
        
         su_msg_r m = SU_MSG_R_INIT ;
         int rv = su_msg_create( m, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneProxy, sizeof( SipProxyController::ProxyData ) );
@@ -894,13 +916,6 @@ namespace drachtio {
             boost::shared_ptr<ProxyCore> pCore = addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), pData->getRecordRoute(), 
                 pData->getFullResponse(), pData->getFollowRedirects(), pData->getSimultaneous(), pData->getProvisionalTimeout(), 
                 pData->getFinalTimeout(), vecDestination, pData->getHeaders() ) ;
-
-
-            //boost::shared_ptr<ProxyCore> p = getProxyByTransactionId( transactionId ) ;
-            //if( !p ) {
-            //    m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", "transaction id no longer exists") ;
-            //}
-            //else {
 
             msg_t* msg = p->getMsg() ;
             sip_t* sip = sip_object(msg);
@@ -1098,6 +1113,7 @@ namespace drachtio {
         fullResponse, simultaneous, headers ) ;
       p->shouldFollowRedirects( followRedirects ) ;
       p->initializeTransactions( msg, vecDestination ) ;
+      if( !provisionalTimeout.empty() ) p->setProvisionalTimeout( provisionalTimeout ) ;
       
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;

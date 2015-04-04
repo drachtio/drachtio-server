@@ -118,6 +118,7 @@ namespace drachtio {
       void clearTimerB(void) { m_timerB = NULL;}
       void clearTimerC(void) { m_timerC = NULL;}
       void clearTimerD(void) { m_timerD = NULL;}
+      void clearTimerProvisional(void) { m_timerProvisional = NULL;}
 
     protected:
       void writeCdr( msg_t* msg, sip_t* sip ) ;
@@ -143,6 +144,7 @@ namespace drachtio {
       TimerEventHandle  m_timerB ;
       TimerEventHandle  m_timerC ;
       TimerEventHandle  m_timerD ;
+      TimerEventHandle  m_timerProvisional ;
     } ;
 
     enum LaunchType_t {
@@ -174,6 +176,7 @@ namespace drachtio {
     void timerB( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerC( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerD( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerProvisional( boost::shared_ptr<ClientTransaction> pClient ) ;
 
     const char* getCallId(void) { return sip_object( m_pServerTransaction->msg() )->sip_call_id->i_id; }
     const char* getMethodName(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method_name; }
@@ -197,6 +200,9 @@ namespace drachtio {
     void addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
       boost::shared_ptr<ClientTransaction> pClient ) ;
 
+    unsigned int getProvisionalTimeout(void) { return m_nProvisionalTimeout; }
+    void setProvisionalTimeout(const string& t ) ;
+
   protected:
     bool exhaustedAllTargets(void) ;
     void forwardBestResponse(void) ;
@@ -209,6 +215,8 @@ namespace drachtio {
 
     bool m_canceled ;
     bool m_searching ;
+
+    uint32_t m_nProvisionalTimeout ;
     
     boost::shared_ptr<ServerTransaction> m_pServerTransaction ;
     vector< boost::shared_ptr<ClientTransaction> > m_vecClientTransactions ;
