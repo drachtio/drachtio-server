@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_INIT(drachtio, 1.0, daveh@beachdognet.com)
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_SRCDIR([src/main.cpp])
 AC_CONFIG_HEADER([config.h])
 

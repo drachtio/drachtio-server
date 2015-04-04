@@ -7,14 +7,12 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based applicatio
 ## Building
 
 ```
-git clone https://github.com/davehorton/drachtio-server.git
-cd drachtio-server
-git submodule init
-git submodule update
+git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+git submodule update --init --recursive
 autoreconf -fvi 
-mkdir build 
-cd build 
-../configure 
+mkdir build && cd $_
+../configure CPPFLAGS='-DNDEBUG'
 make
 sudo make install
 ```

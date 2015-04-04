@@ -24,18 +24,17 @@
     <!-- logging configuration -->
     <logging>
 
-        <!-- all logging is done via syslog.  Logging can be sent to local host or remote, depending on configuration below -->
         <!--
         <syslog>
-            <address>ec2-54-86-228-3.compute-1.amazonaws.com</address>
+            <address>my.syslog.serve</address>
             <port>514</port>
             <facility>local6</facility>
         </syslog>
-    -->
+        -->
 
         <file>
-            <name>/Users/dhorton/tmp/drachtioLogs/file_%5N.log</name>
-            <archive>/Users/dhorton/tmp/drachtioLogs/archive</archive>
+            <name>/tmp/drachtioLogs/file_%5N.log</name>
+            <archive>/tmp/drachtioLogs/archive</archive>
             <size>5</size>
             <auto-flush>true</auto-flush>
         </file>
