@@ -1,6 +1,6 @@
 [submodule "deps/sofia-sip"]
         path = deps/sofia-sip
-        url = git@github.com:davehorton/sofia-sip.git
+        url = https://github.com/davehorton/sofia-sip.git
 [submodule "deps/redisclient"]
         path = deps/redisclient
-        url = git@github.com:davehorton/redisclient.git
+        url = https://github.com/davehorton/redisclient.git
