@@ -197,7 +197,7 @@ namespace drachtio {
         
         logging::add_common_attributes();
 
-        m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str() ) ;
+        m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
 
         if( !m_Config->isValid() ) {
             exit(-1) ;

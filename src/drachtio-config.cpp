@@ -39,7 +39,7 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename) : m_bIsValid(false), m_adminPort(0), m_redisPort(0) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), m_bDaemon(isDaemonized) {
             try {
                 std::filebuf fb;
                 if( !fb.open (szFilename,std::ios::in) ) {
@@ -74,12 +74,12 @@ namespace drachtio {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
                     m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
                     m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
-                    if( !theOneAndOnlyController->isDaemonized() ) {
+                    if( !m_bDaemon ) {
                         cout << "logging to syslog at " << m_syslogAddress << ":" << m_sysLogPort << ", using facility " 
                             << m_syslogFacility << endl ;
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !theOneAndOnlyController->isDaemonized() ) {
+                    if( !m_bDaemon ) {
                         cout << "syslog logging not enabled" << endl ;
                     }
                 }
@@ -89,12 +89,12 @@ namespace drachtio {
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
                     m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
-                    if( !theOneAndOnlyController->isDaemonized() ) {
+                    if( !m_bDaemon ) {
                         cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
                             << ",, rotatation size: " << m_rotationSize << "MB " << endl ; 
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !theOneAndOnlyController->isDaemonized() ) {
+                    if( !m_bDaemon ) {
                         cout << "text file logging not enabled" << endl ;
                     }
                 }
@@ -118,11 +118,11 @@ namespace drachtio {
                 try {
                     m_redisAddress = pt.get<string>("drachtio.redis.address") ;
                     m_redisPort = pt.get<unsigned int>("drachtio.redis.port", 6379) ;
-                    if( !theOneAndOnlyController->isDaemonized() ) {
+                    if( !m_bDaemon ) {
                         cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !theOneAndOnlyController->isDaemonized() ) {
+                    if( !m_bDaemon ) {
                        cout << "redis not enabled" << endl ;
                     }
                 }
@@ -238,12 +238,13 @@ namespace drachtio {
         string m_redisAddress ;
         unsigned int m_redisPort ;
         bool m_bGenerateCdrs ;
+        bool m_bDaemon;
   } ;
     
     /*
      Public interface
     */
-    DrachtioConfig::DrachtioConfig( const char* szFilename ) : m_pimpl( new Impl(szFilename) ) {
+    DrachtioConfig::DrachtioConfig( const char* szFilename, bool isDaemonized ) : m_pimpl( new Impl(szFilename, isDaemonized) ) {
     }
     
     DrachtioConfig::~DrachtioConfig() {

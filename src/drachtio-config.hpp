@@ -35,7 +35,7 @@ namespace drachtio {
     
     class DrachtioConfig : private boost::noncopyable {
     public:
-        DrachtioConfig( const char* szFilename ) ;
+        DrachtioConfig( const char* szFilename, bool isDaemonized = true ) ;
         ~DrachtioConfig() ;
         
         bool isValid() ;
