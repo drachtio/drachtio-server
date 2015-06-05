@@ -74,10 +74,14 @@ namespace drachtio {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
                     m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
                     m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
-                    cout << "logging to syslog at " << m_syslogAddress << ":" << m_sysLogPort << ", using facility " 
-                        << m_syslogFacility << endl ;
+                    if( !theOneAndOnlyController->isDaemonized() ) {
+                        cout << "logging to syslog at " << m_syslogAddress << ":" << m_sysLogPort << ", using facility " 
+                            << m_syslogFacility << endl ;
+                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    cout << "syslog logging not enabled" << endl ;
+                    if( !theOneAndOnlyController->isDaemonized() ) {
+                        cout << "syslog logging not enabled" << endl ;
+                    }
                 }
 
                 try {
@@ -85,14 +89,19 @@ namespace drachtio {
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
                     m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
-                    cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
-                        << ",, rotatation size: " << m_rotationSize << "MB " << endl ; 
+                    if( !theOneAndOnlyController->isDaemonized() ) {
+                        cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
+                            << ",, rotatation size: " << m_rotationSize << "MB " << endl ; 
+                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    cout << "text file logging not enabled" << endl ;
+                    if( !theOneAndOnlyController->isDaemonized() ) {
+                        cout << "text file logging not enabled" << endl ;
+                    }
                 }
 
                 if( 0 == m_logFileName.length() && 0 == m_syslogAddress.length() ) {
-                    cerr << "Continuing without either syslog or text file logging configured; this is not a recommended configuration" << endl ;
+                    cerr << "You must configure either syslog or text file logging " << endl ;
+                    return ;
                 }
                 else {
                     string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
@@ -109,9 +118,13 @@ namespace drachtio {
                 try {
                     m_redisAddress = pt.get<string>("drachtio.redis.address") ;
                     m_redisPort = pt.get<unsigned int>("drachtio.redis.port", 6379) ;
-                    cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
+                    if( !theOneAndOnlyController->isDaemonized() ) {
+                        cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
+                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    cout << "redis not enabled" << endl ;
+                    if( !theOneAndOnlyController->isDaemonized() ) {
+                       cout << "redis not enabled" << endl ;
+                    }
                 }
 
                 string cdrs = pt.get<string>("drachtio.cdrs", "") ;

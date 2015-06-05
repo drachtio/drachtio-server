@@ -347,10 +347,6 @@ namespace drachtio {
                     cerr << "Error setting userid to user " << m_user << ": " << errno  ;
                 }
             }
-            
-            
-            
-            
         }
         /* Change the file mode mask */
         umask(0);

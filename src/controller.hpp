@@ -160,6 +160,8 @@ namespace drachtio {
                 void setLastSentStackMessage(shared_ptr<StackMsg> msg) { m_lastSentMsg = msg; }
                 void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
+                bool isDaemonized(void) { return m_bDaemonize; }
+
 	private:
         	DrachtioController() ;
 
