@@ -536,7 +536,7 @@ namespace drachtio {
                 string data = s + "|||continue" + CRLF + encodedMessage ; 
 
                 theOneAndOnlyController->getClientController()->route_api_response( pCore->getClientMsgId(), "OK", data ) ;   
-                if( m_sipStatus >= 200 && m_sipStatus <= 299 ) {
+                if( (m_sipStatus >= 200 && m_sipStatus <= 299) || (pCore->isCanceled() && pCore->exhaustedAllTargets() ) ) {
                     theOneAndOnlyController->getClientController()->route_api_response( pCore->getClientMsgId(), "OK", "done" ) ;
                  }             
             }
@@ -1066,7 +1066,8 @@ namespace drachtio {
         p->generateResponse( 487 ) ;   //487 to INVITE
 
         p->cancelOutstandingRequests() ;
-    
+        p->setCanceled(true) ;
+   
         return true ;
     }
     bool SipProxyController::isProxyingRequest( msg_t* msg, sip_t* sip )  {
