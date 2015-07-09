@@ -1062,12 +1062,13 @@ namespace drachtio {
         //I think we only expect a CANCEL to come through here
         assert( sip_method_cancel == sip->sip_request->rq_method ) ;
 
+        p->setCanceled(true) ;
+
         nta_msg_treply( nta, msg, 200, NULL, TAG_END() ) ;  //200 OK to the CANCEL
         p->generateResponse( 487 ) ;   //487 to INVITE
 
         p->cancelOutstandingRequests() ;
-        p->setCanceled(true) ;
-   
+
         return true ;
     }
     bool SipProxyController::isProxyingRequest( msg_t* msg, sip_t* sip )  {
