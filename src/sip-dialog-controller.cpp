@@ -31,6 +31,7 @@ namespace drachtio {
 #define NTA_RELIABLE_MAGIC_T drachtio::SipDialogController
 
 #include "controller.hpp"
+#include "cdr.hpp"
 #include "sip-dialog-controller.hpp"
 
 namespace {
@@ -714,6 +715,10 @@ namespace drachtio {
             string data = s + "|" + transactionId + "|" + dialogId + "|" + "|Msg sent:|" + CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( clientMsgId, "OK", data) ;
+
+            if( iip && code >= 300 ) {
+                Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
+            }
         }
         else {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
@@ -913,11 +918,11 @@ namespace drachtio {
     }
 
     int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
-        DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name  ;
         if( !sip ) {
             DR_LOG(log_debug) << "SipDialogController::processCancel called with null sip pointer"  ;
             return -1 ;
         }
+        DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name  ;
         string transactionId ;
         generateUuid( transactionId ) ;
 
