@@ -62,6 +62,8 @@ namespace drachtio {
       void proxyResponse( msg_t* msg ) ;
 
       bool isCanceled(void) { return m_canceled; }
+      void setCanceled(bool b) { m_canceled = b;}
+
       int getSipStatus(void) { return m_sipStatus ;}
 
       bool isRetransmission(sip_t* sip) ;
@@ -182,6 +184,10 @@ namespace drachtio {
     const char* getMethodName(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method_name; }
 
     void cancelOutstandingRequests(void) ;
+    void setCanceled(bool b) {     
+        m_canceled = true ;
+        m_pServerTransaction->setCanceled(true) ;
+    }
     const string& getClientMsgId() { return m_clientMsgId; }
     const string& getTransactionId() ;
     tport_t* getTport() ;
@@ -190,7 +196,7 @@ namespace drachtio {
     const string& getHeaders(void) { return m_headers; }
 
     bool isCanceled(void) { return m_canceled; }
-    void setCanceled(void) { m_canceled = true; }
+
     bool shouldFollowRedirects(void) { return m_bFollowRedirects; }
     void shouldFollowRedirects(bool bValue) { m_bFollowRedirects = bValue;}
 
