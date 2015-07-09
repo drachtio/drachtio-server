@@ -332,10 +332,13 @@ namespace drachtio {
     bool ClientController::route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) {
        client_ptr client = this->findClientForApiRequest( clientMsgId );
         if( !client ) {
+            removeApiRequest( clientMsgId ) ;
             DR_LOG(log_warning) << "ClientController::route_api_response - client that has sent the request has disconnected: " << clientMsgId  ;
             return false ;             
         }
-        if( string::npos == additionalResponseData.find("|continue") ) removeApiRequest( clientMsgId ) ;
+        if( string::npos == additionalResponseData.find("|continue") ) {
+            removeApiRequest( clientMsgId ) ;
+        }
         m_ioservice.post( boost::bind(&Client::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
         return true ;                
     }
@@ -424,7 +427,8 @@ namespace drachtio {
     }
     void ClientController::removeApiRequest( const string& clientMsgId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
-        m_mapApiRequests.erase( clientMsgId ) ;        
+        m_mapApiRequests.erase( clientMsgId ) ;   
+        DR_LOG(log_debug) << "removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
     void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
@@ -436,8 +440,9 @@ namespace drachtio {
         DR_LOG(log_debug) << "addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
     void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
-       boost::lock_guard<boost::mutex> l( m_lock ) ;
+        boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapApiRequests.insert( make_pair( clientMsgId, client ) ) ;        
+        DR_LOG(log_debug) << "addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
 
     void ClientController::logStorageCount() {
