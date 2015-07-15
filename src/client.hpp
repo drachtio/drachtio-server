@@ -77,11 +77,11 @@ namespace drachtio {
 	private:
 		ClientController& m_controller ;
 		state m_state ;
-	    boost::asio::ip::tcp::socket m_sock;
-	    boost::array<char, 8192> m_readBuf ;
-	    boost::circular_buffer<char> m_buffer ;
-	    unsigned int m_nMessageLength ;
-	    string m_strAppName ;
+    boost::asio::ip::tcp::socket m_sock;
+    boost::array<char, 8192> m_readBuf ;
+    boost::circular_buffer<char> m_buffer ;
+    unsigned int m_nMessageLength ;
+    string m_strAppName ;
 	} ;
 
 	typedef boost::shared_ptr<Client> client_ptr;
