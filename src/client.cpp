@@ -43,6 +43,13 @@ namespace drachtio {
 
 	Client::Client( boost::asio::io_service& io_service, ClientController& controller ) : m_sock(io_service), m_controller( controller ),  
         m_state(initial), m_buffer(12228), m_nMessageLength(0) {
+            
+        int optval = 1 ;
+        socklen_t optlen = sizeof(optval);
+        if( setsockopt(m_sock.native(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
+            DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
+        }
+
     }
 
     boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
