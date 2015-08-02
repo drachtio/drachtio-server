@@ -44,7 +44,8 @@ namespace drachtio {
         bool getSyslogTarget( std::string& address, unsigned int& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
-        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush ) ;
+        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
+            bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
 
         bool isSecret( const string& secret ) const ;
         severity_levels getLoglevel() ;

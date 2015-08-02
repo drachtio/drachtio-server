@@ -88,6 +88,8 @@ namespace drachtio {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
                     m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
+                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 1024) ;
+                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.minSize", 10240) ;
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
                     if( !m_bDaemon ) {
                         cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
@@ -152,7 +154,8 @@ namespace drachtio {
             }
             return false ;
         }
-        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush ) {
+        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, 
+            unsigned int& maxSize, unsigned int& minSize ) {
             if( m_logFileName.length() > 0 ) {
                 fileName = m_logFileName ;
                 archiveDirectory = m_logArchiveDirectory ;
@@ -228,6 +231,8 @@ namespace drachtio {
         string m_logArchiveDirectory ;
         bool m_bAutoFlush ;
         unsigned int m_rotationSize ;
+        unsigned int m_maxSize ;
+        unsigned int m_minSize ;
         unsigned int m_sysLogPort ;
         string m_syslogFacility ;
         severity_levels m_loglevel ;
@@ -265,8 +270,8 @@ namespace drachtio {
         return m_pimpl->getSyslogFacility( facility ) ;
     }
     bool DrachtioConfig::getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
-        bool& autoFlush ) {
-        return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush ) ;
+        bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) {
+        return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ;
     }
 
     bool DrachtioConfig::getSipUrl( std::string& sipUrl ) const {

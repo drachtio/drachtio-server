@@ -33,9 +33,18 @@
         -->
 
         <file>
+            <!-- file name pattern for log file -->
             <name>/tmp/drachtioLogs/file_%5N.log</name>
+
+            <!-- location to collect rotated files (collected each night at midnight) -->
             <archive>/tmp/drachtioLogs/archive</archive>
-            <size>5</size>
+
+            <!-- limit rotated files collection when total size in the archive dir reaches this size (in MB) -->
+            <maxSize>5120</maxSize> 
+
+            <!-- limit rotated files collection when free space at or below this size (in MB) -->
+            <minSize>10240</minSize>
+
             <auto-flush>true</auto-flush>
         </file>
 

@@ -392,7 +392,7 @@ namespace drachtio {
             string syslogAddress ;
             unsigned int syslogPort;
             
-            // iniitalize syslog sink, if configuredd
+            // initalize syslog sink, if configuredd
             if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
                 m_Config->getSyslogFacility( facility ) ;
 
@@ -429,15 +429,16 @@ namespace drachtio {
 
             //initialie text file sink, of configured
             string name, archiveDirectory ;
-            unsigned int rotationSize ;
+            unsigned int rotationSize, maxSize, minSize ;
             bool autoFlush ;
-            if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush ) ) {
+            if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ) {
 
                 m_sinkTextFile.reset(
                     new sinks::synchronous_sink< sinks::text_file_backend >(
                         keywords::file_name = name,                                          
-                        keywords::rotation_size = rotationSize * 1024 * 1024,
+                        //keywords::rotation_size = rotationSize * 1024 * 1024,
                         keywords::auto_flush = autoFlush,
+                        keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
                         keywords::format = 
                         (
                             expr::stream
@@ -450,6 +451,12 @@ namespace drachtio {
                 );        
 
                 m_sinkTextFile->set_formatter( &my_formatter ) ;
+
+                m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
+                    keywords::target = "logs",                      
+                    keywords::max_size = maxSize * 1024 * 1024,          
+                    keywords::min_free_space = minSize * 1024 * 1024   
+                ));
                            
                 logging::core::get()->add_sink(m_sinkTextFile);
             }
