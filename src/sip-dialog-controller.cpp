@@ -364,6 +364,7 @@ namespace drachtio {
             else {
                 boost::shared_ptr<RIP> p = boost::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId() ) ;
                 addRIP( orq, p ) ;
+                nta_leg_destroy( leg ) ;
             }
 
             string encodedMessage ;
