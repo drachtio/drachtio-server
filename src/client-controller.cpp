@@ -289,7 +289,7 @@ namespace drachtio {
         const string& headers, const string& body, string& transactionId ) {
 
         generateUuid( transactionId ) ;
-        if( 0 != startLine.find("ACK") && rc ) {
+        if( 0 != startLine.find("ACK") ) {
             addAppTransaction( client, transactionId ) ;
         }
 
@@ -301,7 +301,7 @@ namespace drachtio {
             const string& body, string& transactionId, string& dialogId ) {
 
         generateUuid( transactionId ) ;
-        if( 0 != startLine.find("ACK") && rc ) {
+        if( 0 != startLine.find("ACK") ) {
             addAppTransaction( client, transactionId ) ;
         }
 
