@@ -372,7 +372,7 @@ namespace drachtio {
             string s ;
             meta.toMessageFormat(s) ;
 
-            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|continue" + CRLF + encodedMessage ;
+            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|continue|" + CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;
            
@@ -442,7 +442,7 @@ namespace drachtio {
                 SipMsgData_t meta(m, cancel) ;
                 string s ;
                 meta.toMessageFormat(s) ;
-                string data = s + "|" + cancelTransactionId + "|Msg sent:|continue" + CRLF + encodedMessage ;
+                string data = s + "|" + cancelTransactionId + "|Msg sent:|continue|" + CRLF + encodedMessage ;
 
                 //Note: not adding an RIP because the 200 OK to the CANCEL is not passed up to us
                 //boost::shared_ptr<RIP> p = boost::make_shared<RIP>( cancelTransactionId, iip->dlg() ? iip->dlg()->getDialogId() : "" ) ;
