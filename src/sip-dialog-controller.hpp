@@ -317,9 +317,10 @@ namespace drachtio {
 		}
 		void clearRIP( nta_outgoing_t* orq ) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-	        mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
-	        if( m_mapOrq2RIP.end() == it ) return  ;
-	        m_mapOrq2RIP.erase( it ) ;						
+			mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
+			nta_outgoing_destroy( orq ) ;
+			if( m_mapOrq2RIP.end() == it ) return  ;
+			m_mapOrq2RIP.erase( it ) ;						
 		}
 
 		/// IRQ helpers

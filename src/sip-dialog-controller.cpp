@@ -231,7 +231,7 @@ namespace drachtio {
                 SipMsgData_t meta(m, orq) ;
                 string s ;
                 meta.toMessageFormat(s) ;
-                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|continue|" + CRLF + encodedMessage ;
+                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + CRLF + encodedMessage ;
 
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
             }
@@ -373,7 +373,7 @@ namespace drachtio {
             string s ;
             meta.toMessageFormat(s) ;
 
-            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|continue|" + CRLF + encodedMessage ;
+            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;
            
