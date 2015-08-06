@@ -97,7 +97,7 @@ namespace drachtio {
 
         assert( dialogId.length() > 0 ) ;
 
-        generateUuid( transactionId ) ;
+        if( 0 == transactionId.length() ) { generateUuid( transactionId ) ; }
 
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequestInsideDialog, sizeof( SipDialogController::SipMessageData ) );
@@ -231,7 +231,7 @@ namespace drachtio {
                 SipMsgData_t meta(m, orq) ;
                 string s ;
                 meta.toMessageFormat(s) ;
-                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + CRLF + encodedMessage ;
+                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|continue|" + CRLF + encodedMessage ;
 
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
             }
@@ -251,7 +251,7 @@ namespace drachtio {
 //send request outside dialog
     //client thread
     bool SipDialogController::sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) {
-        generateUuid( transactionId ) ;
+        if( 0 == transactionId.length() ) { generateUuid( transactionId ) ; }
         if( string::npos != startLine.find("INVITE") ) {
             generateUuid( dialogId ) ;
         }
@@ -351,7 +351,7 @@ namespace drachtio {
             deleteTags( tags ) ;
 
             if( NULL == orq ) {
-                throw std::runtime_error("Error creating sip transaction for uac invite") ;               
+                throw std::runtime_error("Error creating sip transaction for uac request") ;               
             }
 
             msg_t* m = nta_outgoing_getrequest(orq) ;
@@ -373,7 +373,7 @@ namespace drachtio {
             string s ;
             meta.toMessageFormat(s) ;
 
-            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + CRLF + encodedMessage ;
+            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|continue|" + CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;
            
@@ -443,7 +443,7 @@ namespace drachtio {
                 SipMsgData_t meta(m, cancel) ;
                 string s ;
                 meta.toMessageFormat(s) ;
-                string data = s + "|" + cancelTransactionId + "|Msg sent:|" + CRLF + encodedMessage ;
+                string data = s + "|" + cancelTransactionId + "|Msg sent:|continue|" + CRLF + encodedMessage ;
 
                 //Note: not adding an RIP because the 200 OK to the CANCEL is not passed up to us
                 //boost::shared_ptr<RIP> p = boost::make_shared<RIP>( cancelTransactionId, iip->dlg() ? iip->dlg()->getDialogId() : "" ) ;
