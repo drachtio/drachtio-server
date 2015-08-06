@@ -97,7 +97,7 @@ namespace drachtio {
 
         assert( dialogId.length() > 0 ) ;
 
-        generateUuid( transactionId ) ;
+        if( 0 == transactionId.length() ) { generateUuid( transactionId ) ; }
 
         su_msg_r msg = SU_MSG_R_INIT ;
         int rv = su_msg_create( msg, su_clone_task(*m_pClone), su_root_task(m_pController->getRoot()),  cloneSendSipRequestInsideDialog, sizeof( SipDialogController::SipMessageData ) );
@@ -251,7 +251,7 @@ namespace drachtio {
 //send request outside dialog
     //client thread
     bool SipDialogController::sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) {
-        generateUuid( transactionId ) ;
+        if( 0 == transactionId.length() ) { generateUuid( transactionId ) ; }
         if( string::npos != startLine.find("INVITE") ) {
             generateUuid( dialogId ) ;
         }
@@ -351,7 +351,7 @@ namespace drachtio {
             deleteTags( tags ) ;
 
             if( NULL == orq ) {
-                throw std::runtime_error("Error creating sip transaction for uac invite") ;               
+                throw std::runtime_error("Error creating sip transaction for uac request") ;               
             }
 
             msg_t* m = nta_outgoing_getrequest(orq) ;
