@@ -171,7 +171,7 @@ namespace drachtio {
     bool forwardResponse( msg_t* msg, sip_t* sip ) { return m_pServerTransaction->forwardResponse(msg, sip);}
     bool forwardPrack( msg_t* msg, sip_t* sip) ;
     int startRequests(void) ;
-    void removeTerminated(void) ;
+    void removeTerminated(bool alsoRemoveNotStarted = false) ;
     void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
 
     void timerA( boost::shared_ptr<ClientTransaction> pClient ) ;

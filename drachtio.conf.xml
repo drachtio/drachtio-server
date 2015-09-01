@@ -34,7 +34,7 @@
 
         <file>
             <!-- file name pattern for log file -->
-            <name>/tmp/drachtioLogs/file_%5N.log</name>
+            <name>/tmp/drachtioLogs//drachtio_%Y%m%d_%H%M%S-%N.log</name>
 
             <!-- location to collect rotated files (collected each night at midnight) -->
             <archive>/tmp/drachtioLogs/archive</archive>
