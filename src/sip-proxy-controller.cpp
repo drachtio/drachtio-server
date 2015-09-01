@@ -654,18 +654,22 @@ namespace drachtio {
             boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>( shared_from_this(), pTQM, *it ) ;
             m_vecClientTransactions.push_back( pClient ) ;
         }
-        DR_LOG(log_debug) << "initializeTransactions - added " << dec << m_vecClientTransactions.size() << " client transactions " ;
+        DR_LOG(log_debug) << "ProxyCore::initializeTransactions - added " << dec << m_vecClientTransactions.size() << " client transactions " ;
     }
-    void ProxyCore::removeTerminated() {
+    void ProxyCore::removeTerminated(bool alsoRemoveNotStarted) {
         int nBefore =  m_vecClientTransactions.size() ;
         m_vecClientTransactions.erase(
-            std::remove_if( m_vecClientTransactions.begin(), m_vecClientTransactions.end(), ClientTransactionIsTerminatedOrNotStarted),
-            m_vecClientTransactions.end() ) ;
+            std::remove_if( 
+                m_vecClientTransactions.begin(), 
+                m_vecClientTransactions.end(), 
+                alsoRemoveNotStarted ? ClientTransactionIsTerminatedOrNotStarted : ClientTransactionIsTerminated),
+                m_vecClientTransactions.end() 
+            ) ;
         int nAfter = m_vecClientTransactions.size() ;
-        DR_LOG(log_debug) << " removeTerminated - removed " << dec << nBefore-nAfter << ", leaving " << nAfter ;
+        DR_LOG(log_debug) << "ProxyCore::removeTerminated: removeTerminated - removed " << dec << nBefore-nAfter << " client transactions, leaving " << nAfter ;
 
         if( 0 == nAfter ) {
-            DR_LOG(log_debug) << "removeTerminated - all client TUs are terminated, removing proxy core" ;
+            DR_LOG(log_debug) << "ProxyCore::removeTerminated: removeTerminated - all client TUs are terminated, removing proxy core" ;
             theProxyController->removeProxy( shared_from_this() ) ;
         }
     }
@@ -673,7 +677,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "forwarded 200 OK terminating other clients" ;
         m_searching = false ;
         cancelOutstandingRequests() ;
-        removeTerminated() ;
+        removeTerminated(true) ;
     }
     void ProxyCore::addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
         boost::shared_ptr<ClientTransaction> pClient ) {
@@ -683,6 +687,7 @@ namespace drachtio {
         assert( m_vecClientTransactions.end() != it ) ;
 
         m_vecClientTransactions.insert( ++it, vecClientTransactions.begin(), vecClientTransactions.end() ) ;
+        DR_LOG(log_debug) << "ProxyCore::addClientTransactions: there are now " << dec << vecClientTransactions.size() << " client transactions";
     }
     void ProxyCore::setProvisionalTimeout(const string& t ) {
         boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
@@ -780,7 +785,7 @@ namespace drachtio {
                 }
             }
         }
-        DR_LOG(log_debug) << "startRequests: started " << dec << count << " clients"; 
+        DR_LOG(log_debug) << "ProxyCore::startRequests started " << dec << count << " client transactions"; 
         return count ;
     }
     void ProxyCore::cancelOutstandingRequests() {
