@@ -726,7 +726,17 @@ namespace drachtio {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
         }
         /* tell client controller to flush transaction data on any final response to a non-INVITE */
-        if( sip_method_invite != nta_incoming_method(irq) && code >= 200 ) m_pController->getClientController()->removeNetTransaction( transactionId ) ;
+        if( sip_method_invite != nta_incoming_method(irq) && code >= 200 ) {
+            m_pController->getClientController()->removeNetTransaction( transactionId ) ;
+        }
+        else if( sip_method_invite == nta_incoming_method(irq) && code == 403 ) {
+            //XXXX: We have a leak when someone sends us an INVITE, we reject, and they never send us an ACK
+            //in that case the clientController netTransaction is kep forever, waiting for that ACK
+            //long run need a better way to time those out;
+            //short term, this only seems to happen from sipcli hack attempts that we respond 403 Forbidden
+            //so at least for that case let's just clear the state in advance of the ACK
+            m_pController->getClientController()->removeNetTransaction( transactionId ) ;            
+        }
 
         /* we must explicitly delete an object allocated with placement new */
         if( tags ) deleteTags( tags );
