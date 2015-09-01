@@ -426,7 +426,7 @@ namespace drachtio {
     void ClientController::removeNetTransaction( const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapNetTransactions.erase( transactionId ) ;        
-        DR_LOG(log_debug) << "removeNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+        DR_LOG(log_debug) << "ClientController::removeNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
     void ClientController::removeApiRequest( const string& clientMsgId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
