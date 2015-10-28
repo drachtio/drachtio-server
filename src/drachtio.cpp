@@ -137,12 +137,14 @@ namespace drachtio {
         ( string("remote_party_id"), siptag_remote_party_id_str ) 
         ( string("payload"), siptag_payload_str ) 
         ( string("from"), siptag_from_str ) 
-        ( string("to"), siptag_from_str ) 
+        ( string("to"), siptag_to_str ) 
         ( string("call_id"), siptag_call_id_str ) 
         ( string("cseq"), siptag_cseq_str ) 
         ( string("via"), siptag_via_str ) 
         ( string("route"), siptag_route_str ) 
         ( string("contact"), siptag_contact_str ) 
+        ( string("from"), siptag_from_str ) 
+        ( string("to"), siptag_to_str ) 
         ( string("rseq"), siptag_rseq_str ) 
         ( string("rack"), siptag_rack_str ) 
         ( string("record_route"), siptag_record_route_str ) 
@@ -151,8 +153,8 @@ namespace drachtio {
 
 	/* headers that are not allowed to be set by the client in responses to sip requests */
 	setHdr m_setImmutableHdrs = boost::assign::list_of
-		( string("from") ) 
-		( string("to") ) 
+//		( string("from") ) 
+//		( string("to") ) 
 		( string("call_id") ) 
 		( string("cseq") ) 
         ( string("via") ) 
@@ -557,7 +559,7 @@ namespace drachtio {
             tag_type_t tt ;
             string hdr = boost::to_lower_copy( boost::replace_all_copy( hdrName, "-", "_" ) );
             if( isImmutableHdr( hdr ) ) {
-                //DR_LOG(log_debug) << "SipDialogController::makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
+                DR_LOG(log_debug) << "SipDialogController::makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
             }
             else if( getTagTypeForHdr( hdr, tt ) ) {
                 //well-known header
@@ -567,7 +569,7 @@ namespace drachtio {
                 strncpy( p, hdrValue.c_str(), len ) ;
                 tags[i].t_tag = tt;
                 tags[i].t_value = (tag_value_t) p ;
-                //DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
+                DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
             }
             else {
                 //custom header
@@ -578,7 +580,7 @@ namespace drachtio {
 
                 tags[i].t_tag = siptag_unknown_str ;
                 tags[i].t_value = (tag_value_t) p ;
-                //DR_LOG(log_debug) << "SipDialogController::makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
+                DR_LOG(log_debug) << "SipDialogController::makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
             }
 
             i++ ;
