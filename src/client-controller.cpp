@@ -440,12 +440,12 @@ namespace drachtio {
     void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;        
-        DR_LOG(log_debug) << "addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+        DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
     void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapApiRequests.insert( make_pair( clientMsgId, client ) ) ;        
-        DR_LOG(log_debug) << "addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
+        DR_LOG(log_debug) << "ClientController::addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
 
     void ClientController::logStorageCount() {
