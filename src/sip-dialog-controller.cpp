@@ -298,7 +298,7 @@ namespace drachtio {
             //if user supplied all or part of the From use it
             string from, to ;
             m_pController->getMyHostport( myHostport ) ;
-            if( searchForHeader( tags, siptag_from, from ) ) {
+            if( searchForHeader( tags, siptag_from_str, from ) ) {
                if( !replaceHostInUri( from, myHostport ) ) {
                     throw std::runtime_error(string("invalid from value provided by client: ") + from ) ;
                 }
@@ -308,7 +308,7 @@ namespace drachtio {
             }
 
             //default To header to request uri if not provided
-            if( !searchForHeader( tags, siptag_to, to ) ) {
+            if( !searchForHeader( tags, siptag_to_str, to ) ) {
                 to = requestUri ;
             } 
 
