@@ -418,10 +418,6 @@ namespace drachtio {
 
                 logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
 
-                logging::core::get()->set_filter(
-                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
-                ) ;
-
                 // Add the sink to the core
                 logging::core::get()->add_sink(m_sinkSysLog);
 
@@ -460,6 +456,9 @@ namespace drachtio {
                            
                 logging::core::get()->add_sink(m_sinkTextFile);
             }
+            logging::core::get()->set_filter(
+               expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
+            ) ;
             
             m_bLoggingInitialized = true ;
 
