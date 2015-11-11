@@ -178,7 +178,6 @@ namespace drachtio {
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_NEXT(tags) ) ;
                     dlg->ackSent() ;                    
-                    clearIIP( leg ) ;
                 }
             }
             else if( sip_method_prack == method ) {
