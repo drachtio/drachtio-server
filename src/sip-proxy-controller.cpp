@@ -571,13 +571,18 @@ namespace drachtio {
         removeTimer( m_timerC, "timerC" ) ;
 
         if( calling == m_state ) {
-            DR_LOG(log_debug) << "cancelRequest - client request in CALLING state has not received a response so not sending CANCEL" ;
+            DR_LOG(log_debug) << "ClientTransaction::cancelRequest - client request in CALLING state has not received a response so not sending CANCEL" ;
             setState(completed) ;
             m_canceled = true ;
             return 0 ;
         }
+        if( not_started == m_state ) {
+            DR_LOG(log_debug) << "ClientTransactioncancelRequest - client request in NOT_STARTED state will be removed" ;
+            setState(terminated) ;
+            return 0 ;
+        }
         if( proceeding != m_state ) {
-            DR_LOG(log_debug) << "cancelRequest - returning without canceling because state is not PROCEEDING it is " << 
+            DR_LOG(log_debug) << "ClientTransaction::cancelRequest - returning without canceling because state is not PROCEEDING it is " << 
                 getStateName(m_state) ;
             return 0 ;
         }
