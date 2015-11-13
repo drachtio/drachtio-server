@@ -115,7 +115,12 @@ namespace drachtio {
         pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range( method_name ) ;
         unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
         if( 0 == nPossibles ) {
-            DR_LOG(log_info) << "No connected clients found to handle incoming " << method_name << " request"  ;
+            if( 0 == method_name.find("cdr") ) {
+                DR_LOG(log_debug) << "No connected clients found to handle incoming " << method_name << " request"  ;
+            }
+            else {
+                DR_LOG(log_info) << "No connected clients found to handle incoming " << method_name << " request"  ;
+            }
            return client ;           
         }
 
