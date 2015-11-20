@@ -169,6 +169,10 @@ namespace drachtio {
                     throw std::runtime_error("missing content-type") ;                   
                 }
             }
+            if( sip_method_invite == method && body.length() && 0 == contentType.compare("application/sdp")) {
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - updating local sdp to " << body ;
+                dlg->setLocalSdp( body.c_str() ) ;
+            }
 
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
@@ -589,10 +593,15 @@ namespace drachtio {
 
         if( irq ) {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found incoming transaction " << std::hex << irq  ;
+
+            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            sip_t *sip = sip_object( msg );
+
             rc = nta_incoming_treply( irq, code, status
-                ,TAG_NEXT(tags)
+                ,TAG_IF( sip_method_invite == sip->sip_request->rq_method, SIPTAG_CONTACT(m_my_contact) )
                 ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                ,TAG_NEXT(tags)
                 ,TAG_END() ) ;                                 
             if( 0 != rc ) {
                 bSentOK = false ;
@@ -751,81 +760,37 @@ namespace drachtio {
         string transactionId ;
         generateUuid( transactionId ) ;
 
-        switch (sip->sip_request->rq_method ) {
+        switch (sip->sip_request->rq_method) {
             case sip_method_ack:
             {
-                /* ack to 200 OK, now we are all done */
+                /* ack to 200 OK comes here  */
                 boost::shared_ptr<IIP> iip ;
+                boost::shared_ptr<SipDialog> dlg ;                
                 if( !findIIPByLeg( leg, iip ) ) {
-                    DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog - unable to find IIP for ACK, must be for reINVITE"  ;
+                    
+                    /* not a new INVITE, so it should be found as an existing dialog; i.e. a reINVITE */
+                    if( !findDialogByLeg( leg, dlg ) ) {
+                        DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
+                        assert(0) ;
+                        return -1 ;
+
+                    }
                 }
                 else {
-                    string transactionId = iip->getTransactionId() ;
+                    transactionId = iip->getTransactionId() ;
 
-                    boost::shared_ptr<SipDialog> dlg = this->clearIIP( leg ) ;
+                    dlg = this->clearIIP( leg ) ;
                     addDialog( dlg ) ;
-
-                    string encodedMessage ;
-                    msg_t* msg = nta_incoming_getrequest( irq ) ;
-                    EncodeStackMessage( sip, encodedMessage ) ;
-                    SipMsgData_t meta( msg, irq ) ;
-
-                    m_pController->getClientController()->route_ack_request_inside_dialog(  encodedMessage, meta, irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;
                 }
+                string encodedMessage ;
+                msg_t* msg = nta_incoming_getrequest( irq ) ;
+                EncodeStackMessage( sip, encodedMessage ) ;
+                SipMsgData_t meta( msg, irq ) ;
+
+                m_pController->getClientController()->route_ack_request_inside_dialog(  encodedMessage, meta, irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;
+
                 nta_incoming_destroy(irq) ;
                 break ;
-            }
-            case sip_method_invite: {
-                boost::shared_ptr<SipDialog> dlg ;
-                if( !this->findDialogByLeg( leg, dlg ) ) {
-                    DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
-                    rc = 481 ;
-                    assert(0) ;
-                }
-
-                /* TODO: reject if session timer requested is less than minSE seconds */
-                if( sip->sip_session_expires && sip->sip_session_expires->x_delta < dlg->getMinSE() ) {
-                    ostringstream o ;
-                    o << dlg->getMinSE() ;
-                    nta_incoming_treply( irq, SIP_422_SESSION_TIMER_TOO_SMALL, 
-                        SIPTAG_MIN_SE_STR(o.str().c_str()),
-                        TAG_END() ) ;  
-                    return 0 ;             
-                }
-
-                /* check to see if this is a refreshing re-INVITE; i.e., same SDP as before */
-                if( dlg->hasSessionTimer() ) dlg->cancelSessionTimer() ;
-
-                bool bRefreshing = false ;
-                if( sip->sip_payload ) {
-                    string strSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
-                    if( 0 == strSdp.compare( dlg->getRemoteEndpoint().m_strSdp ) ) {
-                      bRefreshing = true ;
-                    }
-                    else {
-                        DR_LOG(log_debug) << "sdp in invite " << strSdp  << "previous sdp " << dlg->getRemoteEndpoint().m_strSdp  ;
-                    }
-                }                
-                DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received " << 
-                    (bRefreshing ? "refreshing " : "") << "re-INVITE"  ;
-
-
-                int result = nta_incoming_treply( irq, SIP_200_OK
-                    ,SIPTAG_CONTACT(m_my_contact)
-                    ,SIPTAG_PAYLOAD_STR(dlg->getLocalEndpoint().m_strSdp.c_str())
-                    ,SIPTAG_CONTENT_TYPE_STR(dlg->getLocalEndpoint().m_strContentType.c_str())
-                    ,TAG_IF(sip->sip_session_expires, SIPTAG_SESSION_EXPIRES(sip->sip_session_expires))
-                    ,TAG_END() ) ; 
-                assert( 0 == result ) ;
-
-               if( sip->sip_session_expires ) {
-                    dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
-                        !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher) ;
-                }
-                
-                nta_incoming_destroy( irq ) ;
-                break ;             
-               
             }
             default:
             {
@@ -836,6 +801,28 @@ namespace drachtio {
                     assert(0) ;
                 }
 
+                /* if this is a re-INVITE deal with session timers */
+                if( sip_method_invite == sip->sip_request->rq_method ) {
+                    if( dlg->hasSessionTimer() ) { dlg->cancelSessionTimer() ; }
+
+                    /* reject if session timer is too small */
+                    if( sip->sip_session_expires && sip->sip_session_expires->x_delta < dlg->getMinSE() ) {
+                        ostringstream o ;
+                        o << dlg->getMinSE() ;
+                        nta_incoming_treply( irq, SIP_422_SESSION_TIMER_TOO_SMALL, 
+                            SIPTAG_MIN_SE_STR(o.str().c_str()),
+                            TAG_END() ) ;  
+                        return 0 ;             
+                    }
+                    if( sip->sip_session_expires ) {
+                        dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
+                            !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? 
+                            SipDialog::they_are_refresher : 
+                            SipDialog::we_are_refresher) ;
+                    }
+
+                }
+
                 string encodedMessage ;
                 msg_t* msg = nta_incoming_getrequest( irq ) ;
                 EncodeStackMessage( sip, encodedMessage ) ;
@@ -844,10 +831,11 @@ namespace drachtio {
                 m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, irq, sip, transactionId, dlg->getDialogId() ) ;
 
                 addIncomingRequestTransaction( irq, transactionId) ;
-
+    
                 if( sip_method_bye == sip->sip_request->rq_method ) {
+                    //clear dialog when we send a 200 OK response to BYE
                     this->clearDialog( leg ) ;
-                }
+                } 
             }
         }
         return rc ;
