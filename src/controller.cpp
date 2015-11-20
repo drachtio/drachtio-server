@@ -935,8 +935,8 @@ namespace drachtio {
             DR_LOG(log_error) << "Invalid or missing call-id header"  ;
             return 400 ;
         }
-        if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_to || !sip->sip_to->a_url[0].url_user ) ) {
-            DR_LOG(log_error) << "Invalid or missing to header or dialed number information"  ;
+        if( sip_method_invite == sip->sip_request->rq_method  && !sip->sip_to  ) {
+            DR_LOG(log_error) << "Invalid or missing to header"  ;
             return 400 ;            
         }
         if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_from || !sip->sip_from->a_tag ) )  {
