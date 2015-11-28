@@ -517,6 +517,8 @@ namespace drachtio {
 
     tagi_t* makeTags( const string&  hdrs ) {
         vector<string> vec ;
+        string myHostport ;
+        theOneAndOnlyController->getMyHostport( myHostport ) ;
 
         splitLines( hdrs, vec ) ;
         int nHdrs = vec.size() ;
@@ -559,10 +561,21 @@ namespace drachtio {
             tag_type_t tt ;
             string hdr = boost::to_lower_copy( boost::replace_all_copy( hdrName, "-", "_" ) );
             if( isImmutableHdr( hdr ) ) {
-                DR_LOG(log_debug) << "SipDialogController::makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
+                if( 0 != hdr.compare("content_length") ) {
+                    DR_LOG(log_debug) << "SipDialogController::makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
+                }
             }
             else if( getTagTypeForHdr( hdr, tt ) ) {
                 //well-known header
+                
+                //replace 'localhost' in certain headers with actual sip address:port
+                if( string::npos != hdrValue.find("@localhost") && (0 == hdr.compare("from") || 
+                    0 == hdr.compare("contact") ||
+                    0 == hdr.compare("to") ||
+                    0 == hdr.compare("p_asserted_identity") ) ) {
+
+                    replaceHostInUri( hdrValue, myHostport ) ;
+                }
                 int len = hdrValue.length() ;
                 char *p = new char[len+1] ;
                 memset(p, '\0', len+1) ;
