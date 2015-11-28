@@ -299,7 +299,7 @@ namespace drachtio {
             sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
 
             //if user supplied all or part of the From use it
-            string from, to ;
+            string from, to, contact ;
             m_pController->getMyHostport( myHostport ) ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
                if( !replaceHostInUri( from, myHostport ) ) {
@@ -346,7 +346,8 @@ namespace drachtio {
             orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
                 NULL, method, name.c_str()
                 ,URL_STRING_MAKE(requestUri.c_str())
-                ,TAG_IF( method == sip_method_invite || method == sip_method_subscribe, SIPTAG_CONTACT( m_my_contact ) )
+                ,TAG_IF( (method == sip_method_invite || method == sip_method_subscribe) && 
+                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT( m_my_contact ) )
                 ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_NEXT(tags) ) ;
@@ -593,11 +594,13 @@ namespace drachtio {
         if( irq ) {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found incoming transaction " << std::hex << irq  ;
 
+            string contact ;
             msg_t* msg = nta_incoming_getrequest( irq ) ;
             sip_t *sip = sip_object( msg );
 
             rc = nta_incoming_treply( irq, code, status
-                ,TAG_IF( sip_method_invite == sip->sip_request->rq_method, SIPTAG_CONTACT(m_my_contact) )
+                ,TAG_IF( sip_method_invite == sip->sip_request->rq_method &&
+                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT(m_my_contact) )
                 ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_NEXT(tags)
