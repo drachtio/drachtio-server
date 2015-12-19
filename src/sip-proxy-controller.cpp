@@ -33,7 +33,7 @@ namespace drachtio {
 #include <sofia-sip/sip_util.h>
 #include <sofia-sip/msg_header.h>
 #include <sofia-sip/msg_addr.h>
-#include <sofia-sip/su_random.h>
+//#include <sofia-sip/su_random.h>
 
 #include "sip-proxy-controller.hpp"
 #include "controller.hpp"
@@ -136,11 +136,11 @@ namespace drachtio {
     ProxyCore::ServerTransaction::ServerTransaction(boost::shared_ptr<ProxyCore> pCore, msg_t* msg) : 
         m_pCore(pCore), m_msg(msg), m_canceled(false), m_sipStatus(0), m_rseq(0) {
 
-        msg_ref(m_msg) ;
+        msg_ref_create(m_msg) ;
     }
     ProxyCore::ServerTransaction::~ServerTransaction() {
         DR_LOG(log_debug) << "ServerTransaction::~ServerTransaction" ;
-        msg_unref(m_msg) ;
+        msg_destroy(m_msg) ;
     }
     msg_t* ProxyCore::ServerTransaction::msgDup() {
         return msg_dup( m_msg ) ;
@@ -173,13 +173,13 @@ namespace drachtio {
             sip->sip_rseq->rs_response = m_rseq; 
         }
 
-        int rc = nta_msg_tsend( nta, msg_ref(msg), NULL,
+        int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
             TAG_END() ) ;
         if( rc < 0 ) {
             DR_LOG(log_error) << "ServerTransaction::forwardResponse failed proxying response " << std::dec << 
                 sip->sip_status->st_status << " " << sip->sip_call_id->i_id << ": error " << rc ; 
-            msg_unref(msg) ;
+            msg_destroy(msg) ;
             return false ;            
         }
         bool bRetransmitFinal = m_sipStatus >= 200 &&  sip->sip_status->st_status >= 200 ;
@@ -188,7 +188,7 @@ namespace drachtio {
         if( !bRetransmitFinal && sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status >= 200 ) {
             writeCdr( msg, sip ) ;
         }
-        msg_unref(msg) ;
+        msg_destroy(msg) ;
         return true ;
     }
     void ProxyCore::ServerTransaction::writeCdr( msg_t* msg, sip_t* sip ) {
@@ -202,16 +202,16 @@ namespace drachtio {
     }
     bool ProxyCore::ServerTransaction::generateResponse( int status, const char *szReason ) {
        msg_t* reply = nta_msg_create(nta, 0) ;
-        msg_ref(reply) ;
+        msg_ref_create(reply) ;
         nta_msg_mreply( nta, reply, sip_object(reply), status, szReason, 
-            msg_ref(m_msg), //because it will lose a ref in here
+            msg_ref_create(m_msg), //because it will lose a ref in here
             TAG_END() ) ;
 
         if( sip_method_invite == sip_object(m_msg)->sip_request->rq_method && status >= 200 ) {
             Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
         }
 
-        msg_unref(reply) ;  
+        msg_destroy(reply) ;  
 
         return true ;      
     }
@@ -236,7 +236,7 @@ namespace drachtio {
         removeTimer( m_timerD, "timerD" ) ;
         removeTimer( m_timerProvisional, "timerProvisional" ) ;
 
-        if( m_msgFinal ) msg_unref( m_msgFinal ) ;
+        if( m_msgFinal ) msg_destroy( m_msgFinal ) ;
     }
     const char* ProxyCore::ClientTransaction::getStateName( State_t state) {
         static const char* szNames[] = {
@@ -382,7 +382,7 @@ namespace drachtio {
         tagi_t* tags = makeTags( headers ) ;
 
         int rc = nta_msg_tsend( nta, 
-            msg_ref(msg), 
+            msg_ref_create(msg), 
             URL_STRING_MAKE(m_target.c_str()), 
             TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE(pCore->getMyRecordRoute() ) ),
             NTATAG_BRANCH_KEY(m_branch.c_str()),
@@ -393,7 +393,7 @@ namespace drachtio {
         if( rc < 0 ) {
             setState( terminated ) ;
             m_sipStatus = 503 ; //RFC 3261 16.9, but we should validate the request-uri to prevent errors sending to malformed uris
-            msg_unref(msg) ;
+            msg_destroy(msg) ;
             return true ;
         }
 
@@ -501,7 +501,7 @@ namespace drachtio {
                 
                 //save final response for later forwarding
                 m_msgFinal = msg ;
-                msg_ref( m_msgFinal ) ;
+                msg_ref_create( m_msgFinal ) ;
 
                 ackResponse( msg ) ;
 
@@ -626,7 +626,7 @@ namespace drachtio {
         return 0;
 
         err:
-            if( cmsg ) msg_unref(cmsg);
+            if( cmsg ) msg_destroy(cmsg);
             return -1;
     }
     void ProxyCore::ClientTransaction::writeCdr( msg_t* msg, sip_t* sip ) {
@@ -720,7 +720,7 @@ namespace drachtio {
         pClient->clearTimerA() ;
         msg_t* msg = m_pServerTransaction->msgDup() ;
         pClient->retransmitRequest(msg, m_headers) ;
-        msg_unref(msg) ;
+        msg_destroy(msg) ;
     }
     //max retransmission timer
     void ProxyCore::timerB(boost::shared_ptr<ClientTransaction> pClient) {
@@ -740,7 +740,7 @@ namespace drachtio {
         if( pClient->getTransactionState() == ClientTransaction::proceeding ) {
             msg_t* msg = m_pServerTransaction->msgDup() ;
             pClient->cancelRequest(msg) ;
-            msg_ref( msg ) ;
+            msg_ref_create( msg ) ;
         }
         m_pServerTransaction->generateResponse(408) ;
         pClient->setState( ClientTransaction::terminated ) ;
@@ -783,7 +783,7 @@ namespace drachtio {
                 DR_LOG(log_debug) << "launching client " << idx ;
                 msg_t* msg = m_pServerTransaction->msgDup();
                 bool sent = pClient->forwardRequest(msg, m_headers) ;
-                msg_unref( msg ) ;
+                msg_destroy( msg ) ;
                 if( sent ) count++ ;
                 if( sent && ProxyCore::serial == getLaunchType() ) {
                     break ;
@@ -800,7 +800,7 @@ namespace drachtio {
             boost::shared_ptr<ProxyCore::ClientTransaction> pClient = *it ;
             msg_t* msg = m_pServerTransaction->msgDup() ;
             pClient->cancelRequest(msg) ;
-            msg_unref(msg) ;
+            msg_destroy(msg) ;
         }        
     }
 
@@ -867,7 +867,7 @@ namespace drachtio {
             DR_LOG(log_debug) << "forwardBestResponse - selected " << m_vecClientTransactions.at(0)->getSipStatus() << 
                 " as best non-success status to return"  ;
 
-            msg_ref(msg); 
+            msg_ref_create(msg); 
             m_pServerTransaction->forwardResponse( msg, sip_object(msg) ) ;      
         }
 
@@ -941,14 +941,14 @@ namespace drachtio {
                     "Rejected with 483 Too Many Hops due to Max-Forwards value of 0" ) ;
 
                 msg_t* reply = nta_msg_create(nta, 0) ;
-                msg_ref(reply) ;
+                msg_ref_create(reply) ;
                 nta_msg_mreply( nta, reply, sip_object(reply), SIP_483_TOO_MANY_HOPS, 
-                    msg_ref(msg), //because it will lose a ref in here
+                    msg_ref_create(msg), //because it will lose a ref in here
                     TAG_END() ) ;
 
                 Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
 
-                msg_unref(reply) ;
+                msg_destroy(reply) ;
 
                 removeProxy( pCore )  ;
                 pData->~ProxyData() ; 
@@ -966,14 +966,14 @@ namespace drachtio {
                 DR_LOG(log_error) << "Error proxying request; please check that this is a valid SIP Request-URI and retry" ;
 
                 msg_t* reply = nta_msg_create(nta, 0) ;
-                msg_ref(reply) ;
+                msg_ref_create(reply) ;
                 nta_msg_mreply( nta, reply, sip_object(reply), 500, NULL, 
-                    msg_ref(msg), //because it will lose a ref in here
+                    msg_ref_create(msg), //because it will lose a ref in here
                     TAG_END() ) ;
 
                 Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
 
-                msg_unref(reply) ;
+                msg_destroy(reply) ;
 
                 removeProxy( pCore ) ;
              }
@@ -1028,10 +1028,10 @@ namespace drachtio {
             p->forwardPrack( msg, sip ) ;
             return true ;
         }
-        int rc = nta_msg_tsend( nta, msg_ref(msg), NULL, 
+        int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL, 
             TAG_END() ) ;
         if( rc < 0 ) {
-            msg_unref(msg) ;
+            msg_destroy(msg) ;
             DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader failed proxying request " << callId << ": error " << rc ; 
             return false ;
         }
@@ -1040,7 +1040,7 @@ namespace drachtio {
             Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::normal_release ) );            
         }
 
-        msg_unref(msg) ;
+        msg_destroy(msg) ;
 
         return true ;
     }
