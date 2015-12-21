@@ -25,5 +25,5 @@ ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_5
 	cd ${srcdir}/deps/boost_1_59_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 cxxflags=-std=c++0x stage
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
-	cd ${srcdir}/deps/sofia-sip && autoreconf -fvi && ./configure --with-glib=no && $(MAKE)
+	cd ${srcdir}/deps/sofia-sip && ./bootstrap && ./configure --with-glib=no && $(MAKE)
 
