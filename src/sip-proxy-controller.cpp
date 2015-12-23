@@ -954,9 +954,6 @@ namespace drachtio {
                 pData->~ProxyData() ; 
                 return ;
             }
-
-            //stateful proxy sends 100 Trying
-            nta_msg_treply( m_agent, msg_dup(msg), 100, NULL, TAG_END() ) ;                
  
             int clients = pCore->startRequests() ;
 
