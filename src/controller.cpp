@@ -603,7 +603,6 @@ namespace drachtio {
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
             " does not match an existing call leg"  ;
 
-        int rc = 0 ;
         if( sip->sip_request ) {
 
             if( sip_sanity_check(sip) < 0 ) {
@@ -645,8 +644,7 @@ namespace drachtio {
                             }
 
                             if( sip_method_invite == sip->sip_request->rq_method ) {
-                                //nta_msg_treply( m_agent, msg_dup(msg), 100, NULL, TAG_END() ) ;  
-                                rc = 100 ;              
+                                nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
                             }
 
                             string transactionId ;
@@ -697,7 +695,7 @@ namespace drachtio {
                 }
             } 
         }
-        return rc ;
+        return 0 ;
     }
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
