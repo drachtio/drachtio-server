@@ -1,5 +1,7 @@
 # drachtio-server [![Build Status](https://secure.travis-ci.org/davehorton/drachtio-server.png)](http://travis-ci.org/davehorton/drachtio-server) [![NPM version](https://badge.fury.io/js/drachtio.svg)](http://badge.fury.io/js/drachtio-server)
 
+[![Join the chat at https://gitter.im/davehorton/drachtio-server](https://badges.gitter.im/davehorton/drachtio-server.svg)](https://gitter.im/davehorton/drachtio-server?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 [![drachtio logo](http://www.dracht.io/images/definition_only.png)](http://dracht.io/)
 
 drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based application-agnostic user agent that is built on the [sofia SIP stack](https://gitorious.org/sofia-sip).  It is designed to provide a high-performance SIP processing server platform that offers its capabilities to client applications over a TCP and JSON message-passing interface.  The accompanying client framework is provided by [drachtio](https://github.com/davehorton/drachtio).
