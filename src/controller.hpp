@@ -154,6 +154,8 @@ namespace drachtio {
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
 
+                tport_t* getTportForProtocol( const char* proto ) ;
+
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
 
@@ -163,6 +165,9 @@ namespace drachtio {
                 bool isDaemonized(void) { return m_bDaemonize; }
 
 	private:
+                typedef boost::unordered_map<string, tport_t*> mapProtocol2Tport ;
+                mapProtocol2Tport m_mapProtocol2Tport ;
+
         	DrachtioController() ;
 
         	bool parseCmdArgs( int argc, char* argv[] ) ;
