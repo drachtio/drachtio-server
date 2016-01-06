@@ -550,6 +550,7 @@ namespace drachtio {
         for( int i = 0; proto[i] != NULL; i++ ) {
             tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
             if( tp ) {
+                DR_LOG(log_info) << "Added transport: " << proto[i] ;
                 m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(proto[i], tp) ) ;
             }
         }
