@@ -147,15 +147,13 @@ namespace drachtio {
                 DR_LOG(log_debug) << "Removing disconnected client while iterating"  ;
                 m_request_types.erase( it ) ;
                 pair = m_request_types.equal_range( method_name ) ;
-                if( nOffset >= m_request_types.size() ) {
-                    nOffset = m_request_types.size() - 1 ;
-                }
-                DR_LOG(log_debug) << "Offset has been set to " << nOffset << " size of range is " << m_request_types.size()  ;
+                nOffset = 0 ;
+                nPossibles = std::distance( pair.first, pair.second ) ;
             }
             else {
                 DR_LOG(log_debug) << "Selected client at offset " << nOffset  ;                
             }
-        } while( !client && ++nTries < nPossibles ) ;
+        } while( !client && nPossibles > 0 ) ;
 
         if( !client ) {
             DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request"  ;
