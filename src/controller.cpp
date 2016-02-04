@@ -423,7 +423,7 @@ namespace drachtio {
 
             }
 
-            //initialie text file sink, of configured
+            //initialize text file sink, of configured
             string name, archiveDirectory ;
             unsigned int rotationSize, maxSize, minSize ;
             bool autoFlush ;
@@ -544,15 +544,17 @@ namespace drachtio {
             DR_LOG(log_error) << "Error calling nta_agent_create"  ;
             return ;
         }
-        /*
-        m_defaultLeg = nta_leg_tcreate(m_nta, defaultLegCallback, this,
-                                      NTATAG_NO_DIALOG(1),
-                                      TAG_END());
-        if( NULL == m_defaultLeg ) {
-            DR_LOG(log_error) << "Error creating default leg"  ;
-            return ;
+
+        /* get tports for various protocols */
+        const char* proto[] = {"udp","tcp","tls","ws","wss", NULL} ;
+        for( int i = 0; proto[i] != NULL; i++ ) {
+            tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
+            if( tp ) {
+                DR_LOG(log_info) << "Added transport: " << proto[i] ;
+                m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(proto[i], tp) ) ;
+            }
         }
-        */
+
         
         /* save my contact url, via, etc */
         m_my_contact = nta_agent_contact( m_nta ) ;
@@ -643,6 +645,10 @@ namespace drachtio {
                                 return -1 ;
                             }
 
+                            if( sip_method_invite == sip->sip_request->rq_method ) {
+                                nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
+                            }
+
                             string transactionId ;
                             int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
 
@@ -655,13 +661,13 @@ namespace drachtio {
                             //reject message if necessary, write stop record
                             if( status > 0  ) {
                                 msg_t* reply = nta_msg_create(m_nta, 0) ;
-                                msg_ref(reply) ;
+                                msg_ref_create(reply) ;
                                 nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
 
                                 if( sip->sip_request->rq_method == sip_method_invite ) {
                                     Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                                 }
-                                msg_unref(reply) ;
+                                msg_destroy(reply) ;
                                 return -1 ;                    
                             }
                         }
@@ -925,6 +931,14 @@ namespace drachtio {
         strContact = o.str() ;
     }
 
+    tport_t* DrachtioController::getTportForProtocol( const char* proto ) {
+        tport_t* tp = NULL ;
+        mapProtocol2Tport::iterator it = m_mapProtocol2Tport.find( proto ) ;
+        if( m_mapProtocol2Tport.end() != it ) {
+            tp = it->second ;
+        }
+        return tp ;
+    }
 
     int DrachtioController::validateSipMessage( sip_t const *sip ) {
         if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_contact || !sip->sip_contact->m_url[0].url_host ) ) {

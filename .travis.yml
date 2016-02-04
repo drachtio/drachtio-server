@@ -3,7 +3,7 @@ compiler:
   - gcc
   - clang
 # Change this to your needs
-script: autoreconf -fvi && mkdir build && cd build && ../configure && make
+script: ./bootstrap.sh && mkdir build && cd build && ../configure && make
 
 # Handle git submodules yourself
 git:

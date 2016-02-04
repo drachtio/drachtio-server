@@ -36,10 +36,10 @@ namespace drachtio {
     DR_LOG(log_debug) << "PendingRequest_t::PendingRequest_t" ;
     generateUuid( m_transactionId ) ;
    
-    msg_ref( m_msg ) ; 
+    msg_ref_create( m_msg ) ; 
   }
   PendingRequest_t::~PendingRequest_t() {
-    msg_unref( m_msg ) ;
+    msg_destroy( m_msg ) ;
     DR_LOG(log_debug) << "PendingRequest_t::~PendingRequest_t - unref'ed msg" ;
   }
   msg_t* PendingRequest_t::getMsg() { return m_msg ; }
@@ -72,7 +72,7 @@ namespace drachtio {
 
     boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
 
-    msg_unref( msg ) ;  //our PendingRequest_t is now the holder of the message
+    msg_destroy( msg ) ;  //our PendingRequest_t is now the holder of the message
 
     string encodedMessage ;
     EncodeStackMessage( sip, encodedMessage ) ;

@@ -765,7 +765,7 @@ namespace drachtio {
          return 0;
 
         err:
-            if( amsg ) msg_unref(amsg);
+            if( amsg ) msg_destroy(amsg);
             return -1;
     }
    
