@@ -423,7 +423,7 @@ namespace drachtio {
             " original request via branch was " << m_branch << " and PRACK via branch was " << m_branchPrack ;
 
         if( 0 != m_branch.compare(sip->sip_via->v_branch) && sip_method_prack != sip->sip_cseq->cs_method ) return false ; 
-        if( 0 != m_branchPrack.compare(sip->sip_via->v_branch) && sip_method_prack == sip->sip_cseq->cs_method ) return false ;
+        if( 0 == m_branchPrack.compare(sip->sip_via->v_branch) && sip_method_prack == sip->sip_cseq->cs_method ) return false ;
 
         boost::shared_ptr<ClientTransaction> me = shared_from_this() ;
         boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
@@ -447,7 +447,7 @@ namespace drachtio {
         }
 
         //response to our original request?
-        if( m_method == sip->sip_cseq->cs_method ) {    
+        if( m_method == sip->sip_cseq->cs_method ) {
 
             //retransmission of final response?
             if( (completed == m_state || terminated == m_state) && sip->sip_status->st_status >= 200 ) {
@@ -552,7 +552,7 @@ namespace drachtio {
         }
         else {
             DR_LOG(log_debug) << "Received " << sip->sip_status->st_status << " " << sip->sip_cseq->cs_method_name <<
-                " response, forwarding upstream" ;            
+                " response, forwarding upstream" ;
         }
 
         if( bForward ) {
@@ -987,6 +987,13 @@ namespace drachtio {
         string callId = sip->sip_call_id->i_id ;
         DR_LOG(log_debug) << "SipProxyController::processResponse " << std::dec << sip->sip_status->st_status << " " << callId ;
 
+
+        // responses to PRACKs we forward downstream
+        if( sip_method_prack == sip->sip_cseq->cs_method ) {
+            DR_LOG(log_debug)<< "processResponse - forwarding response to PRACK downstream " << callId ;
+            nta_msg_tsend( nta, msg, NULL, TAG_END() ) ;  
+            return true ;                      
+        }
         boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
 
         if( !p ) return false ;

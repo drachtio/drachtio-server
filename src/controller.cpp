@@ -423,7 +423,7 @@ namespace drachtio {
 
             }
 
-            //initialie text file sink, of configured
+            //initialize text file sink, of configured
             string name, archiveDirectory ;
             unsigned int rotationSize, maxSize, minSize ;
             bool autoFlush ;
