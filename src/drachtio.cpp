@@ -155,8 +155,8 @@ namespace drachtio {
 	setHdr m_setImmutableHdrs = boost::assign::list_of
 //		( string("from") ) 
 //		( string("to") ) 
-		( string("call_id") ) 
-		( string("cseq") ) 
+//		( string("call_id") ) 
+//		( string("cseq") ) 
         ( string("via") ) 
         ( string("route") ) 
 //        ( string("contact") ) 

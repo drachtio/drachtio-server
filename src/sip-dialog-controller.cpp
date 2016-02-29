@@ -181,7 +181,9 @@ namespace drachtio {
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_NEXT(tags) ) ;
-                    dlg->ackSent() ;                    
+                    dlg->ackSent() ;  
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
+                    this->clearIIP( leg ) ;                 
                 }
             }
             else if( sip_method_prack == method ) {
