@@ -58,7 +58,7 @@ using namespace std ;
 const string CRLF = "\r\n" ;
 const string CRLF2 = "\r\n\r\n" ;
 
-#define MSG_ID_LEN (64)
+#define MSG_ID_LEN (128)
 
 namespace logging = boost::log;
 namespace sinks = boost::log::sinks;
