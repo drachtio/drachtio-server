@@ -9,7 +9,7 @@ drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
 timer_CPPFLAGS=-D_REENTRANT -DTEST
-timer_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_system.a
+timer_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_system.a -lpthread
 
 if LINUX
 drachtio_LDADD += ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
