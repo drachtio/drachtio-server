@@ -1075,6 +1075,7 @@ namespace drachtio {
         nta_leg_tag( leg, a_tag ) ;
         dlg->setLocalTag( a_tag ) ;
 
+        DR_LOG(log_debug) << "SipDialogController::addIncomingInviteTransaction:  adding leg " << std::hex << leg  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, irq, transactionId, dlg) ;
@@ -1085,6 +1086,7 @@ namespace drachtio {
         this->bindIrq( irq ) ;
     }
     void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
+        DR_LOG(log_debug) << "SipDialogController::addOutgoingInviteTransaction:  adding leg " << std::hex << leg  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, dlg->getTransactionId(), dlg) ;
