@@ -230,6 +230,9 @@ namespace drachtio {
                     boost::shared_ptr<RIP> p = boost::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId() ) ;
                     addRIP( orq, p ) ;       
                 }
+                if( sip_method_invite == method ) {
+                    addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;
+                }
      
                 string encodedMessage ;
                 EncodeStackMessage( sip, encodedMessage ) ;
