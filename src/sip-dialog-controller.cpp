@@ -1070,7 +1070,31 @@ namespace drachtio {
         }
         return false ;
     }
+    void SipDialogController::addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) {
+        const char* a_tag = nta_incoming_tag( irq, NULL) ;
+        nta_leg_tag( leg, a_tag ) ;
+        dlg->setLocalTag( a_tag ) ;
+
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+
+        boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, irq, transactionId, dlg) ;
+        m_mapIrq2IIP.insert( mapIrq2IIP::value_type(irq, p) ) ;
+        m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
+        m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   
+
+        this->bindIrq( irq ) ;
+    }
+    void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+
+        boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, dlg->getTransactionId(), dlg) ;
+        m_mapOrq2IIP.insert( mapOrq2IIP::value_type(orq, p) ) ;
+        m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(dlg->getTransactionId(), p) ) ;   
+        m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;               
+    }
+
     boost::shared_ptr<SipDialog> SipDialogController::clearIIP( nta_leg_t* leg ) {
+        DR_LOG(log_debug) << "SipDialogController::clearIIP:  clearing leg " << std::hex << leg  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
