@@ -856,7 +856,10 @@ namespace drachtio {
     void ProxyCore::forwardBestResponse() {
         m_searching = false ;
         std::sort( m_vecClientTransactions.begin(), m_vecClientTransactions.end(), bestResponseOrder ) ;
-        if( 0 == m_vecClientTransactions.size() || ClientTransaction::completed != m_vecClientTransactions.at(0)->getTransactionState() ) {
+        if( 0 == m_vecClientTransactions.size() || 
+            ClientTransaction::completed != m_vecClientTransactions.at(0)->getTransactionState() ||
+            0 == m_vecClientTransactions.at(0)->getSipStatus() ) {
+            
             DR_LOG(log_debug) << "forwardBestResponse - sending 408 as there are no candidate final responses"  ;
             m_pServerTransaction->generateResponse( 408 ) ;
         }
