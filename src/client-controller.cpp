@@ -56,25 +56,24 @@ namespace drachtio {
         for(;;) {
             
             try {
-                DR_LOG(log_notice) << "ClientController: io_service run loop started"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop started (or restarted)"  ;
                 m_ioservice.run() ;
-                DR_LOG(log_notice) << "ClientController: io_service run loop ended normally"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop ended normally"  ;
                 break ;
             }
             catch( std::exception& e) {
-                DR_LOG(log_error) << "Error in event thread: " << string( e.what() )  ;
-                break ;
+                DR_LOG(log_error) << "ClientController::threadFunc - Error in event thread: " << string( e.what() )  ;
             }
         }
     }
     void ClientController::join( client_ptr client ) {
         m_clients.insert( client ) ;
         client_weak_ptr p( client ) ;
-        DR_LOG(log_debug) << "Added client, count of connected clients is now: " << m_clients.size()  ;       
+        DR_LOG(log_debug) << "ClientController::join - Added client, count of connected clients is now: " << m_clients.size()  ;       
     }
     void ClientController::leave( client_ptr client ) {
         m_clients.erase( client ) ;
-        DR_LOG(log_debug) << "Removed client, count of connected clients is now: " << m_clients.size()  ;
+        DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
     void ClientController::addNamedService( client_ptr client, string& strAppName ) {
         //TODO: should we be locking here?  need to review entire locking strategy for this class
