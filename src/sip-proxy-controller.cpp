@@ -1107,7 +1107,7 @@ namespace drachtio {
         p = it->second ;
         m_mapCallId2Proxy.erase(it) ;
       }
-      DR_LOG(log_debug) << "SipProxyController::removeProxyByCallId - there are now " << m_mapCallId2Proxy.size() << " proxy instances" ;
+      DR_LOG(log_debug) << "SipProxyController::removeProxyByCallId - there are now " << dec << m_mapCallId2Proxy.size() << " proxy instances" ;
       return p ;
     }
     void SipProxyController::removeProxy( boost::shared_ptr<ProxyCore> pCore ) {
