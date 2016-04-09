@@ -147,6 +147,10 @@ namespace drachtio {
                 throw std::runtime_error("unable to find dialog for dialog id provided") ;
             }
 
+            string sourceAddress = dlg->getSourceAddress() ;
+            unsigned int sourcePort = dlg->getSourcePort() ;
+            string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) ;
+
             nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             if( !leg ) {
                 assert( leg ) ;
@@ -192,11 +196,16 @@ namespace drachtio {
                     throw std::runtime_error("unable to find IIP when sending PRACK") ;
                 }
                 orq = nta_outgoing_prack(leg, iip->orq(), response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    NULL, NULL, TAG_NEXT(tags) ) ;
+                    //NULL, 
+                    URL_STRING_MAKE( routeUrl.c_str() ),
+                    NULL, TAG_NEXT(tags) ) ;
             }
             else {
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    NULL, method, name.c_str()
+                    //NULL,
+                    URL_STRING_MAKE( routeUrl.c_str() ),
+                     
+                    method, name.c_str()
                     ,URL_STRING_MAKE(requestUri.c_str())
                     ,TAG_IF( method == sip_method_invite || method == sip_method_subscribe, SIPTAG_CONTACT( m_my_contact ) )
                     ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
@@ -692,7 +701,7 @@ namespace drachtio {
                 }
             }
             else {
-                DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)"  ;
+                DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
                 rc = nta_incoming_treply( irq, code, status
                     ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
                     ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
@@ -700,6 +709,7 @@ namespace drachtio {
                     ,TAG_NEXT(tags)
                     ,TAG_END() ) ; 
                 if( 0 != rc ) {
+                    DR_LOG(log_error) << "Error " << dec << rc << " sending response on irq " << hex << irq  ;
                     bSentOK = false ;
                     failMsg = "Unknown server error sending response" ;
                     assert(false) ;
@@ -1078,7 +1088,6 @@ namespace drachtio {
         nta_leg_tag( leg, a_tag ) ;
         dlg->setLocalTag( a_tag ) ;
 
-        DR_LOG(log_debug) << "SipDialogController::addIncomingInviteTransaction:  adding leg " << std::hex << leg  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, irq, transactionId, dlg) ;
@@ -1087,6 +1096,8 @@ namespace drachtio {
         m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   
 
         this->bindIrq( irq ) ;
+        DR_LOG(log_debug) << "SipDialogController::addIncomingInviteTransaction:  added iip: " << hex << p << " with leg " 
+            << leg << ", irq: " << irq << ", transacionId " << transactionId;
     }
     void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
         DR_LOG(log_debug) << "SipDialogController::addOutgoingInviteTransaction:  adding leg " << std::hex << leg  ;
