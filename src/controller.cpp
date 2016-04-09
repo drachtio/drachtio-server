@@ -728,6 +728,10 @@ namespace drachtio {
                 return false ;
             }
 
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq 
+                << ", for transactionId: " << transactionId; 
+
+
             boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
             dlg->setTransactionId( transactionId ) ;
 

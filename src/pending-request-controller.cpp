@@ -89,12 +89,13 @@ namespace drachtio {
   }
 
   boost::shared_ptr<PendingRequest_t> PendingRequestController::add( msg_t* msg, sip_t* sip ) {
-    DR_LOG(log_debug) << "PendingRequestController::add " ;
     tport_t *tp = nta_incoming_transport(m_pController->getAgent(), NULL, msg);
     tport_unref(tp) ; //because the above increments the refcount and we don't need to
-    DR_LOG(log_debug) << "PendingRequestController::add - tport: " << std::hex << (void*) tp ;
 
     boost::shared_ptr<PendingRequest_t> p = boost::make_shared<PendingRequest_t>( msg, sip, tp ) ;
+
+    DR_LOG(log_debug) << "PendingRequestController::add - tport: " << std::hex << (void*) tp << 
+      ", Call-ID: " << p->getCallId() << ", transactionId " << p->getTransactionId() ;
     
     boost::lock_guard<boost::mutex> lock(m_mutex) ;
     m_mapCallId2Invite.insert( mapCallId2Invite::value_type(p->getCallId(), p) ) ;
