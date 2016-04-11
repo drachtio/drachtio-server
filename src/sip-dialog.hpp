@@ -35,7 +35,8 @@ namespace drachtio {
 	class SipDialog : public boost::enable_shared_from_this<SipDialog> {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
-		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip ) ;
+		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
+			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg ) ;
 		~SipDialog() ;
 
 		int processRequest( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;

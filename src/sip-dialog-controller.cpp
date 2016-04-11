@@ -157,6 +157,14 @@ namespace drachtio {
                 throw std::runtime_error("unable to find active leg for dialog") ;
             }
 
+            const sip_contact_t *target ;
+            if( string::npos != requestUri.find("placeholder") && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
+                char buffer[256];
+                url_e( buffer, 255, target->m_url ) ;
+                requestUri = buffer ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - defaulting request uri to " << requestUri  ;
+            }
+
             if( method == sip_method_invalid || method == sip_method_unknown ) {
                 throw std::runtime_error(string("invalid or missing method supplied on start line: ") + pData->getStartLine() ) ;
             }
@@ -376,7 +384,8 @@ namespace drachtio {
             sip_t* sip = sip_object( m ) ;
 
             if( method == sip_method_invite ) {
-                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( pData->getDialogId(), pData->getTransactionId(), leg, orq, sip ) ;
+                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( pData->getDialogId(), pData->getTransactionId(), 
+                    leg, orq, sip, m ) ;
                 addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;          
             }
             else {
