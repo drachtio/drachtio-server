@@ -1144,6 +1144,26 @@ namespace drachtio {
         }
         return dlg ;            
     }
+    void SipDialogController::clearDialog( const string& strDialogId ) {
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        
+        mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
+        if( m_mapId2Dialog.end() == it ) {
+            DR_LOG(log_error) << "SipDialogController::clearDialog - unable to find dialog id " << strDialogId 
+                << " possibly because dialog was cleared from far end (race condition) or 408 Request Timeout to BYE"; 
+            return ;
+        }
+        boost::shared_ptr<SipDialog> dlg = it->second ;
+        nta_leg_t* leg = nta_leg_by_call_id( m_agent, dlg->getCallId().c_str() );
+        m_mapId2Dialog.erase( it ) ;
+
+        mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
+        if( m_mapLeg2Dialog.end() == itLeg ) {
+            assert(0) ;
+            return ;
+        }
+        m_mapLeg2Dialog.erase( itLeg ) ;                
+    }
 
     void SipDialogController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
