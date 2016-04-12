@@ -732,7 +732,7 @@ namespace drachtio {
                 << ", for transactionId: " << transactionId; 
 
 
-            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
+            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
             dlg->setTransactionId( transactionId ) ;
 
             string contactStr ;
@@ -803,7 +803,7 @@ namespace drachtio {
                     //TODO: we got a client out there with a dead INVITE now...
                     return 500 ;
                 }
-                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
+                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
                 dlg->setTransactionId( transactionId ) ;
 
                 string contactStr ;

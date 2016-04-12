@@ -149,7 +149,9 @@ namespace drachtio {
 
             string sourceAddress = dlg->getSourceAddress() ;
             unsigned int sourcePort = dlg->getSourcePort() ;
-            string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) ;
+            string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
+                ";transport=" + dlg->getProtocol() ;
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;
 
             nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             if( !leg ) {
