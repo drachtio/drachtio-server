@@ -619,6 +619,13 @@ namespace drachtio {
         if( irq ) {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found incoming transaction " << std::hex << irq  ;
 
+            if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
+                if( 0 == body.find("v=0") ) {
+                    contentType = "application/sdp" ;
+                    DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - automatically detecting content-type as application/sdp"  ;
+                }
+            }
+
             string contact ;
             msg_t* msg = nta_incoming_getrequest( irq ) ;
             sip_t *sip = sip_object( msg );
@@ -966,7 +973,7 @@ namespace drachtio {
                 return 0 ;
             }
 
-            DR_LOG(log_debug) << "Received CANCEL for call-id " << sip->sip_call_id->i_id << ", sending to client"  ;
+            DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - Received CANCEL for call-id " << sip->sip_call_id->i_id << ", sending to client"  ;
 
             string encodedMessage ;
             msg_t* msg = nta_incoming_getrequest( irq ) ;
