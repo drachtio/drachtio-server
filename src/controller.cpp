@@ -479,20 +479,20 @@ namespace drachtio {
 		m_logger.reset( this->createLogger() );
 		this->logConfig() ;
 
-        DR_LOG(log_debug) << "Main thread id: " << boost::this_thread::get_id() ;
+        DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
 
        /* open stats connection */
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
         if( 0 != m_adminPort ) adminPort = m_adminPort ;
         if( 0 != adminPort ) {
-            DR_LOG(log_notice) << "listening for client connections on " << adminAddress << ":" << adminPort ;
+            DR_LOG(log_notice) << "DrachtioController::run: listening for client connections on " << adminAddress << ":" << adminPort ;
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
         string url = m_sipContact ;
         if( 0 == url.length() ) m_Config->getSipUrl( url ) ;
-        DR_LOG(log_notice) << "starting sip stack on " << url ;
+        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << url ;
         
         int rv = su_init() ;
         if( rv < 0 ) {
@@ -501,18 +501,18 @@ namespace drachtio {
         }
         ::atexit(su_deinit);
         if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
-            DR_LOG(log_error) << "Error calling sip_update_default_mclass"  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling sip_update_default_mclass"  ;
             return  ;
         }        
         
         m_root = su_root_create( NULL ) ;
         if( NULL == m_root ) {
-            DR_LOG(log_error) << "Error calling su_root_create: "  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling su_root_create: "  ;
             return  ;
         }
         m_home = su_home_create() ;
         if( NULL == m_home ) {
-            DR_LOG(log_error) << "Error calling su_home_create"  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling su_home_create"  ;
         }
         su_log_redirect(NULL, __sofiasip_logger_func, NULL);
         
@@ -524,7 +524,7 @@ namespace drachtio {
         su_root_threading( m_root, 0 ) ;
         rv = su_clone_start( m_root, m_clone, this, clone_init, clone_destroy ) ;
         if( rv < 0 ) {
-           DR_LOG(log_error) << "Error calling su_clone_start"  ;
+           DR_LOG(log_error) << "DrachtioController::run: Error calling su_clone_start"  ;
            return  ;
         }
          
@@ -541,7 +541,7 @@ namespace drachtio {
                                  TAG_END() ) ;
         
         if( NULL == m_nta ) {
-            DR_LOG(log_error) << "Error calling nta_agent_create"  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
 
@@ -577,8 +577,20 @@ namespace drachtio {
             m_pRedisService = boost::make_shared<RedisService>( this, redisAddress, redisPort ) ;
         }
         else {
-            DR_LOG(log_warning) << "No redis configuration found in configuration file" ;
+            DR_LOG(log_warning) << "DrachtioController::run: No redis configuration found in configuration file" ;
         }
+
+        // set sip timers
+        unsigned int t1, t2, t4, t1x64 ;
+        m_Config->getTimers( t1, t2, t4, t1x64 ); 
+        DR_LOG(log_debug) << "DrachtioController::run - sip timers: T1: " << std::dec << t1 << "ms, T2: " << t2 << "ms, T4: " << t4 << "ms, T1X64: " << t1x64 << "ms";        
+        nta_agent_set_params(m_nta,
+            NTATAG_SIP_T1(t1),
+            NTATAG_SIP_T2(t2),
+            NTATAG_SIP_T4(t4),
+            NTATAG_SIP_T1X64(t1x64),
+            TAG_END()
+        ) ;
 
               
         /* sofia event loop */

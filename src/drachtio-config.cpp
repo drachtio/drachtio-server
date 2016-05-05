@@ -40,6 +40,13 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), m_bDaemon(isDaemonized) {
+
+            // default timers
+            m_nTimerT1 = 500 ;
+            m_nTimerT2 = 4000 ;
+            m_nTimerT4 = 5000 ;
+            m_nTimerT1x64 = 32000 ;
+
             try {
                 std::filebuf fb;
                 if( !fb.open (szFilename,std::ios::in) ) {
@@ -114,6 +121,19 @@ namespace drachtio {
                     else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
                     else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
                     else m_loglevel = log_info ;                    
+                }
+
+                // timers
+                try {
+                        m_nTimerT1 = pt.get<unsigned int>("drachtio.sip.timers.t1", 500) ; 
+                        m_nTimerT2 = pt.get<unsigned int>("drachtio.sip.timers.t2", 4000) ; 
+                        m_nTimerT4 = pt.get<unsigned int>("drachtio.sip.timers.t4", 5000) ; 
+                        m_nTimerT1x64 = pt.get<unsigned int>("drachtio.sip.timers.t1x64", 32000) ; 
+
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    if( !m_bDaemon ) {
+                        cout << "invalid timer configuration" << endl ;
+                    }
                 }
 
                 //redis config
@@ -207,6 +227,13 @@ namespace drachtio {
         bool generateCdrs(void) const {
             return m_bGenerateCdrs ;
         }
+
+        void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) {
+            t1 = m_nTimerT1 ;
+            t2 = m_nTimerT2 ;
+            t4 = m_nTimerT4 ;
+            t1x64 = m_nTimerT1x64 ;
+        }
  
     private:
         
@@ -244,6 +271,7 @@ namespace drachtio {
         unsigned int m_redisPort ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
+        unsigned int m_nTimerT1, m_nTimerT2, m_nTimerT4, m_nTimerT1x64 ;
   } ;
     
     /*
@@ -297,6 +325,8 @@ namespace drachtio {
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;
     }
+    void DrachtioConfig::getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) {
+        return m_pimpl->getTimers( t1, t2, t4, t1x64 ) ;
+    }
 
- 
 }
