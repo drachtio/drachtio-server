@@ -259,6 +259,7 @@ namespace drachtio {
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
+                {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
@@ -299,6 +300,10 @@ namespace drachtio {
                     port = optarg ;
                     m_adminPort = ::atoi( port.c_str() ) ;
                     break;
+
+                case 'v':
+                    cout << DRACHTIO_VERSION << endl ;
+                    exit(0) ;
                                                             
                 case '?':
                     /* getopt_long already printed an error message. */
