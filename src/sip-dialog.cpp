@@ -142,7 +142,7 @@ namespace drachtio {
 		su_duration_t nMilliseconds = nSecs * 1000  ;
 		m_nSessionExpiresSecs = nSecs ;
 
-		DR_LOG(log_debug) << "Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them")  ;
+		DR_LOG(log_debug) << "SipDialog::setSessionTimer: Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them")  ;
 
 		/* if we are the refresher, then we want the timer to go off halfway through the interval */
 		if( areWeRefresher() ) nMilliseconds /= 2 ;
