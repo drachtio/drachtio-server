@@ -89,7 +89,8 @@ namespace drachtio {
 
       enum State_t {
         not_started = 0,
-        calling,
+        trying,             // non-INVITE transactions only
+        calling,            // INVITE transactions only
         proceeding, 
         completed,
         terminated
@@ -107,6 +108,17 @@ namespace drachtio {
       uint32_t getRSeq(void) { return m_rseq ;}
       const string& getTarget(void) { return m_target; }
       const char* getCurrentStateName(void) { return getStateName(m_state);} ;
+      bool isInviteTransaction(void) { return sip_method_invite == m_method;}
+      void reinitState(void) { 
+        m_state = not_started ; 
+        m_transmitCount = 0;
+        m_sipStatus = 0 ;
+        m_canceled = false ;
+        if( m_msgFinal ) {
+          msg_destroy( m_msgFinal ) ;
+          m_msgFinal = NULL ;
+        }
+      }
 
 
       bool processResponse( msg_t* msg, sip_t* sip ) ;
@@ -120,6 +132,9 @@ namespace drachtio {
       void clearTimerB(void) { m_timerB = NULL;}
       void clearTimerC(void) { m_timerC = NULL;}
       void clearTimerD(void) { m_timerD = NULL;}
+      void clearTimerE(void) { m_timerE = NULL;}
+      void clearTimerF(void) { m_timerF = NULL;}
+      void clearTimerK(void) { m_timerK = NULL;}
       void clearTimerProvisional(void) { m_timerProvisional = NULL;}
 
     protected:
@@ -147,6 +162,11 @@ namespace drachtio {
       TimerEventHandle  m_timerC ;
       TimerEventHandle  m_timerD ;
       TimerEventHandle  m_timerProvisional ;
+
+      //non-INVITE request timers
+      TimerEventHandle  m_timerE ;
+      TimerEventHandle  m_timerF ;
+      TimerEventHandle  m_timerK ;
     } ;
 
     enum LaunchType_t {
@@ -173,15 +193,22 @@ namespace drachtio {
     int startRequests(void) ;
     void removeTerminated(bool alsoRemoveNotStarted = false) ;
     void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
+    bool isResendWithCredentials( msg_t* msg, sip_t* sip ) ;
+    bool doResendWithCredentials( msg_t* msg, sip_t* sip ) ;
 
     void timerA( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerB( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerC( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerD( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerE( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerF( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerK( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerProvisional( boost::shared_ptr<ClientTransaction> pClient ) ;
 
     const char* getCallId(void) { return sip_object( m_pServerTransaction->msg() )->sip_call_id->i_id; }
     const char* getMethodName(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method_name; }
+    sip_method_t getMethod(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method; }
+    sip_cseq_t* getCseq(void) { return sip_object( m_pServerTransaction->msg() )->sip_cseq; }
 
     void cancelOutstandingRequests(void) ;
     void setCanceled(bool b) {     
@@ -203,8 +230,7 @@ namespace drachtio {
     bool shouldAddRecordRoute(void) { return m_bRecordRoute;}
     bool getLaunchType(void) { return m_launchType; }
     bool allClientsAreTerminated(void) ;
-    void addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
-      boost::shared_ptr<ClientTransaction> pClient ) ;
+    void addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, boost::shared_ptr<ClientTransaction> pClient ) ;
 
     unsigned int getProvisionalTimeout(void) { return m_nProvisionalTimeout; }
     void setProvisionalTimeout(const string& t ) ;
@@ -342,8 +368,6 @@ namespace drachtio {
     void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
   protected:
-
-    //int proxyToTarget( boost::shared_ptr<ProxyCore> p, const string& dest ) ;
 
     void clearTimerProvisional( boost::shared_ptr<ProxyCore> p );
     void clearTimerFinal( boost::shared_ptr<ProxyCore> p ) ;
