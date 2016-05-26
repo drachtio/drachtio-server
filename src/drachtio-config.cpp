@@ -95,8 +95,8 @@ namespace drachtio {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
                     m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
-                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1024 * 1024) ; //max size of stored files: 16M default
-                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.minSize", 2 * 1024 * 1024 * 1024 * 1024) ;//min free space on disk: 2G default
+                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1000 * 1000) ; //max size of stored files: 16M default
+                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.c", 2 * 1000 * 1000 * 1000) ;//min free space on disk: 2G default
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
                     if( !m_bDaemon ) {
                         cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
