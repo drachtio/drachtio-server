@@ -25,6 +25,7 @@ THE SOFTWARE.
 #include <boost/shared_ptr.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/thread.hpp>
+#include <boost/enable_shared_from_this.hpp>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/sip.h>
@@ -37,6 +38,7 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 #include "client-controller.hpp"
+#include "timer-queue.hpp"
 
 using namespace std ;
 
@@ -54,23 +56,26 @@ namespace drachtio {
     const string& getCallId() ;
     const string& getTransactionId() ;
     tport_t* getTport() ;
+    TimerEventHandle getTimerHandle(void) { return m_handle;}
+    void setTimerHandle( TimerEventHandle handle ) { m_handle = handle;}
 
   private:
     msg_t*  m_msg ;
     string  m_transactionId ;
     string  m_callId ;
     tport_t* m_tp ;
+    TimerEventHandle m_handle ;
   } ;
 
 
-  class PendingRequestController {
+  class PendingRequestController : public boost::enable_shared_from_this<PendingRequestController> {
   public:
     PendingRequestController(DrachtioController* pController);
     ~PendingRequestController() ;
 
     int processNewRequest( msg_t* msg, sip_t* sip, string& transactionId ) ;
 
-    boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId ) ;
+    boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
 
     void logStorageCount(void) ;
 
@@ -79,6 +84,8 @@ namespace drachtio {
       mapCallId2Invite::iterator it = m_mapCallId2Invite.find( sip->sip_call_id->i_id ) ;   
       return it != m_mapCallId2Invite.end() ;
     }
+
+    void timeout(const string& transactionId) ;
 
   protected:
 
@@ -96,6 +103,8 @@ namespace drachtio {
 
     typedef boost::unordered_map<string, boost::shared_ptr<PendingRequest_t> > mapTxnId2Invite ;
     mapTxnId2Invite m_mapTxnId2Invite ;
+
+    TimerQueue      m_timerQueue ;
 
   } ;
 

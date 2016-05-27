@@ -24,11 +24,14 @@ namespace drachtio {
     class SipDialogController ;
 }
 
+#include <boost/bind.hpp>
+
 
 #include "pending-request-controller.hpp"
 #include "controller.hpp"
 #include "cdr.hpp"
 
+#define CLIENT_TIMEOUT (4000)
 
 namespace drachtio {
 
@@ -37,6 +40,7 @@ namespace drachtio {
     generateUuid( m_transactionId ) ;
    
     msg_ref_create( m_msg ) ; 
+
   }
   PendingRequest_t::~PendingRequest_t() {
     msg_destroy( m_msg ) ;
@@ -52,7 +56,7 @@ namespace drachtio {
 
 
   PendingRequestController::PendingRequestController( DrachtioController* pController) : m_pController(pController), 
-    m_agent(pController->getAgent()), m_pClientController(pController->getClientController()) {
+    m_agent(pController->getAgent()), m_pClientController(pController->getClientController()), m_timerQueue(pController->getRoot() ) {
 
     assert(m_agent) ;
  
@@ -97,6 +101,10 @@ namespace drachtio {
     DR_LOG(log_debug) << "PendingRequestController::add - tport: " << std::hex << (void*) tp << 
       ", Call-ID: " << p->getCallId() << ", transactionId " << p->getTransactionId() ;
     
+    // give client 4 seconds to respond before clearing state
+    TimerEventHandle handle = m_timerQueue.add( boost::bind(&PendingRequestController::timeout, shared_from_this(), p->getTransactionId()), NULL, CLIENT_TIMEOUT ) ;
+    p->setTimerHandle( handle ) ;
+
     boost::lock_guard<boost::mutex> lock(m_mutex) ;
     m_mapCallId2Invite.insert( mapCallId2Invite::value_type(p->getCallId(), p) ) ;
     m_mapTxnId2Invite.insert( mapTxnId2Invite::value_type(p->getTransactionId(), p) ) ;
@@ -104,7 +112,7 @@ namespace drachtio {
     return p ;
   }
 
-  boost::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId ) {
+  boost::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId, bool timeout ) {
     boost::shared_ptr<PendingRequest_t> p ;
     boost::lock_guard<boost::mutex> lock(m_mutex) ;
     mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
@@ -114,8 +122,18 @@ namespace drachtio {
       mapCallId2Invite::iterator it2 = m_mapCallId2Invite.find( p->getCallId() ) ;
       assert( it2 != m_mapCallId2Invite.end()) ;
       m_mapCallId2Invite.erase( it2 ) ;
+
+      if( !timeout ) {
+        m_timerQueue.remove( p->getTimerHandle() ) ;
+      }
     }   
     return p ;
+  }
+
+  void PendingRequestController::timeout(const string& transactionId) {
+    DR_LOG(log_debug) << "PendingRequestController::timeout: giving up on transactionId " << transactionId ;
+
+    this->findAndRemove( transactionId, true ) ;
   }
 
   void PendingRequestController::logStorageCount(void)  {
