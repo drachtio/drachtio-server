@@ -75,7 +75,7 @@ namespace drachtio {
 
     int processNewRequest( msg_t* msg, sip_t* sip, string& transactionId ) ;
 
-    boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
+    boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId ) ;
 
     void logStorageCount(void) ;
 
