@@ -134,6 +134,7 @@ namespace drachtio {
     DR_LOG(log_debug) << "PendingRequestController::timeout: giving up on transactionId " << transactionId ;
 
     this->findAndRemove( transactionId, true ) ;
+    m_pClientController->removeNetTransaction( transactionId ) ;
   }
 
   void PendingRequestController::logStorageCount(void)  {
