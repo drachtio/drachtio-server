@@ -112,7 +112,7 @@ namespace drachtio {
     return p ;
   }
 
-  boost::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId ) {
+  boost::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId, bool timeout ) {
     boost::shared_ptr<PendingRequest_t> p ;
     boost::lock_guard<boost::mutex> lock(m_mutex) ;
     mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
@@ -122,6 +122,10 @@ namespace drachtio {
       mapCallId2Invite::iterator it2 = m_mapCallId2Invite.find( p->getCallId() ) ;
       assert( it2 != m_mapCallId2Invite.end()) ;
       m_mapCallId2Invite.erase( it2 ) ;
+
+      if( !timeout ) {
+        m_timerQueue.remove( p->getTimerHandle() ) ;
+      }
     }   
     return p ;
   }
@@ -129,9 +133,8 @@ namespace drachtio {
   void PendingRequestController::timeout(const string& transactionId) {
     DR_LOG(log_debug) << "PendingRequestController::timeout: giving up on transactionId " << transactionId ;
 
-    boost::shared_ptr<PendingRequest_t> p = this->findAndRemove( transactionId ) ;
+    boost::shared_ptr<PendingRequest_t> p = this->findAndRemove( transactionId, true ) ;
     m_pClientController->removeNetTransaction( transactionId ) ;
-    m_timerQueue.remove( p->getTimerHandle() ) ;
   }
 
   void PendingRequestController::logStorageCount(void)  {
