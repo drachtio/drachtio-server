@@ -122,9 +122,9 @@ namespace drachtio {
         removeTimer( m_timerA, "timerA" ) ;
         removeTimer( m_timerB, "timerB" ) ;
         removeTimer( m_timerC, "timerC" ) ;
-        removeTimer( m_timerC, "timerE" ) ;
-        removeTimer( m_timerC, "timerF" ) ;
-        removeTimer( m_timerC, "timerK" ) ;
+        removeTimer( m_timerD, "timerD" ) ;
+        removeTimer( m_timerF, "timerF" ) ;
+        removeTimer( m_timerK, "timerK" ) ;
 
       }
 

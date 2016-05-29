@@ -253,6 +253,8 @@ namespace drachtio {
         removeTimer( m_timerB, "timerB" ) ;
         removeTimer( m_timerC, "timerC" ) ;
         removeTimer( m_timerD, "timerD" ) ;
+        removeTimer( m_timerF, "timerF" ) ;
+        removeTimer( m_timerK, "timerK" ) ;
         removeTimer( m_timerProvisional, "timerProvisional" ) ;
 
         if( m_msgFinal ) { 
