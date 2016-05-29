@@ -640,6 +640,7 @@ namespace drachtio {
         removeTimer( m_timerC, "timerC" ) ;
         removeTimer( m_timerC, "timerE" ) ;
         removeTimer( m_timerC, "timerF" ) ;
+        removeTimer( m_timerC, "timerK" ) ;
 
         if( calling == m_state ) {
             DR_LOG(log_debug) << "ClientTransaction::cancelRequest - client request in CALLING state has not received a response so not sending CANCEL" ;
