@@ -133,7 +133,7 @@ namespace drachtio {
   void PendingRequestController::timeout(const string& transactionId) {
     DR_LOG(log_debug) << "PendingRequestController::timeout: giving up on transactionId " << transactionId ;
 
-    boost::shared_ptr<PendingRequest_t> p = this->findAndRemove( transactionId, true ) ;
+    this->findAndRemove( transactionId, true ) ;
     m_pClientController->removeNetTransaction( transactionId ) ;
   }
 

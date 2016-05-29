@@ -830,7 +830,7 @@ namespace drachtio {
     void ProxyCore::timerE(boost::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer E fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::trying ) ;
-        //pClient->clearTimerE() ;
+        pClient->clearTimerE() ;
         msg_t* msg = m_pServerTransaction->msgDup() ;
         pClient->retransmitRequest(msg, m_headers) ;
         msg_destroy(msg) ;
@@ -838,7 +838,7 @@ namespace drachtio {
     //non-INVITE transaction timeout timer
     void ProxyCore::timerF(boost::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer F fired for a client transaction in " << pClient->getCurrentStateName() ;
-        //pClient->clearTimerF() ;
+        pClient->clearTimerF() ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
     }
@@ -846,7 +846,7 @@ namespace drachtio {
     void ProxyCore::timerK(boost::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer K fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::completed ) ;
-        //pClient->clearTimerK() ;
+        pClient->clearTimerK() ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
     }
