@@ -35,8 +35,10 @@ namespace drachtio {
 
   class SipTimerQueueManager : public TimerQueueManager {
   public:
-    SipTimerQueueManager(su_root_t* root) : m_queue(root, "general-sip"), m_queueA(root,"timerA"), m_queueB(root,"timerB"),
-        m_queueC(root, "timerC"), m_queueD(root, "timerD"), m_queueE(root, "timerE"), m_queueF(root, "timerF"), m_queueK(root, "timerK") {}
+    SipTimerQueueManager(su_root_t* root) : 
+        m_queue(root, "general-sip"), m_queueA(root,"timerA"), m_queueB(root,"timerB"),
+        m_queueC(root, "timerC"), m_queueD(root, "timerD"), m_queueE(root, "timerE"), 
+        m_queueF(root, "timerF"), m_queueK(root, "timerK") {}
     ~SipTimerQueueManager() {}
 
     TimerEventHandle addTimer( const char* szTimerClass, TimerFunc f, void* functionArgs, uint32_t milliseconds ) {

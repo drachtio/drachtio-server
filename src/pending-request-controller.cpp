@@ -31,7 +31,7 @@ namespace drachtio {
 #include "controller.hpp"
 #include "cdr.hpp"
 
-#define CLIENT_TIMEOUT (4000)
+#define CLIENT_TIMEOUT (64000)
 
 namespace drachtio {
 

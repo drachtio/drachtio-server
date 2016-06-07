@@ -1232,7 +1232,8 @@ namespace drachtio {
         bool bRetransmission = p->isRetransmission( sip ) ;
 
         if( bRetransmission ) {
-            DR_LOG(log_info) << "Discarding retransmitted message since we are a stateful proxy " << sip->sip_request->rq_method_name << " " << sip->sip_call_id->i_id ;
+            //TODO: augment ServerTransaction to retain last response sent and resend in this case (or 100 Trying if INVITE and no responses sent yet)
+            DR_LOG(log_info) << "Discarding retransmitted request since we are a stateful proxy " << sip->sip_request->rq_method_name << " " << sip->sip_call_id->i_id ;
             nta_msg_discard( nta, msg ) ;
             return false ;
         }
