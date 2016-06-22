@@ -305,9 +305,11 @@ namespace drachtio {
         string myHostport ;
         string requestUri ;
         string name ;
+        string sipOutboundProxy ;
         tagi_t* tags = makeTags( pData->getHeaders() ) ;
 
         try {
+            bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
 
             sip_request_t *sip_request = sip_request_make(m_pController->getHome(), pData->getStartLine() ) ;
             if( NULL == sip_request || 
@@ -367,8 +369,12 @@ namespace drachtio {
                 throw std::runtime_error("Error creating leg") ;
             }
             nta_leg_tag( leg, NULL ) ;
-            orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                NULL, method, name.c_str()
+            orq = nta_outgoing_tcreate( leg, 
+                response_to_request_outside_dialog, 
+                (nta_outgoing_magic_t*) m_pController, 
+                useOutboundProxy ? URL_STRING_MAKE( sipOutboundProxy.c_str() ) : NULL, 
+                method, 
+                name.c_str()
                 ,URL_STRING_MAKE(requestUri.c_str())
                 ,TAG_IF( (method == sip_method_invite || method == sip_method_subscribe) && 
                     !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT( m_my_contact ) )
