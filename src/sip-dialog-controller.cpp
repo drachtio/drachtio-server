@@ -325,7 +325,7 @@ namespace drachtio {
             sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
 
             //if user supplied all or part of the From use it
-            string from, to, contact ;
+            string from, to, contact, callid ;
             m_pController->getMyHostport( myHostport ) ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
                if( !replaceHostInUri( from, myHostport ) ) {
@@ -340,6 +340,11 @@ namespace drachtio {
             if( !searchForHeader( tags, siptag_to_str, to ) ) {
                 to = requestUri ;
             } 
+
+            // use call-id if supplied
+            if( searchForHeader( tags, siptag_call_id_str, callid ) ) {
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - using client-specified call-id: " << callid  ;            
+            }
 
             //set content-type if not supplied and body contains SDP
             string body = pData->getBody() ;
@@ -364,6 +369,8 @@ namespace drachtio {
                 uacLegCallback, (nta_leg_magic_t *) m_pController,
                 SIPTAG_FROM_STR(from.c_str()),
                 SIPTAG_TO_STR(to.c_str()),
+                TAG_IF( callid.length(), SIPTAG_CALL_ID_STR(callid.c_str())),
+                TAG_IF( method == sip_method_register, NTATAG_NO_DIALOG(1)),
                 TAG_END() ) ) ) {
 
                 throw std::runtime_error("Error creating leg") ;
