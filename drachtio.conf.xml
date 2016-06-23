@@ -25,7 +25,7 @@
 
         <!-- uncommenting this will cause all new requests (i.e. requests outside of a dialog) to go through the specified proxy -->
         <!--
-        <outbound-proxy>10.10.10.1</outbound-proxy>
+        <outbound-proxy>sip:10.10.10.1</outbound-proxy>
         -->
     </sip>
 
