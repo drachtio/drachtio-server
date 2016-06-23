@@ -498,6 +498,11 @@ namespace drachtio {
         string url = m_sipContact ;
         if( 0 == url.length() ) m_Config->getSipUrl( url ) ;
         DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << url ;
+
+        string outboundProxy ;
+        if( m_Config->getSipOutboundProxy(outboundProxy) ) {
+            DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
+        }
         
         int rv = su_init() ;
         if( rv < 0 ) {

@@ -66,6 +66,7 @@ namespace drachtio {
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
 
                     m_sipUrl = pt.get<string>("drachtio.sip.contact", "sip:*") ;
+                    m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
 
 
 
@@ -208,6 +209,11 @@ namespace drachtio {
             return true ;
         }
         const string& getSipUrl() const { return m_sipUrl; }
+
+        bool getSipOutboundProxy( string& sipOutboundProxy ) const {
+            sipOutboundProxy = m_sipOutboundProxy ;
+            return sipOutboundProxy.length() > 0 ;
+        }
         
         unsigned int getAdminPort( string& address ) {
             address = m_adminAddress ;
@@ -253,6 +259,7 @@ namespace drachtio {
         
         bool m_bIsValid ;
         string m_sipUrl ;
+        string m_sipOutboundProxy ;
         string m_syslogAddress ;
         string m_logFileName ;
         string m_logArchiveDirectory ;
@@ -305,6 +312,9 @@ namespace drachtio {
     bool DrachtioConfig::getSipUrl( std::string& sipUrl ) const {
         sipUrl = m_pimpl->getSipUrl() ;
         return true ;
+    }
+    bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {
+        return m_pimpl->getSipOutboundProxy( sipOutboundProxy ) ;
     }
 
     void DrachtioConfig::Log() const {

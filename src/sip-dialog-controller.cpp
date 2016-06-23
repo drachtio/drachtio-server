@@ -305,9 +305,11 @@ namespace drachtio {
         string myHostport ;
         string requestUri ;
         string name ;
+        string sipOutboundProxy ;
         tagi_t* tags = makeTags( pData->getHeaders() ) ;
 
         try {
+            bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
 
             sip_request_t *sip_request = sip_request_make(m_pController->getHome(), pData->getStartLine() ) ;
             if( NULL == sip_request || 
@@ -323,7 +325,7 @@ namespace drachtio {
             sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
 
             //if user supplied all or part of the From use it
-            string from, to, contact ;
+            string from, to, contact, callid ;
             m_pController->getMyHostport( myHostport ) ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
                if( !replaceHostInUri( from, myHostport ) ) {
@@ -338,6 +340,11 @@ namespace drachtio {
             if( !searchForHeader( tags, siptag_to_str, to ) ) {
                 to = requestUri ;
             } 
+
+            // use call-id if supplied
+            if( searchForHeader( tags, siptag_call_id_str, callid ) ) {
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - using client-specified call-id: " << callid  ;            
+            }
 
             //set content-type if not supplied and body contains SDP
             string body = pData->getBody() ;
@@ -362,13 +369,19 @@ namespace drachtio {
                 uacLegCallback, (nta_leg_magic_t *) m_pController,
                 SIPTAG_FROM_STR(from.c_str()),
                 SIPTAG_TO_STR(to.c_str()),
+                TAG_IF( callid.length(), SIPTAG_CALL_ID_STR(callid.c_str())),
+                TAG_IF( method == sip_method_register, NTATAG_NO_DIALOG(1)),
                 TAG_END() ) ) ) {
 
                 throw std::runtime_error("Error creating leg") ;
             }
             nta_leg_tag( leg, NULL ) ;
-            orq = nta_outgoing_tcreate( leg, response_to_request_outside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                NULL, method, name.c_str()
+            orq = nta_outgoing_tcreate( leg, 
+                response_to_request_outside_dialog, 
+                (nta_outgoing_magic_t*) m_pController, 
+                useOutboundProxy ? URL_STRING_MAKE( sipOutboundProxy.c_str() ) : NULL, 
+                method, 
+                name.c_str()
                 ,URL_STRING_MAKE(requestUri.c_str())
                 ,TAG_IF( (method == sip_method_invite || method == sip_method_subscribe) && 
                     !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT( m_my_contact ) )
