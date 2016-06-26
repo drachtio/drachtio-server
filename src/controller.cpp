@@ -581,11 +581,17 @@ namespace drachtio {
                                  URL_STRING_MAKE(urls[0].c_str()),               /* our contact address */
                                  stateless_callback,         /* no callback function */
                                  this,                  /* therefore no context */
+<<<<<<< HEAD
                                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
                                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
                                  TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                                  TAG_IF( tlsTransport &&hasTlsFiles, 
                                     TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+=======
+                                 TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                                 TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                                 TAG_IF( hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+>>>>>>> 04d2a17... add configuration for tls certificates and keys
                                  TAG_NULL(),
                                  TAG_END() ) ;
         
