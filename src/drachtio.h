@@ -49,6 +49,7 @@ THE SOFTWARE.
 #include <boost/lexical_cast.hpp>
 #include <sofia-sip/sip_protos.h>
 #include <sofia-sip/sip_tag.h>
+#include <sofia-sip/tport.h>
 #include <sofia-sip/sip_extra.h>
 #include <sofia-sip/msg_types.h>
 #include <sofia-sip/nta.h>

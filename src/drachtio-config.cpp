@@ -68,6 +68,9 @@ namespace drachtio {
                     m_sipUrl = pt.get<string>("drachtio.sip.contact", "sip:*") ;
                     m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
 
+                    m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
+                    m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
+                    m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
 
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -214,6 +217,15 @@ namespace drachtio {
             sipOutboundProxy = m_sipOutboundProxy ;
             return sipOutboundProxy.length() > 0 ;
         }
+
+        bool getTlsFiles( string& tlsKeyFile, string& tlsCertFile, string& tlsChainFile ) {
+            tlsKeyFile = m_tlsKeyFile ;
+            tlsCertFile = m_tlsCertFile ;
+            tlsChainFile = m_tlsChainFile ;
+
+            // both key and cert are minimally required
+            return tlsKeyFile.length() > 0 && tlsCertFile.length() > 0 ;
+        }
         
         unsigned int getAdminPort( string& address ) {
             address = m_adminAddress ;
@@ -263,6 +275,9 @@ namespace drachtio {
         string m_syslogAddress ;
         string m_logFileName ;
         string m_logArchiveDirectory ;
+        string m_tlsKeyFile ;
+        string m_tlsCertFile ;
+        string m_tlsChainFile ;
         bool m_bAutoFlush ;
         unsigned int m_rotationSize ;
         unsigned int m_maxSize ;
@@ -332,6 +347,10 @@ namespace drachtio {
     bool DrachtioConfig::getRedisAddress( std::string& address, unsigned int& port ) const {
         return m_pimpl->getRedisAddress( address, port ) ;
     }
+    bool DrachtioConfig::getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const {
+        return m_pimpl->getTlsFiles( keyFile, certFile, chainFile ) ;
+    }
+
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;
     }

@@ -56,6 +56,8 @@ namespace drachtio {
 
          bool getRedisAddress( std::string& address, unsigned int& port ) const ;
 
+         bool getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const ;
+
          bool generateCdrs(void) const ;
 
          void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;

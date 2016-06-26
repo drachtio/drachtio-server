@@ -503,6 +503,9 @@ namespace drachtio {
         if( m_Config->getSipOutboundProxy(outboundProxy) ) {
             DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
         }
+
+        string tlsKeyFile, tlsCertFile, tlsChainFile ;
+        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
         
         int rv = su_init() ;
         if( rv < 0 ) {
@@ -547,6 +550,9 @@ namespace drachtio {
                                  URL_STRING_MAKE(str),               /* our contact address */
                                  stateless_callback,         /* no callback function */
                                  this,                  /* therefore no context */
+                                 TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                                 TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                                 TAG_IF( hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                                  TAG_NULL(),
                                  TAG_END() ) ;
         
