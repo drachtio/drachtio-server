@@ -214,6 +214,10 @@ namespace drachtio {
     void timerProvisional( boost::shared_ptr<ClientTransaction> pClient ) ;
 
     const char* getCallId(void) { return sip_object( m_pServerTransaction->msg() )->sip_call_id->i_id; }
+    void getUniqueSipTransactionIdentifier(string& str) { 
+      sip_t* sip = sip_object(m_pServerTransaction->msg()) ;
+      makeUniqueSipTransactionIdentifier(sip, str);
+    }
     const char* getMethodName(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method_name; }
     sip_method_t getMethod(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method; }
     sip_cseq_t* getCseq(void) { return sip_object( m_pServerTransaction->msg() )->sip_cseq; }
@@ -365,10 +369,11 @@ namespace drachtio {
 
     bool isRetransmission( sip_t* sip ) {
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( sip->sip_call_id->i_id ) ;   
+      string id ;
+      makeUniqueSipTransactionIdentifier(sip, id) ;
+      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;   
       return it != m_mapCallId2Proxy.end() ;
     }
-
 
     boost::shared_ptr<TimerQueueManager> getTimerQueueManager(void) { return m_pTQM; }
 
@@ -384,16 +389,18 @@ namespace drachtio {
       bool recordRoute, bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, 
       const string& finalTimeout, vector<string> vecDestination, const string& headers ) ;
 
-    boost::shared_ptr<ProxyCore> getProxyByCallId( const string& callId ) {
+    boost::shared_ptr<ProxyCore> getProxy( sip_t* sip ) {
+      string id ;
+      makeUniqueSipTransactionIdentifier(sip, id) ;
       boost::shared_ptr<ProxyCore> p ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( callId ) ;
+      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       if( it != m_mapCallId2Proxy.end() ) {
         p = it->second ;
       }
       return p ;
     }
-    boost::shared_ptr<ProxyCore> removeProxyByCallId( const string& callId );
+    boost::shared_ptr<ProxyCore> removeProxy( sip_t* sip );
 
     bool isTerminatingResponse( int status ) ;
 

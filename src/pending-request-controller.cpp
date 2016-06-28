@@ -35,7 +35,8 @@ namespace drachtio {
 
 namespace drachtio {
 
-  PendingRequest_t::PendingRequest_t(msg_t* msg, sip_t* sip, tport_t* tp ) : m_msg( msg ), m_tp(tp), m_callId(sip->sip_call_id->i_id) {
+  PendingRequest_t::PendingRequest_t(msg_t* msg, sip_t* sip, tport_t* tp ) : m_msg( msg ), m_tp(tp), 
+    m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), m_methodName(sip->sip_cseq->cs_method_name) {
     DR_LOG(log_debug) << "PendingRequest_t::PendingRequest_t" ;
     generateUuid( m_transactionId ) ;
    
@@ -50,10 +51,9 @@ namespace drachtio {
   sip_t* PendingRequest_t::getSipObject() { return sip_object(m_msg); }
   const string& PendingRequest_t::getCallId() { return m_callId; }
   const string& PendingRequest_t::getTransactionId() { return m_transactionId; }
+  const string& PendingRequest_t::getMethodName() { return m_methodName; }
   tport_t* PendingRequest_t::getTport() { return m_tp; }
-
-
-
+  uint32_t PendingRequest_t::getCSeq() { return m_seq; }
 
   PendingRequestController::PendingRequestController( DrachtioController* pController) : m_pController(pController), 
     m_agent(pController->getAgent()), m_pClientController(pController->getClientController()), 
@@ -106,8 +106,10 @@ namespace drachtio {
     TimerEventHandle handle = m_timerQueue.add( boost::bind(&PendingRequestController::timeout, shared_from_this(), p->getTransactionId()), NULL, CLIENT_TIMEOUT ) ;
     p->setTimerHandle( handle ) ;
 
+    string id ;
+    p->getUniqueSipTransactionIdentifier(id) ;
     boost::lock_guard<boost::mutex> lock(m_mutex) ;
-    m_mapCallId2Invite.insert( mapCallId2Invite::value_type(p->getCallId(), p) ) ;
+    m_mapCallId2Invite.insert( mapCallId2Invite::value_type(id, p) ) ;
     m_mapTxnId2Invite.insert( mapTxnId2Invite::value_type(p->getTransactionId(), p) ) ;
 
     return p ;
@@ -115,12 +117,15 @@ namespace drachtio {
 
   boost::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId, bool timeout ) {
     boost::shared_ptr<PendingRequest_t> p ;
+    string id ;
     boost::lock_guard<boost::mutex> lock(m_mutex) ;
     mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
     if( it != m_mapTxnId2Invite.end() ) {
       p = it->second ;
       m_mapTxnId2Invite.erase( it ) ;
-      mapCallId2Invite::iterator it2 = m_mapCallId2Invite.find( p->getCallId() ) ;
+
+      p->getUniqueSipTransactionIdentifier(id) ;
+      mapCallId2Invite::iterator it2 = m_mapCallId2Invite.find( id ) ;
       assert( it2 != m_mapCallId2Invite.end()) ;
       m_mapCallId2Invite.erase( it2 ) ;
 

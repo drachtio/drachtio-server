@@ -197,6 +197,14 @@ namespace drachtio {
 		return false ;
 	}
 
+    void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) {
+        str = sip->sip_call_id->i_id ;
+        str.append("|") ;
+        str.append(sip->sip_cseq->cs_method_name) ;
+        str.append("|") ;
+        str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
+    }
+
 	void generateUuid(string& uuid) {
 #ifdef BOOST_UUID
 	    boost::uuids::uuid id = boost::uuids::random_generator()();

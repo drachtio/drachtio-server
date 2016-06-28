@@ -1141,7 +1141,7 @@ namespace drachtio {
             nta_msg_tsend( nta, msg, NULL, TAG_END() ) ;  
             return true ;                      
         }
-        boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
+        boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
 
         if( !p ) return false ;
 
@@ -1169,7 +1169,7 @@ namespace drachtio {
         }
 
         if( sip_method_prack == sip->sip_request->rq_method ) {
-            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
+            boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
             if( !p ) {
                DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader unknown call-id for PRACK " <<  
                     sip->sip_call_id->i_id ;
@@ -1198,7 +1198,7 @@ namespace drachtio {
     bool SipProxyController::processRequestWithoutRouteHeader( msg_t* msg, sip_t* sip ) {
         string callId = sip->sip_call_id->i_id ;
 
-        boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip->sip_call_id->i_id ) ;
+        boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
         if( !p ) {
             DR_LOG(log_error) << "SipProxyController::processRequestWithoutRouteHeader unknown call-id for " <<  sip->sip_request->rq_method_name << " " << callId;
             nta_msg_discard( nta, msg ) ;
@@ -1251,15 +1251,19 @@ namespace drachtio {
         return true ;
     }
     bool SipProxyController::isProxyingRequest( msg_t* msg, sip_t* sip )  {
+      string id ;
+      makeUniqueSipTransactionIdentifier(sip, id) ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( sip->sip_call_id->i_id ) ;
+      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       return it != m_mapCallId2Proxy.end() ;
     }
 
-    boost::shared_ptr<ProxyCore> SipProxyController::removeProxyByCallId( const string& callId ) {
+    boost::shared_ptr<ProxyCore> SipProxyController::removeProxy( sip_t* sip ) {
+      string id ;
+      makeUniqueSipTransactionIdentifier(sip, id); 
       boost::shared_ptr<ProxyCore> p ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( callId ) ;
+      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       if( it != m_mapCallId2Proxy.end() ) {
         p = it->second ;
         m_mapCallId2Proxy.erase(it) ;
@@ -1268,7 +1272,7 @@ namespace drachtio {
       return p ;
     }
     void SipProxyController::removeProxy( boost::shared_ptr<ProxyCore> pCore ) {
-        removeProxyByCallId( sip_object( pCore->msg() )->sip_call_id->i_id ) ;
+        removeProxy( sip_object( pCore->msg() ) ) ;
     }
 
     bool SipProxyController::isTerminatingResponse( int status ) {
@@ -1287,8 +1291,11 @@ namespace drachtio {
         bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string> vecDestination, 
         const string& headers ) {
 
-      DR_LOG(log_debug) << "SipProxyController::addProxy - adding transaction id " << transactionId << ", call-id " << 
-        sip->sip_call_id->i_id << " before insert there are "<< m_mapCallId2Proxy.size() << " proxy instances";
+      string id ;
+      makeUniqueSipTransactionIdentifier(sip, id) ;
+
+      DR_LOG(log_debug) << "SipProxyController::addProxy - adding transaction id " << transactionId << ", id " << 
+        id << " before insert there are "<< m_mapCallId2Proxy.size() << " proxy instances";
 
       boost::shared_ptr<ProxyCore> p = boost::make_shared<ProxyCore>( clientMsgId, transactionId, tp, recordRoute, 
         fullResponse, simultaneous, headers ) ;
@@ -1297,7 +1304,7 @@ namespace drachtio {
       if( !provisionalTimeout.empty() ) p->setProvisionalTimeout( provisionalTimeout ) ;
       
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(sip->sip_call_id->i_id, p) ) ;
+      m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(id, p) ) ;
       return p ;         
     }
     void SipProxyController::logStorageCount(void)  {
