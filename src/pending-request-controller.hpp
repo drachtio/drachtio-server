@@ -55,6 +55,12 @@ namespace drachtio {
     sip_t* getSipObject() ;
     const string& getCallId() ;
     const string& getTransactionId() ;
+    void getUniqueSipTransactionIdentifier(string& str) { 
+      sip_t* sip = sip_object(m_msg) ;
+      makeUniqueSipTransactionIdentifier(sip, str);
+    }
+    const string& getMethodName() ;
+    uint32_t getCSeq() ;
     tport_t* getTport() ;
     TimerEventHandle getTimerHandle(void) { return m_handle;}
     void setTimerHandle( TimerEventHandle handle ) { m_handle = handle;}
@@ -63,6 +69,8 @@ namespace drachtio {
     msg_t*  m_msg ;
     string  m_transactionId ;
     string  m_callId ;
+    uint32_t m_seq ;
+    string m_methodName ;
     tport_t* m_tp ;
     TimerEventHandle m_handle ;
   } ;
@@ -80,8 +88,10 @@ namespace drachtio {
     void logStorageCount(void) ;
 
     bool isRetransmission( sip_t* sip ) {
+      string id ;
+      makeUniqueSipTransactionIdentifier( sip, id ) ;
       boost::lock_guard<boost::mutex> lock(m_mutex) ;
-      mapCallId2Invite::iterator it = m_mapCallId2Invite.find( sip->sip_call_id->i_id ) ;   
+      mapCallId2Invite::iterator it = m_mapCallId2Invite.find( id ) ;   
       return it != m_mapCallId2Invite.end() ;
     }
 
