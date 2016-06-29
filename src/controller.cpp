@@ -30,8 +30,6 @@ THE SOFTWARE.
 #include <boost/property_tree/ptree.hpp>
 #include <boost/foreach.hpp>
 
-//#include <boost/log/filters.hpp>
-
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 
@@ -553,6 +551,8 @@ namespace drachtio {
                                  TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
                                  TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
                                  TAG_IF( hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                                 TAG_IF( hasTlsFiles, 
+                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
                                  TAG_NULL(),
                                  TAG_END() ) ;
         
