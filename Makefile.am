@@ -14,6 +14,7 @@ timer_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${s
 
 ssltest_SOURCES= src/ssltest.cpp
 ssltest_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+ssltest_LDADD= -lssl -lcrypto -lz
 
 if LINUX
 drachtio_LDADD += ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_59_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
