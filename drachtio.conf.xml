@@ -5,14 +5,23 @@
   
     <!-- sip configuration -->
     <sip>
-        <!-- local sip address to bind to.  Default: 'sip:*', which means listens on port 5060 on all interfaces and transports -->
-        <!--
-                Other examples:
-                    sip:192.168.1.100       -- listen on a specific address
-                    sip:*;transport=tcp     -- tcp connections only
-                    sip:*:5061              -- listen on port 5061
-        -->
-        <contact>sip:*</contact>
+        <contacts>
+            <!-- local sip address to bind to.  Default: 'sip:*', which means listens on port 5060 on all interfaces and transports -->
+            <!--
+                    Other examples:
+                        sip:192.168.1.100       -- listen on a specific address
+                        sip:*;transport=tcp     -- tcp connections only
+                        sip:*:5061              -- listen on port 5061
+            -->
+
+
+            <!-- heres how to listen for every protocol on their default ports -->
+            <contact>sip:*;transport=udp,tcp</contact>
+            <contact>sip:*:80;transport=ws</contact>
+            <contact>sips:*;transport=tls</contact>
+            <contact>sips:*:443;transport=wss</contact>
+
+        </contacts>
 
         <!-- if you want to change the sip timers
             <timers>

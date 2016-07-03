@@ -40,7 +40,7 @@ namespace drachtio {
         
         bool isValid() ;
 
-        bool getSipUrl( std::string& sipUrl ) const ;
+        bool getSipUrls( std::vector<string>& urls ) const ;
         bool getSipOutboundProxy( std::string& sipOutboundProxy ) const ;
         bool getSyslogTarget( std::string& address, unsigned int& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;

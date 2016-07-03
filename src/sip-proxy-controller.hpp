@@ -231,7 +231,6 @@ namespace drachtio {
     const string& getClientMsgId() { return m_clientMsgId; }
     const string& getTransactionId() ;
     tport_t* getTport() ;
-    const sip_record_route_t* getMyRecordRoute(void) ;
     bool wantsFullResponse(void) { return m_fullResponse; }
     const string& getHeaders(void) { return m_headers; }
 

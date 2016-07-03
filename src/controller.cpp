@@ -42,6 +42,7 @@ THE SOFTWARE.
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/attributes/scoped_attribute.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/core/null_deleter.hpp>
 
 #include <boost/lambda/lambda.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -53,6 +54,7 @@ THE SOFTWARE.
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/regex.hpp>
 
 #include <sofia-sip/msg_addr.h>
 #include <sofia-sip/sip_util.h>
@@ -186,7 +188,7 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -250,6 +252,7 @@ namespace drachtio {
             {
                 /* These options set a flag. */
                 {"daemon", no_argument,       &m_bDaemonize, true},
+                {"noconfig", no_argument,       &m_bNoConfig, true},
                 
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
@@ -323,7 +326,7 @@ namespace drachtio {
     }
 
     void DrachtioController::usage() {
-        cout << "drachtio -f <filename> --daemon"  ;
+        cout << "drachtio -f <path-to-config-file> --user <user-to-run-as> --port <tcp port for admin connections> --daemon --noconfig --version"  ;
     }
 
     void DrachtioController::daemonize() {
@@ -387,81 +390,107 @@ namespace drachtio {
            logging::core::get()->remove_sink( m_sinkTextFile ) ;
             m_sinkTextFile.reset() ;            
         }
+        if( m_sinkConsole ) {
+           logging::core::get()->remove_sink( m_sinkConsole ) ;
+            m_sinkConsole.reset() ;            
+        }
     }
     void DrachtioController::initializeLogging() {
         try {
-            // Create a syslog sink
-            sinks::syslog::facility facility  ;
-            string syslogAddress ;
-            unsigned int syslogPort;
-            
-            // initalize syslog sink, if configuredd
-            if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
-                m_Config->getSyslogFacility( facility ) ;
 
-                m_sinkSysLog.reset(
-                    new sinks::synchronous_sink< sinks::syslog_backend >(
-                         keywords::use_impl = sinks::syslog::udp_socket_based
-                        , keywords::facility = facility
-                    )
-                );
-
-                // We'll have to map our custom levels to the syslog levels
-                sinks::syslog::custom_severity_mapping< severity_levels > mapping("Severity");
-                mapping[log_debug] = sinks::syslog::debug;
-                mapping[log_notice] = sinks::syslog::notice;
-                mapping[log_info] = sinks::syslog::info;
-                mapping[log_warning] = sinks::syslog::warning;
-                mapping[log_error] = sinks::syslog::critical;
-
-                m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
-
-                // Set the remote address to sent syslog messages to
-                m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
-
-                logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
-
-                // Add the sink to the core
-                logging::core::get()->add_sink(m_sinkSysLog);
-
-            }
-
-            //initialize text file sink, of configured
-            string name, archiveDirectory ;
-            unsigned int rotationSize, maxSize, minSize ;
-            bool autoFlush ;
-            if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ) {
-
-                m_sinkTextFile.reset(
-                    new sinks::synchronous_sink< sinks::text_file_backend >(
-                        keywords::file_name = name,                                          
-                        keywords::rotation_size = rotationSize * 1024 * 1024,
-                        keywords::auto_flush = autoFlush,
-                        keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
-                        keywords::format = 
-                        (
-                            expr::stream
-                                << expr::attr< unsigned int >("RecordID")
-                                << ": "
-                                << expr::attr< boost::posix_time::ptime >("TimeStamp")
-                                << "> " << expr::smessage
-                        )
-                    )
+            if( m_bNoConfig ) {
+                m_sinkConsole.reset(
+                    new sinks::synchronous_sink< sinks::text_ostream_backend >()
                 );        
+                m_sinkConsole->locked_backend()->add_stream( boost::shared_ptr<std::ostream>(&std::clog, boost::null_deleter()));
 
-                m_sinkTextFile->set_formatter( &my_formatter ) ;
+                // flush
+                m_sinkConsole->locked_backend()->auto_flush(true);
 
-                m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
-                    keywords::target = archiveDirectory,                      
-                    keywords::max_size = maxSize * 1024 * 1024,          
-                    keywords::min_free_space = minSize * 1024 * 1024   
-                ));
-                           
-                logging::core::get()->add_sink(m_sinkTextFile);
+                m_sinkConsole->set_formatter( &my_formatter ) ;
+                          
+                logging::core::get()->add_sink(m_sinkConsole);
+
+                logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= log_debug 
+                ) ;
             }
-            logging::core::get()->set_filter(
-               expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
-            ) ;
+            else {
+
+
+                // Create a syslog sink
+                sinks::syslog::facility facility  ;
+                string syslogAddress ;
+                unsigned int syslogPort;
+                
+                // initalize syslog sink, if configuredd
+                if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
+                    m_Config->getSyslogFacility( facility ) ;
+
+                    m_sinkSysLog.reset(
+                        new sinks::synchronous_sink< sinks::syslog_backend >(
+                             keywords::use_impl = sinks::syslog::udp_socket_based
+                            , keywords::facility = facility
+                        )
+                    );
+
+                    // We'll have to map our custom levels to the syslog levels
+                    sinks::syslog::custom_severity_mapping< severity_levels > mapping("Severity");
+                    mapping[log_debug] = sinks::syslog::debug;
+                    mapping[log_notice] = sinks::syslog::notice;
+                    mapping[log_info] = sinks::syslog::info;
+                    mapping[log_warning] = sinks::syslog::warning;
+                    mapping[log_error] = sinks::syslog::critical;
+
+                    m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
+
+                    // Set the remote address to sent syslog messages to
+                    m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
+
+                    logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
+
+                    // Add the sink to the core
+                    logging::core::get()->add_sink(m_sinkSysLog);
+
+                }
+
+                //initialize text file sink, of configured
+                string name, archiveDirectory ;
+                unsigned int rotationSize, maxSize, minSize ;
+                bool autoFlush ;
+                if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ) {
+
+                    m_sinkTextFile.reset(
+                        new sinks::synchronous_sink< sinks::text_file_backend >(
+                            keywords::file_name = name,                                          
+                            keywords::rotation_size = rotationSize * 1024 * 1024,
+                            keywords::auto_flush = autoFlush,
+                            keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
+                            keywords::format = 
+                            (
+                                expr::stream
+                                    << expr::attr< unsigned int >("RecordID")
+                                    << ": "
+                                    << expr::attr< boost::posix_time::ptime >("TimeStamp")
+                                    << "> " << expr::smessage
+                            )
+                        )
+                    );        
+
+                    m_sinkTextFile->set_formatter( &my_formatter ) ;
+
+                    m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
+                        keywords::target = archiveDirectory,                      
+                        keywords::max_size = maxSize * 1024 * 1024,          
+                        keywords::min_free_space = minSize * 1024 * 1024   
+                    ));
+                               
+                    logging::core::get()->add_sink(m_sinkTextFile);
+                }
+                logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
+                ) ;
+            }
             
             m_bLoggingInitialized = true ;
 
@@ -484,7 +513,7 @@ namespace drachtio {
 
         DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
 
-       /* open stats connection */
+       /* open admin connection */
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
         if( 0 != m_adminPort ) adminPort = m_adminPort ;
@@ -494,8 +523,15 @@ namespace drachtio {
         }
 
         string url = m_sipContact ;
-        if( 0 == url.length() ) m_Config->getSipUrl( url ) ;
-        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << url ;
+        vector<string> urls ;
+        if( 0 == m_sipContact.length() ) {
+            m_Config->getSipUrls( urls ) ;
+        }
+        else {
+            urls.push_back( m_sipContact ) ;
+        }
+
+        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << urls[0] ;
 
         string outboundProxy ;
         if( m_Config->getSipOutboundProxy(outboundProxy) ) {
@@ -540,18 +576,15 @@ namespace drachtio {
         }
          
          /* create our agent */
-        char str[URL_MAXLEN] ;
-        memset(str, 0, URL_MAXLEN) ;
-        strncpy( str, url.c_str(), url.length() ) ;
-        
+        bool tlsTransport = string::npos != urls[0].find("sips") || string::npos != urls[0].find("tls") ;
 		m_nta = nta_agent_create( m_root,
-                                 URL_STRING_MAKE(str),               /* our contact address */
+                                 URL_STRING_MAKE(urls[0].c_str()),               /* our contact address */
                                  stateless_callback,         /* no callback function */
                                  this,                  /* therefore no context */
-                                 TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-                                 TAG_IF( hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                                 TAG_IF( hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-                                 TAG_IF( hasTlsFiles, 
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                                 TAG_IF( tlsTransport &&hasTlsFiles, 
                                     TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
                                  TAG_NULL(),
                                  TAG_END() ) ;
@@ -560,29 +593,58 @@ namespace drachtio {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
+        m_my_contact = nta_agent_contact( m_nta ) ;
+
+        for( vector<string>::iterator it = urls.begin() + 1; it != urls.end(); it++ ) {
+            string url = *it ;
+            tlsTransport = string::npos != url.find("sips") || string::npos != url.find("tls") ;
+
+            DR_LOG(log_info) << "DrachtioController::run: adding additional contact " << url  ;
+
+            rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(url.c_str()),
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                                 TAG_IF( tlsTransport &&hasTlsFiles, 
+                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                                 TAG_NULL(),
+                                 TAG_END() ) ;
+
+            if( rv < 0 ) {
+                DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
+                return ;            
+            }
+        }
+
 
         /* get tports for various protocols */
         const char* proto[] = {"udp","tcp","tls","ws","wss", NULL} ;
         for( int i = 0; proto[i] != NULL; i++ ) {
             tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
             if( tp ) {
-                DR_LOG(log_info) << "Added transport: " << proto[i] ;
                 m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(proto[i], tp) ) ;
+
+                const tp_name_t* tpn = tport_name(tp) ;
+
+                string via = "SIP/2.0/" ;
+                via.append( boost::to_upper_copy<std::string>( proto[i]) ) ;
+                via.append(" ") ;
+                via.append( tpn->tpn_host ) ;
+                via.append(":") ;
+                via.append( tpn->tpn_port ) ;
+
+                string ct = "<sip:" + string(tpn->tpn_host) + ":" + string(tpn->tpn_port) + ">" ;
+                sip_contact_t* contact = sip_contact_make( m_home, ct.c_str() ) ;
+
+                const char* szRR = su_sprintf(m_home, "<" URL_PRINT_FORMAT ";lr>", URL_PRINT_ARGS(contact->m_url));
+                sip_record_route_t *record_route = sip_route_make(m_home, szRR);
+
+                string desc ;
+                getTransportDescription( tp, desc ); 
+                DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
             }
         }
-
         
-        /* save my contact url, via, etc */
-        m_my_contact = nta_agent_contact( m_nta ) ;
-        ostringstream s ;
-        s << "SIP/2.0/UDP " <<  m_my_contact->m_url[0].url_host ;
-        if( m_my_contact->m_url[0].url_port ) s << ":" <<  m_my_contact->m_url[0].url_port  ;
-        m_my_via.assign( s.str().c_str(), s.str().length() ) ;
-        DR_LOG(log_debug) << "My via header: " << m_my_via  ;
-
-        const char* szRR = su_sprintf(m_home, "<" URL_PRINT_FORMAT ";lr>", URL_PRINT_ARGS(m_my_contact->m_url));
-        m_my_record_route = sip_route_make(m_home, szRR);
-
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
@@ -636,14 +698,21 @@ namespace drachtio {
         if( sip->sip_request ) {
 
             if( sip_sanity_check(sip) < 0 ) {
-                DR_LOG(log_error) << "invalid incoming request message; discarding call-id " << sip->sip_call_id->i_id ;
+                DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: invalid incoming request message; discarding call-id " << sip->sip_call_id->i_id ;
                 nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
                 return -1 ;
             }
             //check if we are in the first Route header; if so proxy accordingly
+            tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
+            tport_t* tp = tport_parent( tp_incoming ) ;
+            DR_LOG(log_debug) << "DrachtioController::processMessageStatelessly: primary tport " << hex << (void *) tp ;
+            sip_record_route_t* rr = NULL ;
+
+            tport_unref( tp_incoming ) ;
+
             if( sip->sip_route && 
                 url_has_param(sip->sip_route->r_url, "lr") &&
-                url_cmp(m_my_record_route->r_url, sip->sip_route->r_url) == 0) {
+                url_cmp(rr->r_url, sip->sip_route->r_url) == 0) {
 
                 //request within an established dialog in which we are a stateful proxy
                 if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
@@ -994,6 +1063,25 @@ namespace drachtio {
             return 400 ;            
         }
         return 0 ;
+    }
+    void DrachtioController::getMyHostports( vector<string>& vec ) {
+        for( mapProtocol2Tport::iterator it = m_mapProtocol2Tport.begin(); it != m_mapProtocol2Tport.end(); it++ ) {
+            string desc ;
+            getTransportDescription( it->second, desc ) ;
+            vec.push_back( desc ) ;
+        }
+    }
+    bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port ) {
+        string desc, p ;
+        tport_t* tp = getTportForProtocol( proto ) ;
+        if( !tp ) {            
+            DR_LOG(log_error) << "DrachtioController::getMySipAddress - invalid or non-configured protocol: " << proto  ;
+            assert( 0 ) ;
+            return false;
+        }
+        getTransportDescription( tp, desc ) ;
+
+        return parseTransportDescription( desc, p, host, port ) ;
     }
 
     void DrachtioController::printStats() {

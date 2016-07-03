@@ -49,6 +49,7 @@ THE SOFTWARE.
 #include <boost/log/attributes.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/syslog_backend.hpp>
+#include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/thread.hpp>
@@ -99,6 +100,26 @@ namespace drachtio {
                 ostringstream   m_os ;
         } ;
 
+        class TransportContact {
+        public:
+                TransportContact( string via, sip_contact_t* contact, sip_record_route_t* record_route ) :
+                        m_my_via(via), m_my_contact( contact ), m_my_record_route( record_route ) {
+
+                }
+                ~TransportContact() {}
+
+                const string& getVia(void) const { return m_my_via; }
+                sip_contact_t* getContact(void) const { return m_my_contact; }
+                sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
+
+        private:
+                TransportContact() {}
+
+                string          m_my_via ;
+                sip_contact_t*  m_my_contact ;
+                sip_record_route_t* m_my_record_route ;
+        } ;
+
 	class DrachtioController {
 	public:
 
@@ -135,8 +156,23 @@ namespace drachtio {
                 nta_agent_t* getAgent(void) { return m_nta; }
                 su_home_t* getHome(void) { return m_home; }
 
+                void getMyHostports( vector<string>& vec ) ;
+
+                bool getMySipAddress( const char* proto, string& host, string& port ) ;
+
+                /*
+                const char* getMySipAddress(const char* proto) {
+
+                        return m_my_contact->m_url->url_host ;
+                }
+                const char* getMySipPort(const char* proto) {
+                        return m_my_contact->m_url->url_port ? m_my_contact->m_url->url_port : "5060";
+                }
+
+                
                 const sip_contact_t* getMyContact(void) { return m_my_contact; }
                 const sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
+                
                 void getMyHostport( string& str ) {
                 	str = m_my_contact->m_url->url_host ;
                 	if( m_my_contact->m_url->url_port ) {
@@ -150,6 +186,12 @@ namespace drachtio {
                 const char* getMySipPort(void) {
                         return m_my_contact->m_url->url_port ? m_my_contact->m_url->url_port : "5060";
                 }
+                
+
+                const sip_contact_t* getMyContact(nta_incoming_t* irq, msg_t* msg ) ;
+                const sip_contact_t* getMyContact(string strDestination) ;
+                const sip_record_route_t* getMyRecordRoute(string strDestination) ;
+                */
 
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
@@ -167,6 +209,9 @@ namespace drachtio {
 	private:
                 typedef boost::unordered_map<string, tport_t*> mapProtocol2Tport ;
                 mapProtocol2Tport m_mapProtocol2Tport ;
+
+                //typedef boost::unordered_map<tport_t*, TransportContact> mapTport2Contact ;
+                //mapTport2Contact m_mapTport2Contact ;
 
         	DrachtioController() ;
 
@@ -194,9 +239,11 @@ namespace drachtio {
 
                 shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
                 shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
+                shared_ptr<  sinks::synchronous_sink< sinks::text_ostream_backend > > m_sinkConsole ;
 
                 shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
                 int m_bDaemonize ;
+                int m_bNoConfig ;
                 severity_levels m_current_severity_threshold ;
 
                 shared_ptr< ClientController > m_pClientController ;
@@ -214,11 +261,9 @@ namespace drachtio {
                 su_timer_t*     m_timer ;
                 nta_agent_t*	m_nta ;
                 nta_leg_t*      m_defaultLeg ;
-                string          m_my_via ;
-                sip_contact_t*  m_my_contact ;
-                sip_record_route_t* m_my_record_route ;
-
         	su_clone_r 	m_clone ;
+
+                sip_contact_t*  m_my_contact ;
         } ;
 
 } ;

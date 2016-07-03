@@ -211,9 +211,10 @@ read_again:
                 return false ;       
             } 
             else {
-                string hostport ;
-                theOneAndOnlyController->getMyHostport( hostport ) ;
-                createResponseMsg( tokens[0], msgResponse, true, hostport.c_str() ) ;
+                vector<string> hps ;
+                theOneAndOnlyController->getMyHostports( hps ) ;
+                string hostports = boost::algorithm::join(hps, ",") ;
+                createResponseMsg( tokens[0], msgResponse, true, hostports.c_str() ) ;
                 DR_LOG(log_info) << "Client::processAuthentication - secret validated successfully: " << secret ;
                 return true ;
             }            

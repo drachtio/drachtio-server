@@ -64,10 +64,13 @@ namespace drachtio {
 		this->setSourceAddress( host ) ;
 		this->setSourcePort( port ) ;
 
-    tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ;  
-    if( tport_is_udp(tport ) ) m_protocol = "udp" ;
-    else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-    else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+    tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ; 
+    const tp_name_t* tpn = tport_name( tport );
+
+    m_transportAddress = tpn->tpn_host ;
+    m_transportPort = tpn->tpn_port ;
+    m_protocol = tpn->tpn_proto ;
+ 
     tport_unref( tport ) ;
 
 		/* get remaining values from the headers */
@@ -111,9 +114,11 @@ namespace drachtio {
     this->setSourcePort( port ) ;
 
     tport_t *tport = nta_outgoing_transport( orq ) ;  
-    if( tport_is_udp(tport ) ) m_protocol = "udp" ;
-    else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-    else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+    const tp_name_t* tpn = tport_name( tport );
+
+    m_transportAddress = tpn->tpn_host ;
+    m_transportPort = tpn->tpn_port ;
+    m_protocol = tpn->tpn_proto ;
     tport_unref( tport ) ;
 
 		DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for outbound INVITE sent to " << name << ":" << std::dec << port ;

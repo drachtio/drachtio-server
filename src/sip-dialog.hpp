@@ -100,9 +100,12 @@ namespace drachtio {
 		void setRemoteSignalingPort( unsigned int port ) { m_remoteEndpoint.m_signalingPort = port; }
 		void setLocalSignalingPort( unsigned int port ) { m_localEndpoint.m_signalingPort = port; }
 
+		const string& getTransportAddress(void) const { return m_transportAddress; }
+		const string& getTransportPort(void) const { return m_transportPort; }
+		const string& getProtocol(void) const { return m_protocol; }
+
 		const string& getSourceAddress(void) const { return m_sourceAddress;}
 		unsigned int getSourcePort(void) const { return m_sourcePort; }
-		const string& getProtocol(void) const { return m_protocol; }
 		void setSourceAddress( const string& host ) { m_sourceAddress = host; }
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
 
@@ -142,7 +145,11 @@ namespace drachtio {
 		time_t			m_connectTime ;
 		time_t			m_endTime ;
 		ReleaseCause_t	m_releaseCause ;
-        
+
+		string 			m_transportAddress ;
+		string 			m_transportPort ;
+		string 			m_transportProtocol ;
+
     /* session timer */
     unsigned long 	m_nSessionExpiresSecs ;
     unsigned long 	m_nMinSE ;

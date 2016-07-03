@@ -64,19 +64,46 @@ namespace drachtio {
                     m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 8022) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
-
-                    m_sipUrl = pt.get<string>("drachtio.sip.contact", "sip:*") ;
-                    m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
-
-                    m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
-                    m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
-                    m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
-
-
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                     cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
                     return ;
                 }
+
+
+                /* sip contacts */
+
+                // old way: a single contact
+                try {
+                    string strUrl = pt.get<string>("drachtio.sip.contact") ;
+                    m_vecSipUrl.push_back( strUrl ) ;
+
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+
+                    //good, hopefull they moved to the new way: a parent <contacts> tag containing multiple contacts
+                    try {
+                         BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.sip.contacts")) {
+                            // v.first is the name of the child.
+                            // v.second is the child tree.
+                            if( 0 != v.first.compare("contact") ) {
+                                cerr << "Invalid child element of 'contacts':  " << v.first << endl ;
+                                return ;
+                            }
+
+                            m_vecSipUrl.push_back( v.second.data() );
+                        }
+
+                    } catch( boost::property_tree::ptree_bad_path& e ) {
+                        //neither <contact> nor <contacts> found: default to sip:*
+                        m_vecSipUrl.push_back("sip:*") ;
+                    }
+                }
+
+                m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
+
+                m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
+                m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
+                m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
+
                 
                 /* logging configuration  */
  
@@ -211,7 +238,7 @@ namespace drachtio {
             
             return true ;
         }
-        const string& getSipUrl() const { return m_sipUrl; }
+        void getSipUrls( vector<string>& urls) const { urls = m_vecSipUrl; }
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const {
             sipOutboundProxy = m_sipOutboundProxy ;
@@ -267,10 +294,8 @@ namespace drachtio {
             return true ;
         }
     
-        
-        
         bool m_bIsValid ;
-        string m_sipUrl ;
+        vector<string> m_vecSipUrl ;
         string m_sipOutboundProxy ;
         string m_syslogAddress ;
         string m_logFileName ;
@@ -324,8 +349,8 @@ namespace drachtio {
         return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ;
     }
 
-    bool DrachtioConfig::getSipUrl( std::string& sipUrl ) const {
-        sipUrl = m_pimpl->getSipUrl() ;
+    bool DrachtioConfig::getSipUrls( std::vector<string>& urls ) const {
+        m_pimpl->getSipUrls(urls) ;
         return true ;
     }
     bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {

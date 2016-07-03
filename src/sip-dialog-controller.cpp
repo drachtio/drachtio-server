@@ -89,7 +89,7 @@ namespace drachtio {
             assert(m_agent) ;
             assert(m_pClientController) ;
 
-            m_my_contact = nta_agent_contact( m_agent ) ;
+
 	}
 	SipDialogController::~SipDialogController() {
 	}
@@ -211,13 +211,21 @@ namespace drachtio {
                     NULL, TAG_NEXT(tags) ) ;
             }
             else {
+                string contact ;
+                if( method == sip_method_invite || method == sip_method_subscribe ) {
+                    contact = "<" ;
+                    contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
+                    contact.append( dlg->getTransportAddress() ) ;
+                    contact.append( ":" ) ;
+                    contact.append( dlg->getTransportPort() ) ;
+                    contact.append(">") ;
+
+                }
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    //NULL,
-                    URL_STRING_MAKE( routeUrl.c_str() ),
-                     
+                    URL_STRING_MAKE( routeUrl.c_str() ),                     
                     method, name.c_str()
                     ,URL_STRING_MAKE(requestUri.c_str())
-                    ,TAG_IF( method == sip_method_invite || method == sip_method_subscribe, SIPTAG_CONTACT( m_my_contact ) )
+                    ,TAG_IF( method == sip_method_invite || method == sip_method_subscribe, SIPTAG_CONTACT_STR( contact.c_str() ) )
                     ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_NEXT(tags) ) ;
@@ -307,6 +315,7 @@ namespace drachtio {
         string requestUri ;
         string name ;
         string sipOutboundProxy ;
+        tport_t* tp = NULL ;
         tagi_t* tags = makeTags( pData->getHeaders() ) ;
 
         try {
@@ -324,17 +333,32 @@ namespace drachtio {
             su_free( m_pController->getHome(), sip_request ) ;
 
             sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
-
+        
+            int rc = nta_get_outbound_tport_name_for_url( m_pController->getAgent(), m_pController->getHome(), 
+                        URL_STRING_MAKE(requestUri.c_str()), (void **) &tp ) ;
+            assert( 0 == rc ) ;
+            
+            string desc ;
+            getTransportDescription( tp, desc ) ;
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << desc <<
+                " for request-uri " << requestUri  ;            
+           
             //if user supplied all or part of the From use it
-            string from, to, contact, callid ;
-            m_pController->getMyHostport( myHostport ) ;
+            const tp_name_t* tpn = tport_name( tp );
+            string host = tpn->tpn_host ;
+            string port = tpn->tpn_port ;
+            string proto = tpn->tpn_proto ;
+
+            string myHostport = host + ":" + port ;
+            string contact = "<sip" + myHostport + ">";
+            string from, to, callid ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
                if( !replaceHostInUri( from, myHostport ) ) {
                     throw std::runtime_error(string("invalid from value provided by client: ") + from ) ;
                 }
             } 
             else {
-                from = "sip:" + myHostport ;
+                from = contact ;
             }
 
             //default To header to request uri if not provided
@@ -377,6 +401,7 @@ namespace drachtio {
                 throw std::runtime_error("Error creating leg") ;
             }
             nta_leg_tag( leg, NULL ) ;
+
             orq = nta_outgoing_tcreate( leg, 
                 response_to_request_outside_dialog, 
                 (nta_outgoing_magic_t*) m_pController, 
@@ -385,7 +410,7 @@ namespace drachtio {
                 name.c_str()
                 ,URL_STRING_MAKE(requestUri.c_str())
                 ,TAG_IF( (method == sip_method_invite || method == sip_method_subscribe) && 
-                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT( m_my_contact ) )
+                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR( contact.c_str() ) )
                 ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_NEXT(tags) ) ;
@@ -644,10 +669,27 @@ namespace drachtio {
             }
 
             string contact ;
+            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            sip_t *sip = sip_object( msg );
+
+            string contact ;
+            if( sip->sip_request->rq_method == sip_method_invite || sip->sip_request->rq_method == sip_method_subscribe ) {
+                tport_t *tport = nta_incoming_transport(m_agent, irq, msg) ; 
+                const tp_name_t* tpn = tport_name( tport );
+
+                contact = "<" ;
+                contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
+                contact.append( tpn->tpn_host ) ;
+                contact.append( ":" ) ;
+                contact.append( tpn->tpn_port ) ;
+                contact.append(">") ;
+
+                tport_unref( tport ) ;
+            }
 
             rc = nta_incoming_treply( irq, code, status
-                ,TAG_IF( sip_method_invite == nta_incoming_method(irq) &&
-                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT(m_my_contact) )
+                ,TAG_IF( sip_method_invite == sip->sip_request->rq_method &&
+                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR(contact.c_str()) )
                 ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_NEXT(tags)
@@ -664,8 +706,21 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found invite in progress " << std::hex << iip  ;
            /* invite in progress */
             nta_leg_t* leg = iip->leg() ;
-            irq = iip->irq() ;
+            irq = iip->irq() ;         
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
+
+            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            sip_t *sip = sip_object( msg );
+
+            string contact ;
+            if( sip->sip_request->rq_method == sip_method_invite || sip->sip_request->rq_method == sip_method_subscribe ) {
+                contact = "<" ;
+                contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
+                contact.append( dlg->getTransportAddress() ) ;
+                contact.append( ":" ) ;
+                contact.append( dlg->getTransportAddress() ) ;
+                contact.append(">") ;
+            }
 
             dialogId = dlg->getDialogId() ;
 
@@ -716,7 +771,7 @@ namespace drachtio {
             if( bReliable ) {
                 DR_LOG(log_debug) << "Sending " << dec << code << " response reliably"  ;
                 nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status
-                    ,SIPTAG_CONTACT(m_pController->getMyContact())
+                    ,SIPTAG_CONTACT_STR(contact.c_str())
                     ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_NEXT(tags)
@@ -735,7 +790,8 @@ namespace drachtio {
             else {
                 DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
                 rc = nta_incoming_treply( irq, code, status
-                    ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT(m_pController->getMyContact()))
+                    ,TAG_IF( code >= 200 && code < 300
+                    ,SIPTAG_CONTACT_STR(contact.c_str()))
                     ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_NEXT(tags)
@@ -1080,13 +1136,22 @@ namespace drachtio {
             ostringstream o,v ;
             o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
             v << dlg->getMinSE() ;
+
+            string contact ;
+            contact = "<" ;
+            contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
+            contact.append( dlg->getTransportAddress() ) ;
+            contact.append( ":" ) ;
+            contact.append( dlg->getTransportPort() ) ;
+            contact.append(">") ;
+
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
                                             NULL,
                                             SIP_METHOD_INVITE,
                                             NULL,
                                             SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
                                             SIPTAG_MIN_SE_STR(v.str().c_str()),
-                                            SIPTAG_CONTACT( m_my_contact ),
+                                            SIPTAG_CONTACT_STR( contact.c_str() ),
                                             SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
                                             SIPTAG_PAYLOAD_STR(strSdp.c_str()),
                                             TAG_END() ) ;

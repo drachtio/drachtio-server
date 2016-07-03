@@ -159,7 +159,7 @@ namespace drachtio {
 //		( string("cseq") ) 
         ( string("via") ) 
         ( string("route") ) 
-//        ( string("contact") ) 
+        ( string("contact") ) 
         ( string("rseq") ) 
 //        ( string("rack") ) 
         ( string("record_route") ) 
@@ -226,6 +226,24 @@ namespace drachtio {
 #endif
 
     }	
+
+    void getTransportDescription( const tport_t* tp, string& desc ) {
+        const tp_name_t* tn = tport_name(tp) ;
+        char name[255] ;
+        sprintf(name, TPN_FORMAT, TPN_ARGS(tn) ) ;
+        desc.assign( name ) ;
+    }
+    bool parseTransportDescription( const string& desc, string& proto, string& host, string& port ) {
+        boost::regex e("^(.*)/(.*):(\\d+)", boost::regex::extended);
+        boost::smatch mr; ;
+        if( boost::regex_search( desc, mr, e ) ) {
+            proto = mr[1] ;
+            host = mr[2] ;
+            port = mr[3] ;
+            return true ;
+        }
+        return false ;
+    }
 
 	void parseGenericHeader( msg_common_t* p, string& hvalue) {
 		string str((const char*) p->h_data, p->h_len) ;
@@ -525,8 +543,8 @@ namespace drachtio {
 
     tagi_t* makeTags( const string&  hdrs ) {
         vector<string> vec ;
-        string myHostport ;
-        theOneAndOnlyController->getMyHostport( myHostport ) ;
+        theOneAndOnlyController->getMyHostports( vec ) ;
+        string myHostport = vec[0];
 
         splitLines( hdrs, vec ) ;
         int nHdrs = vec.size() ;
@@ -675,6 +693,7 @@ namespace drachtio {
         unsigned short second, minute, hour;
         char time[64] ;
         tport_t *tport = nta_outgoing_transport( orq ) ;
+        assert( tport ) ; //why would this ever be null?
 
         second = (unsigned short)(now.tv_sec % 60);
         minute = (unsigned short)((now.tv_sec / 60) % 60);
@@ -690,16 +709,20 @@ namespace drachtio {
         init( msg ) ;
 
         if( 0 == strcmp(source, "application") ) {
-            if( NULL != tport ) {
+            //if( NULL != tport ) {
                 const tp_name_t* name = tport_name(tport) ;
                 m_address = name->tpn_host ;
                 m_port = name->tpn_port ;                
-            }
+            //}
+            //
+            /*
             else {
-                m_address = theOneAndOnlyController->getMySipAddress() ;
-                m_port = theOneAndOnlyController->getMySipPort() ;
+                m_address = theOneAndOnlyController->getMyDefaultSipAddress() ;
+                m_port = theOneAndOnlyController->getMyDefaultSipPort() ;
             }
+            */
         }
+
 
         tport_unref( tport ) ;
 

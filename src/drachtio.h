@@ -94,6 +94,10 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
   void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) ;
 
+	void getTransportDescription( const tport_t* tp, string& desc ) ;
+
+	bool parseTransportDescription( const string& desc, string& proto, string& host, string& port ) ;
+
 	void generateUuid(std::string& uuid) ;
 
 	void parseGenericHeader( msg_common_t* p, std::string& hvalue) ;
