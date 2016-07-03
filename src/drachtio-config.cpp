@@ -70,9 +70,7 @@ namespace drachtio {
                 }
 
 
-                    m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
-                    m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
-                    m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
+                /* sip contacts */
 
                 // old way: a single contact
                 try {

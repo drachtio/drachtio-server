@@ -668,7 +668,6 @@ namespace drachtio {
                 }
             }
 
-            string contact ;
             msg_t* msg = nta_incoming_getrequest( irq ) ;
             sip_t *sip = sip_object( msg );
 
