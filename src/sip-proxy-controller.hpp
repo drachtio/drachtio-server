@@ -202,8 +202,6 @@ namespace drachtio {
     int startRequests(void) ;
     void removeTerminated(bool alsoRemoveNotStarted = false) ;
     void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
-    bool isResendWithCredentials( msg_t* msg, sip_t* sip ) ;
-    bool doResendWithCredentials( msg_t* msg, sip_t* sip ) ;
 
     void timerA( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerB( boost::shared_ptr<ClientTransaction> pClient ) ;
@@ -276,6 +274,25 @@ namespace drachtio {
   public:
     SipProxyController(DrachtioController* pController, su_clone_r* pClone );
     ~SipProxyController() ;
+
+  class ChallengedRequest : public boost::enable_shared_from_this<ChallengedRequest>{
+    public:
+      ChallengedRequest(const char *realm, const char* nonce, const string& remoteAddress) : m_realm(realm), 
+        m_nonce(nonce), m_remoteAddress(remoteAddress) {}
+      ~ChallengedRequest() {}
+
+      const string& getRealm(void) { return m_realm; }
+      const string& getNonce(void) { return m_nonce; }
+      const string& getRemoteAddress(void) { return m_remoteAddress; }
+      TimerEventHandle getTimerHandle(void) { return m_handle;}
+      void setTimerHandle( TimerEventHandle handle ) { m_handle = handle;}
+
+    private:
+      string  m_realm ;
+      string  m_nonce ;
+      string  m_remoteAddress ;
+      TimerEventHandle m_handle ;
+    } ;
 
     class ProxyData {
     public:
@@ -380,6 +397,10 @@ namespace drachtio {
     void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;
     void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
+    bool addChallenge( msg_t* msg, sip_t* sip, const string& target ) ;
+    void timeoutChallenge(const char* nonce) ;
+
+
   protected:
 
     void clearTimerProvisional( boost::shared_ptr<ProxyCore> p );
@@ -404,6 +425,7 @@ namespace drachtio {
 
     bool isTerminatingResponse( int status ) ;
 
+    bool isResponseToChallenge( sip_t* sip, string& target ) ;
 
   private:
     DrachtioController* m_pController ;
@@ -416,6 +438,11 @@ namespace drachtio {
 
     typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapCallId2Proxy ;
     mapCallId2Proxy m_mapCallId2Proxy ;
+
+    typedef boost::unordered_map<string, boost::shared_ptr<ChallengedRequest> > mapNonce2Challenge ;
+    mapNonce2Challenge m_mapNonce2Challenge ;
+
+    TimerQueue      m_timerQueue ;
 
   } ;
 
