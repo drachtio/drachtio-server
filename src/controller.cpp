@@ -702,84 +702,87 @@ namespace drachtio {
                 nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
                 return -1 ;
             }
-            //check if we are in the first Route header; if so proxy accordingly
-            tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
-            tport_t* tp = tport_parent( tp_incoming ) ;
-            DR_LOG(log_debug) << "DrachtioController::processMessageStatelessly: primary tport " << hex << (void *) tp ;
-            sip_record_route_t* rr = NULL ;
 
-            tport_unref( tp_incoming ) ;
+            if( sip->sip_route && url_has_param(sip->sip_route->r_url, "lr") ) {
 
-            if( sip->sip_route && 
-                url_has_param(sip->sip_route->r_url, "lr") &&
-                url_cmp(rr->r_url, sip->sip_route->r_url) == 0) {
+                //check if we are in the first Route header; if so proxy accordingly
+                tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
+                tport_t* tp = tport_parent( tp_incoming ) ;
+                DR_LOG(log_debug) << "DrachtioController::processMessageStatelessly: primary tport " << hex << (void *) tp ;
+                const tp_name_t* tpn = tport_name( tp );
 
-                //request within an established dialog in which we are a stateful proxy
-                if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
-                   nta_msg_discard( m_nta, msg ) ;                
+                bool match = 0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) &&
+                                0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
+
+                tport_unref( tp_incoming ) ;
+
+                if( match ) {
+                    //request within an established dialog in which we are a stateful proxy
+                    if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
+                       nta_msg_discard( m_nta, msg ) ;                
+                    }          
+                    return 0 ;          
                 }
             }
+
+            //CANCEL or other request within a proxy transaction
+            if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
+                m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
+            }
             else {
-                //CANCEL or other request within a proxy transaction
-                if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
-                    m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
-                }
-                else {
-                    switch (sip->sip_request->rq_method ) {
-                        case sip_method_invite:
-                        case sip_method_register:
-                        case sip_method_message:
-                        case sip_method_options:
-                        case sip_method_info:
-                        case sip_method_notify:
-                        case sip_method_subscribe:
-                        {
-                            if( m_pPendingRequestController->isRetransmission( sip ) ||
-                                m_pProxyController->isRetransmission( sip ) ) {
-                            
-                                DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
-                                nta_msg_discard(m_nta, msg) ;  
-                                return -1 ;
-                            }
-
-                            if( sip_method_invite == sip->sip_request->rq_method ) {
-                                nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
-                            }
-
-                            string transactionId ;
-                            int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
-
-                            //write attempt record
-                            if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
-
-                                Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
-                            }
-
-                            //reject message if necessary, write stop record
-                            if( status > 0  ) {
-                                msg_t* reply = nta_msg_create(m_nta, 0) ;
-                                msg_ref_create(reply) ;
-                                nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
-
-                                if( sip->sip_request->rq_method == sip_method_invite ) {
-                                    Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
-                                }
-                                msg_destroy(reply) ;
-                                return -1 ;                    
-                            }
+                switch (sip->sip_request->rq_method ) {
+                    case sip_method_invite:
+                    case sip_method_register:
+                    case sip_method_message:
+                    case sip_method_options:
+                    case sip_method_info:
+                    case sip_method_notify:
+                    case sip_method_subscribe:
+                    {
+                        if( m_pPendingRequestController->isRetransmission( sip ) ||
+                            m_pProxyController->isRetransmission( sip ) ) {
+                        
+                            DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
+                            nta_msg_discard(m_nta, msg) ;  
+                            return -1 ;
                         }
-                        break ;
 
-                        case sip_method_prack:
-                            assert(0) ;//should not get here
-                        break ;
+                        if( sip_method_invite == sip->sip_request->rq_method ) {
+                            nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
+                        }
 
-                        default:
-                            nta_msg_discard( m_nta, msg ) ;
-                        break ;
-                    }             
+                        string transactionId ;
+                        int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
 
-                }
+                        //write attempt record
+                        if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
+
+                            Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
+                        }
+
+                        //reject message if necessary, write stop record
+                        if( status > 0  ) {
+                            msg_t* reply = nta_msg_create(m_nta, 0) ;
+                            msg_ref_create(reply) ;
+                            nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
+
+                            if( sip->sip_request->rq_method == sip_method_invite ) {
+                                Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                            }
+                            msg_destroy(reply) ;
+                            return -1 ;                    
+                        }
+                    }
+                    break ;
+
+                    case sip_method_prack:
+                        assert(0) ;//should not get here
+                    break ;
+
+                    default:
+                        nta_msg_discard( m_nta, msg ) ;
+                    break ;
+                }             
             }
         }
         else {
