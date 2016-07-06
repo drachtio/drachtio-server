@@ -1343,9 +1343,6 @@ namespace drachtio {
                 nonce), NULL, 2000 ) ;
             pChallenge->setTimerHandle( handle ) ;
    
-            DR_LOG(log_debug) << "SipProxyController::addChallenge - after adding realm: " << realm << " nonce: " << nonce
-                << " there are " <<  m_mapNonce2Challenge.size() << " saved challenges "; 
-
             added = true ;       
         }
 
@@ -1377,8 +1374,6 @@ namespace drachtio {
                     target = pChallenge->getRemoteAddress() ;
                     m_mapNonce2Challenge.erase( it ) ;
                     m_timerQueue.remove( pChallenge->getTimerHandle() ) ;
-                    DR_LOG(log_debug) << "SipProxyController::isResponseToChallenge - after removing realm: " << realm << " nonce: " << nonce
-                        << " there are " <<  m_mapNonce2Challenge.size() << " saved challenges "; 
                 }
             }
         }
