@@ -586,6 +586,8 @@ namespace drachtio {
                                  TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                                  TAG_IF( tlsTransport &&hasTlsFiles, 
                                     TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                                 NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
+                                 NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
                                  TAG_NULL(),
                                  TAG_END() ) ;
         
