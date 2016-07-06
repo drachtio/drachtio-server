@@ -473,17 +473,6 @@ namespace drachtio {
                 tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
         }
 
-        string record_route ;
-        tport_t* tp ;
-        int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
-                    URL_STRING_MAKE(m_target.c_str()), (void **) &tp ) ;
-        assert( 0 == rc ) ;
-        if( 0 == rc ) {
-            const tp_name_t* tpn = tport_name( tp );
-            record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
-                tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
-        }
-
         tagi_t* tags = makeTags( headers ) ;
 
         rc = nta_msg_tsend( nta, 
