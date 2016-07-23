@@ -99,6 +99,8 @@ namespace drachtio {
 		void setLocalSignalingAddress( const char* szAddress ) { m_localEndpoint.m_strSignalingAddress = szAddress; }
 		void setRemoteSignalingPort( unsigned int port ) { m_remoteEndpoint.m_signalingPort = port; }
 		void setLocalSignalingPort( unsigned int port ) { m_localEndpoint.m_signalingPort = port; }
+		const string& getLocalSignalingAddress(void) { return m_localEndpoint.m_strSignalingAddress; }
+		unsigned int getLocalSignalingPort(void) { return m_localEndpoint.m_signalingPort; }
 
 		const string& getTransportAddress(void) const { return m_transportAddress; }
 		const string& getTransportPort(void) const { return m_transportPort; }

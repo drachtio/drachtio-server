@@ -673,7 +673,8 @@ namespace drachtio {
 
             string contact ;
             if( sip->sip_request->rq_method == sip_method_invite || sip->sip_request->rq_method == sip_method_subscribe ) {
-                tport_t *tport = nta_incoming_transport(m_agent, irq, msg) ; 
+                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
+                tport_t *tport = tport_parent( tp ) ;
                 const tp_name_t* tpn = tport_name( tport );
 
                 contact = "<" ;
@@ -682,8 +683,9 @@ namespace drachtio {
                 contact.append( ":" ) ;
                 contact.append( tpn->tpn_port ) ;
                 contact.append(">") ;
+                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
 
-                tport_unref( tport ) ;
+                tport_unref( tp ) ;
             }
 
             rc = nta_incoming_treply( irq, code, status
@@ -713,12 +715,20 @@ namespace drachtio {
 
             string contact ;
             if( sip->sip_request->rq_method == sip_method_invite || sip->sip_request->rq_method == sip_method_subscribe ) {
+                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
+                tport_t *tport = tport_parent( tp ) ;
+                const tp_name_t* tpn = tport_name( tport );
+
                 contact = "<" ;
-                contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
-                contact.append( dlg->getTransportAddress() ) ;
+                contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
+                contact.append( tpn->tpn_host ) ;
                 contact.append( ":" ) ;
-                contact.append( dlg->getTransportAddress() ) ;
+                contact.append( tpn->tpn_port ) ;
                 contact.append(">") ;
+
+                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
+
+                tport_unref( tp ) ;
             }
 
             dialogId = dlg->getDialogId() ;
