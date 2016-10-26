@@ -951,6 +951,18 @@ namespace drachtio {
         }
         return false ;
     }
+    bool ProxyCore::forwardRequest( msg_t* msg, sip_t* sip ) {
+        boost::shared_ptr< ClientTransaction > pClient ;
+        string headers ;
+        vector< boost::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
+            m_vecClientTransactions.end(), ClientTransactionIsCallingOrProceeding ) ;
+        if( m_vecClientTransactions.end() != it ) {
+            pClient = *it ;
+            pClient->forwardRequest( msg, headers ) ;
+            return true ;
+        }
+        return false ;
+    }
     bool ProxyCore::exhaustedAllTargets() {
         return  m_vecClientTransactions.end() == std::find_if( m_vecClientTransactions.begin(), m_vecClientTransactions.end(), 
             ClientTransactionIsCallingOrProceeding ) ;
@@ -1241,15 +1253,22 @@ namespace drachtio {
             return false ;
         }
 
-        //I think we only expect a CANCEL to come through here
-        assert( sip_method_cancel == sip->sip_request->rq_method ) ;
+        if(  sip_method_cancel == sip->sip_request->rq_method ) {
+            p->setCanceled(true) ;
 
-        p->setCanceled(true) ;
+            nta_msg_treply( nta, msg, 200, NULL, TAG_END() ) ;  //200 OK to the CANCEL
+            p->generateResponse( 487 ) ;   //487 to INVITE
 
-        nta_msg_treply( nta, msg, 200, NULL, TAG_END() ) ;  //200 OK to the CANCEL
-        p->generateResponse( 487 ) ;   //487 to INVITE
+            p->cancelOutstandingRequests() ;
 
-        p->cancelOutstandingRequests() ;
+            return true ;            
+        }
+        if( sip_method_info == sip->sip_request->rq_method ) {
+            // example of an INFO message during call set up is that FS and asterisk with send INFO with media_control xml (fast picture update)
+            DR_LOG(log_info) << "Forwarding request during call setup " << sip->sip_request->rq_method_name << " " << sip->sip_call_id->i_id ;
+            p->forwardRequest( msg, sip ) ;
+            return true ;
+        }
 
         return true ;
     }

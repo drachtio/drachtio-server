@@ -198,6 +198,7 @@ namespace drachtio {
     bool processResponse(msg_t* msg, sip_t* sip) ;
     bool forwardResponse( msg_t* msg, sip_t* sip ) { return m_pServerTransaction->forwardResponse(msg, sip);}
     bool forwardPrack( msg_t* msg, sip_t* sip) ;
+    bool forwardRequest( msg_t* msg, sip_t* sip) ;
     int startRequests(void) ;
     void removeTerminated(bool alsoRemoveNotStarted = false) ;
     void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
