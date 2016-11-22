@@ -640,7 +640,7 @@ namespace drachtio {
             }
 
             string contact ;
-            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            msg_t* msg = nta_incoming_getrequest( irq ) ;   // creates a reference
             sip_t *sip = sip_object( msg );
 
             rc = nta_incoming_treply( irq, code, status
@@ -649,7 +649,8 @@ namespace drachtio {
                 ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_NEXT(tags)
-                ,TAG_END() ) ;                                 
+                ,TAG_END() ) ;
+            msg_destroy(msg) ;
             if( 0 != rc ) {
                 bSentOK = false ;
                 failMsg = "Unknown server error sending response" ;
