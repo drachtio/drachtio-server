@@ -555,12 +555,12 @@ namespace drachtio {
                 }
             }
             if( !bValid ) {
-                DR_LOG(log_error) << "SipDialogController::makeTags - invalid header: '" << *it << "'"  ;
+                DR_LOG(log_error) << "makeTags - invalid header: '" << *it << "'"  ;
                 i++ ;
                 continue ;
             }
             else if( string::npos != hdrValue.find(CRLF) ) {
-                DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
+                DR_LOG(log_error) << "makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
                 i++ ;
                 continue ;
             }
@@ -570,7 +570,7 @@ namespace drachtio {
             string hdr = boost::to_lower_copy( boost::replace_all_copy( hdrName, "-", "_" ) );
             if( isImmutableHdr( hdr ) ) {
                 if( 0 != hdr.compare("content_length") ) {
-                    DR_LOG(log_debug) << "SipDialogController::makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
+                    DR_LOG(log_debug) << "makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
                 }
             }
             else if( getTagTypeForHdr( hdr, tt ) ) {
@@ -590,7 +590,7 @@ namespace drachtio {
                 strncpy( p, hdrValue.c_str(), len ) ;
                 tags[i].t_tag = tt;
                 tags[i].t_value = (tag_value_t) p ;
-                DR_LOG(log_debug) << "SipDialogController::makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
+                DR_LOG(log_debug) << "makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
             }
             else {
                 //custom header
@@ -601,7 +601,7 @@ namespace drachtio {
 
                 tags[i].t_tag = siptag_unknown_str ;
                 tags[i].t_value = (tag_value_t) p ;
-                DR_LOG(log_debug) << "SipDialogController::makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
+                DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
             }
 
             i++ ;

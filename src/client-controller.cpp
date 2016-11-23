@@ -433,7 +433,7 @@ namespace drachtio {
     void ClientController::removeApiRequest( const string& clientMsgId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapApiRequests.erase( clientMsgId ) ;   
-        DR_LOG(log_debug) << "removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
+        DR_LOG(log_debug) << "ClientController::removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
     void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;

@@ -37,15 +37,15 @@ namespace drachtio {
 
   PendingRequest_t::PendingRequest_t(msg_t* msg, sip_t* sip, tport_t* tp ) : m_msg( msg ), m_tp(tp), 
     m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), m_methodName(sip->sip_cseq->cs_method_name) {
-    DR_LOG(log_debug) << "PendingRequest_t::PendingRequest_t" ;
+    //DR_LOG(log_debug) << "PendingRequest_t::PendingRequest_t" ;
     generateUuid( m_transactionId ) ;
    
     msg_ref_create( m_msg ) ; 
 
   }
   PendingRequest_t::~PendingRequest_t() {
+    //DR_LOG(log_debug) << "PendingRequest_t::~PendingRequest_t - unref'ing msg" ;
     msg_destroy( m_msg ) ;
-    DR_LOG(log_debug) << "PendingRequest_t::~PendingRequest_t - unref'ed msg" ;
   }
   msg_t* PendingRequest_t::getMsg() { return m_msg ; }
   sip_t* PendingRequest_t::getSipObject() { return sip_object(m_msg); }
