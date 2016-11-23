@@ -722,6 +722,7 @@ namespace drachtio {
         return 0 ;
     }
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
+        //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
         boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
         if( !p ) {
             return false ;
@@ -732,12 +733,14 @@ namespace drachtio {
 
         if( sip_method_invite == sip->sip_request->rq_method ) {
 
+            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating an incoming transaction"  ;
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
                 return false ;
             }
 
+            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating leg"  ;
             nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
                                            SIPTAG_CALL_ID(sip->sip_call_id),
                                            SIPTAG_CSEQ(sip->sip_cseq),
@@ -750,8 +753,7 @@ namespace drachtio {
                 return false ;
             }
 
-            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq 
-                << ", for transactionId: " << transactionId; 
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << ", for transactionId: " << transactionId; 
 
 
             boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
@@ -771,6 +773,7 @@ namespace drachtio {
             }
             m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
         }
+        msg_ref_create( msg ) ; // we need to add a reference to the original request message
         return true ;
     }
     int DrachtioController::processRequestOutsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
@@ -921,10 +924,11 @@ namespace drachtio {
     void DrachtioController::getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) {
         su_sockaddr_t su[1];
         socklen_t sulen = sizeof su;
-        msg_t* msg = nta_incoming_getrequest( irq ) ;
+        msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
         if( 0 != msg_get_address(msg, su, &sulen) ) {
             throw std::runtime_error("Failed trying to retrieve socket associated with incoming sip message") ;             
         }
+        msg_destroy(msg);   //releases reference
         char h[256], s[256] ;
         su_getnameinfo(su, sulen, h, 256, s, 256, NI_NUMERICHOST | NI_NUMERICSERV);
 

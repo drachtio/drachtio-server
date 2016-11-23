@@ -640,24 +640,20 @@ namespace drachtio {
             }
 
             string contact ;
-            msg_t* msg = nta_incoming_getrequest( irq ) ;   // creates a reference
-            sip_t *sip = sip_object( msg );
 
             rc = nta_incoming_treply( irq, code, status
-                ,TAG_IF( sip_method_invite == sip->sip_request->rq_method &&
+                ,TAG_IF( sip_method_invite == nta_incoming_method(irq) &&
                     !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT(m_my_contact) )
                 ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_NEXT(tags)
                 ,TAG_END() ) ;
-            msg_destroy(msg) ;
             if( 0 != rc ) {
                 bSentOK = false ;
                 failMsg = "Unknown server error sending response" ;
                 assert(false) ;
             }
 
-            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
             bDestroyIrq = true ;                        
         }
         else if( iip ) {
@@ -768,7 +764,7 @@ namespace drachtio {
 
         if( bSentOK ) {
             string encodedMessage ;
-            msg_t* msg = nta_incoming_getresponse( irq ) ;
+            msg_t* msg = nta_incoming_getresponse( irq ) ;  // adds a ref
             EncodeStackMessage( sip_object(msg), encodedMessage ) ;
             SipMsgData_t meta( msg, irq, "application" ) ;
 
@@ -781,6 +777,7 @@ namespace drachtio {
             if( iip && code >= 300 ) {
                 Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
             }
+            msg_destroy(msg) ;      // release the ref          
         }
         else {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
@@ -801,7 +798,10 @@ namespace drachtio {
         /* we must explicitly delete an object allocated with placement new */
         if( tags ) deleteTags( tags );
 
-        if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
+        if( bDestroyIrq ) {
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
+            nta_incoming_destroy(irq) ;    
+        }
 
         pData->~SipMessageData() ;
     }
@@ -835,9 +835,10 @@ namespace drachtio {
                     addDialog( dlg ) ;
                 }
                 string encodedMessage ;
-                msg_t* msg = nta_incoming_getrequest( irq ) ;
+                msg_t* msg = nta_incoming_getrequest( irq ) ; // adds a reference
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq ) ;
+                msg_destroy(msg) ;
 
                 m_pController->getClientController()->route_ack_request_inside_dialog(  encodedMessage, meta, irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;
 
@@ -876,9 +877,10 @@ namespace drachtio {
                 }
 
                 string encodedMessage ;
-                msg_t* msg = nta_incoming_getrequest( irq ) ;
+                msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq ) ;
+                msg_destroy( msg ); // release the reference
 
                 m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, irq, sip, transactionId, dlg->getDialogId() ) ;
 
@@ -1015,9 +1017,10 @@ namespace drachtio {
             generateUuid( transactionId ) ;
 
             string encodedMessage ;
-            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            msg_t* msg = nta_incoming_getrequest( irq ) ;  // adds a reference
             EncodeStackMessage( sip, encodedMessage ) ;
             SipMsgData_t meta( msg, irq ) ;
+            msg_destroy( msg ) ;    //release the reference
 
             m_pController->getClientController()->route_ack_request_inside_dialog( encodedMessage, meta, irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;   
             
