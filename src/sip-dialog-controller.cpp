@@ -279,6 +279,7 @@ namespace drachtio {
                 string s ;
                 meta.toMessageFormat(s) ;
                 string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
+                msg_destroy(m) ; //releases reference
 
                 msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
