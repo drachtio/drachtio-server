@@ -159,7 +159,7 @@ namespace drachtio {
 //		( string("cseq") ) 
         ( string("via") ) 
         ( string("route") ) 
-        ( string("contact") ) 
+//      ( string("contact") ) 
         ( string("rseq") ) 
 //        ( string("rack") ) 
         ( string("record_route") ) 
@@ -692,8 +692,8 @@ namespace drachtio {
         su_time_t now = su_now() ;
         unsigned short second, minute, hour;
         char time[64] ;
-        tport_t *tport = nta_outgoing_transport( orq ) ;
-        assert( tport ) ; //why would this ever be null?
+        tport_t *tport = nta_outgoing_transport( orq ) ;    //adds a a reference
+        //assert( tport ) ; //why would this ever be null?
 
         second = (unsigned short)(now.tv_sec % 60);
         minute = (unsigned short)((now.tv_sec / 60) % 60);
@@ -705,15 +705,16 @@ namespace drachtio {
         if( tport_is_udp(tport ) ) m_protocol = "udp" ;
         else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
         else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+        else m_protocol = "unknown";
 
         init( msg ) ;
 
         if( 0 == strcmp(source, "application") ) {
-            //if( NULL != tport ) {
+            if( NULL != tport ) {
                 const tp_name_t* name = tport_name(tport) ;
                 m_address = name->tpn_host ;
                 m_port = name->tpn_port ;                
-            //}
+            }
             //
             /*
             else {
