@@ -3,14 +3,12 @@
 
 AC_PREREQ(2.59)
 AC_INIT(drachtio, 1.0, daveh@beachdognet.com)
-AM_INIT_AUTOMAKE([subdir-objects])
+AM_INIT_AUTOMAKE([subdir-objects -Wno-portability])
 AC_CONFIG_SRCDIR([src/main.cpp])
 AC_CONFIG_HEADER([config.h])
 
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)
-
-MYVERSION=($(shell git describe))
 
 AC_CANONICAL_HOST
 
