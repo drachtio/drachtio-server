@@ -10,6 +10,8 @@ AC_CONFIG_HEADER([config.h])
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)
 
+MYVERSION=($(shell git describe))
+
 AC_CANONICAL_HOST
 
 case $host_os in
