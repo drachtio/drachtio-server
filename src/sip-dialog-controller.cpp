@@ -128,7 +128,6 @@ namespace drachtio {
         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog dialog id: " << pData->getDialogId()  ;
 
         sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
-        tagi_t* tags = makeTags( pData->getHeaders() ) ;
 
         boost::shared_ptr<SipDialog> dlg ;
  
@@ -152,6 +151,10 @@ namespace drachtio {
             string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
                 ";transport=" + dlg->getProtocol() ;
             DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;
+
+            string transport ;
+            dlg->getTransportDesc(transport) ;
+            tagi_t* tags = makeTags( pData->getHeaders(), transport) ;
 
             nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             if( !leg ) {
@@ -316,7 +319,6 @@ namespace drachtio {
         string name ;
         string sipOutboundProxy ;
         tport_t* tp = NULL ;
-        tagi_t* tags = makeTags( pData->getHeaders() ) ;
 
         try {
             bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
@@ -342,6 +344,8 @@ namespace drachtio {
             getTransportDescription( tp, desc ) ;
             DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << desc <<
                 " for request-uri " << requestUri  ;            
+
+            tagi_t* tags = makeTags( pData->getHeaders(), desc ) ;
            
             //if user supplied all or part of the From use it
             const tp_name_t* tpn = tport_name( tp );
@@ -426,7 +430,7 @@ namespace drachtio {
 
             if( method == sip_method_invite ) {
                 boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( pData->getDialogId(), pData->getTransactionId(), 
-                    leg, orq, sip, m ) ;
+                    leg, orq, sip, m, desc ) ;
                 addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;          
             }
             else {
@@ -637,10 +641,7 @@ namespace drachtio {
         sip_status_t* sip_status = sip_status_make( m_pController->getHome(), startLine.c_str() ) ;
         int code = sip_status->st_status ;
         const char* status = sip_status->st_phrase ;
- 
-        //create tags for headers
-        tagi_t* tags = makeTags( headers ) ;
- 
+  
         nta_incoming_t* irq = NULL ;
         int rc = -1 ;
         boost::shared_ptr<IIP> iip ;
@@ -659,7 +660,29 @@ namespace drachtio {
         }
 
         if( irq ) {
+
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found incoming transaction " << std::hex << irq  ;
+
+            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            sip_t *sip = sip_object( msg );
+
+            tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
+            tport_t *tport = tport_parent( tp ) ;
+            const tp_name_t* tpn = tport_name( tport );
+
+            string transportDesc = string(tpn->tpn_proto) + "/" + tpn->tpn_host + ":" + tpn->tpn_port ;
+            string contact = "<" ;
+            contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
+            contact.append( tpn->tpn_host ) ;
+            contact.append( ":" ) ;
+            contact.append( tpn->tpn_port ) ;
+            contact.append(">") ;
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
+
+            tport_unref( tp ) ;
+    
+            //create tags for headers
+            tagi_t* tags = makeTags( headers, transportDesc ) ;
 
             if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
                 if( 0 == body.find("v=0") ) {
@@ -668,28 +691,8 @@ namespace drachtio {
                 }
             }
 
-            msg_t* msg = nta_incoming_getrequest( irq ) ;
-            sip_t *sip = sip_object( msg );
-
-            string contact ;
-            if( sip->sip_request->rq_method == sip_method_invite || sip->sip_request->rq_method == sip_method_subscribe ) {
-                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
-                tport_t *tport = tport_parent( tp ) ;
-                const tp_name_t* tpn = tport_name( tport );
-
-                contact = "<" ;
-                contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
-                contact.append( tpn->tpn_host ) ;
-                contact.append( ":" ) ;
-                contact.append( tpn->tpn_port ) ;
-                contact.append(">") ;
-                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
-
-                tport_unref( tp ) ;
-            }
-
             rc = nta_incoming_treply( irq, code, status
-                ,TAG_IF( sip_method_invite == sip->sip_request->rq_method &&
+                ,TAG_IF( (sip_method_invite == sip->sip_request->rq_method || sip->sip_request->rq_method == sip_method_subscribe) &&
                     !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR(contact.c_str()) )
                 ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
@@ -701,6 +704,10 @@ namespace drachtio {
                 assert(false) ;
             }
 
+            /* we must explicitly delete an object allocated with placement new */
+            if( tags ) deleteTags( tags );
+
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
             bDestroyIrq = true ;                        
         }
         else if( iip ) {
@@ -713,23 +720,23 @@ namespace drachtio {
             msg_t* msg = nta_incoming_getrequest( irq ) ;
             sip_t *sip = sip_object( msg );
 
-            string contact ;
-            if( sip->sip_request->rq_method == sip_method_invite || sip->sip_request->rq_method == sip_method_subscribe ) {
-                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
-                tport_t *tport = tport_parent( tp ) ;
-                const tp_name_t* tpn = tport_name( tport );
+            tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
+            tport_t *tport = tport_parent( tp ) ;
+            const tp_name_t* tpn = tport_name( tport );
 
-                contact = "<" ;
-                contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
-                contact.append( tpn->tpn_host ) ;
-                contact.append( ":" ) ;
-                contact.append( tpn->tpn_port ) ;
-                contact.append(">") ;
+            string transportDesc = string(tpn->tpn_proto) + "/" + tpn->tpn_host + ":" + tpn->tpn_port ;
+            string contact = "<" ;
+            contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
+            contact.append( tpn->tpn_host ) ;
+            contact.append( ":" ) ;
+            contact.append( tpn->tpn_port ) ;
+            contact.append(">") ;
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
 
-                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
-
-                tport_unref( tp ) ;
-            }
+            tport_unref( tp ) ;
+    
+            //create tags for headers
+            tagi_t* tags = makeTags( headers, transportDesc ) ;
 
             dialogId = dlg->getDialogId() ;
 
@@ -812,6 +819,8 @@ namespace drachtio {
                     assert(false) ;
                 }
             }
+            /* we must explicitly delete an object allocated with placement new */
+            if( tags ) deleteTags( tags );
         }
         else {
 
@@ -864,13 +873,7 @@ namespace drachtio {
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;            
         }
 
-        /* we must explicitly delete an object allocated with placement new */
-        if( tags ) deleteTags( tags );
-
-        if( bDestroyIrq ) {
-            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
-            nta_incoming_destroy(irq) ;    
-        }
+        if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
 
         pData->~SipMessageData() ;
     }

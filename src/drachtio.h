@@ -134,7 +134,7 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
 
-	tagi_t* makeTags( const string& hdrs ) ;
+	tagi_t* makeTags( const string& hdrs, const string& transport ) ;
 	void deleteTags( tagi_t* tags ) ;
 
 	int ackResponse( msg_t* msg ) ;

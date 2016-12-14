@@ -541,10 +541,13 @@ namespace drachtio {
         delete [] tags ; 
     }
 
-    tagi_t* makeTags( const string&  hdrs ) {
+    tagi_t* makeTags( const string&  hdrs, const string& transport ) {
         vector<string> vec ;
-        theOneAndOnlyController->getMyHostports( vec ) ;
-        string myHostport = vec[0];
+        //theOneAndOnlyController->getMyHostports( vec ) ;
+        string proto, host, port, myHostport ;
+        
+        parseTransportDescription(transport, proto, host, port ) ;
+        myHostport = host + ':' + port ;
 
         splitLines( hdrs, vec ) ;
         int nHdrs = vec.size() ;

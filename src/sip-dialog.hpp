@@ -36,7 +36,7 @@ namespace drachtio {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
 		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
-			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg ) ;
+			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport ) ;
 		~SipDialog() ;
 
 		int processRequest( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
@@ -105,6 +105,7 @@ namespace drachtio {
 		const string& getTransportAddress(void) const { return m_transportAddress; }
 		const string& getTransportPort(void) const { return m_transportPort; }
 		const string& getProtocol(void) const { return m_protocol; }
+		void getTransportDesc(string desc) const { desc = m_protocol + "/" + m_transportAddress + ":" + m_transportPort; }
 
 		const string& getSourceAddress(void) const { return m_sourceAddress;}
 		unsigned int getSourcePort(void) const { return m_sourcePort; }

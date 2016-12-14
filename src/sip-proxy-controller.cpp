@@ -462,7 +462,7 @@ namespace drachtio {
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
 
-        string record_route ;
+        string record_route, transport ;
         tport_t* tp ;
         int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
                     URL_STRING_MAKE(m_target.c_str()), (void **) &tp ) ;
@@ -471,9 +471,10 @@ namespace drachtio {
             const tp_name_t* tpn = tport_name( tp );
             record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
                 tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
+            transport = string(tpn->tpn_proto) + tpn->tpn_host + ":" + tpn->tpn_port ;
         }
 
-        tagi_t* tags = makeTags( headers ) ;
+        tagi_t* tags = makeTags( headers, transport ) ;
 
         rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
