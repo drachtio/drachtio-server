@@ -370,6 +370,42 @@ namespace drachtio {
       char  m_szHeaders[HDR_STR_LEN] ;
     } ;
 
+    class UaInvalidData {
+      public: 
+        UaInvalidData() : m_expires(0), m_tp(NULL) {
+          memset(m_szUser, 0, sizeof(m_szUser) ) ;
+          memset(m_szHost, 0, sizeof(m_szHost) ) ;
+        }
+        UaInvalidData(const char* szUser, const char* szHost, int expires, tport_t* tp ) : m_expires(expires), m_tp(tp) {
+          strncpy( m_szUser, szUser, URI_LEN - 1) ;
+          strncpy( m_szHost, szHost, URI_LEN - 1) ;
+          tport_ref(m_tp) ;
+
+        }
+        ~UaInvalidData() {
+          tport_unref(m_tp) ;
+        }
+        UaInvalidData& operator=( const UaInvalidData ua ) {
+          strncpy( m_szUser, ua.m_szUser, URI_LEN - 1) ;
+          strncpy( m_szHost, ua.m_szHost, URI_LEN - 1) ;
+          tport_ref(m_tp) ;   
+          return *this ;       
+        }
+
+        void getUri( string& uri ) {
+          uri = "" ;
+          uri.append( m_szUser ) ;
+          uri.append( "@" ) ;
+          uri.append( m_szHost ) ;
+        }
+        tport_t* getTport(void) { return m_tp; }
+      private:
+        char m_szUser[URI_LEN] ;
+        char m_szHost[URI_LEN] ;
+        int m_expires ;
+        tport_t* m_tp ;
+    } ;
+
     void proxyRequest( const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
       bool followRedirects, bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, 
       const vector<string>& vecDestination, const string& headers )  ;
@@ -399,6 +435,10 @@ namespace drachtio {
 
     bool addChallenge( msg_t* msg, sip_t* sip, const string& target ) ;
     void timeoutChallenge(const char* nonce) ;
+
+    void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
+    void flushTportForSubscription( const char* user, const char* host ) ; 
+    boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
 
   protected:
@@ -441,6 +481,9 @@ namespace drachtio {
 
     typedef boost::unordered_map<string, boost::shared_ptr<ChallengedRequest> > mapNonce2Challenge ;
     mapNonce2Challenge m_mapNonce2Challenge ;
+
+    typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
+    mapUri2InvalidData m_mapUri2InvalidData ;
 
     TimerQueue      m_timerQueue ;
 

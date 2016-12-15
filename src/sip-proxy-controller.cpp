@@ -190,6 +190,36 @@ namespace drachtio {
             sip->sip_rseq->rs_response = m_rseq; 
         }
 
+        // we need to cache source address / port / transport for dialogs where UAC contact is in the .invalid domain
+        if( sip->sip_cseq->cs_method == sip_method_subscribe && sip->sip_status->st_status == 202 ) {
+            sip_t* sipReq = sip_object( m_msg ) ;
+            sip_contact_t* contact = sipReq->sip_contact ;
+            if( contact ) {
+                if( NULL != strstr( contact->m_url->url_host, ".invalid") && NULL != sip->sip_subscription_state ) {
+                    bool subscribe = true ;
+                    int expires = 0 ;
+
+                    boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+                    assert( pCore ) ;
+
+                    
+                    if( 0 == strcmp( sip->sip_subscription_state->ss_substate, "terminated" ) ) {
+                        subscribe = false ;
+                    }
+                    else {
+                        expires = ::atoi( sip->sip_subscription_state->ss_expires ) ;
+                    }
+                    
+                    if( subscribe ) {
+                        theProxyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, pCore->getTport() ) ;
+                    }
+                    else {
+                        theProxyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                    }
+                }
+            }
+        }
+
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
             TAG_END() ) ;
@@ -574,7 +604,8 @@ namespace drachtio {
                 //proxy core will attempt to cancel any invite not in the terminated state
                 //so set that first before announcing our success
                 setState( this->isInviteTransaction() ? terminated : completed ) ;
-                pCore->notifyForwarded200OK( me ) ;                 
+                pCore->notifyForwarded200OK( me ) ;         
+
             }
             else if( m_sipStatus >= 300 ) {
                 setState( completed ) ;
@@ -1196,7 +1227,22 @@ namespace drachtio {
             p->forwardPrack( msg, sip ) ;
             return true ;
         }
+
+        //TODO: if the request-uri has the '.invalid' domain, then we need to look up the transport to use
+        // on a successful SUBSCRIBE / 202 Accepted transaction, the transport desc should have been stored
+        bool forceTport = false ;
+        tport_t* tp = NULL ;
+        if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
+            boost::shared_ptr<UaInvalidData> pData = findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
+            if( NULL != pData ) {
+                tp = pData->getTport() ;
+                forceTport = true ;
+                DR_LOG(log_debug) << "SipProxyController::processRequestWithRouteHeader forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
+           }
+        }
+        
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL, 
+            TAG_IF(forceTport, NTATAG_TPORT(tp)),
             TAG_END() ) ;
         if( rc < 0 ) {
             msg_destroy(msg) ;
@@ -1388,6 +1434,42 @@ namespace drachtio {
                 << " there are " <<  m_mapNonce2Challenge.size() << " saved challenges "; 
         }
     }
+    void SipProxyController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
+        string uri ;
+        boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
+        pUa->getUri( uri ) ;
+        m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
+        DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+    }
+    void SipProxyController::flushTportForSubscription( const char* user, const char* host ) {
+        string uri = "" ;
+        uri.append(user) ;
+        uri.append("@") ;
+        uri.append(host) ;
+
+        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
+        if( m_mapUri2InvalidData.end() != it ) {
+            m_mapUri2InvalidData.erase( it ) ;
+        }
+        DR_LOG(log_debug) << "SipProxyController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
+    }
+    boost::shared_ptr<SipProxyController::UaInvalidData> SipProxyController::findTportForSubscription( const char* user, const char* host ) {
+        string uri = "" ;
+        uri.append(user) ;
+        uri.append("@") ;
+        uri.append(host) ;
+        boost::shared_ptr<SipProxyController::UaInvalidData> p ;
+        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
+        if( m_mapUri2InvalidData.end() != it ) {
+            p = it->second ;
+            DR_LOG(log_debug) << "SipProxyController::findTportForSubscription: found transport for " << uri  ;
+        }
+        else {
+            DR_LOG(log_debug) << "SipProxyController::findTportForSubscription: no transport found for " << uri  ;
+
+        }
+        return p ;
+    }
 
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
@@ -1395,6 +1477,7 @@ namespace drachtio {
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;
         DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
         m_pTQM->logQueueSizes() ;
     }
 
