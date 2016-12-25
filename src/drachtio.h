@@ -56,8 +56,8 @@ THE SOFTWARE.
 
 using namespace std ;
 
-const string CRLF = "\r\n" ;
-const string CRLF2 = "\r\n\r\n" ;
+const string DR_CRLF = "\r\n" ;
+const string DR_CRLF2 = "\r\n\r\n" ;
 
 #define MSG_ID_LEN (128)
 
@@ -106,9 +106,9 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	bool getTagTypeForHdr( const std::string& hdr, tag_type_t& tag ) ;
 
-	bool normalizeSipUri( std::string& uri ) ;
+	bool normalizeSipUri( std::string& uri, int brackets ) ;
   
-	bool replaceHostInUri( std::string& uri, const std::string& hostport )  ;
+	bool replaceHostInUri( std::string& uri, const char* szHost, const char* szPort ) ;
 
 	sip_method_t methodType( const std::string& method ) ;
 

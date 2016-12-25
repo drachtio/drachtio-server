@@ -26,7 +26,6 @@ namespace drachtio {
 
 #include <algorithm> // for remove_if
 #include <functional> // for unary_function
-#
 #include <boost/regex.hpp>
 #include <boost/bind.hpp>
 
@@ -191,26 +190,38 @@ namespace drachtio {
         }
 
         // we need to cache source address / port / transport for dialogs where UAC contact is in the .invalid domain
-        if( sip->sip_cseq->cs_method == sip_method_subscribe && sip->sip_status->st_status == 202 ) {
+        if( (sip->sip_cseq->cs_method == sip_method_subscribe && sip->sip_status->st_status == 202) ||
+            (sip->sip_cseq->cs_method == sip_method_register && sip->sip_status->st_status == 200) ) {
+
             sip_t* sipReq = sip_object( m_msg ) ;
             sip_contact_t* contact = sipReq->sip_contact ;
             if( contact ) {
-                if( NULL != strstr( contact->m_url->url_host, ".invalid") && NULL != sip->sip_subscription_state ) {
-                    bool subscribe = true ;
+                if( NULL != strstr( contact->m_url->url_host, ".invalid")  ) {
+                    bool add = true ;
                     int expires = 0 ;
 
                     boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
                     assert( pCore ) ;
 
-                    
-                    if( 0 == strcmp( sip->sip_subscription_state->ss_substate, "terminated" ) ) {
-                        subscribe = false ;
+                    if( sip->sip_cseq->cs_method == sip_method_subscribe ) {
+                        if(  0 == strcmp( sip->sip_subscription_state->ss_substate, "terminated" ) ) {
+                            add = false ;
+                        }
+                        else {
+                            expires = ::atoi( sip->sip_subscription_state->ss_expires ) ;
+                        }                        
                     }
                     else {
-                        expires = ::atoi( sip->sip_subscription_state->ss_expires ) ;
+                        if( NULL != sip->sip_contact && NULL != sip->sip_contact->m_expires ) {
+                            expires = ::atoi( sip->sip_contact->m_expires ) ;
+                        }        
+                        else {
+                            expires = 0 ;
+                        }
+                        add = expires > 0 ;
                     }
                     
-                    if( subscribe ) {
+                    if( add ) {
                         theProxyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, pCore->getTport() ) ;
                     }
                     else {
@@ -671,7 +682,7 @@ namespace drachtio {
                 string s ;
                 meta.toMessageFormat(s) ;
 
-                string data = s + "|||continue" + CRLF + encodedMessage ; 
+                string data = s + "|||continue" + DR_CRLF + encodedMessage ; 
 
                 theOneAndOnlyController->getClientController()->route_api_response( pCore->getClientMsgId(), "OK", data ) ;   
                 if( (m_sipStatus >= 200 && m_sipStatus <= 299) || (pCore->isCanceled() && pCore->exhaustedAllTargets() ) ) {
@@ -1228,7 +1239,7 @@ namespace drachtio {
             return true ;
         }
 
-        //TODO: if the request-uri has the '.invalid' domain, then we need to look up the transport to use
+        //If the request-uri has the '.invalid' domain, then we need to look up the transport to use
         // on a successful SUBSCRIBE / 202 Accepted transaction, the transport desc should have been stored
         bool forceTport = false ;
         tport_t* tp = NULL ;
@@ -1438,8 +1449,16 @@ namespace drachtio {
         string uri ;
         boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
         pUa->getUri( uri ) ;
-        m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
-        DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+
+        std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
+        if( ret.second == false ) {
+            mapUri2InvalidData::iterator it = ret.first ;
+            *(it->second) = *pUa ;
+            DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+        }
+        else {
+            DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+        }
     }
     void SipProxyController::flushTportForSubscription( const char* user, const char* host ) {
         string uri = "" ;

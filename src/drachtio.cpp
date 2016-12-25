@@ -44,6 +44,7 @@ THE SOFTWARE.
 #include <sofia-sip/tport.h>
 #include <sofia-sip/msg.h>
 #include <sofia-sip/msg_addr.h>
+#include <sofia-sip/sip_parser.h>
 #include <sofia-sip/su_string.h>
 #include <sofia-sip/su_uniqueid.h>
 #include <sofia-sip/su_addrinfo.h>
@@ -289,81 +290,88 @@ namespace drachtio {
         }
     }
 
-    bool normalizeSipUri( std::string& uri ) {
-        url_t url ;
-        char s[255] ;
+    bool normalizeSipUri( std::string& uri, int brackets ) {
+        su_home_t* home = theOneAndOnlyController->getHome() ;
+        char *s ;
+        char buf[255];
+        char obuf[255] ;
         char hp[64] ;
+        char const *display = NULL;
+        url_t url[1];
+        msg_param_t const *params = NULL;
+        char const *comment = NULL;
+        int rc ;
 
-        /* decode the url */
-        strncpy( s, uri.c_str(), 255 ) ;
-        if( url_d(&url, s ) < 0 ) {
-            DR_LOG(log_error) << "normalizeSipUri: invalid url " << uri << endl ;
-            return false ;       
-          }
+        // buf gets passed into sip_name_addr_d which puts NULs in various locations so the url_t members can point to their bits
+        s = strncpy( buf, uri.c_str(), 255 ) ;
 
-        /* we have may just been given a user part */
-        if( NULL == url.url_scheme ) {
-            uri = "sip:" + uri ;
-            if( NULL == url.url_user ) uri = uri + "@localhost" ;
-            strncpy( s, uri.c_str(), 255 ) ;
-            if( url_d(&url, s ) < 0 ) {
-                DR_LOG(log_error) << "normalizeSipUri: invalid url " << uri << endl ;
-                return false ;       
-            }   
-         }
-
-        /* encode the url */
-        if( url_e(s, 255, &url) < 0 ) {
-           DR_LOG(log_error) << "normalizeSipUri: error encoding url  " << s << endl ;
+        // first we decode the string
+        rc = sip_name_addr_d(home, &s, &display, url, &params, &comment) ;
+        if( rc < 0 ) {  
+            // no go: if we can't decode it then we have an invalid input
             return false ;
         }
 
-        uri.assign( s ) ;
+        /* we allow applications to just give us a phone number sometimes, and that ends up parsed into the host portion with no scheme */
+        if( NULL == url->url_scheme && NULL == url->url_user && NULL != url->url_host ) {
+            url->url_scheme = "sip" ;
+            url->url_user = url->url_host ;
+            url->url_host = "localhost" ;   //placeholder
+         }
+
+        // now we re-encode it
+        int nChars = sip_name_addr_e(obuf, 255, 0, display, brackets, url, params, comment) ;
+
+        // cleanup: free the msg_params if any were allocated        
+        if( params ) {
+            su_free(home, (void *) params) ;
+        }
+
+        if( nChars <= 0 ) {
+            return false ;
+        }
+        uri.assign( obuf ) ;
         return true ;
     }
 
-    bool replaceHostInUri( std::string& uri, const std::string& hostport ) {
-        url_t url ;
-        char s[255] ;
+    bool replaceHostInUri( std::string& uri, const char* szHost, const char* szPort ) {
+        su_home_t* home = theOneAndOnlyController->getHome() ;
+        char *s ;
+        char buf[255];
+        char obuf[255] ;
         char hp[64] ;
+        char const *display = NULL;
+        url_t url[1];
+        msg_param_t const *params = NULL;
+        char const *comment = NULL;
+        int rc ;
 
-        /* decode the url */
-        strncpy( s, uri.c_str(), 255 ) ;
-        if( url_d(&url, s ) < 0 ) {
-            DR_LOG(log_error) << "replaceHostInUri: invalid url " << uri << endl ;
-            return false ;       
-          }
+        // buf gets passed into sip_name_addr_d which puts NULs in various locations so the url_t members can point to their bits
+        s = strncpy( buf, uri.c_str(), 255 ) ;
 
-        /* we have may just been given a user part */
-        if( NULL == url.url_scheme ) {
-            uri = "sip:" + uri ;
-            if( NULL == url.url_user ) uri = uri + "@localhost" ;
-            strncpy( s, uri.c_str(), 255 ) ;
-            if( url_d(&url, s ) < 0 ) {
-                DR_LOG(log_error) << "replaceHostInUri: invalid url " << uri << endl ;
-                return false ;       
-            }   
-         }
-
-        /* insert the provided host and port */
-        url.url_host = NULL ;
-        url.url_port = NULL ;
-
-        strcpy( hp, hostport.c_str() ) ;
-        int n = strcspn(hp, ":");
-        if( hp[n] == ':' ) {
-            hp[n] = '\0' ;
-            url.url_port = hp + n + 1 ;
-        }
-        url.url_host = hp ;
-
-        /* encode the url */
-        if( url_e(s, 255, &url) < 0 ) {
-           DR_LOG(log_error) << "replaceHostInUri: error encoding url  " << s << endl ;
+        // first we decode the string
+        rc = sip_name_addr_d(home, &s, &display, url, &params, &comment) ;
+        if( rc < 0 ) {  
+            // no go: if we can't decode it then we have an invalid input
             return false ;
         }
 
-        uri.assign( s ) ;
+        // now we repoint host and port
+        url->url_host = szHost ;
+        url->url_port = szPort ;
+
+        // now we re-encode it
+        int nChars = sip_name_addr_e(obuf, 255, 0, display, 1, url, params, comment) ;
+
+        // cleanup: free the msg_params if any were allocated        
+        if( params ) {
+            su_free(home, (void *) params) ;
+        }
+
+        if( nChars <= 0 ) {
+            return false ;
+        }
+        uri.assign( obuf ) ;
         return true ;
     }
 
@@ -402,7 +410,31 @@ namespace drachtio {
             }
        }
 
-        url_t *url = url_make(theOneAndOnlyController->getHome(), requestUri.c_str() ) ;
+        su_home_t* home = theOneAndOnlyController->getHome() ;
+        char *s ;
+        char buf[255];
+        char const *display = NULL;
+        url_t url[1];
+        msg_param_t const *params = NULL;
+        char const *comment = NULL;
+        int rc ;
+
+        // buf gets passed into sip_name_addr_d which puts NULs in various locations so the url_t members can point to their bits
+        s = strncpy( buf, requestUri.c_str(), 255 ) ;
+
+        // first we decode the string
+        rc = sip_name_addr_d(home, &s, &display, url, &params, &comment) ;
+        if( rc < 0 ) {  
+            // no go: if we can't decode it then we have an invalid input
+            return false ;
+        }
+
+        // cleanup: free the msg_params if any were allocated        
+        if( params ) {
+            su_free(home, (void *) params) ;
+        }
+
+
         string uri = url->url_host ;
         uri += ":" ;
         uri += ( url->url_port ? url->url_port : "5060") ;
@@ -449,27 +481,27 @@ namespace drachtio {
     }
 
     void splitMsg( const string& msg, string& meta, string& startLine, string& headers, string& body ) {
-        size_t pos = msg.find( CRLF ) ;
+        size_t pos = msg.find( DR_CRLF ) ;
         if( string::npos == pos ) {
             meta = msg ;
             return ;
         }
         meta = msg.substr(0, pos) ;
-        string chunk = msg.substr(pos+CRLF.length()) ;
+        string chunk = msg.substr(pos+DR_CRLF.length()) ;
 
-        pos = chunk.find( CRLF2 ) ;
+        pos = chunk.find( DR_CRLF2 ) ;
         if( string::npos != pos  ) {
-            body = chunk.substr( pos + CRLF2.length() ) ;
+            body = chunk.substr( pos + DR_CRLF2.length() ) ;
             chunk = chunk.substr( 0, pos ) ;
         }
 
-        pos = chunk.find( CRLF ) ;
+        pos = chunk.find( DR_CRLF ) ;
         if( string::npos == pos ) {
             startLine = chunk ;
         }
         else {
             startLine = chunk.substr(0, pos) ;
-            headers = chunk.substr(pos + CRLF.length()) ;
+            headers = chunk.substr(pos + DR_CRLF.length()) ;
         }
     }
 
@@ -547,7 +579,6 @@ namespace drachtio {
         string proto, host, port, myHostport ;
         
         parseTransportDescription(transport, proto, host, port ) ;
-        myHostport = host + ':' + port ;
 
         splitLines( hdrs, vec ) ;
         int nHdrs = vec.size() ;
@@ -580,8 +611,13 @@ namespace drachtio {
                 i++ ;
                 continue ;
             }
+<<<<<<< HEAD
             else if( string::npos != hdrValue.find(CRLF) ) {
                 DR_LOG(log_error) << "makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
+=======
+            else if( string::npos != hdrValue.find(DR_CRLF) ) {
+                DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
+>>>>>>> 09a8e2e... changes for webrtc testing
                 i++ ;
                 continue ;
             }
@@ -603,7 +639,7 @@ namespace drachtio {
                     0 == hdr.compare("to") ||
                     0 == hdr.compare("p_asserted_identity") ) ) {
 
-                    replaceHostInUri( hdrValue, myHostport ) ;
+                    replaceHostInUri( hdrValue, host.c_str(), port.c_str() ) ;
                 }
                 int len = hdrValue.length() ;
                 char *p = new char[len+1] ;

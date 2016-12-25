@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include <boost/enable_shared_from_this.hpp>
 
 #include <sofia-sip/nta.h>
+#include <sofia-sip/nta_tport.h>
 
 using namespace std ;
 
@@ -135,6 +136,7 @@ namespace drachtio {
 
 		bool hasAckBeenSent(void) { return m_bAckSent;}
 		void ackSent(void) { m_bAckSent = true;}
+		tport_t* getTport(void) { return m_tp ;}
 
 	protected:
 		string 			m_dialogId ;
@@ -166,6 +168,8 @@ namespace drachtio {
 
 		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
 		bool			m_bAckSent ;
+
+		tport_t* 	m_tp ;
 	}  ;
 
 }

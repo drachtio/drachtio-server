@@ -175,7 +175,7 @@ namespace drachtio {
             m_os.flush() ;
             m_sipMessage = m_os.str() ;
             m_sipMessage.resize( m_sipMessage.length() - 1) ;
-            boost::replace_all(m_sipMessage, "\n", CRLF);
+            boost::replace_all(m_sipMessage, "\n", DR_CRLF);
         }
         else if( 0 == strcmp(szLine, "\n") ) {
             m_os << endl ;
@@ -727,8 +727,8 @@ namespace drachtio {
                 }
             }
 
-            //CANCEL or other request within a proxy transaction
             if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
+                //CANCEL or other request within a proxy transaction
                 m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
             }
             else {
@@ -779,6 +779,34 @@ namespace drachtio {
 
                     case sip_method_prack:
                         assert(0) ;//should not get here
+                    break ;
+
+                    case sip_method_cancel:
+                    {
+                        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findInviteByCallId( sip->sip_call_id->i_id ) ;
+                        if( p ) {
+                            DR_LOG(log_info) << "received quick cancel for invite that is out to client for disposition: " << sip->sip_call_id->i_id  ;
+
+                            string encodedMessage ;
+                            EncodeStackMessage( sip, encodedMessage ) ;
+                            SipMsgData_t meta( msg ) ;
+
+                            client_ptr client = m_pClientController->findClientForNetTransaction( p->getTransactionId() ); 
+                            assert( client ) ;
+
+                            if( client ) {
+                                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+                                    encodedMessage, meta ) ) ;                                
+                            }
+
+                            nta_msg_treply( m_nta, msg, 200, NULL, TAG_END() ) ;  
+                            p->cancel() ;
+                            nta_msg_treply( m_nta, msg_dup(p->getMsg()), 487, NULL, TAG_END() ) ;
+                        }
+                        else {
+                            nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;                              
+                        }
+                    }
                     break ;
 
                     default:

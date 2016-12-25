@@ -156,6 +156,10 @@ namespace drachtio {
             dlg->getTransportDesc(transport) ;
             tagi_t* tags = makeTags( pData->getHeaders(), transport) ;
 
+            tport_t* tp = dlg->getTport() ; 
+            bool forceTport = NULL != tp ;  
+
+
             nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             if( !leg ) {
                 assert( leg ) ;
@@ -197,6 +201,7 @@ namespace drachtio {
                         URL_STRING_MAKE(requestUri.c_str()) ,
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
+                        TAG_IF(forceTport, NTATAG_TPORT(tp)),
                         TAG_NEXT(tags) ) ;
                     dlg->ackSent() ;  
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
@@ -215,22 +220,26 @@ namespace drachtio {
             }
             else {
                 string contact ;
-                if( method == sip_method_invite || method == sip_method_subscribe ) {
+                bool addContact = false ;
+                if( (method == sip_method_invite || method == sip_method_subscribe) && !searchForHeader( tags, siptag_contact_str, contact ) ) {
+                    //TODO: should get this from dlg->m_tp I think....half the time the below is incorrect in that it refers to the remote end
                     contact = "<" ;
                     contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
                     contact.append( dlg->getTransportAddress() ) ;
                     contact.append( ":" ) ;
                     contact.append( dlg->getTransportPort() ) ;
                     contact.append(">") ;
+                    addContact = true ;
 
                 }
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     URL_STRING_MAKE( routeUrl.c_str() ),                     
                     method, name.c_str()
                     ,URL_STRING_MAKE(requestUri.c_str())
-                    ,TAG_IF( method == sip_method_invite || method == sip_method_subscribe, SIPTAG_CONTACT_STR( contact.c_str() ) )
+                    ,TAG_IF( addContact, SIPTAG_CONTACT_STR( contact.c_str() ) )
                     ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                    ,TAG_IF(forceTport, NTATAG_TPORT(tp))
                     ,TAG_NEXT(tags) ) ;
             }
 
@@ -269,9 +278,9 @@ namespace drachtio {
                 SipMsgData_t meta(m, orq) ;
                 string s ;
                 meta.toMessageFormat(s) ;
-                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + CRLF + encodedMessage ;
-                msg_destroy(m) ; //releases reference
+                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
 
+                msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
             }
 
@@ -314,7 +323,6 @@ namespace drachtio {
      void SipDialogController::doSendRequestOutsideDialog( SipMessageData* pData ) {
         nta_leg_t* leg = NULL ;
         nta_outgoing_t* orq = NULL ;
-        string myHostport ;
         string requestUri ;
         string name ;
         string sipOutboundProxy ;
@@ -322,6 +330,7 @@ namespace drachtio {
 
         try {
             bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
+            bool forceTport = false ;
 
             sip_request_t *sip_request = sip_request_make(m_pController->getHome(), pData->getStartLine() ) ;
             if( NULL == sip_request || 
@@ -332,32 +341,42 @@ namespace drachtio {
 
                 throw std::runtime_error(string("invalid request-uri: ") + pData->getStartLine() ) ;
             }
+            sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
+
+            int rc = 0 ;
+            if( NULL != strstr( sip_request->rq_url->url_host, ".invalid") ) {
+                boost::shared_ptr<SipProxyController::UaInvalidData> pData = 
+                    m_pController->getProxyController()->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host ) ;
+
+                if( NULL != pData ) {
+                    tp = pData->getTport() ;
+                    forceTport = true ;
+                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
+               }
+            }
+            if( NULL == tp ) {
+                rc = nta_get_outbound_tport_name_for_url( m_pController->getAgent(), m_pController->getHome(), 
+                            URL_STRING_MAKE(requestUri.c_str()), (void **) &tp ) ;
+                assert( 0 == rc ) ;                
+            }
             su_free( m_pController->getHome(), sip_request ) ;
 
-            sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
-        
-            int rc = nta_get_outbound_tport_name_for_url( m_pController->getAgent(), m_pController->getHome(), 
-                        URL_STRING_MAKE(requestUri.c_str()), (void **) &tp ) ;
-            assert( 0 == rc ) ;
-            
             string desc ;
             getTransportDescription( tp, desc ) ;
-            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << desc <<
-                " for request-uri " << requestUri  ;            
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << desc << " for request-uri " << requestUri  ;            
 
             tagi_t* tags = makeTags( pData->getHeaders(), desc ) ;
            
             //if user supplied all or part of the From use it
-            const tp_name_t* tpn = tport_name( tp );
+            const tp_name_t* tpn = tport_name( tport_parent( tp ) );
             string host = tpn->tpn_host ;
             string port = tpn->tpn_port ;
             string proto = tpn->tpn_proto ;
 
-            string myHostport = host + ":" + port ;
-            string contact = "<sip" + myHostport + ">";
+            string contact = "<sip:" + host + ":" + port + ">;transport=" + proto;
             string from, to, callid ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
-               if( !replaceHostInUri( from, myHostport ) ) {
+                if( !replaceHostInUri( from, host.c_str(), port.c_str() ) ) {
                     throw std::runtime_error(string("invalid from value provided by client: ") + from ) ;
                 }
             } 
@@ -369,6 +388,10 @@ namespace drachtio {
             if( !searchForHeader( tags, siptag_to_str, to ) ) {
                 to = requestUri ;
             } 
+
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - from: " << from   ;            
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - to: " << to ;            
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - contact: " << contact  ;            
 
             // use call-id if supplied
             if( searchForHeader( tags, siptag_call_id_str, callid ) ) {
@@ -389,7 +412,7 @@ namespace drachtio {
              }
 
             //prevent looping messages
-            normalizeSipUri( requestUri ) ;
+            normalizeSipUri( requestUri, 0 ) ;
             if( isLocalSipUri( requestUri ) ) {
                 throw std::runtime_error("can not send request to myself") ;
             }
@@ -417,6 +440,7 @@ namespace drachtio {
                     !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR( contact.c_str() ) )
                 ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                ,TAG_IF(forceTport, NTATAG_TPORT(tp))
                 ,TAG_NEXT(tags) ) ;
 
             deleteTags( tags ) ;
@@ -446,7 +470,7 @@ namespace drachtio {
             meta.toMessageFormat(s) ;
             msg_destroy(m) ;    // releases reference
 
-            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + CRLF + encodedMessage ;
+            string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;
            
@@ -516,7 +540,7 @@ namespace drachtio {
                 SipMsgData_t meta(m, cancel) ;
                 string s ;
                 meta.toMessageFormat(s) ;
-                string data = s + "|" + cancelTransactionId + "|Msg sent:|" + CRLF + encodedMessage ;
+                string data = s + "|" + cancelTransactionId + "|Msg sent:|" + DR_CRLF + encodedMessage ;
                 msg_destroy(m) ;
 
                 //Note: not adding an RIP because the 200 OK to the CANCEL is not passed up to us
@@ -546,7 +570,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog"  ;
         string transactionId ;
         boost::shared_ptr<SipDialog> dlg ;
- 
+
         if( sip->sip_cseq->cs_method == sip_method_invite ) {
             boost::shared_ptr<IIP> iip ;
             if( !findIIPByOrq( orq, iip ) ) {
@@ -848,7 +872,7 @@ namespace drachtio {
 
             string s ;
             meta.toMessageFormat(s) ;
-            string data = s + "|" + transactionId + "|" + dialogId + "|" + "|Msg sent:|" + CRLF + encodedMessage ;
+            string data = s + "|" + transactionId + "|" + dialogId + "|" + "|Msg sent:|" + DR_CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( clientMsgId, "OK", data) ;
 
@@ -954,13 +978,16 @@ namespace drachtio {
                 SipMsgData_t meta( msg, irq ) ;
                 msg_destroy( msg ); // release the reference
 
-                m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, irq, sip, transactionId, dlg->getDialogId() ) ;
+                bool routed = m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, irq, sip, transactionId, dlg->getDialogId() ) ;
 
                 addIncomingRequestTransaction( irq, transactionId) ;
     
                 if( sip_method_bye == sip->sip_request->rq_method ) {
                     //clear dialog when we send a 200 OK response to BYE
                     this->clearDialog( leg ) ;
+                    if( !routed ) {
+                        nta_incoming_treply( irq, SIP_200_OK, TAG_END() ) ;                
+                    }
                 } 
             }
         }
@@ -1075,9 +1102,12 @@ namespace drachtio {
 
             m_pClientController->route_request_inside_invite( encodedMessage, meta, irq, sip, iip->getTransactionId(), dlg->getDialogId() ) ;
             
+            //TODO: sofia has already sent 200 OK to cancel and 487 to INVITE.  Do we need to keep this irq around?
             addIncomingRequestTransaction( irq, transactionId) ;
 
+            DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP "   ;
             this->clearIIP( iip->leg() ) ;
+            DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - done clearing IIP "   ;
 
         }
         else if( sip->sip_request->rq_method == sip_method_ack ) {

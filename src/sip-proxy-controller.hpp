@@ -385,7 +385,7 @@ namespace drachtio {
         ~UaInvalidData() {
           tport_unref(m_tp) ;
         }
-        UaInvalidData& operator=( const UaInvalidData ua ) {
+        UaInvalidData& operator=( const UaInvalidData& ua ) {
           strncpy( m_szUser, ua.m_szUser, URI_LEN - 1) ;
           strncpy( m_szHost, ua.m_szHost, URI_LEN - 1) ;
           tport_ref(m_tp) ;   
