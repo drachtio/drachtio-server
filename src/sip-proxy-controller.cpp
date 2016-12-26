@@ -1003,7 +1003,7 @@ namespace drachtio {
         // if we get a 401 Unauthorized or 407 Proxy Authorization required, then stop searching and send back
         if(    (401 == status || 407 == status)  
             && (NULL != sip->sip_www_authenticate || NULL != sip->sip_proxy_authenticate )
-            && theProxyController->addChallenge( msg, sip, target ) ) {
+            && theProxyController->addChallenge( sip, target ) ) {
             
             removeTerminated(true) ;
             forwardBestResponse() ;
@@ -1374,7 +1374,7 @@ namespace drachtio {
       return p ;         
     }
 
-    bool SipProxyController::addChallenge( msg_t* msg, sip_t* sip, const string& target ) {
+    bool SipProxyController::addChallenge( sip_t* sip, const string& target ) {
         const char* nonce = NULL; 
         const char* realm = NULL;
         string remoteAddress ;
@@ -1457,6 +1457,8 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
         else {
+            boost::shared_ptr<SipProxyController::UaInvalidData> p = (ret.first)->second ;
+            p->extendExpires( expires ) ;
             DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
@@ -1493,9 +1495,24 @@ namespace drachtio {
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
+        // expire any UaInvalidData
+        for(  mapUri2InvalidData::iterator it = m_mapUri2InvalidData.begin(); it != m_mapUri2InvalidData.end(); ) {
+            boost::shared_ptr<SipProxyController::UaInvalidData> p = it->second ;
+            if( p->isExpired() ) {
+                string uri  ;
+                p->getUri(uri) ;
+                DR_LOG(log_debug) << "SipProxyController::logStorageCount expiring transport for webrtc client: "  << uri << " " << (void *) p->getTport() ;
+                m_mapUri2InvalidData.erase(it++) ;
+            }
+            else {
+                ++it ;
+            }
+        }
+        
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;
         DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        DR_LOG(log_info) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
         DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
         m_pTQM->logQueueSizes() ;
     }

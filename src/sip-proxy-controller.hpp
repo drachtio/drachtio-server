@@ -22,6 +22,8 @@ THE SOFTWARE.
 #ifndef __SIP_PROXY_CONTROLLER_HPP__
 #define __SIP_PROXY_CONTROLLER_HPP__
 
+#include <time.h>
+
 #include <boost/shared_ptr.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
@@ -372,13 +374,11 @@ namespace drachtio {
 
     class UaInvalidData {
       public: 
-        UaInvalidData() : m_expires(0), m_tp(NULL) {
-          memset(m_szUser, 0, sizeof(m_szUser) ) ;
-          memset(m_szHost, 0, sizeof(m_szHost) ) ;
-        }
-        UaInvalidData(const char* szUser, const char* szHost, int expires, tport_t* tp ) : m_expires(expires), m_tp(tp) {
+        UaInvalidData(const char* szUser, const char* szHost, int expires, tport_t* tp ) : m_tp(tp) {
           strncpy( m_szUser, szUser, URI_LEN - 1) ;
           strncpy( m_szHost, szHost, URI_LEN - 1) ;
+          time(&m_expires) ;
+          m_expires += expires ;
           tport_ref(m_tp) ;
 
         }
@@ -388,6 +388,7 @@ namespace drachtio {
         UaInvalidData& operator=( const UaInvalidData& ua ) {
           strncpy( m_szUser, ua.m_szUser, URI_LEN - 1) ;
           strncpy( m_szHost, ua.m_szHost, URI_LEN - 1) ;
+          m_expires = ua.m_expires ;
           tport_ref(m_tp) ;   
           return *this ;       
         }
@@ -399,10 +400,19 @@ namespace drachtio {
           uri.append( m_szHost ) ;
         }
         tport_t* getTport(void) { return m_tp; }
+        bool isExpired(void) {
+          return m_expires < time(0) ;
+        }
+        void extendExpires(int expires) {
+          m_expires = time(0) + expires ;
+        }
       private:
+        // not allowed
+        UaInvalidData() {}
+
         char m_szUser[URI_LEN] ;
         char m_szHost[URI_LEN] ;
-        int m_expires ;
+        time_t m_expires ;
         tport_t* m_tp ;
     } ;
 
@@ -433,7 +443,7 @@ namespace drachtio {
     void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;
     void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
-    bool addChallenge( msg_t* msg, sip_t* sip, const string& target ) ;
+    bool addChallenge( sip_t* sip, const string& target ) ;
     void timeoutChallenge(const char* nonce) ;
 
     void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
