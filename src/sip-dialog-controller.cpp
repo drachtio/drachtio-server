@@ -573,6 +573,13 @@ namespace drachtio {
         string transactionId ;
         boost::shared_ptr<SipDialog> dlg ;
 
+        string encodedMessage ;
+        bool truncated ;
+        msg_t* msg = nta_outgoing_getresponse(orq) ;    //adds a reference
+        SipMsgData_t meta( msg, orq, "network") ;
+
+        EncodeStackMessage( sip, encodedMessage ) ;
+
         if( sip->sip_cseq->cs_method == sip_method_invite ) {
             boost::shared_ptr<IIP> iip ;
             if( !findIIPByOrq( orq, iip ) ) {
@@ -629,14 +636,6 @@ namespace drachtio {
             if( sip->sip_status->st_status >= 200 ) this->clearRIP( orq ) ;
         }
         
-        string encodedMessage ;
-        bool truncated ;
-        msg_t* msg = nta_outgoing_getresponse(orq) ;    //adds a reference
-        SipMsgData_t meta( msg, orq, "network") ;
-        msg_destroy( msg ) ;                            //releases reference
-
-        EncodeStackMessage( sip, encodedMessage ) ;
-
         if( !dlg ) {
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, transactionId ) ;
         }
@@ -648,6 +647,8 @@ namespace drachtio {
             assert( dlg ) ;
             m_pController->getClientController()->removeDialog( dlg->getDialogId() ) ;
         }
+
+        msg_destroy( msg ) ;                            //releases reference
 
         return 0 ;
     }
