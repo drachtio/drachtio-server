@@ -241,6 +241,8 @@ namespace drachtio {
                     ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_IF(forceTport, NTATAG_TPORT(tp))
                     ,TAG_NEXT(tags) ) ;
+
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
             }
 
             deleteTags( tags ) ;
@@ -279,7 +281,6 @@ namespace drachtio {
                 string s ;
                 meta.toMessageFormat(s) ;
                 string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
-                msg_destroy(m) ; //releases reference
 
                 msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
@@ -688,7 +689,7 @@ namespace drachtio {
 
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found incoming transaction " << std::hex << irq  ;
 
-            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
             sip_t *sip = sip_object( msg );
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
@@ -729,6 +730,8 @@ namespace drachtio {
                 assert(false) ;
             }
 
+            msg_destroy( msg ); //release the reference
+
             /* we must explicitly delete an object allocated with placement new */
             if( tags ) deleteTags( tags );
 
@@ -742,7 +745,7 @@ namespace drachtio {
             irq = iip->irq() ;         
             boost::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
-            msg_t* msg = nta_incoming_getrequest( irq ) ;
+            msg_t* msg = nta_incoming_getrequest( irq ) ;   //allocates a reference
             sip_t *sip = sip_object( msg );
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
@@ -844,6 +847,9 @@ namespace drachtio {
                     assert(false) ;
                 }
             }
+
+            msg_destroy( msg ); //release the reference
+
             /* we must explicitly delete an object allocated with placement new */
             if( tags ) deleteTags( tags );
         }
@@ -1316,6 +1322,27 @@ namespace drachtio {
             return ;
         }
         m_mapLeg2Dialog.erase( itLeg ) ;                
+    }
+    void SipDialogController::addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) {
+        DR_LOG(log_debug) << "SipDialogController::addRIP adding orq " << std::hex << (void*) orq  ;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,rip)) ;
+    }
+    bool SipDialogController::findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) {
+        DR_LOG(log_debug) << "SipDialogController::findRIPByOrq adding orq " << std::hex << (void*) orq  ;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
+        if( m_mapOrq2RIP.end() == it ) return false ;
+        rip = it->second ;
+        return true ;                       
+    }
+    void SipDialogController::clearRIP( nta_outgoing_t* orq ) {
+        DR_LOG(log_debug) << "SipDialogController::clearRIP clearing orq " << std::hex << (void*) orq  ;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
+        nta_outgoing_destroy( orq ) ;
+        if( m_mapOrq2RIP.end() == it ) return  ;
+        m_mapOrq2RIP.erase( it ) ;                      
     }
 
     void SipDialogController::logStorageCount(void)  {

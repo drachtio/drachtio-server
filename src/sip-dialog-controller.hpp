@@ -285,24 +285,9 @@ namespace drachtio {
 		}
 
 		/// RIP helpers
-		void addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,rip)) ;
-		}
-		bool findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-	        mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
-	        if( m_mapOrq2RIP.end() == it ) return false ;
-	        rip = it->second ;
-	        return true ;						
-		}
-		void clearRIP( nta_outgoing_t* orq ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
-			nta_outgoing_destroy( orq ) ;
-			if( m_mapOrq2RIP.end() == it ) return  ;
-			m_mapOrq2RIP.erase( it ) ;						
-		}
+		void addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) ;
+		bool findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) ;
+		void clearRIP( nta_outgoing_t* orq ) ;
 
 		/// IRQ helpers
 		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
