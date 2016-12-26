@@ -611,13 +611,8 @@ namespace drachtio {
                 i++ ;
                 continue ;
             }
-<<<<<<< HEAD
-            else if( string::npos != hdrValue.find(CRLF) ) {
-                DR_LOG(log_error) << "makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
-=======
             else if( string::npos != hdrValue.find(DR_CRLF) ) {
                 DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
->>>>>>> 09a8e2e... changes for webrtc testing
                 i++ ;
                 continue ;
             }
