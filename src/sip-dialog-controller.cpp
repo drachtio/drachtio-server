@@ -268,7 +268,7 @@ namespace drachtio {
                     nta_outgoing_destroy( orq ) ;
                 }
                 else {
-                    boost::shared_ptr<RIP> p = boost::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId() ) ;
+                    boost::shared_ptr<RIP> p = boost::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId(), dlg ) ;
                     addRIP( orq, p ) ;       
                 }
                 if( sip_method_invite == method ) {

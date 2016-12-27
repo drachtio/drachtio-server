@@ -89,6 +89,9 @@ namespace drachtio {
 			m_transactionId(transactionId) {}
 		RIP( const string& transactionId, const string& dialogId ) : 
 			m_transactionId(transactionId), m_dialogId(dialogId) {}
+		RIP( const string& transactionId, const string& dialogId,  boost::shared_ptr<SipDialog> dlg ) : 
+			m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg) {
+			}
 
 		~RIP() {}
 
@@ -96,8 +99,9 @@ namespace drachtio {
 		const string& getDialogId(void) { return m_dialogId; }
 
 	private:
-		string 			m_transactionId ;
-		string			m_dialogId ;
+		string 												m_transactionId ;
+		string												m_dialogId ;
+		boost::shared_ptr<SipDialog> 	m_dlg ;
 	} ;
 
 
