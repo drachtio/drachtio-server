@@ -839,7 +839,7 @@ namespace drachtio {
         msg_t* msg = p->getMsg() ;
         tport_t* tp = p->getTport() ;
 
-        if( sip_method_invite == sip->sip_request->rq_method ) {
+        if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ) {
 
             //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating an incoming transaction"  ;
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
@@ -1117,6 +1117,53 @@ namespace drachtio {
         return parseTransportDescription( desc, p, host, port ) ;
     }
 
+    void DrachtioController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
+        string uri ;
+        boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
+        pUa->getUri( uri ) ;
+
+        std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
+        if( ret.second == false ) {
+            mapUri2InvalidData::iterator it = ret.first ;
+            *(it->second) = *pUa ;
+            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+        }
+        else {
+            boost::shared_ptr<UaInvalidData> p = (ret.first)->second ;
+            p->extendExpires( expires ) ;
+            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+        }
+    }
+    void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
+        string uri = "" ;
+        uri.append(user) ;
+        uri.append("@") ;
+        uri.append(host) ;
+
+        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
+        if( m_mapUri2InvalidData.end() != it ) {
+            m_mapUri2InvalidData.erase( it ) ;
+        }
+        DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
+    }
+    boost::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+        string uri = "" ;
+        uri.append(user) ;
+        uri.append("@") ;
+        uri.append(host) ;
+        boost::shared_ptr<UaInvalidData> p ;
+        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
+        if( m_mapUri2InvalidData.end() != it ) {
+            p = it->second ;
+            DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: found transport for " << uri  ;
+        }
+        else {
+            DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: no transport found for " << uri  ;
+        }
+        return p ;
+    }
+
+
     void DrachtioController::printStats() {
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
        usize_t irq_used = -1, orq_used = -1, leg_used = -1 ;
@@ -1201,11 +1248,29 @@ namespace drachtio {
     }
     void DrachtioController::processWatchdogTimer() {
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
+    
+        // expire any UaInvalidData
+        for(  mapUri2InvalidData::iterator it = m_mapUri2InvalidData.begin(); it != m_mapUri2InvalidData.end(); ) {
+            boost::shared_ptr<UaInvalidData> p = it->second ;
+            if( p->isExpired() ) {
+                string uri  ;
+                p->getUri(uri) ;
+                DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer expiring transport for webrtc client: "  << uri << " " << (void *) p->getTport() ;
+                m_mapUri2InvalidData.erase(it++) ;
+            }
+            else {
+                ++it ;
+            }
+        }
+
         this->printStats() ;
         m_pDialogController->logStorageCount() ;
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
+
+        DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
+
 #ifdef SOFIA_MSG_DEBUG_TRACE
         DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
 #endif

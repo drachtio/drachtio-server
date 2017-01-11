@@ -222,10 +222,10 @@ namespace drachtio {
                     }
                     
                     if( add ) {
-                        theProxyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, pCore->getTport() ) ;
+                        theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, pCore->getTport() ) ;
                     }
                     else {
-                        theProxyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                        theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
                     }
                 }
             }
@@ -1244,7 +1244,7 @@ namespace drachtio {
         bool forceTport = false ;
         tport_t* tp = NULL ;
         if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
-            boost::shared_ptr<UaInvalidData> pData = findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
+            boost::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
             if( NULL != pData ) {
                 tp = pData->getTport() ;
                 forceTport = true ;
@@ -1445,75 +1445,14 @@ namespace drachtio {
                 << " there are " <<  m_mapNonce2Challenge.size() << " saved challenges "; 
         }
     }
-    void SipProxyController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
-        string uri ;
-        boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
-        pUa->getUri( uri ) ;
-
-        std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
-        if( ret.second == false ) {
-            mapUri2InvalidData::iterator it = ret.first ;
-            *(it->second) = *pUa ;
-            DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
-        }
-        else {
-            boost::shared_ptr<SipProxyController::UaInvalidData> p = (ret.first)->second ;
-            p->extendExpires( expires ) ;
-            DR_LOG(log_debug) << "SipProxyController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
-        }
-    }
-    void SipProxyController::flushTportForSubscription( const char* user, const char* host ) {
-        string uri = "" ;
-        uri.append(user) ;
-        uri.append("@") ;
-        uri.append(host) ;
-
-        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
-        if( m_mapUri2InvalidData.end() != it ) {
-            m_mapUri2InvalidData.erase( it ) ;
-        }
-        DR_LOG(log_debug) << "SipProxyController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
-    }
-    boost::shared_ptr<SipProxyController::UaInvalidData> SipProxyController::findTportForSubscription( const char* user, const char* host ) {
-        string uri = "" ;
-        uri.append(user) ;
-        uri.append("@") ;
-        uri.append(host) ;
-        boost::shared_ptr<SipProxyController::UaInvalidData> p ;
-        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
-        if( m_mapUri2InvalidData.end() != it ) {
-            p = it->second ;
-            DR_LOG(log_debug) << "SipProxyController::findTportForSubscription: found transport for " << uri  ;
-        }
-        else {
-            DR_LOG(log_debug) << "SipProxyController::findTportForSubscription: no transport found for " << uri  ;
-
-        }
-        return p ;
-    }
 
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
-        // expire any UaInvalidData
-        for(  mapUri2InvalidData::iterator it = m_mapUri2InvalidData.begin(); it != m_mapUri2InvalidData.end(); ) {
-            boost::shared_ptr<SipProxyController::UaInvalidData> p = it->second ;
-            if( p->isExpired() ) {
-                string uri  ;
-                p->getUri(uri) ;
-                DR_LOG(log_debug) << "SipProxyController::logStorageCount expiring transport for webrtc client: "  << uri << " " << (void *) p->getTport() ;
-                m_mapUri2InvalidData.erase(it++) ;
-            }
-            else {
-                ++it ;
-            }
-        }
         
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;
         DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
         DR_LOG(log_info) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
-        DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
         m_pTQM->logQueueSizes() ;
     }
 

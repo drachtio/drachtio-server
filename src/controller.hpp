@@ -64,6 +64,7 @@ THE SOFTWARE.
 #include "sip-dialog.hpp"
 #include "pending-request-controller.hpp"
 #include "sip-proxy-controller.hpp"
+#include "ua-invalid.hpp"
 #include "redis-service.hpp"
 
 typedef boost::mt19937 RNGType;
@@ -160,39 +161,6 @@ namespace drachtio {
 
                 bool getMySipAddress( const char* proto, string& host, string& port ) ;
 
-                /*
-                const char* getMySipAddress(const char* proto) {
-
-                        return m_my_contact->m_url->url_host ;
-                }
-                const char* getMySipPort(const char* proto) {
-                        return m_my_contact->m_url->url_port ? m_my_contact->m_url->url_port : "5060";
-                }
-
-                
-                const sip_contact_t* getMyContact(void) { return m_my_contact; }
-                const sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
-                
-                void getMyHostport( string& str ) {
-                	str = m_my_contact->m_url->url_host ;
-                	if( m_my_contact->m_url->url_port ) {
-                		str.append(":") ;
-                		str.append( m_my_contact->m_url->url_port ) ;
-                	}
-                }
-                const char* getMySipAddress(void) {
-                        return m_my_contact->m_url->url_host ;
-                }
-                const char* getMySipPort(void) {
-                        return m_my_contact->m_url->url_port ? m_my_contact->m_url->url_port : "5060";
-                }
-                
-
-                const sip_contact_t* getMyContact(nta_incoming_t* irq, msg_t* msg ) ;
-                const sip_contact_t* getMyContact(string strDestination) ;
-                const sip_record_route_t* getMyRecordRoute(string strDestination) ;
-                */
-
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
 
@@ -206,12 +174,13 @@ namespace drachtio {
 
                 bool isDaemonized(void) { return m_bDaemonize; }
 
+                void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
+                void flushTportForSubscription( const char* user, const char* host ) ; 
+                boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
+
 	private:
                 typedef boost::unordered_map<string, tport_t*> mapProtocol2Tport ;
                 mapProtocol2Tport m_mapProtocol2Tport ;
-
-                //typedef boost::unordered_map<tport_t*, TransportContact> mapTport2Contact ;
-                //mapTport2Contact m_mapTport2Contact ;
 
         	DrachtioController() ;
 
@@ -264,6 +233,11 @@ namespace drachtio {
         	su_clone_r 	m_clone ;
 
                 sip_contact_t*  m_my_contact ;
+
+                typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
+                mapUri2InvalidData m_mapUri2InvalidData ;
+
+
         } ;
 
 } ;

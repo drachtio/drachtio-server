@@ -181,7 +181,7 @@ namespace drachtio {
             //set content-type if not supplied and body contains SDP
             string body = pData->getBody() ;
             string contentType ;
-            if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
+            if( body.length() && !searchForHeader( tags, siptag_content_type_str, contentType ) ) {
                 if( 0 == body.find("v=0") ) {
                     contentType = "application/sdp" ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - automatically detecting content-type as application/sdp"  ;
@@ -347,8 +347,8 @@ namespace drachtio {
 
             int rc = 0 ;
             if( NULL != strstr( sip_request->rq_url->url_host, ".invalid") ) {
-                boost::shared_ptr<SipProxyController::UaInvalidData> pData = 
-                    m_pController->getProxyController()->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host ) ;
+                boost::shared_ptr<UaInvalidData> pData = 
+                    m_pController->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host ) ;
 
                 if( NULL != pData ) {
                     tp = pData->getTport() ;
@@ -378,8 +378,10 @@ namespace drachtio {
             string contact = "<sip:" + host + ":" + port + ">;transport=" + proto;
             string from, to, callid ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
-                if( !replaceHostInUri( from, host.c_str(), port.c_str() ) ) {
-                    throw std::runtime_error(string("invalid from value provided by client: ") + from ) ;
+                if( string::npos != from.find("localhost") ) {
+                    if( !replaceHostInUri( from, host.c_str(), port.c_str() ) ) {
+                        throw std::runtime_error(string("invalid from value provided by client: ") + from ) ;
+                    }                    
                 }
             } 
             else {
@@ -403,7 +405,7 @@ namespace drachtio {
             //set content-type if not supplied and body contains SDP
             string body = pData->getBody() ;
             string contentType ;
-            if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
+            if( body.length() && !searchForHeader( tags, siptag_content_type_str, contentType ) ) {
                 if( 0 == body.find("v=0") ) {
                     contentType = "application/sdp" ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - automatically detecting content-type as application/sdp"  ;
@@ -731,6 +733,51 @@ namespace drachtio {
                 assert(false) ;
             }
 
+            //  we need to cache source address / port / transport for successful REGISTER or SUBSCRIBE requests from webrtc clients so we can 
+            //  later send INVITEs and NOTIFYs
+            if( (sip->sip_request->rq_method == sip_method_subscribe && 202 == code) ||
+                (sip->sip_request->rq_method == sip_method_register && 200 == code) ) {
+
+                sip_contact_t* contact = sip->sip_contact ;
+                if( contact ) {
+                    if( NULL != strstr( contact->m_url->url_host, ".invalid")  ) {
+                        bool add = true ;
+                        int expires = 0 ;
+
+                        msg_t *msgResponse = nta_incoming_getresponse( irq ) ;    // adds a reference
+                        sip_t *sipResponse = sip_object( msgResponse ) ;
+
+                        if( sip->sip_request->rq_method == sip_method_subscribe ) {
+                            if(  0 == strcmp( sipResponse->sip_subscription_state->ss_substate, "terminated" ) ) {
+                                add = false ;
+                            }
+                            else {
+                                expires = ::atoi( sipResponse->sip_subscription_state->ss_expires ) ;
+                            }                        
+                        }
+                        else {
+                            if( NULL != sipResponse->sip_contact && NULL != sipResponse->sip_contact->m_expires ) {
+                                expires = ::atoi( sipResponse->sip_contact->m_expires ) ;
+                            }        
+                            else {
+                                expires = 0 ;
+                            }
+                            add = expires > 0 ;
+                        }
+                        
+                        if( add ) {
+                            theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
+                        }
+                        else {
+                            theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                        }
+
+                        msg_destroy( msgResponse ) ;    // releases the reference
+                    }
+
+                }
+            }
+
             msg_destroy( msg ); //release the reference
 
             /* we must explicitly delete an object allocated with placement new */
@@ -740,7 +787,7 @@ namespace drachtio {
             bDestroyIrq = true ;                        
         }
         else if( iip ) {
-            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found invite in progress " << std::hex << iip  ;
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found invite or subscribe in progress " << std::hex << iip  ;
            /* invite in progress */
             nta_leg_t* leg = iip->leg() ;
             irq = iip->irq() ;         
@@ -773,7 +820,7 @@ namespace drachtio {
 
             /* if the client included Require: 100rel on a provisional, send it reliably */
             bool bReliable = false ;
-            if( code > 100 && code < 200 ) {
+            if( code > 100 && code < 200 && sip->sip_request->rq_method == sip_method_invite) {
                 int i = 0 ;
                 while( tags[i].t_tag != tag_null ) {
                     if( tags[i].t_tag == siptag_require_str && NULL != strstr( (const char*) tags[i].t_value, "100rel") ) {
@@ -802,7 +849,7 @@ namespace drachtio {
              }
 
              /* set session timer if required */
-             if( 200 == code ) {
+             if( 200 == code && sip->sip_request->rq_method == sip_method_invite ) {
                 string strSessionExpires ;
                 if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
                     sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );

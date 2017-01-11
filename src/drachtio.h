@@ -60,6 +60,7 @@ const string DR_CRLF = "\r\n" ;
 const string DR_CRLF2 = "\r\n\r\n" ;
 
 #define MSG_ID_LEN (128)
+#define URI_LEN (256)
 
 namespace logging = boost::log;
 namespace sinks = boost::log::sinks;
