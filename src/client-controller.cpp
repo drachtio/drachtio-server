@@ -213,7 +213,12 @@ namespace drachtio {
 
         // if this is a BYE from the network, it ends the dialog 
         string method_name = sip->sip_request->rq_method_name ;
-        if( 0 == method_name.compare("BYE") ) {
+        if( 0 == method_name.compare("BYE") || 
+            (sip_method_notify == sip->sip_request->rq_method && 
+            NULL != sip->sip_subscription_state && 
+            NULL != sip->sip_subscription_state->ss_substate &&
+            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated"))) {
+
             removeDialog( dialogId ) ;
         }
 
