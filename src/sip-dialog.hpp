@@ -34,8 +34,9 @@ namespace drachtio {
 
 	class SipDialog : public boost::enable_shared_from_this<SipDialog> {
 	public:
-		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
-		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip ) ;
+		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
+		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
+			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg ) ;
 		~SipDialog() ;
 
 		int processRequest( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
@@ -101,6 +102,7 @@ namespace drachtio {
 
 		const string& getSourceAddress(void) const { return m_sourceAddress;}
 		unsigned int getSourcePort(void) const { return m_sourcePort; }
+		const string& getProtocol(void) const { return m_protocol; }
 		void setSourceAddress( const string& host ) { m_sourceAddress = host; }
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
 
@@ -141,16 +143,16 @@ namespace drachtio {
 		time_t			m_endTime ;
 		ReleaseCause_t	m_releaseCause ;
         
-        /* session timer */
-        unsigned long 	m_nSessionExpiresSecs ;
-        unsigned long 	m_nMinSE ;
-        su_timer_t*     m_timerSessionRefresh ;
-        SessionRefresher_t	m_refresher ;
-        boost::weak_ptr<SipDialog>* m_ppSelf ;
+    /* session timer */
+    unsigned long 	m_nSessionExpiresSecs ;
+    unsigned long 	m_nMinSE ;
+    su_timer_t*     m_timerSessionRefresh ;
+    SessionRefresher_t	m_refresher ;
+    boost::weak_ptr<SipDialog>* m_ppSelf ;
 
-		/* only populated/relevant when we are UAS, and UAC may be natted */
 		string 			m_sourceAddress ;
 		unsigned int 	m_sourcePort ;
+		string      m_protocol ;
 
 		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
 		bool			m_bAckSent ;

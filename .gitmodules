@@ -4,3 +4,6 @@
 [submodule "deps/redisclient"]
         path = deps/redisclient
         url = https://github.com/davehorton/redisclient.git
+[submodule "deps/libzrtp"]
+	path = deps/libzrtp
+	url = https://github.com/traviscross/libzrtp.git

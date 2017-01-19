@@ -98,7 +98,7 @@ namespace drachtio {
     void Client::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
 
         if( ec ) {
-            DR_LOG(log_error) << ec ;
+            DR_LOG(log_error) << "Client::read_handler - bouncing client due to error reading: " << ec ;
             m_controller.leave( shared_from_this() ) ;
             return ;
         }
@@ -132,7 +132,7 @@ namespace drachtio {
                 DR_LOG(log_debug) << "Client::read_handler read: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
                 bContinue = processClientMessage( string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength), msgResponse ) ;
             } catch( std::runtime_error& err ) {
-                DR_LOG(log_error) << "Error parsing JSON message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
+                DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
@@ -144,6 +144,7 @@ namespace drachtio {
                 boost::asio::write( m_sock, boost::asio::buffer( msgResponse ) ) ;
             }
             if( !bContinue ) {
+                 DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
@@ -159,7 +160,7 @@ namespace drachtio {
                     }
                 }
                 catch( std::runtime_error& err ) {
-                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly"  ;                     
+                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- message length not specified properly"  ;                     
                     m_controller.leave( shared_from_this() ) ;               
                     return ;
                 }

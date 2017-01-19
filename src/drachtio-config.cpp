@@ -40,6 +40,13 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), m_bDaemon(isDaemonized) {
+
+            // default timers
+            m_nTimerT1 = 500 ;
+            m_nTimerT2 = 4000 ;
+            m_nTimerT4 = 5000 ;
+            m_nTimerT1x64 = 32000 ;
+
             try {
                 std::filebuf fb;
                 if( !fb.open (szFilename,std::ios::in) ) {
@@ -59,6 +66,7 @@ namespace drachtio {
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
 
                     m_sipUrl = pt.get<string>("drachtio.sip.contact", "sip:*") ;
+                    m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
 
 
 
@@ -88,8 +96,8 @@ namespace drachtio {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
                     m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
-                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1024 * 1024) ; //max size of stored files: 16M default
-                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.minSize", 2 * 1024 * 1024 * 1024 * 1024) ;//min free space on disk: 2G default
+                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1000 * 1000) ; //max size of stored files: 16M default
+                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.c", 2 * 1000 * 1000 * 1000) ;//min free space on disk: 2G default
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
                     if( !m_bDaemon ) {
                         cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
@@ -114,6 +122,19 @@ namespace drachtio {
                     else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
                     else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
                     else m_loglevel = log_info ;                    
+                }
+
+                // timers
+                try {
+                        m_nTimerT1 = pt.get<unsigned int>("drachtio.sip.timers.t1", 500) ; 
+                        m_nTimerT2 = pt.get<unsigned int>("drachtio.sip.timers.t2", 4000) ; 
+                        m_nTimerT4 = pt.get<unsigned int>("drachtio.sip.timers.t4", 5000) ; 
+                        m_nTimerT1x64 = pt.get<unsigned int>("drachtio.sip.timers.t1x64", 32000) ; 
+
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    if( !m_bDaemon ) {
+                        cout << "invalid timer configuration" << endl ;
+                    }
                 }
 
                 //redis config
@@ -188,6 +209,11 @@ namespace drachtio {
             return true ;
         }
         const string& getSipUrl() const { return m_sipUrl; }
+
+        bool getSipOutboundProxy( string& sipOutboundProxy ) const {
+            sipOutboundProxy = m_sipOutboundProxy ;
+            return sipOutboundProxy.length() > 0 ;
+        }
         
         unsigned int getAdminPort( string& address ) {
             address = m_adminAddress ;
@@ -206,6 +232,13 @@ namespace drachtio {
         }
         bool generateCdrs(void) const {
             return m_bGenerateCdrs ;
+        }
+
+        void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) {
+            t1 = m_nTimerT1 ;
+            t2 = m_nTimerT2 ;
+            t4 = m_nTimerT4 ;
+            t1x64 = m_nTimerT1x64 ;
         }
  
     private:
@@ -226,6 +259,7 @@ namespace drachtio {
         
         bool m_bIsValid ;
         string m_sipUrl ;
+        string m_sipOutboundProxy ;
         string m_syslogAddress ;
         string m_logFileName ;
         string m_logArchiveDirectory ;
@@ -244,6 +278,7 @@ namespace drachtio {
         unsigned int m_redisPort ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
+        unsigned int m_nTimerT1, m_nTimerT2, m_nTimerT4, m_nTimerT1x64 ;
   } ;
     
     /*
@@ -278,6 +313,9 @@ namespace drachtio {
         sipUrl = m_pimpl->getSipUrl() ;
         return true ;
     }
+    bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {
+        return m_pimpl->getSipOutboundProxy( sipOutboundProxy ) ;
+    }
 
     void DrachtioConfig::Log() const {
         DR_LOG(log_notice) << "Configuration:" << endl ;
@@ -297,6 +335,8 @@ namespace drachtio {
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;
     }
+    void DrachtioConfig::getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) {
+        return m_pimpl->getTimers( t1, t2, t4, t1x64 ) ;
+    }
 
- 
 }

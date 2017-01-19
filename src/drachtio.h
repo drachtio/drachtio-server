@@ -58,7 +58,7 @@ using namespace std ;
 const string CRLF = "\r\n" ;
 const string CRLF2 = "\r\n\r\n" ;
 
-#define MSG_ID_LEN (64)
+#define MSG_ID_LEN (128)
 
 namespace logging = boost::log;
 namespace sinks = boost::log::sinks;
@@ -90,6 +90,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 		uac_role
 		,uas_role
 	}; 
+
+  void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) ;
 
 	void generateUuid(std::string& uuid) ;
 

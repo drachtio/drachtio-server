@@ -56,25 +56,24 @@ namespace drachtio {
         for(;;) {
             
             try {
-                DR_LOG(log_notice) << "ClientController: io_service run loop started"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop started (or restarted)"  ;
                 m_ioservice.run() ;
-                DR_LOG(log_notice) << "ClientController: io_service run loop ended normally"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop ended normally"  ;
                 break ;
             }
             catch( std::exception& e) {
-                DR_LOG(log_error) << "Error in event thread: " << string( e.what() )  ;
-                break ;
+                DR_LOG(log_error) << "ClientController::threadFunc - Error in event thread: " << string( e.what() )  ;
             }
         }
     }
     void ClientController::join( client_ptr client ) {
         m_clients.insert( client ) ;
         client_weak_ptr p( client ) ;
-        DR_LOG(log_debug) << "Added client, count of connected clients is now: " << m_clients.size()  ;       
+        DR_LOG(log_debug) << "ClientController::join - Added client, count of connected clients is now: " << m_clients.size()  ;       
     }
     void ClientController::leave( client_ptr client ) {
         m_clients.erase( client ) ;
-        DR_LOG(log_debug) << "Removed client, count of connected clients is now: " << m_clients.size()  ;
+        DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
     void ClientController::addNamedService( client_ptr client, string& strAppName ) {
         //TODO: should we be locking here?  need to review entire locking strategy for this class
@@ -147,15 +146,13 @@ namespace drachtio {
                 DR_LOG(log_debug) << "Removing disconnected client while iterating"  ;
                 m_request_types.erase( it ) ;
                 pair = m_request_types.equal_range( method_name ) ;
-                if( nOffset >= m_request_types.size() ) {
-                    nOffset = m_request_types.size() - 1 ;
-                }
-                DR_LOG(log_debug) << "Offset has been set to " << nOffset << " size of range is " << m_request_types.size()  ;
+                nOffset = 0 ;
+                nPossibles = std::distance( pair.first, pair.second ) ;
             }
             else {
                 DR_LOG(log_debug) << "Selected client at offset " << nOffset  ;                
             }
-        } while( !client && ++nTries < nPossibles ) ;
+        } while( !client && nPossibles > 0 ) ;
 
         if( !client ) {
             DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request"  ;
@@ -436,7 +433,7 @@ namespace drachtio {
     void ClientController::removeApiRequest( const string& clientMsgId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapApiRequests.erase( clientMsgId ) ;   
-        DR_LOG(log_debug) << "removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
+        DR_LOG(log_debug) << "ClientController::removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
     void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;

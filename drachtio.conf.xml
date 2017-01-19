@@ -13,6 +13,20 @@
                     sip:*:5061              -- listen on port 5061
         -->
         <contact>sip:*</contact>
+
+        <!-- if you want to change the sip timers
+            <timers>
+                <t1>500</t1>
+                <t2>4000</t2>
+                <t4>5000</t4>
+                <t1x64>32000</t1x64>
+            </timers>
+        -->
+
+        <!-- uncommenting this will cause all new requests (i.e. requests outside of a dialog) to go through the specified proxy -->
+        <!--
+        <outbound-proxy>sip:10.10.10.1</outbound-proxy>
+        -->
     </sip>
 
     <redis>

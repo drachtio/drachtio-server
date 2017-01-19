@@ -187,28 +187,9 @@ namespace drachtio {
 		void logStorageCount(void)  ;
 
 		/// IIP helpers 
-		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) {
-      const char* a_tag = nta_incoming_tag( irq, NULL) ;
-      nta_leg_tag( leg, a_tag ) ;
-      dlg->setLocalTag( a_tag ) ;
+		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) ;
+		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) ;
 
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
-      boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, irq, transactionId, dlg) ;
-      m_mapIrq2IIP.insert( mapIrq2IIP::value_type(irq, p) ) ;
-      m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   
-      m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   
-
-      this->bindIrq( irq ) ;
-		}
-		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
-			boost::shared_ptr<IIP> p = boost::make_shared<IIP>(leg, orq, dlg->getTransactionId(), dlg) ;
-			m_mapOrq2IIP.insert( mapOrq2IIP::value_type(orq, p) ) ;
-			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(dlg->getTransactionId(), p) ) ;   
-			m_mapLeg2IIP.insert( mapLeg2IIP::value_type(leg,p)) ;   			
-		}
 		void addIncomingPrackTransaction( const string& transactionId, boost::shared_ptr<IIP> p ) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
 			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   			
@@ -350,25 +331,8 @@ namespace drachtio {
 	protected:
 		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;
 		
-		void clearDialog( const string& strDialogId ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			
-			mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
-			if( m_mapId2Dialog.end() == it ) {
-				assert(0) ;
-				return ;
-			}
-			boost::shared_ptr<SipDialog> dlg = it->second ;
-			nta_leg_t* leg = nta_leg_by_call_id( m_agent, dlg->getCallId().c_str() );
-			m_mapId2Dialog.erase( it ) ;
-
-			mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
-			if( m_mapLeg2Dialog.end() == itLeg ) {
-				assert(0) ;
-				return ;
-			}
-			m_mapLeg2Dialog.erase( itLeg ) ;				
-		}
+		void clearDialog( const string& strDialogId ) ;
+		
 		void clearDialog( nta_leg_t* leg ) {
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
 

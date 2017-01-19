@@ -9,9 +9,9 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based applicatio
 ## Building
 
 ```
-git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+git clone --depth=50 --branch=master git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
-autoreconf -fvi 
+./bootstrap.sh
 mkdir build && cd $_
 ../configure CPPFLAGS='-DNDEBUG'
 make

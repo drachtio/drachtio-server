@@ -41,6 +41,7 @@ namespace drachtio {
         bool isValid() ;
 
         bool getSipUrl( std::string& sipUrl ) const ;
+        bool getSipOutboundProxy( std::string& sipOutboundProxy ) const ;
         bool getSyslogTarget( std::string& address, unsigned int& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
@@ -56,6 +57,9 @@ namespace drachtio {
          bool getRedisAddress( std::string& address, unsigned int& port ) const ;
 
          bool generateCdrs(void) const ;
+
+         void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;
+
        
         void Log() const ;
         

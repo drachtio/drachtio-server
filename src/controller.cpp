@@ -259,6 +259,7 @@ namespace drachtio {
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
+                {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
@@ -299,6 +300,10 @@ namespace drachtio {
                     port = optarg ;
                     m_adminPort = ::atoi( port.c_str() ) ;
                     break;
+
+                case 'v':
+                    cout << DRACHTIO_VERSION << endl ;
+                    exit(0) ;
                                                             
                 case '?':
                     /* getopt_long already printed an error message. */
@@ -423,7 +428,7 @@ namespace drachtio {
 
             }
 
-            //initialie text file sink, of configured
+            //initialize text file sink, of configured
             string name, archiveDirectory ;
             unsigned int rotationSize, maxSize, minSize ;
             bool autoFlush ;
@@ -479,20 +484,25 @@ namespace drachtio {
 		m_logger.reset( this->createLogger() );
 		this->logConfig() ;
 
-        DR_LOG(log_debug) << "Main thread id: " << boost::this_thread::get_id() ;
+        DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
 
        /* open stats connection */
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
         if( 0 != m_adminPort ) adminPort = m_adminPort ;
         if( 0 != adminPort ) {
-            DR_LOG(log_notice) << "listening for client connections on " << adminAddress << ":" << adminPort ;
+            DR_LOG(log_notice) << "DrachtioController::run: listening for client connections on " << adminAddress << ":" << adminPort ;
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
         string url = m_sipContact ;
         if( 0 == url.length() ) m_Config->getSipUrl( url ) ;
-        DR_LOG(log_notice) << "starting sip stack on " << url ;
+        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << url ;
+
+        string outboundProxy ;
+        if( m_Config->getSipOutboundProxy(outboundProxy) ) {
+            DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
+        }
         
         int rv = su_init() ;
         if( rv < 0 ) {
@@ -501,18 +511,18 @@ namespace drachtio {
         }
         ::atexit(su_deinit);
         if (sip_update_default_mclass(sip_extend_mclass(NULL)) < 0) {
-            DR_LOG(log_error) << "Error calling sip_update_default_mclass"  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling sip_update_default_mclass"  ;
             return  ;
         }        
         
         m_root = su_root_create( NULL ) ;
         if( NULL == m_root ) {
-            DR_LOG(log_error) << "Error calling su_root_create: "  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling su_root_create: "  ;
             return  ;
         }
         m_home = su_home_create() ;
         if( NULL == m_home ) {
-            DR_LOG(log_error) << "Error calling su_home_create"  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling su_home_create"  ;
         }
         su_log_redirect(NULL, __sofiasip_logger_func, NULL);
         
@@ -524,7 +534,7 @@ namespace drachtio {
         su_root_threading( m_root, 0 ) ;
         rv = su_clone_start( m_root, m_clone, this, clone_init, clone_destroy ) ;
         if( rv < 0 ) {
-           DR_LOG(log_error) << "Error calling su_clone_start"  ;
+           DR_LOG(log_error) << "DrachtioController::run: Error calling su_clone_start"  ;
            return  ;
         }
          
@@ -541,18 +551,20 @@ namespace drachtio {
                                  TAG_END() ) ;
         
         if( NULL == m_nta ) {
-            DR_LOG(log_error) << "Error calling nta_agent_create"  ;
+            DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
-        /*
-        m_defaultLeg = nta_leg_tcreate(m_nta, defaultLegCallback, this,
-                                      NTATAG_NO_DIALOG(1),
-                                      TAG_END());
-        if( NULL == m_defaultLeg ) {
-            DR_LOG(log_error) << "Error creating default leg"  ;
-            return ;
+
+        /* get tports for various protocols */
+        const char* proto[] = {"udp","tcp","tls","ws","wss", NULL} ;
+        for( int i = 0; proto[i] != NULL; i++ ) {
+            tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
+            if( tp ) {
+                DR_LOG(log_info) << "Added transport: " << proto[i] ;
+                m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(proto[i], tp) ) ;
+            }
         }
-        */
+
         
         /* save my contact url, via, etc */
         m_my_contact = nta_agent_contact( m_nta ) ;
@@ -575,8 +587,20 @@ namespace drachtio {
             m_pRedisService = boost::make_shared<RedisService>( this, redisAddress, redisPort ) ;
         }
         else {
-            DR_LOG(log_warning) << "No redis configuration found in configuration file" ;
+            DR_LOG(log_warning) << "DrachtioController::run: No redis configuration found in configuration file" ;
         }
+
+        // set sip timers
+        unsigned int t1, t2, t4, t1x64 ;
+        m_Config->getTimers( t1, t2, t4, t1x64 ); 
+        DR_LOG(log_debug) << "DrachtioController::run - sip timers: T1: " << std::dec << t1 << "ms, T2: " << t2 << "ms, T4: " << t4 << "ms, T1X64: " << t1x64 << "ms";        
+        nta_agent_set_params(m_nta,
+            NTATAG_SIP_T1(t1),
+            NTATAG_SIP_T2(t2),
+            NTATAG_SIP_T4(t4),
+            NTATAG_SIP_T1X64(t1x64),
+            TAG_END()
+        ) ;
 
               
         /* sofia event loop */
@@ -643,6 +667,10 @@ namespace drachtio {
                                 return -1 ;
                             }
 
+                            if( sip_method_invite == sip->sip_request->rq_method ) {
+                                nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
+                            }
+
                             string transactionId ;
                             int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
 
@@ -655,13 +683,13 @@ namespace drachtio {
                             //reject message if necessary, write stop record
                             if( status > 0  ) {
                                 msg_t* reply = nta_msg_create(m_nta, 0) ;
-                                msg_ref(reply) ;
+                                msg_ref_create(reply) ;
                                 nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
 
                                 if( sip->sip_request->rq_method == sip_method_invite ) {
                                     Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                                 }
-                                msg_unref(reply) ;
+                                msg_destroy(reply) ;
                                 return -1 ;                    
                             }
                         }
@@ -694,6 +722,7 @@ namespace drachtio {
         return 0 ;
     }
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
+        //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
         boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
         if( !p ) {
             return false ;
@@ -704,12 +733,14 @@ namespace drachtio {
 
         if( sip_method_invite == sip->sip_request->rq_method ) {
 
+            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating an incoming transaction"  ;
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
                 return false ;
             }
 
+            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating leg"  ;
             nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
                                            SIPTAG_CALL_ID(sip->sip_call_id),
                                            SIPTAG_CSEQ(sip->sip_cseq),
@@ -722,7 +753,10 @@ namespace drachtio {
                 return false ;
             }
 
-            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << ", for transactionId: " << transactionId; 
+
+
+            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
             dlg->setTransactionId( transactionId ) ;
 
             string contactStr ;
@@ -739,6 +773,7 @@ namespace drachtio {
             }
             m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
         }
+        msg_ref_create( msg ) ; // we need to add a reference to the original request message
         return true ;
     }
     int DrachtioController::processRequestOutsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
@@ -793,7 +828,7 @@ namespace drachtio {
                     //TODO: we got a client out there with a dead INVITE now...
                     return 500 ;
                 }
-                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip ) ;
+                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
                 dlg->setTransactionId( transactionId ) ;
 
                 string contactStr ;
@@ -889,10 +924,11 @@ namespace drachtio {
     void DrachtioController::getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) {
         su_sockaddr_t su[1];
         socklen_t sulen = sizeof su;
-        msg_t* msg = nta_incoming_getrequest( irq ) ;
+        msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
         if( 0 != msg_get_address(msg, su, &sulen) ) {
             throw std::runtime_error("Failed trying to retrieve socket associated with incoming sip message") ;             
         }
+        msg_destroy(msg);   //releases reference
         char h[256], s[256] ;
         su_getnameinfo(su, sulen, h, 256, s, 256, NI_NUMERICHOST | NI_NUMERICSERV);
 
@@ -925,6 +961,14 @@ namespace drachtio {
         strContact = o.str() ;
     }
 
+    tport_t* DrachtioController::getTportForProtocol( const char* proto ) {
+        tport_t* tp = NULL ;
+        mapProtocol2Tport::iterator it = m_mapProtocol2Tport.find( proto ) ;
+        if( m_mapProtocol2Tport.end() != it ) {
+            tp = it->second ;
+        }
+        return tp ;
+    }
 
     int DrachtioController::validateSipMessage( sip_t const *sip ) {
         if( sip_method_invite == sip->sip_request->rq_method  && (!sip->sip_contact || !sip->sip_contact->m_url[0].url_host ) ) {

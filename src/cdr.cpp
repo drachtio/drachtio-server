@@ -26,12 +26,12 @@ namespace drachtio {
 
 
   Cdr::Cdr( msg_t* msg, const char* source, RecordType_t recordType, AgentRole_t agentRole ) : 
-    m_msg(msg_ref(msg)), m_recordType(recordType), m_agentRole(agentRole), m_source(source),
+    m_msg(msg_ref_create(msg)), m_recordType(recordType), m_agentRole(agentRole), m_source(source),
     m_terminationReason(no_termination) {
 
   }
   Cdr::~Cdr() {
-    msg_unref( m_msg ) ;
+    msg_destroy( m_msg ) ;
   }
 
   void Cdr::encodeMessage( string& encodedMessage ) {
