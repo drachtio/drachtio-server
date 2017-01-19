@@ -89,18 +89,20 @@ namespace drachtio {
 			m_transactionId(transactionId) {}
 		RIP( const string& transactionId, const string& dialogId ) : 
 			m_transactionId(transactionId), m_dialogId(dialogId) {}
-		RIP( const string& transactionId, const string& dialogId,  boost::shared_ptr<SipDialog> dlg ) : 
-			m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg) {
+		RIP( const string& transactionId, const string& dialogId,  boost::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse = false ) : 
+			m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
 			}
 
 		~RIP() {}
 
 		const string& getTransactionId(void) { return m_transactionId; }
 		const string& getDialogId(void) { return m_dialogId; }
+		bool shouldClearDialogOnResponse(void) { return m_bClearDialogOnResponse;}
 
 	private:
 		string 												m_transactionId ;
 		string												m_dialogId ;
+		bool													m_bClearDialogOnResponse;
 		boost::shared_ptr<SipDialog> 	m_dlg ;
 	} ;
 
@@ -249,10 +251,10 @@ namespace drachtio {
 			assert( leg ) ;
 
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-	        m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
-	        m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
+      m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
+      m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
 
-	        m_pClientController->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;		
+      m_pClientController->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;		
 		}
 		bool findDialogByLeg( nta_leg_t* leg, boost::shared_ptr<SipDialog>& dlg ) {
 			/* look in invites-in-progress first */

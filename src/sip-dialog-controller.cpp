@@ -22,6 +22,7 @@ THE SOFTWARE.
 #include <algorithm>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/find.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
 namespace drachtio {
@@ -148,6 +149,8 @@ namespace drachtio {
 
             string sourceAddress = dlg->getSourceAddress() ;
             unsigned int sourcePort = dlg->getSourcePort() ;
+
+
             string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
                 ";transport=" + dlg->getProtocol() ;
             DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;
@@ -158,7 +161,6 @@ namespace drachtio {
 
             tport_t* tp = dlg->getTport() ; 
             bool forceTport = NULL != tp ;  
-
 
             nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             if( !leg ) {
@@ -198,7 +200,7 @@ namespace drachtio {
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
                     orq = nta_outgoing_tcreate(leg, NULL, NULL, NULL, SIP_METHOD_ACK,
-                        URL_STRING_MAKE(requestUri.c_str()) ,
+                        /* URL_STRING_MAKE(requestUri.c_str()) */ NULL ,
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),
@@ -242,7 +244,12 @@ namespace drachtio {
                     ,TAG_IF(forceTport, NTATAG_TPORT(tp))
                     ,TAG_NEXT(tags) ) ;
 
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+                if( !orq ) {
+
+                }
+                else {
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+                }
             }
 
             deleteTags( tags ) ;
@@ -268,7 +275,14 @@ namespace drachtio {
                     nta_outgoing_destroy( orq ) ;
                 }
                 else {
-                    boost::shared_ptr<RIP> p = boost::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId(), dlg ) ;
+                    bool clearDialogOnResponse = false ;
+                    if( sip_method_bye == method || 
+                        ( sip_method_notify == method && NULL != sip->sip_subscription_state && NULL != sip->sip_subscription_state->ss_substate &&
+                            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") ) ) {
+                        clearDialogOnResponse = true ;
+                    }
+
+                    boost::shared_ptr<RIP> p = boost::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId(), dlg, clearDialogOnResponse ) ;
                     addRIP( orq, p ) ;       
                 }
                 if( sip_method_invite == method ) {
@@ -357,9 +371,29 @@ namespace drachtio {
                }
             }
             if( NULL == tp ) {
-                rc = nta_get_outbound_tport_name_for_url( m_pController->getAgent(), m_pController->getHome(), 
-                            URL_STRING_MAKE(requestUri.c_str()), (void **) &tp ) ;
-                assert( 0 == rc ) ;                
+                string proto = "udp" ;
+                string tcp = "transport=tcp" ;
+                string wss = "transport=wss" ;
+                string ws = "transport=ws" ;
+                bool ipv6 = string::npos != requestUri.find('[') ;
+
+                typedef const boost::iterator_range<std::string::const_iterator> StringRange;
+
+                if ( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(tcp.begin(), tcp.end()) ) ) {
+                    proto = "tcp" ;
+                }
+                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(wss.begin(), wss.end()) ) ) {
+                    proto = "wss";
+                }
+                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(ws.begin(), ws.end()) ) ) {
+                    proto = "ws";
+                }
+
+                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
+                tp = m_pController->getTportForProtocol( proto.c_str(), ipv6 ) ;
+                if( !tp ) {
+                    tp = m_pController->getTportForProtocol( "udp", false ) ;
+                }
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
@@ -456,7 +490,7 @@ namespace drachtio {
             msg_t* m = nta_outgoing_getrequest(orq) ; //adds a reference
             sip_t* sip = sip_object( m ) ;
 
-            if( method == sip_method_invite ) {
+            if( method == sip_method_invite || method == sip_method_subscribe ) {
                 boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( pData->getDialogId(), pData->getTransactionId(), 
                     leg, orq, sip, m, desc ) ;
                 addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;          
@@ -582,7 +616,7 @@ namespace drachtio {
 
         EncodeStackMessage( sip, encodedMessage ) ;
 
-        if( sip->sip_cseq->cs_method == sip_method_invite ) {
+        if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
             boost::shared_ptr<IIP> iip ;
             if( !findIIPByOrq( orq, iip ) ) {
                 DR_LOG(log_error) << "SipDialogController::processResponse - unable to match invite response with callid: " << sip->sip_call_id->i_id  ;
@@ -593,7 +627,7 @@ namespace drachtio {
             dlg = iip->dlg() ;   
 
             //check for retransmission 
-            if( dlg->getSipStatus() >= 200 && dlg->getSipStatus() == sip->sip_status->st_status ) {
+            if( sip->sip_cseq->cs_method == sip_method_invite  && dlg->getSipStatus() >= 200 && dlg->getSipStatus() == sip->sip_status->st_status ) {
                 if( dlg->hasAckBeenSent() ) {
                     DR_LOG(log_warning) << "SipDialogController::processResponse - received retransmitted final response: " << sip->sip_status->st_status 
                         << " " << sip->sip_status->st_phrase << ": note we currently are not retransmitting the ACK (bad)" ;
@@ -614,8 +648,11 @@ namespace drachtio {
             //UAC Dialog is added when we receive a final response from the network, or a reliable provisional response
             //for non-success responses, it will subsequently be removed when we receive the ACK from the client
 
-            if( 200 == sip->sip_status->st_status ||
-                (sip->sip_status->st_status > 100 && sip->sip_status->st_status < 200 && sip->sip_rseq) ) {
+            if( (sip->sip_cseq->cs_method == sip_method_invite && 
+                    (200 == sip->sip_status->st_status || (sip->sip_status->st_status > 100 && sip->sip_status->st_status < 200 && sip->sip_rseq))) || 
+                (sip->sip_cseq->cs_method == sip_method_subscribe && 
+                    202 == sip->sip_status->st_status ) )  {
+
                 DR_LOG(log_error) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
                 nta_leg_t* leg = iip->leg() ;
                 nta_leg_rtag( leg, sip->sip_to->a_tag) ;
@@ -623,7 +660,7 @@ namespace drachtio {
                 addDialog( dlg ) ;
             }
             if( sip->sip_status->st_status > 200 ){
-                dlg->ackSent() ;
+                if( sip->sip_cseq->cs_method == sip_method_invite ) dlg->ackSent() ;
                 clearIIP( iip->leg() ) ;
             }
         }
@@ -665,6 +702,7 @@ namespace drachtio {
         bool bSentOK = true ;
         string failMsg ;
         bool bDestroyIrq = false ;
+        bool bClearIIP = false ;
 
         //decode status 
         sip_status_t* sip_status = sip_status_make( m_pController->getHome(), startLine.c_str() ) ;
@@ -748,7 +786,7 @@ namespace drachtio {
                         sip_t *sipResponse = sip_object( msgResponse ) ;
 
                         if( sip->sip_request->rq_method == sip_method_subscribe ) {
-                            if(  0 == strcmp( sipResponse->sip_subscription_state->ss_substate, "terminated" ) ) {
+                            if(  NULL != strstr( sipResponse->sip_subscription_state->ss_substate, "terminated" ) ) {
                                 add = false ;
                             }
                             else {
@@ -894,6 +932,14 @@ namespace drachtio {
                     failMsg = "Unknown server error sending response" ;
                     assert(false) ;
                 }
+
+                // add dialog for SUBSCRIBE dialogs (for INVITE we add when we receive the ACK)
+                if( sip_method_subscribe == nta_incoming_method(irq) && 202 == code ) {
+                  DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
+                  bClearIIP = true ;
+                  this->addDialog( dlg ) ;
+                }
+
             }
 
             msg_destroy( msg ); //release the reference
@@ -934,6 +980,7 @@ namespace drachtio {
             if( iip && code >= 300 ) {
                 Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
             }
+
             msg_destroy(msg) ;      // release the ref          
         }
         else {
@@ -951,6 +998,8 @@ namespace drachtio {
             //so at least for that case let's just clear the state in advance of the ACK
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;            
         }
+
+        if( bClearIIP ) clearIIP( iip->leg() ) ;
 
         if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
 
@@ -1037,7 +1086,13 @@ namespace drachtio {
 
                 addIncomingRequestTransaction( irq, transactionId) ;
     
-                if( sip_method_bye == sip->sip_request->rq_method ) {
+                if( sip_method_bye == sip->sip_request->rq_method || 
+                    (sip_method_notify == sip->sip_request->rq_method && 
+                        NULL != sip->sip_subscription_state && 
+                        NULL != sip->sip_subscription_state->ss_substate &&
+                        NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") ) 
+                ) {
+
                     //clear dialog when we send a 200 OK response to BYE
                     this->clearDialog( leg ) ;
                     if( !routed ) {
@@ -1066,11 +1121,12 @@ namespace drachtio {
             
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, rip->getTransactionId(), rip->getDialogId() ) ;            
 
-            if( sip->sip_cseq->cs_method == sip_method_bye ) {
+            if( /*sip->sip_cseq->cs_method == sip_method_bye */ rip->shouldClearDialogOnResponse() ) {
                 string dialogId = rip->getDialogId() ;
                 if( dialogId.length() > 0 ) {
-                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving 200 OK to BYE"  ;
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
                     clearDialog( dialogId ) ;
+                     m_pController->getClientController()->removeDialog( dialogId ) ;
                 }
                 else {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: got 200 OK to BYE but don't have dialog id"  ;

@@ -159,12 +159,12 @@ namespace drachtio {
 
                 void getMyHostports( vector<string>& vec ) ;
 
-                bool getMySipAddress( const char* proto, string& host, string& port ) ;
+                bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
 
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
 
-                tport_t* getTportForProtocol( const char* proto ) ;
+                tport_t* getTportForProtocol( const char* proto, bool ipv6 = false ) ;
 
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
@@ -179,7 +179,7 @@ namespace drachtio {
                 boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
 	private:
-                typedef boost::unordered_map<string, tport_t*> mapProtocol2Tport ;
+                typedef multimap<string, tport_t*> mapProtocol2Tport ;
                 mapProtocol2Tport m_mapProtocol2Tport ;
 
         	DrachtioController() ;

@@ -618,8 +618,18 @@ namespace drachtio {
             }
         }
 
+        tport_t* tp = nta_agent_tports(m_nta);
+        while( NULL != (tp = tport_next(tp) ) ) {
+            const tp_name_t* tpn = tport_name(tp) ;
+            string desc ;
+            m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(tpn->tpn_proto, tp) ) ;
+            getTransportDescription( tp, desc ); 
+            DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
+        }
+
 
         /* get tports for various protocols */
+        /*
         const char* proto[] = {"udp","tcp","tls","ws","wss", NULL} ;
         for( int i = 0; proto[i] != NULL; i++ ) {
             tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
@@ -646,7 +656,8 @@ namespace drachtio {
                 DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
             }
         }
-        
+        */
+       
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
@@ -694,6 +705,8 @@ namespace drachtio {
         
     }
     int DrachtioController::processMessageStatelessly( msg_t* msg, sip_t* sip ) {
+        int rc = 0 ;
+
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
             " does not match an existing call leg"  ;
 
@@ -705,7 +718,7 @@ namespace drachtio {
                 return -1 ;
             }
 
-            if( sip->sip_route && url_has_param(sip->sip_route->r_url, "lr") ) {
+            if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
 
                 //check if we are in the first Route header; if so proxy accordingly
                 tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
@@ -750,7 +763,7 @@ namespace drachtio {
                         }
 
                         if( sip_method_invite == sip->sip_request->rq_method ) {
-                            nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
+                            nta_msg_treply( m_nta, msg_ref_create( msg ), 100, NULL, TAG_END() ) ;  
                         }
 
                         string transactionId ;
@@ -827,7 +840,7 @@ namespace drachtio {
                 }
             } 
         }
-        return 0 ;
+        return rc ;
     }
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
@@ -896,6 +909,9 @@ namespace drachtio {
             case sip_method_invite:
             {
                 /* TODO:  should support optional config to only allow invites from defined addresses */
+                //bool ipv6 = NULL != strstr( sip->sip_request->)
+                //tport_t* tp = getTportForProtocol( const char* proto, bool ipv6 ) ;
+                //tport_t *nta_incoming_transport(m_nta, irq, msg_t *msg);
 
                 nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
 
@@ -1030,18 +1046,13 @@ namespace drachtio {
         return nta_incoming_received( irq, NULL ) ;
     }
     void DrachtioController::getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) {
-        su_sockaddr_t su[1];
-        socklen_t sulen = sizeof su;
         msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
-        if( 0 != msg_get_address(msg, su, &sulen) ) {
-            throw std::runtime_error("Failed trying to retrieve socket associated with incoming sip message") ;             
-        }
+        tport_t* tp = nta_incoming_transport( m_nta, irq, msg);
         msg_destroy(msg);   //releases reference
-        char h[256], s[256] ;
-        su_getnameinfo(su, sulen, h, 256, s, 256, NI_NUMERICHOST | NI_NUMERICSERV);
+        const tp_name_t* tpn = tport_name( tp );
+        host = tpn->tpn_host ;
+        port = ::atoi( tpn->tpn_port ) ;
 
-        host = h ;
-        port = ::atoi( s ) ;
     }
 
     void DrachtioController::generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) {
@@ -1069,11 +1080,17 @@ namespace drachtio {
         strContact = o.str() ;
     }
 
-    tport_t* DrachtioController::getTportForProtocol( const char* proto ) {
+    tport_t* DrachtioController::getTportForProtocol( const char* proto, bool ipv6 ) {
+        DR_LOG(log_debug) << "DrachtioController::getTportForProtocol: " << proto << (ipv6 ? " for ipv6" : "for ipv4")  ;
         tport_t* tp = NULL ;
-        mapProtocol2Tport::iterator it = m_mapProtocol2Tport.find( proto ) ;
-        if( m_mapProtocol2Tport.end() != it ) {
-            tp = it->second ;
+        std::pair< mapProtocol2Tport::iterator, mapProtocol2Tport::iterator > itRange = m_mapProtocol2Tport.equal_range( proto ) ;
+        for( mapProtocol2Tport::iterator it = itRange.first; it != itRange.second; ++it ) {
+            tport_t* tp = it->second ;
+            const tp_name_t* tpn = tport_name(tp) ;
+            if( (ipv6 && NULL != strstr( tpn->tpn_host, "[") && NULL != strstr( tpn->tpn_host, "]") ) ||
+                (!ipv6 && NULL == strstr( tpn->tpn_host, "[") && NULL == strstr( tpn->tpn_host, "]")) ) {
+                return tp ;
+            }
         }
         return tp ;
     }
@@ -1104,9 +1121,9 @@ namespace drachtio {
             vec.push_back( desc ) ;
         }
     }
-    bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port ) {
+    bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port, bool ipv6 ) {
         string desc, p ;
-        tport_t* tp = getTportForProtocol( proto ) ;
+        tport_t* tp = getTportForProtocol( proto, ipv6 ) ;
         if( !tp ) {            
             DR_LOG(log_error) << "DrachtioController::getMySipAddress - invalid or non-configured protocol: " << proto  ;
             assert( 0 ) ;
