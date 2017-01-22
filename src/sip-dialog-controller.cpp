@@ -268,6 +268,13 @@ namespace drachtio {
                 msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
                 sip_t* sip = sip_object( m ) ;
 
+                string encodedMessage ;
+                EncodeStackMessage( sip, encodedMessage ) ;
+                SipMsgData_t meta(m, orq) ;
+                string s ;
+                meta.toMessageFormat(s) ;
+                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
+
                 if( sip_method_ack == method ) {
                     if( dlg->getSipStatus() > 200 ) {
                         m_pClientController->removeDialog( dlg->getDialogId() ) ;
@@ -289,13 +296,6 @@ namespace drachtio {
                     addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;
                 }
      
-                string encodedMessage ;
-                EncodeStackMessage( sip, encodedMessage ) ;
-                SipMsgData_t meta(m, orq) ;
-                string s ;
-                meta.toMessageFormat(s) ;
-                string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
-
                 msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
             }
@@ -343,10 +343,10 @@ namespace drachtio {
         string name ;
         string sipOutboundProxy ;
         tport_t* tp = NULL ;
+        bool forceTport = false ;
 
         try {
             bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
-            bool forceTport = false ;
 
             sip_request_t *sip_request = sip_request_make(m_pController->getHome(), pData->getStartLine() ) ;
             if( NULL == sip_request || 
@@ -365,8 +365,8 @@ namespace drachtio {
                     m_pController->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host ) ;
 
                 if( NULL != pData ) {
-                    tp = pData->getTport() ;
                     forceTport = true ;
+                    tp = pData->getTport() ;
                     DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
                }
             }
@@ -399,7 +399,7 @@ namespace drachtio {
 
             string desc ;
             getTransportDescription( tp, desc ) ;
-            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << desc << " for request-uri " << requestUri  ;            
+            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << std::hex << (void*)tp << ": " << desc << " for request-uri " << requestUri  ;            
 
             tagi_t* tags = makeTags( pData->getHeaders(), desc ) ;
            
@@ -409,7 +409,7 @@ namespace drachtio {
             string port = tpn->tpn_port ;
             string proto = tpn->tpn_proto ;
 
-            string contact = "<sip:" + host + ":" + port + ">;transport=" + proto;
+            string contact = "<sip:" + host + ":" + port + ";transport=" + proto + ">";
             string from, to, callid ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
                 if( string::npos != from.find("localhost") ) {
@@ -478,7 +478,7 @@ namespace drachtio {
                     !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR( contact.c_str() ) )
                 ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
-                ,TAG_IF(forceTport, NTATAG_TPORT(tp))
+                ,TAG_IF( forceTport, NTATAG_TPORT(tp))
                 ,TAG_NEXT(tags) ) ;
 
             deleteTags( tags ) ;
