@@ -145,7 +145,14 @@ namespace drachtio {
       tport_unref( m_tp ) ;
     } 
 	}
+  void SipDialog::setTport(tport_t* tp) {
+    m_tp = tp ;
+    const tp_name_t* tpn = tport_name( m_tp );
 
+    m_transportAddress = tpn->tpn_host ;
+    m_transportPort = tpn->tpn_port ;
+    m_protocol = tpn->tpn_proto ;      
+  }
 	void SipDialog::setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) {
 		assert( NULL == m_timerSessionRefresh ) ;
 		m_refresher = whoIsResponsible ;

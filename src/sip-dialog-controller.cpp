@@ -150,10 +150,10 @@ namespace drachtio {
             string sourceAddress = dlg->getSourceAddress() ;
             unsigned int sourcePort = dlg->getSourcePort() ;
 
-
             string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
                 ";transport=" + dlg->getProtocol() ;
             DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;
+
 
             string transport ;
             dlg->getTransportDesc(transport) ;
@@ -199,8 +199,10 @@ namespace drachtio {
 
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
-                    orq = nta_outgoing_tcreate(leg, NULL, NULL, NULL, SIP_METHOD_ACK,
-                        /* URL_STRING_MAKE(requestUri.c_str()) */ NULL ,
+                    orq = nta_outgoing_tcreate(leg, NULL, NULL, 
+                        URL_STRING_MAKE(routeUrl.c_str()), 
+                        method, name.c_str(),
+                        URL_STRING_MAKE(requestUri.c_str()),
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),
@@ -619,21 +621,26 @@ namespace drachtio {
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
             boost::shared_ptr<IIP> iip ;
             if( !findIIPByOrq( orq, iip ) ) {
-                DR_LOG(log_error) << "SipDialogController::processResponse - unable to match invite response with callid: " << sip->sip_call_id->i_id  ;
+                DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - unable to match invite response with callid: " << sip->sip_call_id->i_id  ;
                 //TODO: do I need to destroy this transaction?
                 return -1 ; //TODO: check meaning of return value           
             }      
             transactionId = iip->getTransactionId() ;   
             dlg = iip->dlg() ;   
 
+            //update orq transport because we may have not have resolved / selected a secondary at the time of creating the orq 
+            tport_t* tp = nta_outgoing_transport( orq );            
+            dlg->setTport( tp ) ;
+            DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - updated transport for dialog id " << dlg->getDialogId() << " (" << std::hex << (void*)tp << ")"  ;
+
             //check for retransmission 
             if( sip->sip_cseq->cs_method == sip_method_invite  && dlg->getSipStatus() >= 200 && dlg->getSipStatus() == sip->sip_status->st_status ) {
                 if( dlg->hasAckBeenSent() ) {
-                    DR_LOG(log_warning) << "SipDialogController::processResponse - received retransmitted final response: " << sip->sip_status->st_status 
+                    DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - received retransmitted final response: " << sip->sip_status->st_status 
                         << " " << sip->sip_status->st_phrase << ": note we currently are not retransmitting the ACK (bad)" ;
                 }
                 else {
-                    DR_LOG(log_warning) << "SipDialogController::processResponse - received retransmitted final response: " << sip->sip_status->st_status 
+                    DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - received retransmitted final response: " << sip->sip_status->st_status 
                         << " " << sip->sip_status->st_phrase << ": ACK has not yet been sent by app" ;                    
                 }
                 return 0 ;

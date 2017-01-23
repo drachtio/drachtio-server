@@ -137,6 +137,7 @@ namespace drachtio {
 		bool hasAckBeenSent(void) { return m_bAckSent;}
 		void ackSent(void) { m_bAckSent = true;}
 		tport_t* getTport(void) { return m_tp ;}
+		void setTport(tport_t* tp) ;
 
 	protected:
 		string 			m_dialogId ;
