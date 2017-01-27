@@ -626,37 +626,6 @@ namespace drachtio {
             getTransportDescription( tp, desc ); 
             DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
         }
-
-
-        /* get tports for various protocols */
-        /*
-        const char* proto[] = {"udp","tcp","tls","ws","wss", NULL} ;
-        for( int i = 0; proto[i] != NULL; i++ ) {
-            tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
-            if( tp ) {
-                m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(proto[i], tp) ) ;
-
-                const tp_name_t* tpn = tport_name(tp) ;
-
-                string via = "SIP/2.0/" ;
-                via.append( boost::to_upper_copy<std::string>( proto[i]) ) ;
-                via.append(" ") ;
-                via.append( tpn->tpn_host ) ;
-                via.append(":") ;
-                via.append( tpn->tpn_port ) ;
-
-                string ct = "<sip:" + string(tpn->tpn_host) + ":" + string(tpn->tpn_port) + ">" ;
-                sip_contact_t* contact = sip_contact_make( m_home, ct.c_str() ) ;
-
-                const char* szRR = su_sprintf(m_home, "<" URL_PRINT_FORMAT ";lr>", URL_PRINT_ARGS(contact->m_url));
-                sip_record_route_t *record_route = sip_route_make(m_home, szRR);
-
-                string desc ;
-                getTransportDescription( tp, desc ); 
-                DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
-            }
-        }
-        */
        
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
@@ -712,19 +681,68 @@ namespace drachtio {
 
         if( sip->sip_request ) {
 
+            // sofia sanity check on message format
             if( sip_sanity_check(sip) < 0 ) {
                 DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: invalid incoming request message; discarding call-id " << sip->sip_call_id->i_id ;
                 nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
                 return -1 ;
             }
 
+            tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
+            tport_t* tp = tport_parent( tp_incoming ) ;
+            const tp_name_t* tpn = tport_name( tp );
+
+            // spammer check
+            string action, tcpAction ;
+            DrachtioConfig::mapHeader2Values& mapSpammers =  m_Config->getSpammers( action, tcpAction );
+            if( mapSpammers.size() > 0 ) {
+                if( 0 == strcmp( tpn->tpn_proto, "tcp") || 0 == strcmp( tpn->tpn_proto, "ws") || 0 == strcmp( tpn->tpn_proto, "wss") ) {
+                    if( tcpAction.length() > 0 ) {
+                        action = tcpAction ;
+                    }
+                }
+
+                try {
+                    for( DrachtioConfig::mapHeader2Values::iterator it = mapSpammers.begin(); mapSpammers.end() != it; ++it ) {
+                        string hdrName = it->first ;
+                        vector<string> vecValue = it->second ;
+
+                        // currently limited to looking at User-Agent, From, and To
+                        if( 0 == hdrName.compare("user-agent") && sip->sip_user_agent && sip->sip_user_agent->g_string ) {
+                            for( std::vector<string>::iterator it = vecValue.begin(); it != vecValue.end(); ++it ) {
+                                if( NULL != strstr( sip->sip_user_agent->g_string, (*it).c_str() ) ) {
+                                    throw runtime_error(sip->sip_user_agent->g_string) ;
+                                }
+                            }
+                        }
+                        if( 0 == hdrName.compare("to") && sip->sip_to && sip->sip_to->a_url->url_user ) {
+                            for( std::vector<string>::iterator it = vecValue.begin(); it != vecValue.end(); ++it ) {
+                                if( NULL != strstr( sip->sip_to->a_url->url_user, (*it).c_str() ) ) {
+                                    throw runtime_error(sip->sip_to->a_url->url_user) ;
+                                }
+                            }
+                        }
+                        if( 0 == hdrName.compare("from") && sip->sip_from && sip->sip_from->a_url->url_user ) {
+                            for( std::vector<string>::iterator it = vecValue.begin(); it != vecValue.end(); ++it ) {
+                                if( NULL != strstr( sip->sip_from->a_url->url_user, (*it).c_str() ) ) {
+                                    throw runtime_error(sip->sip_from->a_url->url_user) ;
+                                }
+                            }
+                        }
+                    }
+                } catch( runtime_error& err ) {
+                    DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: detected spammer due to header value: " << err.what()  ;
+                    if( 0 == action.compare("reject") ) {
+                        nta_msg_treply( m_nta, msg, 603, NULL, TAG_END() ) ;
+                    }
+                    //TODO: TARPIT
+                    return -1 ;
+                }
+            }
+
             if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
 
                 //check if we are in the first Route header; if so proxy accordingly
-                tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
-                tport_t* tp = tport_parent( tp_incoming ) ;
-                DR_LOG(log_debug) << "DrachtioController::processMessageStatelessly: primary tport " << hex << (void *) tp ;
-                const tp_name_t* tpn = tport_name( tp );
 
                 bool match = 0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) &&
                                 0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
@@ -881,7 +899,6 @@ namespace drachtio {
             dlg->setTransactionId( transactionId ) ;
 
             string contactStr ;
-            generateOutgoingContact( sip->sip_contact, contactStr ) ;
             nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
             m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;            
@@ -955,8 +972,6 @@ namespace drachtio {
                 boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
                 dlg->setTransactionId( transactionId ) ;
 
-                string contactStr ;
-                generateOutgoingContact( sip->sip_contact, contactStr ) ;
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
                 m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
@@ -1053,31 +1068,6 @@ namespace drachtio {
         host = tpn->tpn_host ;
         port = ::atoi( tpn->tpn_port ) ;
 
-    }
-
-    void DrachtioController::generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) {
-        ostringstream o ;
-        
-        if( incomingContact->m_display && *incomingContact->m_display ) {
-            o << incomingContact->m_display ;
-        }
-        o << "<sip:" ;
-        
-        if( incomingContact->m_url[0].url_user ) {
-            o << incomingContact->m_url[0].url_user ;
-            o << "@" ;
-        }
-        sip_contact_t* contact = nta_agent_contact( m_nta ) ;
-        o << contact->m_url[0].url_host ;
-        if( contact->m_url[0].url_port && *contact->m_url[0].url_port ) {
-            o << ":" ;
-            o << contact->m_url[0].url_port ;
-        }
-        o << ">" ;
-        
-        DR_LOG(log_debug) << "generated Contact: " << o.str()  ;
-        
-        strContact = o.str() ;
     }
 
     tport_t* DrachtioController::getTportForProtocol( const char* proto, bool ipv6 ) {

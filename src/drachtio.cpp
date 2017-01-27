@@ -229,10 +229,12 @@ namespace drachtio {
     }	
 
     void getTransportDescription( const tport_t* tp, string& desc ) {
-        const tp_name_t* tn = tport_name(tp) ;
-        char name[255] ;
-        sprintf(name, TPN_FORMAT, TPN_ARGS(tn) ) ;
-        desc.assign( name ) ;
+        if( tp ) {
+            const tp_name_t* tn = tport_name(tp) ;
+            char name[255] ;
+            sprintf(name, TPN_FORMAT, TPN_ARGS(tn) ) ;
+            desc.assign( name ) ;            
+        }
     }
     bool parseTransportDescription( const string& desc, string& proto, string& host, string& port ) {
         boost::regex e("^(.*)/(.*):(\\d+)", boost::regex::extended);

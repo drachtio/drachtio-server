@@ -232,6 +232,8 @@ namespace drachtio {
                     contact.append( dlg->getTransportAddress() ) ;
                     contact.append( ":" ) ;
                     contact.append( dlg->getTransportPort() ) ;
+                    contact.append( ";transport=" ) ;
+                    contact.append( dlg->getProtocol() ) ;
                     contact.append(">") ;
                     addContact = true ;
 
@@ -394,7 +396,7 @@ namespace drachtio {
                 DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
                 tp = m_pController->getTportForProtocol( proto.c_str(), ipv6 ) ;
                 if( !tp ) {
-                    tp = m_pController->getTportForProtocol( "udp", false ) ;
+                    tp = m_pController->getTportForProtocol( 0 == proto.compare("udp") ? "tcp" : "udp", false ) ;
                 }
             }
             su_free( m_pController->getHome(), sip_request ) ;
@@ -750,6 +752,8 @@ namespace drachtio {
             contact.append( tpn->tpn_host ) ;
             contact.append( ":" ) ;
             contact.append( tpn->tpn_port ) ;
+            contact.append( ";transport=" ) ;
+            contact.append( tpn->tpn_proto ) ;
             contact.append(">") ;
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
 
@@ -851,6 +855,8 @@ namespace drachtio {
             contact.append( tpn->tpn_host ) ;
             contact.append( ":" ) ;
             contact.append( tpn->tpn_port ) ;
+            contact.append( ";transport=" ) ;
+            contact.append( tpn->tpn_proto ) ;
             contact.append(">") ;
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
 
@@ -1303,6 +1309,8 @@ namespace drachtio {
             contact.append( dlg->getTransportAddress() ) ;
             contact.append( ":" ) ;
             contact.append( dlg->getTransportPort() ) ;
+            contact.append( ";transport=" ) ;
+            contact.append( dlg->getProtocol() ) ;
             contact.append(">") ;
 
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,

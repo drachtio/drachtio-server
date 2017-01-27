@@ -54,11 +54,16 @@ namespace drachtio {
 		m_startTime(time(NULL)), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) )
 	{
+    const tp_name_t* tpn = tport_name( m_tp );
 		//generateUuid( m_dialogId ) ;
 
     this->setSourceAddress( nta_incoming_remote_host(irq) )  ;
     this->setSourcePort( ::atoi( nta_incoming_remote_port(irq) ) ) ;
     m_protocol = nta_incoming_protocol(irq) ;
+
+    m_transportAddress = tpn->tpn_host ;
+    m_transportPort = tpn->tpn_port ;
+
  
 		/* get remaining values from the headers */
 		if( sip->sip_call_id->i_id  ) m_strCallId = sip->sip_call_id->i_id ;

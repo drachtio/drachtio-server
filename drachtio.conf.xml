@@ -36,6 +36,24 @@
         <!--
         <outbound-proxy>sip:10.10.10.1</outbound-proxy>
         -->
+
+        <!-- optional list of header values which, if encountered in a message will trigger an action
+             [tcp-]action="reject|discard|tarpit"
+             reject means send a sip non-success response immediately
+             discard means sliently discard the request, generating no response
+             tarpit means add an iptables rule to tarpit the sender
+                note: tarpit requires iptables and the netfilter TARPIT module, and applies to tcp connections only
+        -->
+        <spammers action="reject" tcp-action="discard">
+            <header name="User-Agent">
+                <value>sipcli</value>
+                <value>friendly-scanner</value>
+            </header>
+            <header>
+                <value>sipvicious</value>
+            </header>
+        </spammers>
+
     </sip>
 
     <redis>
