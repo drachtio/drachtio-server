@@ -162,14 +162,15 @@ namespace drachtio {
             tport_t* tp = dlg->getTport() ; 
             bool forceTport = NULL != tp ;  
 
-            nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
+            //nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
+            nta_leg_t *leg = dlg->getNtaLeg();
             if( !leg ) {
                 assert( leg ) ;
                 throw std::runtime_error("unable to find active leg for dialog") ;
             }
 
             const sip_contact_t *target ;
-            if( string::npos != requestUri.find("placeholder") && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
+            if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
                 char buffer[256];
                 url_e( buffer, 255, target->m_url ) ;
                 requestUri = buffer ;
@@ -200,7 +201,7 @@ namespace drachtio {
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
                     orq = nta_outgoing_tcreate(leg, NULL, NULL, 
-                        URL_STRING_MAKE(routeUrl.c_str()), 
+                        NULL,
                         method, name.c_str(),
                         URL_STRING_MAKE(requestUri.c_str()),
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
@@ -208,6 +209,7 @@ namespace drachtio {
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),
                         TAG_NEXT(tags) ) ;
                     dlg->ackSent() ;  
+                    dlg->setTport( nta_outgoing_transport( orq ) ) ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
                     this->clearIIP( leg ) ;                 
                 }
@@ -631,9 +633,12 @@ namespace drachtio {
             dlg = iip->dlg() ;   
 
             //update orq transport because we may have not have resolved / selected a secondary at the time of creating the orq 
-            tport_t* tp = nta_outgoing_transport( orq );            
-            dlg->setTport( tp ) ;
-            DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - updated transport for dialog id " << dlg->getDialogId() << " (" << std::hex << (void*)tp << ")"  ;
+            
+            //NOTE though: a 200 OK could have a contact with a different sip uri, requiring a different transport for the 
+            //ACK and subsequent requests.  So save the contact and update the transport when sending the ACK.
+            //tport_t* tp = nta_outgoing_transport( orq );            
+            //dlg->setTport( tp ) ;
+            //DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - updated transport for dialog id " << dlg->getDialogId() << " (" << std::hex << (void*)tp << ")"  ;
 
             //check for retransmission 
             if( sip->sip_cseq->cs_method == sip_method_invite  && dlg->getSipStatus() >= 200 && dlg->getSipStatus() == sip->sip_status->st_status ) {
@@ -660,12 +665,13 @@ namespace drachtio {
             if( (sip->sip_cseq->cs_method == sip_method_invite && 
                     (200 == sip->sip_status->st_status || (sip->sip_status->st_status > 100 && sip->sip_status->st_status < 200 && sip->sip_rseq))) || 
                 (sip->sip_cseq->cs_method == sip_method_subscribe && 
-                    202 == sip->sip_status->st_status ) )  {
+                    (202 == sip->sip_status->st_status || 200 == sip->sip_status->st_status) ) )  {
 
                 DR_LOG(log_error) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
                 nta_leg_t* leg = iip->leg() ;
                 nta_leg_rtag( leg, sip->sip_to->a_tag) ;
                 nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, false );
+
                 addDialog( dlg ) ;
             }
             if( sip->sip_status->st_status > 200 ){
@@ -784,7 +790,7 @@ namespace drachtio {
 
             //  we need to cache source address / port / transport for successful REGISTER or SUBSCRIBE requests from webrtc clients so we can 
             //  later send INVITEs and NOTIFYs
-            if( (sip->sip_request->rq_method == sip_method_subscribe && 202 == code) ||
+            if( (sip->sip_request->rq_method == sip_method_subscribe && (202 == code || 200 ==code) ) ||
                 (sip->sip_request->rq_method == sip_method_register && 200 == code) ) {
 
                 sip_contact_t* contact = sip->sip_contact ;
@@ -933,8 +939,7 @@ namespace drachtio {
             else {
                 DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
                 rc = nta_incoming_treply( irq, code, status
-                    ,TAG_IF( code >= 200 && code < 300
-                    ,SIPTAG_CONTACT_STR(contact.c_str()))
+                    ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT_STR(contact.c_str()))
                     ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_NEXT(tags)
@@ -946,13 +951,15 @@ namespace drachtio {
                     assert(false) ;
                 }
 
-                // add dialog for SUBSCRIBE dialogs (for INVITE we add when we receive the ACK)
-                if( sip_method_subscribe == nta_incoming_method(irq) && 202 == code ) {
-                  DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
-                  bClearIIP = true ;
-                  this->addDialog( dlg ) ;
-                }
+                if( sip_method_subscribe == nta_incoming_method(irq) ) {
+                    bClearIIP = true ;
 
+                    // add dialog for SUBSCRIBE dialogs (for INVITE we add when we receive the ACK)
+                    if( 202 == code || 200 == code ) {
+                      DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
+                      this->addDialog( dlg ) ;
+                    }
+                }
             }
 
             msg_destroy( msg ); //release the reference
@@ -1432,7 +1439,8 @@ namespace drachtio {
             return ;
         }
         boost::shared_ptr<SipDialog> dlg = it->second ;
-        nta_leg_t* leg = nta_leg_by_call_id( m_agent, dlg->getCallId().c_str() );
+        //nta_leg_t* leg = nta_leg_by_call_id( m_agent, dlg->getCallId().c_str() );
+        nta_leg_t* leg = dlg->getNtaLeg() ;
         m_mapId2Dialog.erase( it ) ;
 
         mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
