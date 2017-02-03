@@ -139,6 +139,8 @@ namespace drachtio {
 		tport_t* getTport(void) { return m_tp ;}
 		void setTport(tport_t* tp) ;
 
+		nta_leg_t* getNtaLeg(void) { return m_leg; }
+
 	protected:
 		string 			m_dialogId ;
 		string 			m_transactionId ;
@@ -170,6 +172,7 @@ namespace drachtio {
 		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
 		bool			m_bAckSent ;
 
+		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp ;
 	}  ;
 

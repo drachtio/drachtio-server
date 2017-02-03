@@ -186,8 +186,6 @@ namespace drachtio {
 
         	bool parseCmdArgs( int argc, char* argv[] ) ;
         	void usage() ;
-
-        	void generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) ;
         	
         	void daemonize() ;
         	void initializeLogging() ;
@@ -236,7 +234,6 @@ namespace drachtio {
 
                 typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
                 mapUri2InvalidData m_mapUri2InvalidData ;
-
 
         } ;
 

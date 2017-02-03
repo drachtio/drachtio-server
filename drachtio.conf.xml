@@ -36,6 +36,22 @@
         <!--
         <outbound-proxy>sip:10.10.10.1</outbound-proxy>
         -->
+
+        <!-- optional list of header values which, if encountered in a message will trigger an action
+             [tcp-]action="reject|discard"
+             reject means send a sip non-success response immediately
+             discard means sliently discard the request, generating no response
+        -->
+        <spammers action="reject" tcp-action="discard">
+            <header name="User-Agent">
+                <value>sip-cli</value>
+                <value>sipcli</value>
+                <value>friendly-scanner</value>
+            </header>
+            <header name="To">
+                <value>sipvicious</value>
+            </header>
+        </spammers>
     </sip>
 
     <redis>

@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 
 #include <iostream>
+#include <boost/unordered_map.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/noncopyable.hpp>
 
@@ -38,6 +39,8 @@ namespace drachtio {
         DrachtioConfig( const char* szFilename, bool isDaemonized = true ) ;
         ~DrachtioConfig() ;
         
+       typedef boost::unordered_map<string, vector<string > > mapHeader2Values ;
+
         bool isValid() ;
 
         bool getSipUrls( std::vector<string>& urls ) const ;
@@ -62,7 +65,8 @@ namespace drachtio {
 
          void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;
 
-       
+        mapHeader2Values& getSpammers( string& action, string& tcpAction ) ;
+
         void Log() const ;
         
     private:

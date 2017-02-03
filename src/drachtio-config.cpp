@@ -167,6 +167,33 @@ namespace drachtio {
                     }
                 }
 
+                // spammers
+                try {
+                    BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.sip.spammers")) {
+                        // v.first is the name of the child.
+                        // v.second is the child tree.
+                        if( 0 == v.first.compare("header") ) {
+                            ptree pt = v.second ;
+
+                            string header = pt.get<string>("<xmlattr>.name", ""); 
+                            if( header.length() > 0 ) {
+                                std::vector<string> vec ;
+                                BOOST_FOREACH(ptree::value_type &v, pt ) {
+                                    if( v.second.data().length() > 0 ) {
+                                        vec.push_back( v.second.data() ) ;
+                                    }
+                                }
+                                std::transform(header.begin(), header.end(), header.begin(), ::tolower) ;
+                                m_mapSpammers.insert( make_pair<string,vector<string> >( header,vec ) ) ;
+                            }
+                        }
+                        m_actionSpammer = pt.get<string>("drachtio.sip.spammers.<xmlattr>.action", "discard") ;
+                        m_tcpActionSpammer = pt.get<string>("drachtio.sip.spammers.<xmlattr>.tcp-action", "discard") ;
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    //no spammer config...its optional
+                }
+
                 //redis config
                 try {
                     m_redisAddress = pt.get<string>("drachtio.redis.address") ;
@@ -279,6 +306,15 @@ namespace drachtio {
             t4 = m_nTimerT4 ;
             t1x64 = m_nTimerT1x64 ;
         }
+
+        DrachtioConfig::mapHeader2Values& getSpammers( string& action, string& tcpAction ) {
+            if( !m_mapSpammers.empty() ) {
+                action = m_actionSpammer ;
+                tcpAction = m_tcpActionSpammer ;
+            }
+            return m_mapSpammers ;
+        }
+
  
     private:
         
@@ -319,6 +355,10 @@ namespace drachtio {
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
         unsigned int m_nTimerT1, m_nTimerT2, m_nTimerT4, m_nTimerT1x64 ;
+        string m_actionSpammer ;
+        string m_tcpActionSpammer ;
+        mapHeader2Values m_mapSpammers ;
+
   } ;
     
     /*
@@ -382,5 +422,9 @@ namespace drachtio {
     void DrachtioConfig::getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) {
         return m_pimpl->getTimers( t1, t2, t4, t1x64 ) ;
     }
+    DrachtioConfig::mapHeader2Values& DrachtioConfig::getSpammers( string& action, string& tcpAction ) {
+        return m_pimpl->getSpammers( action, tcpAction ) ;
+    }
+
 
 }
