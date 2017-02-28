@@ -823,7 +823,6 @@ namespace drachtio {
                             SipMsgData_t meta( msg ) ;
 
                             client_ptr client = m_pClientController->findClientForNetTransaction( p->getTransactionId() ); 
-                            assert( client ) ;
 
                             if( client ) {
                                 m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 

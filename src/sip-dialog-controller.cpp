@@ -856,6 +856,7 @@ namespace drachtio {
             const tp_name_t* tpn = tport_name( tport );
 
             string transportDesc = string(tpn->tpn_proto) + "/" + tpn->tpn_host + ":" + tpn->tpn_port ;
+
             string contact = "<" ;
             contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
             contact.append( tpn->tpn_host ) ;
@@ -864,12 +865,17 @@ namespace drachtio {
             contact.append( ";transport=" ) ;
             contact.append( tpn->tpn_proto ) ;
             contact.append(">") ;
-            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - constructed contact header: " << contact  ;
 
             tport_unref( tp ) ;
     
             //create tags for headers
             tagi_t* tags = makeTags( headers, transportDesc ) ;
+            string customContact ;
+            bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
+            if( hasCustomContact ) {
+                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - client provided contact header so we wont include our internally-generated one"  ;
+            }
 
             dialogId = dlg->getDialogId() ;
 
@@ -920,7 +926,7 @@ namespace drachtio {
             if( bReliable ) {
                 DR_LOG(log_debug) << "Sending " << dec << code << " response reliably"  ;
                 nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status
-                    ,SIPTAG_CONTACT_STR(contact.c_str())
+                    ,TAG_IF( !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
                     ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_NEXT(tags)
@@ -939,7 +945,7 @@ namespace drachtio {
             else {
                 DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
                 rc = nta_incoming_treply( irq, code, status
-                    ,TAG_IF( code >= 200 && code < 300, SIPTAG_CONTACT_STR(contact.c_str()))
+                    ,TAG_IF( code >= 200 && code < 300 && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
                     ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_NEXT(tags)
