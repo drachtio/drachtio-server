@@ -631,15 +631,6 @@ namespace drachtio {
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
 
-        string redisAddress ;
-        unsigned int redisPort ;
-        if( m_Config->getRedisAddress( redisAddress, redisPort ) ) {
-            m_pRedisService = boost::make_shared<RedisService>( this, redisAddress, redisPort ) ;
-        }
-        else {
-            DR_LOG(log_warning) << "DrachtioController::run: No redis configuration found in configuration file" ;
-        }
-
         // set sip timers
         unsigned int t1, t2, t4, t1x64 ;
         m_Config->getTimers( t1, t2, t4, t1x64 ); 

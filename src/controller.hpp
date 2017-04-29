@@ -65,7 +65,6 @@ THE SOFTWARE.
 #include "pending-request-controller.hpp"
 #include "sip-proxy-controller.hpp"
 #include "ua-invalid.hpp"
-#include "redis-service.hpp"
 
 typedef boost::mt19937 RNGType;
 
@@ -217,7 +216,6 @@ namespace drachtio {
                 shared_ptr<SipDialogController> m_pDialogController ;
                 shared_ptr<SipProxyController> m_pProxyController ;
                 shared_ptr<PendingRequestController> m_pPendingRequestController ;
-                shared_ptr<RedisService> m_pRedisService ;
 
                 shared_ptr<StackMsg> m_lastSentMsg ;
                 shared_ptr<StackMsg> m_lastRecvMsg ;
