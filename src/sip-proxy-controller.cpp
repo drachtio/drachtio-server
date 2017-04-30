@@ -184,7 +184,7 @@ namespace drachtio {
 
             //mapping of the re-written RSeq value on the UAS side to what the RSeq value recived on the UAC side was
             //DR_LOG(log_debug) << "saving to map original rseq " << sip->sip_rseq->rs_response << " that was replaced by " << m_rseq ;
-            m_mapAleg2BlegRseq.insert( make_pair<uint32_t,uint32_t>(m_rseq,sip->sip_rseq->rs_response) ) ;
+            m_mapAleg2BlegRseq.insert( make_pair(m_rseq,sip->sip_rseq->rs_response) ) ;
 
             sip->sip_rseq->rs_response = m_rseq; 
         }
