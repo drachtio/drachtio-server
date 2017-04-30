@@ -184,7 +184,7 @@ namespace drachtio {
                                     }
                                 }
                                 std::transform(header.begin(), header.end(), header.begin(), ::tolower) ;
-                                m_mapSpammers.insert( make_pair<string,vector<string> >( header,vec ) ) ;
+                                m_mapSpammers.insert( make_pair( header,vec ) ) ;
                             }
                         }
                         m_actionSpammer = pt.get<string>("drachtio.sip.spammers.<xmlattr>.action", "discard") ;
