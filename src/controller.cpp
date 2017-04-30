@@ -403,7 +403,7 @@ namespace drachtio {
                 m_sinkConsole.reset(
                     new sinks::synchronous_sink< sinks::text_ostream_backend >()
                 );        
-                m_sinkConsole->locked_backend()->add_stream( boost::shared_ptr<std::ostream>(&std::cout, boost::null_deleter()));
+                m_sinkConsole->locked_backend()->add_stream( boost::shared_ptr<std::ostream>(&std::clog, boost::null_deleter()));
 
                 // flush
                 m_sinkConsole->locked_backend()->auto_flush(true);
@@ -1245,7 +1245,6 @@ namespace drachtio {
        DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response  ;
     }
     void DrachtioController::processWatchdogTimer() {
-        cout  << "DrachtioController::processWatchdogTimer" << endl ;
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
     
         // expire any UaInvalidData
