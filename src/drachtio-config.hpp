@@ -51,6 +51,8 @@ namespace drachtio {
         bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
             bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
 
+        bool getConsoleLogTarget() ;
+
         bool isSecret( const string& secret ) const ;
         severity_levels getLoglevel() ;
         unsigned int getSofiaLogLevel(void) ;

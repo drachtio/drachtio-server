@@ -39,7 +39,8 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), m_bDaemon(isDaemonized) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), 
+        m_bDaemon(isDaemonized), m_bConsoleLogger(false) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -108,20 +109,16 @@ namespace drachtio {
                 /* logging configuration  */
  
                 m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
+
+                // syslog
                 try {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
                     m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
                     m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
-                    if( !m_bDaemon ) {
-                        cout << "logging to syslog at " << m_syslogAddress << ":" << m_sysLogPort << ", using facility " 
-                            << m_syslogFacility << endl ;
-                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                        cout << "syslog logging not enabled" << endl ;
-                    }
                 }
 
+                // file log
                 try {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
@@ -129,30 +126,20 @@ namespace drachtio {
                     m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1000 * 1000) ; //max size of stored files: 16M default
                     m_minSize = pt.get<unsigned int>("drachtio.logging.file.c", 2 * 1000 * 1000 * 1000) ;//min free space on disk: 2G default
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
-                    if( !m_bDaemon ) {
-                        cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
-                            << ", rotation size: daily at midnight or when log file grows to " << m_rotationSize << "MB " << endl ; 
-                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                        cout << "text file logging not enabled" << endl ;
-                    }
                 }
 
-                if( 0 == m_logFileName.length() && 0 == m_syslogAddress.length() ) {
-                    cerr << "You must configure either syslog or text file logging " << endl ;
-                    return ;
+                if( (0 == m_logFileName.length() && 0 == m_syslogAddress.length()) || pt.get_child_optional("drachtio.logging.console") ) {
+                    m_bConsoleLogger = true ;
                 }
-                else {
-                    string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
-                    
-                    if( 0 == loglevel.compare("notice") ) m_loglevel = log_notice ;
-                    else if( 0 == loglevel.compare("error") ) m_loglevel = log_error ;
-                    else if( 0 == loglevel.compare("warning") ) m_loglevel = log_warning ;
-                    else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
-                    else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
-                    else m_loglevel = log_info ;                    
-                }
+                string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
+                
+                if( 0 == loglevel.compare("notice") ) m_loglevel = log_notice ;
+                else if( 0 == loglevel.compare("error") ) m_loglevel = log_error ;
+                else if( 0 == loglevel.compare("warning") ) m_loglevel = log_warning ;
+                else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
+                else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
+                else m_loglevel = log_info ;                    
 
                 // timers
                 try {
@@ -202,9 +189,6 @@ namespace drachtio {
                         cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                       cout << "redis not enabled" << endl ;
-                    }
                 }
 
                 string cdrs = pt.get<string>("drachtio.cdrs", "") ;
@@ -242,6 +226,9 @@ namespace drachtio {
                 return true ;
             }
             return false ;
+        }
+        bool getConsoleLogTarget() {
+            return m_bConsoleLogger ;
         }
 
 		severity_levels getLoglevel() {
@@ -354,6 +341,7 @@ namespace drachtio {
         unsigned int m_redisPort ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
+        bool m_bConsoleLogger ;
         unsigned int m_nTimerT1, m_nTimerT2, m_nTimerT4, m_nTimerT1x64 ;
         string m_actionSpammer ;
         string m_tcpActionSpammer ;
@@ -387,6 +375,9 @@ namespace drachtio {
     bool DrachtioConfig::getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
         bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) {
         return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ;
+    }
+    bool DrachtioConfig::getConsoleLogTarget() {
+        return m_pimpl->getConsoleLogTarget() ;
     }
 
     bool DrachtioConfig::getSipUrls( std::vector<string>& urls ) const {

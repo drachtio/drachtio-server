@@ -398,11 +398,12 @@ namespace drachtio {
     void DrachtioController::initializeLogging() {
         try {
 
-            if( m_bNoConfig ) {
+            if( m_bNoConfig || m_Config->getConsoleLogTarget() ) {
+                cout << "adding console logger now" << endl;
                 m_sinkConsole.reset(
                     new sinks::synchronous_sink< sinks::text_ostream_backend >()
                 );        
-                m_sinkConsole->locked_backend()->add_stream( boost::shared_ptr<std::ostream>(&std::clog, boost::null_deleter()));
+                m_sinkConsole->locked_backend()->add_stream( boost::shared_ptr<std::ostream>(&std::cout, boost::null_deleter()));
 
                 // flush
                 m_sinkConsole->locked_backend()->auto_flush(true);
@@ -411,11 +412,11 @@ namespace drachtio {
                           
                 logging::core::get()->add_sink(m_sinkConsole);
 
-                logging::core::get()->set_filter(
-                   expr::attr<severity_levels>("Severity") <= log_debug 
+                 logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
                 ) ;
             }
-            else {
+            if( !m_bNoConfig ) {
 
 
                 // Create a syslog sink
@@ -1244,6 +1245,7 @@ namespace drachtio {
        DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response  ;
     }
     void DrachtioController::processWatchdogTimer() {
+        cout  << "DrachtioController::processWatchdogTimer" << endl ;
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
     
         // expire any UaInvalidData
