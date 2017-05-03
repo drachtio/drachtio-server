@@ -126,7 +126,8 @@ namespace drachtio {
         	DrachtioController( int argc, char* argv[]  ) ;
         	~DrachtioController() ;
 
-        	void handleSigHup( int signal ) ;
+                void handleSigHup( int signal ) ;
+                void handleSigTerm( int signal ) ;
         	void run() ;
         	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
                 src::severity_logger_mt< severity_levels >* createLogger() ;

@@ -226,6 +226,11 @@ namespace drachtio {
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
     }
 
+    void DrachtioController::handleSigTerm( int signal ) {
+        DR_LOG(log_notice) << "Received SIGTERM; exiting.."  ;
+        exit(0);
+    }
+
     void DrachtioController::handleSigHup( int signal ) {
         
         if( !m_ConfigNew ) {
