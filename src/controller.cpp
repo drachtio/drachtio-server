@@ -228,6 +228,7 @@ namespace drachtio {
 
     void DrachtioController::handleSigTerm( int signal ) {
         DR_LOG(log_notice) << "Received SIGTERM; exiting.."  ;
+        nta_agent_destroy(m_nta);
         exit(0);
     }
 
