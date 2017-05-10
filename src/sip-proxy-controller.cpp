@@ -231,6 +231,11 @@ namespace drachtio {
             }
         }
 
+        if( theOneAndOnlyController->isClusterExperimental() ) {
+            sip_via_t* v = sip->sip_via ;
+            while( v->v_next ) { v = v->v_next; }
+            DR_LOG(log_info) << "ServerTransaction::forwardResponse via received " << v->v_received << " rport " << v->v_rport ; 
+        }
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
             TAG_END() ) ;

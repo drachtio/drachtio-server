@@ -188,7 +188,7 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), m_bClusterExperimental(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -224,6 +224,9 @@ namespace drachtio {
     }
     void DrachtioController::logConfig() {
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
+        if( m_bClusterExperimental ) {
+            DR_LOG(log_notice) << "experimental cluster features are enabled" ;
+        }
     }
 
     void DrachtioController::handleSigTerm( int signal ) {
@@ -266,6 +269,7 @@ namespace drachtio {
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
+                {"cluster-experimental",    no_argument, 0, 'x'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -306,6 +310,10 @@ namespace drachtio {
                 case 'p':
                     port = optarg ;
                     m_adminPort = ::atoi( port.c_str() ) ;
+                    break;
+
+                case 'x':
+                    m_bClusterExperimental = true ;
                     break;
 
                 case 'v':

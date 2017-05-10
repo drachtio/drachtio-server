@@ -173,6 +173,7 @@ namespace drachtio {
                 void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
                 bool isDaemonized(void) { return m_bDaemonize; }
+                bool isClusterExperimental(void) { return m_bClusterExperimental; }
 
                 void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
                 void flushTportForSubscription( const char* user, const char* host ) ; 
@@ -211,6 +212,8 @@ namespace drachtio {
                 shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
                 int m_bDaemonize ;
                 int m_bNoConfig ;
+                int m_bClusterExperimental ;
+
                 severity_levels m_current_severity_threshold ;
 
                 shared_ptr< ClientController > m_pClientController ;
