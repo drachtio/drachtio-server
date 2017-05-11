@@ -231,23 +231,30 @@ namespace drachtio {
             }
         }
 
+        bool bReplaceRR = false ;
+        string newRR ;
         if( sip->sip_record_route && theOneAndOnlyController->hasPublicAddress() ) {
             boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
             assert( pCore ) ;
 
             if( pCore->shouldAddRecordRoute() ) {
+                bReplaceRR = true ;
                 string publicAddress ;
                 theOneAndOnlyController->getPublicAddress( publicAddress ) ;
                 DR_LOG(log_error) << "ServerTransaction::forwardResponse replacing record route with " << publicAddress ; 
 
                 // update record route
-                su_realloc(msg_home(msg), (void *) sip->sip_record_route->r_url[0].url_host, publicAddress.length() + 1 );
-                memset( (void *) sip->sip_record_route->r_url[0].url_host, 0, publicAddress.length() + 1 ) ;
-                strcpy( (char *) sip->sip_record_route->r_url[0].url_host, publicAddress.c_str() ) ;
+                su_free( msg_home(msg), sip->sip_record_route);
+                sip->sip_record_route = NULL ;
+                newRR = "<sip:" + publicAddress + ";lr>" ;
+                //su_realloc(msg_home(msg), (void *) sip->sip_record_route->r_url[0].url_host, publicAddress.length() + 1 );
+                //memset( (void *) sip->sip_record_route->r_url[0].url_host, 0, publicAddress.length() + 1 ) ;
+                //strcpy( (char *) sip->sip_record_route->r_url[0].url_host, publicAddress.c_str() ) ;
             }
         }
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
+            TAG_IF( bReplaceRR, SIPTAG_RECORD_ROUTE_STR(newRR.c_str()) ),
             TAG_END() ) ;
         if( rc < 0 ) {
             DR_LOG(log_error) << "ServerTransaction::forwardResponse failed proxying response " << std::dec << 
