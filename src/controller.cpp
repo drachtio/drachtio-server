@@ -227,6 +227,9 @@ namespace drachtio {
         if( m_bClusterExperimental ) {
             DR_LOG(log_notice) << "experimental cluster features are enabled" ;
         }
+        if( !m_publicAddress.empty() ) {
+            DR_LOG(log_notice) << "public address is set to " << m_publicAddress ;            
+        }
     }
 
     void DrachtioController::handleSigTerm( int signal ) {
