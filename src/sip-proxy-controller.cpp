@@ -230,7 +230,7 @@ namespace drachtio {
                 }
             }
         }
-
+/*
         bool bReplaceRR = false ;
         string newRR ;
         if( sip->sip_record_route && theOneAndOnlyController->hasPublicAddress() ) {
@@ -252,9 +252,10 @@ namespace drachtio {
                 //strcpy( (char *) sip->sip_record_route->r_url[0].url_host, publicAddress.c_str() ) ;
             }
         }
+*/
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
-            TAG_IF( bReplaceRR, SIPTAG_RECORD_ROUTE_STR(newRR.c_str()) ),
+            //TAG_IF( bReplaceRR, SIPTAG_RECORD_ROUTE_STR(newRR.c_str()) ),
             TAG_END() ) ;
         if( rc < 0 ) {
             DR_LOG(log_error) << "ServerTransaction::forwardResponse failed proxying response " << std::dec << 
@@ -535,6 +536,14 @@ namespace drachtio {
             record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
                 tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
             transport = string(tpn->tpn_proto) + tpn->tpn_host + ":" + tpn->tpn_port ;
+
+            //TMP: for testing
+            if( theOneAndOnlyController->hasPublicAddress() ) {
+                string publicAddress ;
+                theOneAndOnlyController->getPublicAddress( publicAddress ) ;
+                DR_LOG(log_error) << "ServerTransaction::forwardResponse replacing record route with " << publicAddress ; 
+                record_route = "<sip:" + publicAddress + ";lr>" ;
+            }
         }
 
         tagi_t* tags = makeTags( headers, transport ) ;
