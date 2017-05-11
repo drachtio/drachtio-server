@@ -231,10 +231,20 @@ namespace drachtio {
             }
         }
 
-        if( theOneAndOnlyController->isClusterExperimental() ) {
-            sip_via_t* v = sip->sip_via ;
-            while( v->v_next ) { v = v->v_next; }
-            DR_LOG(log_info) << "ServerTransaction::forwardResponse via received " << v->v_received << " rport " << v->v_rport ; 
+        if( sip->sip_record_route && theOneAndOnlyController->hasPublicAddress() ) {
+            boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+            assert( pCore ) ;
+
+            if( pCore->shouldAddRecordRoute() ) {
+                string publicAddress ;
+                theOneAndOnlyController->getPublicAddress( publicAddress ) ;
+                DR_LOG(log_error) << "ServerTransaction::forwardResponse replacing record route with " << publicAddress ; 
+
+                // update record route
+                su_realloc(msg_home(msg), (void *) sip->sip_record_route->r_url[0].url_host, publicAddress.length() + 1 );
+                memset( (void *) sip->sip_record_route->r_url[0].url_host, 0, publicAddress.length() + 1 ) ;
+                strcpy( (char *) sip->sip_record_route->r_url[0].url_host, publicAddress.c_str() ) ;
+            }
         }
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),

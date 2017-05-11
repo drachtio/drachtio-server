@@ -174,6 +174,14 @@ namespace drachtio {
 
                 bool isDaemonized(void) { return m_bDaemonize; }
                 bool isClusterExperimental(void) { return m_bClusterExperimental; }
+                bool getPublicAddress(string& address) { 
+                        if( hasPublicAddress() ) {
+                                address = m_publicAddress ;
+                                return true ;
+                        }
+                        return false ;
+                }
+                bool hasPublicAddress(void) { return !m_publicAddress.empty(); }
 
                 void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
                 void flushTportForSubscription( const char* user, const char* host ) ; 
@@ -204,6 +212,8 @@ namespace drachtio {
                 string  m_user ;    //system user to run as
                 unsigned int m_adminPort; //if provided on command-line overrides config file setting
                 string m_sipContact; //if provided on command line overrides config file setting
+
+                string m_publicAddress ;
 
                 shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
                 shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;

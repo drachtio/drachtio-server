@@ -269,6 +269,7 @@ namespace drachtio {
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
+                {"public-address",    required_argument, 0, 'a'},
                 {"cluster-experimental",    no_argument, 0, 'x'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
@@ -314,6 +315,10 @@ namespace drachtio {
 
                 case 'x':
                     m_bClusterExperimental = true ;
+                    break;
+
+                case 'a':
+                    m_publicAddress = optarg ;
                     break;
 
                 case 'v':
