@@ -1259,7 +1259,7 @@ namespace drachtio {
         }
 
         if( sip_method_prack == sip->sip_request->rq_method ) {
-            boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
+            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip ) ;
             if( !p ) {
                DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader unknown call-id for PRACK " <<  
                     sip->sip_call_id->i_id ;

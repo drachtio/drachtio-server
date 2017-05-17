@@ -421,6 +421,18 @@ namespace drachtio {
       }
       return p ;
     }
+    boost::shared_ptr<ProxyCore> getProxyByCallId( sip_t* sip ) {
+      boost::shared_ptr<ProxyCore> p ;
+      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      for( mapCallId2Proxy::iterator it = m_mapCallId2Proxy.begin(); it != m_mapCallId2Proxy.end(); ++it ) {
+        if( string::npos != it->first.find( sip->sip_call_id->i_id ) ) {
+          return it->second ;
+        }
+      }
+      return p ;
+    }
+
+
     boost::shared_ptr<ProxyCore> removeProxy( sip_t* sip );
 
     bool isTerminatingResponse( int status ) ;
