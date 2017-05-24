@@ -1031,29 +1031,16 @@ namespace drachtio {
          
         boost::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
+            if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && dlg->getSipStatus() >= 200 ) {
+               DR_LOG(log_info) << "DrachtioController::processRequestInsideDialog - received INVITE out of order (still waiting ACK from prev transaction)" ;
+               return this->processMessageStatelessly( nta_incoming_getrequest( irq ), (sip_t *) sip ) ;
+            }
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
         assert(false) ;
 
         return 0 ;
     }
-    /*
-    int DrachtioController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id ) {
-        boost::shared_ptr<SipDialog> dlg ;
-
-        assert( dialogId || call_id ) ;
- 
-        if( dialogId && !m_pDialogController->findDialogById( dialogId, dlg ) ) {
-            return -1;
-        }   
-        else if( call_id && !m_pDialogController->findDialogByCallId( call_id, dlg ) ) {
-            return -1;
-        }     
-        m_pDialogController->sendRequestInsideDialog( pMsg, rid, dlg ) ;
-
-        return 0 ;
-    }
-    */
      sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
         return nta_incoming_received( irq, NULL ) ;
     }
