@@ -39,7 +39,7 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), m_bDaemon(isDaemonized) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -137,19 +137,6 @@ namespace drachtio {
                     }
                 }
 
-                //redis config
-                try {
-                    m_redisAddress = pt.get<string>("drachtio.redis.address") ;
-                    m_redisPort = pt.get<unsigned int>("drachtio.redis.port", 6379) ;
-                    if( !m_bDaemon ) {
-                        cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
-                    }
-                } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                       cout << "redis not enabled" << endl ;
-                    }
-                }
-
                 string cdrs = pt.get<string>("drachtio.cdrs", "") ;
                 transform(cdrs.begin(), cdrs.end(), cdrs.begin(), ::tolower);
                 m_bGenerateCdrs = ( 0 == cdrs.compare("true") || 0 == cdrs.compare("yes") ) ;
@@ -222,14 +209,6 @@ namespace drachtio {
         bool isSecret( const string& secret ) {
             return 0 == secret.compare( m_secret ) ;
         }
-        bool getRedisAddress( std::string& address, unsigned int& port ) const {
-            if( m_redisAddress.length() > 0 ) {
-                address = m_redisAddress ;
-                port = m_redisPort  ;
-                return true ;
-            }
-            return false ;
-        }
         bool generateCdrs(void) const {
             return m_bGenerateCdrs ;
         }
@@ -274,8 +253,6 @@ namespace drachtio {
         string m_adminAddress ;
         unsigned int m_adminPort ;
         string m_secret ;
-        string m_redisAddress ;
-        unsigned int m_redisPort ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
         unsigned int m_nTimerT1, m_nTimerT2, m_nTimerT4, m_nTimerT1x64 ;
@@ -328,9 +305,6 @@ namespace drachtio {
     }
     bool DrachtioConfig::isSecret( const string& secret ) const {
         return m_pimpl->isSecret( secret ) ;
-    }
-    bool DrachtioConfig::getRedisAddress( std::string& address, unsigned int& port ) const {
-        return m_pimpl->getRedisAddress( address, port ) ;
     }
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;

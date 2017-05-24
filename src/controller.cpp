@@ -581,15 +581,6 @@ namespace drachtio {
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
 
-        string redisAddress ;
-        unsigned int redisPort ;
-        if( m_Config->getRedisAddress( redisAddress, redisPort ) ) {
-            m_pRedisService = boost::make_shared<RedisService>( this, redisAddress, redisPort ) ;
-        }
-        else {
-            DR_LOG(log_warning) << "DrachtioController::run: No redis configuration found in configuration file" ;
-        }
-
         // set sip timers
         unsigned int t1, t2, t4, t1x64 ;
         m_Config->getTimers( t1, t2, t4, t1x64 ); 
@@ -895,6 +886,10 @@ namespace drachtio {
          
         boost::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
+            if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && (401 == dlg->getSipStatus() || 407 == dlg->getSipStatus() ) ) {
+               DR_LOG(log_info) << "DrachtioController::processRequestInsideDialog - received INVITE out of order (still waiting ACK from prev transaction)" ;
+               return this->processMessageStatelessly( nta_incoming_getrequest( irq ), (sip_t *) sip ) ;
+            }
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
         assert(false) ;
