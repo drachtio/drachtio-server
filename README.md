@@ -16,7 +16,7 @@ make
 sudo make install
 ```
 
-> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include boost, the [sofia sip stack](https://github.com/davehorton/sofia-sip) and [redisclient](https://github.com/davehorton/redisclient).  sofia and redisclient are included as git submodules in this project.
+> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include boost, the [sofia sip stack](https://github.com/davehorton/sofia-sip). sofia is included as a git submodule in this project.
 
 ## Platform support and dependencies
 
