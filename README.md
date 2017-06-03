@@ -21,6 +21,7 @@ sudo make install
 ## Platform support and dependencies
 
 drachtio-server has undergone at least some level of testing on the following platforms:
+* Debian 8
 * Centos 6.x
 * Ubuntu
 * Fedora 20
