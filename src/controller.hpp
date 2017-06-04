@@ -100,26 +100,6 @@ namespace drachtio {
                 ostringstream   m_os ;
         } ;
 
-        class TransportContact {
-        public:
-                TransportContact( string via, sip_contact_t* contact, sip_record_route_t* record_route ) :
-                        m_my_via(via), m_my_contact( contact ), m_my_record_route( record_route ) {
-
-                }
-                ~TransportContact() {}
-
-                const string& getVia(void) const { return m_my_via; }
-                sip_contact_t* getContact(void) const { return m_my_contact; }
-                sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
-
-        private:
-                TransportContact() {}
-
-                string          m_my_via ;
-                sip_contact_t*  m_my_contact ;
-                sip_record_route_t* m_my_record_route ;
-        } ;
-
 	class DrachtioController {
 	public:
 
@@ -173,16 +153,6 @@ namespace drachtio {
                 void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
                 bool isDaemonized(void) { return m_bDaemonize; }
-                bool isClusterExperimental(void) { return m_bClusterExperimental; }
-                bool getPublicAddress(string& address) { 
-                        if( hasPublicAddress() ) {
-                                address = m_publicAddress ;
-                                return true ;
-                        }
-                        return false ;
-                }
-                bool hasPublicAddress(void) { return !m_publicAddress.empty(); }
-
                 void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
                 void flushTportForSubscription( const char* user, const char* host ) ; 
                 boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
@@ -222,7 +192,6 @@ namespace drachtio {
                 shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
                 int m_bDaemonize ;
                 int m_bNoConfig ;
-                int m_bClusterExperimental ;
 
                 severity_levels m_current_severity_threshold ;
 
@@ -242,8 +211,8 @@ namespace drachtio {
                 nta_leg_t*      m_defaultLeg ;
         	su_clone_r 	m_clone ;
 
-                sip_contact_t*  m_my_contact ;
-
+                vector< pair<string,string> > m_paramsContacts ;
+                
                 typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
                 mapUri2InvalidData m_mapUri2InvalidData ;
 

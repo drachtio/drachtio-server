@@ -61,7 +61,7 @@ namespace drachtio {
                 /* admin configuration */
                 try {
                     pt.get_child("drachtio.admin") ; // will throw if doesn't exist
-                    m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 8022) ;
+                    m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
                 } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -75,7 +75,7 @@ namespace drachtio {
                 // old way: a single contact
                 try {
                     string strUrl = pt.get<string>("drachtio.sip.contact") ;
-                    m_vecSipUrl.push_back( strUrl ) ;
+                    m_vecSipUrl.push_back( make_pair(strUrl,"") ) ;
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
 
@@ -84,17 +84,13 @@ namespace drachtio {
                          BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.sip.contacts")) {
                             // v.first is the name of the child.
                             // v.second is the child tree.
-                            if( 0 != v.first.compare("contact") ) {
-                                cerr << "Invalid child element of 'contacts':  " << v.first << endl ;
-                                return ;
+                            if( 0 == v.first.compare("contact") ) {
+                                string external = v.second.get<string>("<xmlattr>.external-ip","") ;            
+                                m_vecSipUrl.push_back( make_pair(v.second.data(), external) );
                             }
-
-                            m_vecSipUrl.push_back( v.second.data() );
                         }
-
                     } catch( boost::property_tree::ptree_bad_path& e ) {
-                        //neither <contact> nor <contacts> found: default to sip:*
-                        m_vecSipUrl.push_back("sip:*") ;
+                        //neither <contact> nor <contacts> found: presumably will be provided on command line
                     }
                 }
 
@@ -241,7 +237,7 @@ namespace drachtio {
             
             return true ;
         }
-        void getSipUrls( vector<string>& urls) const { urls = m_vecSipUrl; }
+        void getSipUrls( vector< pair<string,string> >& urls) const { urls = m_vecSipUrl; }
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const {
             sipOutboundProxy = m_sipOutboundProxy ;
@@ -299,7 +295,7 @@ namespace drachtio {
         }
     
         bool m_bIsValid ;
-        vector<string> m_vecSipUrl ;
+        vector< pair<string,string> > m_vecSipUrl ;
         string m_sipOutboundProxy ;
         string m_syslogAddress ;
         string m_logFileName ;
@@ -359,7 +355,7 @@ namespace drachtio {
         return m_pimpl->getConsoleLogTarget() ;
     }
 
-    bool DrachtioConfig::getSipUrls( std::vector<string>& urls ) const {
+    bool DrachtioConfig::getSipUrls( std::vector< pair<string,string> >& urls ) const {
         m_pimpl->getSipUrls(urls) ;
         return true ;
     }

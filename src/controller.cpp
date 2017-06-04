@@ -188,7 +188,7 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), m_bClusterExperimental(false) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -224,12 +224,6 @@ namespace drachtio {
     }
     void DrachtioController::logConfig() {
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
-        if( m_bClusterExperimental ) {
-            DR_LOG(log_notice) << "experimental cluster features are enabled" ;
-        }
-        if( !m_publicAddress.empty() ) {
-            DR_LOG(log_notice) << "public address is set to " << m_publicAddress ;            
-        }
     }
 
     void DrachtioController::handleSigTerm( int signal ) {
@@ -258,6 +252,7 @@ namespace drachtio {
     bool DrachtioController::parseCmdArgs( int argc, char* argv[] ) {        
         int c ;
         string port ;
+        string publicAddress ;
         while (1)
         {
             static struct option long_options[] =
@@ -272,8 +267,7 @@ namespace drachtio {
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
-                {"public-address",    required_argument, 0, 'a'},
-                {"cluster-experimental",    no_argument, 0, 'x'},
+                {"external-ip",    required_argument, 0, 'x'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -308,20 +302,23 @@ namespace drachtio {
                     break;
 
                 case 'c':
-                    m_sipContact = optarg ;
+                    m_paramsContacts.push_back( make_pair(optarg, publicAddress.length() ? publicAddress : "")) ;
                     break;
-                                                            
+                                    
+                case 'x': 
+                    if( m_paramsContacts.size() > 0 ) {
+                        // add public address to previous contact
+                        m_paramsContacts.back().second = optarg ;
+                    }
+                    else {
+                        //save to apply to all future contacts
+                        publicAddress = optarg ;
+                    }
+                    break ;
+
                 case 'p':
                     port = optarg ;
                     m_adminPort = ::atoi( port.c_str() ) ;
-                    break;
-
-                case 'x':
-                    m_bClusterExperimental = true ;
-                    break;
-
-                case 'a':
-                    m_publicAddress = optarg ;
                     break;
 
                 case 'v':
@@ -421,7 +418,7 @@ namespace drachtio {
         try {
 
             if( m_bNoConfig || m_Config->getConsoleLogTarget() ) {
-                cout << "adding console logger now" << endl;
+
                 m_sinkConsole.reset(
                     new sinks::synchronous_sink< sinks::text_ostream_backend >()
                 );        
@@ -545,16 +542,13 @@ namespace drachtio {
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
-        string url = m_sipContact ;
-        vector<string> urls ;
-        if( 0 == m_sipContact.length() ) {
+        vector< pair<string,string> > urls ;
+        if( 0 == m_paramsContacts.size() ) {
             m_Config->getSipUrls( urls ) ;
         }
         else {
-            urls.push_back( m_sipContact ) ;
+            urls = m_paramsContacts ;
         }
-
-        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << urls[0] ;
 
         string outboundProxy ;
         if( m_Config->getSipOutboundProxy(outboundProxy) ) {
@@ -597,36 +591,51 @@ namespace drachtio {
            DR_LOG(log_error) << "DrachtioController::run: Error calling su_clone_start"  ;
            return  ;
         }
+
+        if( urls[0].second.length() ) {
+            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on local address " << urls[0].first << " (external address: " << urls[0].second << ")";   
+        }
+        else {
+            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << urls[0].first ;   
+        }
+        string newUrl; 
+        ConstructSofiaContact( urls[0], newUrl );
          
          /* create our agent */
-        bool tlsTransport = string::npos != urls[0].find("sips") || string::npos != urls[0].find("tls") ;
+        bool tlsTransport = string::npos != urls[0].first.find("sips") || string::npos != urls[0].first.find("tls") ;
 		m_nta = nta_agent_create( m_root,
-                                 URL_STRING_MAKE(urls[0].c_str()),               /* our contact address */
-                                 stateless_callback,         /* no callback function */
-                                 this,                  /* therefore no context */
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-                                 TAG_IF( tlsTransport &&hasTlsFiles, 
-                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
-                                 NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
-                                 NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
-                                 TAG_NULL(),
-                                 TAG_END() ) ;
+             URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
+             stateless_callback,                            /* no callback function */
+             this,                                      /* therefore no context */
+             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+             TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+             TAG_IF( tlsTransport &&hasTlsFiles, 
+                TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+             NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
+             NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
+             TAG_NULL(),
+             TAG_END() ) ;
         
         if( NULL == m_nta ) {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
-        m_my_contact = nta_agent_contact( m_nta ) ;
 
-        for( vector<string>::iterator it = urls.begin() + 1; it != urls.end(); it++ ) {
-            string url = *it ;
-            tlsTransport = string::npos != url.find("sips") || string::npos != url.find("tls") ;
+        for( vector< pair<string,string> >::iterator it = urls.begin() + 1; it != urls.end(); it++ ) {
+            pair<string,string> url = *it ;
+            tlsTransport = string::npos != url.first.find("sips") || string::npos != url.first.find("tls") ;
 
-            DR_LOG(log_info) << "DrachtioController::run: adding additional contact " << url  ;
+            if( url.second.length() ) {
+                DR_LOG(log_info) << "DrachtioController::run: adding additional internal sip address " << url.first << " (external address: " << url.second << ")" ;                
+            }
+            else {
+                DR_LOG(log_info) << "DrachtioController::run: adding additional sip address " << url.first  ;                
+            }
 
-            rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(url.c_str()),
+            ConstructSofiaContact( url, newUrl );
+
+            rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(newUrl.c_str()),
                                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
                                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
                                  TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),

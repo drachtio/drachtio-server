@@ -140,6 +140,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	int ackResponse( msg_t* msg ) ;
 
+	void ConstructSofiaContact( pair<string,string>, string& newUrl );
+
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 
 	class SipMsgData_t {

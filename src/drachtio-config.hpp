@@ -43,13 +43,12 @@ namespace drachtio {
 
         bool isValid() ;
 
-        bool getSipUrls( std::vector<string>& urls ) const ;
-        bool getSipOutboundProxy( std::string& sipOutboundProxy ) const ;
-        bool getSyslogTarget( std::string& address, unsigned int& port ) const ;
+        bool getSipUrls( vector< pair<string,string> >& urls ) const ;
+        bool getSipOutboundProxy( string& sipOutboundProxy ) const ;
+        bool getSyslogTarget( string& address, unsigned int& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
-        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
-            bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
+        bool getFileLogTarget( string& fileName, string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
 
         bool getConsoleLogTarget() ;
 
@@ -59,9 +58,9 @@ namespace drachtio {
  
          unsigned int getAdminPort( string& address ) ;
 
-         bool getRedisAddress( std::string& address, unsigned int& port ) const ;
+         bool getRedisAddress( string& address, unsigned int& port ) const ;
 
-         bool getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const ;
+         bool getTlsFiles( string& keyFile, string& certFile, string& chainFile ) const ;
 
          bool generateCdrs(void) const ;
 

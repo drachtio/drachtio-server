@@ -538,12 +538,14 @@ namespace drachtio {
             transport = string(tpn->tpn_proto) + tpn->tpn_host + ":" + tpn->tpn_port ;
 
             //TMP: for testing
+            /*
             if( theOneAndOnlyController->hasPublicAddress() ) {
                 string publicAddress ;
                 theOneAndOnlyController->getPublicAddress( publicAddress ) ;
                 DR_LOG(log_error) << "ServerTransaction::forwardResponse replacing record route with " << publicAddress ; 
                 record_route = "<sip:" + publicAddress + ";lr>" ;
             }
+            */
         }
 
         tagi_t* tags = makeTags( headers, transport ) ;
