@@ -194,6 +194,7 @@ namespace drachtio {
                 int m_bNoConfig ;
 
                 severity_levels m_current_severity_threshold ;
+                int m_nSofiaLoglevel ;
 
                 shared_ptr< ClientController > m_pClientController ;
                 shared_ptr<SipDialogController> m_pDialogController ;

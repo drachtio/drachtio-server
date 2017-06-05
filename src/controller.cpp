@@ -188,7 +188,8 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
+        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -203,8 +204,6 @@ namespace drachtio {
             exit(-1) ;
         }
         this->installConfig() ;
-
-
     }
 
     DrachtioController::~DrachtioController() {
@@ -217,7 +216,9 @@ namespace drachtio {
             m_ConfigNew.reset();
         }
         
-        m_current_severity_threshold = m_Config->getLoglevel() ;
+        if( log_none == m_current_severity_threshold ) {
+            m_current_severity_threshold = m_Config->getLoglevel() ;
+        }
         
         return true ;
         
@@ -245,8 +246,6 @@ namespace drachtio {
         else {
             DR_LOG(log_error) << "Ignoring signal; already have a new configuration file to install"  ;
         }
-        
-    
     }
 
     bool DrachtioController::parseCmdArgs( int argc, char* argv[] ) {        
@@ -268,6 +267,8 @@ namespace drachtio {
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
                 {"external-ip",    required_argument, 0, 'x'},
+                {"loglevel",    required_argument, 0, 'l'},
+                {"sofia-loglevel",    required_argument, 0, 's'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -295,6 +296,28 @@ namespace drachtio {
                                         
                 case 'f':
                     m_configFilename = optarg ;
+                    break;
+
+                case 'l':
+                    if( 0 == strcmp(optarg, "notice") ) m_current_severity_threshold = log_notice ;
+                    else if( 0 == strcmp(optarg,"error") ) m_current_severity_threshold = log_error ;
+                    else if( 0 == strcmp(optarg,"warning") ) m_current_severity_threshold = log_warning ;
+                    else if( 0 == strcmp(optarg,"info") ) m_current_severity_threshold = log_info ;
+                    else if( 0 == strcmp(optarg,"debug") ) m_current_severity_threshold = log_debug ;
+                    else {
+                        cerr << "Invalid loglevel '" << optarg << "': valid choices are notice, error, warning, info, debug" << endl ; 
+                        return false ;
+                    }
+
+                    break;
+
+                case 's':
+                    m_nSofiaLoglevel = atoi( optarg ) ;
+                    if( m_nSofiaLoglevel < 0 || m_nSofiaLoglevel > 9 ) {
+                        cerr << "Invalid sofia-loglevel '" << optarg << "': valid choices 0-9 inclusive" << endl ; 
+                        return false ;                        
+                    }
+
                     break;
 
                 case 'u':
@@ -345,7 +368,17 @@ namespace drachtio {
     }
 
     void DrachtioController::usage() {
-        cout << "drachtio -f <path-to-config-file> --user <user-to-run-as> --port <tcp port for admin connections> --daemon --noconfig --version"  ;
+        cerr << endl ;
+        cerr << "Usage: drachtio [OPTIONS]" << endl ;
+        cerr << endl << "Start drachtio sip engine" << endl << endl ;
+        cerr << "Options:" << endl << endl ;
+        cerr << "    --daemon           Run the process as a daemon background process" << endl ;
+        cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
+        cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
+        cerr << "-l, --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
+        cerr << "-s, --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
+        cerr << "-x, --external-ip      External IP address to use in SIP messaging" << endl ;
     }
 
     void DrachtioController::daemonize() {
@@ -581,7 +614,7 @@ namespace drachtio {
         su_log_redirect(NULL, __sofiasip_logger_func, NULL);
         
         /* for now set logging to full debug */
-        su_log_set_level(NULL, m_Config->getSofiaLogLevel() ) ;
+        su_log_set_level(NULL, m_nSofiaLoglevel >= 0 ? (unsigned int) m_nSofiaLoglevel : m_Config->getSofiaLogLevel() ) ;
         setenv("TPORT_LOG", "1", 1) ;
         
         /* this causes su_clone_start to start a new thread */

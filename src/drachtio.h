@@ -76,11 +76,12 @@ namespace drachtio {
     //typedef boost::tokenizer<boost::char_separator<char> > tokenizer ;
     
 	enum severity_levels {
+		log_none,
 		log_notice,
 		log_error,
 		log_warning,
-	    log_info,
-	    log_debug
+	  log_info,
+	  log_debug
 	};
 
     typedef boost::unordered_map<string, string> mapSipHeader_t ;
