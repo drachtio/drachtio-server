@@ -787,11 +787,19 @@ namespace drachtio {
                         }
                     }
                 } catch( runtime_error& err ) {
-                    DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: detected spammer due to header value: " << err.what()  ;
+                    nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+
+                    DR_LOG(log_notice) << "DrachtioController::processMessageStatelessly: detected potential spammer from " <<
+                        nta_incoming_remote_host(irq) << ":" << nta_incoming_remote_port(irq)  << 
+                        " due to header value: " << err.what()  ;
+                    nta_incoming_treply( irq, 603, "Decline", TAG_END() ) ;
+                    nta_incoming_destroy(irq) ;   
+
+                    /*
                     if( 0 == action.compare("reject") ) {
                         nta_msg_treply( m_nta, msg, 603, NULL, TAG_END() ) ;
                     }
-                    //TODO: TARPIT
+                    */
                     return -1 ;
                 }
             }
