@@ -197,7 +197,6 @@ namespace drachtio {
         }
         
         logging::add_common_attributes();
-
         m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
 
         if( !m_Config->isValid() ) {
@@ -210,7 +209,6 @@ namespace drachtio {
     }
 
     bool DrachtioController::installConfig() {
-
         if( m_ConfigNew ) {
             m_Config = m_ConfigNew ;
             m_ConfigNew.reset();
@@ -252,6 +250,8 @@ namespace drachtio {
         int c ;
         string port ;
         string publicAddress ;
+        string localNet ;
+        string contact ;
         while (1)
         {
             static struct option long_options[] =
@@ -267,6 +267,7 @@ namespace drachtio {
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
                 {"external-ip",    required_argument, 0, 'x'},
+                {"local-net",    required_argument, 0, 'n'},
                 {"loglevel",    required_argument, 0, 'l'},
                 {"sofia-loglevel",    required_argument, 0, 's'},
                 {"version",    no_argument, 0, 'v'},
@@ -325,18 +326,37 @@ namespace drachtio {
                     break;
 
                 case 'c':
-                    m_paramsContacts.push_back( make_pair(optarg, publicAddress.length() ? publicAddress : "")) ;
+                    if( !contact.empty() ) {
+                        m_vecTransports.push_back( boost::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
+                        contact.clear() ;
+                        publicAddress.clear() ;
+                        localNet.clear() ;
+                    }
+                    contact = optarg ;
                     break;
                                     
                 case 'x': 
-                    if( m_paramsContacts.size() > 0 ) {
-                        // add public address to previous contact
-                        m_paramsContacts.back().second = optarg ;
+                    if( contact.empty() ) {
+                        cerr << "'public-ip' argument must follow a 'contact'" << endl ;
+                        return false ;
                     }
-                    else {
-                        //save to apply to all future contacts
-                        publicAddress = optarg ;
+                    if (!publicAddress.empty() ) {
+                        cerr << "multiple 'public-ip' arguments provided for a single contact" << endl ;
+                        return false ;
                     }
+                    publicAddress = optarg ;
+                    break ;
+
+                case 'n':
+                    if( contact.empty() ) {
+                        cerr << "'local-net' argument must follow a 'contact'" << endl ;
+                        return false ;
+                    }
+                    if (!localNet.empty() ) {
+                        cerr << "multiple 'local-net' arguments provided for a single contact" << endl ;
+                        return false ;
+                    }
+                    localNet = optarg ;
                     break ;
 
                 case 'p':
@@ -356,6 +376,11 @@ namespace drachtio {
                     abort ();
             }
         }
+
+        if( !contact.empty() ) {
+            m_vecTransports.push_back( boost::make_shared<SipTransport>(contact, localNet, publicAddress)) ;
+        }
+
         /* Print any remaining command line arguments (not options). */
         if (optind < argc)
         {
@@ -575,12 +600,13 @@ namespace drachtio {
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
-        vector< pair<string,string> > urls ;
-        if( 0 == m_paramsContacts.size() ) {
-            m_Config->getSipUrls( urls ) ;
+        if( 0 == m_vecTransports.size() ) {
+            m_Config->getTransports( m_vecTransports ) ; 
         }
-        else {
-            urls = m_paramsContacts ;
+        if( 0 == m_vecTransports.size() ) {
+
+            DR_LOG(log_notice) << "DrachtioController::run: no sip contacts provided, will listen on 5060 for udp and tcp " ;
+            m_vecTransports.push_back( boost::make_shared<SipTransport>("sip:*;transport=udp,tcp"));            
         }
 
         string outboundProxy ;
@@ -625,17 +651,18 @@ namespace drachtio {
            return  ;
         }
 
-        if( urls[0].second.length() ) {
-            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on local address " << urls[0].first << " (external address: " << urls[0].second << ")";   
+        if( m_vecTransports[0]->hasExternalIp() ) {
+            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on local address " << m_vecTransports[0]->getContact() <<    
+                " (external address: " << m_vecTransports[0]->getExternalIp() << ")";   
         }
         else {
-            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << urls[0].first ;   
+            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " <<  m_vecTransports[0]->getContact() ;   
         }
         string newUrl; 
-        ConstructSofiaContact( urls[0], newUrl );
+        m_vecTransports[0]->getBindableContactUri(newUrl) ;
          
          /* create our agent */
-        bool tlsTransport = string::npos != urls[0].first.find("sips") || string::npos != urls[0].first.find("tls") ;
+        bool tlsTransport = string::npos != m_vecTransports[0]->getContact().find("sips") || string::npos != m_vecTransports[0]->getContact().find("tls") ;
 		m_nta = nta_agent_create( m_root,
              URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
              stateless_callback,                            /* no callback function */
@@ -655,18 +682,23 @@ namespace drachtio {
             return ;
         }
 
-        for( vector< pair<string,string> >::iterator it = urls.begin() + 1; it != urls.end(); it++ ) {
-            pair<string,string> url = *it ;
-            tlsTransport = string::npos != url.first.find("sips") || string::npos != url.first.find("tls") ;
+        SipTransport::addTransports(m_vecTransports[0]) ;
 
-            if( url.second.length() ) {
-                DR_LOG(log_info) << "DrachtioController::run: adding additional internal sip address " << url.first << " (external address: " << url.second << ")" ;                
+        for( vector< boost::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
+            string contact = (*it)->getContact() ;
+            string externalIp = (*it)->getExternalIp() ;
+            string newUrl ;
+
+            tlsTransport = string::npos != contact.find("sips") || string::npos != contact.find("tls") ;
+
+            if( externalIp.length() ) {
+                DR_LOG(log_info) << "DrachtioController::run: adding additional internal sip address " << contact << " (external address: " << externalIp << ")" ;                
             }
             else {
-                DR_LOG(log_info) << "DrachtioController::run: adding additional sip address " << url.first  ;                
+                DR_LOG(log_info) << "DrachtioController::run: adding additional sip address " << contact  ;                
             }
 
-            ConstructSofiaContact( url, newUrl );
+            (*it)->getBindableContactUri(newUrl) ;
 
             rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(newUrl.c_str()),
                                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
@@ -681,17 +713,11 @@ namespace drachtio {
                 DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
                 return ;            
             }
+            SipTransport::addTransports(*it) ;
         }
 
-        tport_t* tp = nta_agent_tports(m_nta);
-        while( NULL != (tp = tport_next(tp) ) ) {
-            const tp_name_t* tpn = tport_name(tp) ;
-            string desc ;
-            m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(tpn->tpn_proto, tp) ) ;
-            getTransportDescription( tp, desc ); 
-            DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
-        }
-       
+        SipTransport::logTransports() ;
+
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
@@ -707,7 +733,6 @@ namespace drachtio {
             NTATAG_SIP_T1X64(t1x64),
             TAG_END()
         ) ;
-
               
         /* sofia event loop */
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id()  ;
@@ -988,11 +1013,6 @@ namespace drachtio {
         switch (sip->sip_request->rq_method ) {
             case sip_method_invite:
             {
-                /* TODO:  should support optional config to only allow invites from defined addresses */
-                //bool ipv6 = NULL != strstr( sip->sip_request->)
-                //tport_t* tp = getTportForProtocol( const char* proto, bool ipv6 ) ;
-                //tport_t *nta_incoming_transport(m_nta, irq, msg_t *msg);
-
                 nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
 
                /* system-wide minimum session-expires is 90 seconds */
@@ -1120,19 +1140,9 @@ namespace drachtio {
 
     }
 
-    tport_t* DrachtioController::getTportForProtocol( const char* proto, bool ipv6 ) {
-        DR_LOG(log_debug) << "DrachtioController::getTportForProtocol: " << proto << (ipv6 ? " for ipv6" : "for ipv4")  ;
-        tport_t* tp = NULL ;
-        std::pair< mapProtocol2Tport::iterator, mapProtocol2Tport::iterator > itRange = m_mapProtocol2Tport.equal_range( proto ) ;
-        for( mapProtocol2Tport::iterator it = itRange.first; it != itRange.second; ++it ) {
-            tport_t* tp = it->second ;
-            const tp_name_t* tpn = tport_name(tp) ;
-            if( (ipv6 && NULL != strstr( tpn->tpn_host, "[") && NULL != strstr( tpn->tpn_host, "]") ) ||
-                (!ipv6 && NULL == strstr( tpn->tpn_host, "[") && NULL == strstr( tpn->tpn_host, "]")) ) {
-                return tp ;
-            }
-        }
-        return tp ;
+    const tport_t* DrachtioController::getTportForProtocol( const string& remoteHost, const char* proto ) {
+      boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(remoteHost.c_str(), proto) ;
+      return p->getTport() ;
     }
 
     int DrachtioController::validateSipMessage( sip_t const *sip ) {
@@ -1155,15 +1165,11 @@ namespace drachtio {
         return 0 ;
     }
     void DrachtioController::getMyHostports( vector<string>& vec ) {
-        for( mapProtocol2Tport::iterator it = m_mapProtocol2Tport.begin(); it != m_mapProtocol2Tport.end(); it++ ) {
-            string desc ;
-            getTransportDescription( it->second, desc ) ;
-            vec.push_back( desc ) ;
-        }
+      return SipTransport::getAllHostports( vec ) ;
     }
     bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port, bool ipv6 ) {
         string desc, p ;
-        tport_t* tp = getTportForProtocol( proto, ipv6 ) ;
+        const tport_t* tp = getTportForProtocol(host, proto) ;
         if( !tp ) {            
             DR_LOG(log_error) << "DrachtioController::getMySipAddress - invalid or non-configured protocol: " << proto  ;
             assert( 0 ) ;

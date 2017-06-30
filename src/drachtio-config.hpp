@@ -29,6 +29,7 @@ THE SOFTWARE.
 #include <boost/noncopyable.hpp>
 
 #include "drachtio.h"
+#include "sip-transports.hpp"
 
 using namespace std ;
 
@@ -43,7 +44,9 @@ namespace drachtio {
 
         bool isValid() ;
 
-        bool getSipUrls( vector< pair<string,string> >& urls ) const ;
+        void getSipUrls( vector< pair<string,string> >& urls ) const ;
+        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const ;
+
         bool getSipOutboundProxy( string& sipOutboundProxy ) const ;
         bool getSyslogTarget( string& address, unsigned int& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;

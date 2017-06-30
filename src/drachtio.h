@@ -54,6 +54,8 @@ THE SOFTWARE.
 #include <sofia-sip/msg_types.h>
 #include <sofia-sip/nta.h>
 
+#include "sip-transports.hpp"
+
 using namespace std ;
 
 const string DR_CRLF = "\r\n" ;
@@ -141,7 +143,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	int ackResponse( msg_t* msg ) ;
 
-	void ConstructSofiaContact( pair<string,string>, string& newUrl );
+  bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
+        vector< pair<string,string> >& params) ;
 
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 

@@ -65,6 +65,7 @@ THE SOFTWARE.
 #include "pending-request-controller.hpp"
 #include "sip-proxy-controller.hpp"
 #include "ua-invalid.hpp"
+#include "sip-transports.hpp"
 
 typedef boost::mt19937 RNGType;
 
@@ -144,7 +145,7 @@ namespace drachtio {
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
 
-                tport_t* getTportForProtocol( const char* proto, bool ipv6 = false ) ;
+                const tport_t* getTportForProtocol( const string& remoteHost, const char* proto ) ;
 
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
@@ -158,8 +159,6 @@ namespace drachtio {
                 boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
 	private:
-                typedef multimap<string, tport_t*> mapProtocol2Tport ;
-                mapProtocol2Tport m_mapProtocol2Tport ;
 
         	DrachtioController() ;
 
@@ -212,7 +211,7 @@ namespace drachtio {
                 nta_leg_t*      m_defaultLeg ;
         	su_clone_r 	m_clone ;
 
-                vector< pair<string,string> > m_paramsContacts ;
+                vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
                 
                 typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
                 mapUri2InvalidData m_mapUri2InvalidData ;

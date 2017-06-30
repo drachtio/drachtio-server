@@ -247,40 +247,32 @@ namespace drachtio {
         }
         return false ;
     }
-    void ConstructSofiaContact( pair<string,string> urls, string& newUrl ) {
-        if( urls.second.length() == 0 ) {
-            newUrl = urls.first ;
-            return ;
-        }
+  bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
+    vector< pair<string,string> >& params) {
 
-        boost::regex e("^(sip|sips):([^;|^:]*):?(\\d{1,6})?(.*)$", boost::regex::extended);
-        boost::smatch mr; 
-        //cerr << "regex against " << urls.first << endl;
-        if( boost::regex_search( urls.first, mr, e ) ) {
-            /*
-            int i = 0 ;
-            BOOST_FOREACH( const string& t, mr ) {
-                cerr << "mr[" << i++ << "] = " << t << endl ;
-            }
-            */
-            newUrl = mr[1] ;
-            newUrl.append(":") ;
-            newUrl.append(urls.second);
-            newUrl.append(":") ;
-            newUrl.append(mr[3]) ;
-            if( mr[4].length() > 0 ) {
-                newUrl.append( mr[4] ) ;
-            }
-            else {
-                newUrl.append(";transport=udp") ;
-            }
-            newUrl.append(";maddr=");
-            newUrl.append(mr[2]);
-        }     
-        else {
-            cerr << "ConstructSofiaContact - no local address found!! " << urls.first << endl ;
-        }  
+    boost::regex e("^<?(sip|sips):(?:([^;]+)@)?([^;|^>|^:]+)(?::(\\d+))?(?:;([^>]+))?>?$");
+    boost::smatch mr; 
+    if (!boost::regex_search(uri, mr, e)) {
+      return false ;
     }
+
+    scheme = mr[1] ;
+    userpart = mr[2] ;
+    hostpart = mr[3] ;
+    port = mr[4] ;
+
+    string paramString = mr[5] ;
+    if (paramString.length() > 0) {
+      vector<string> strs;
+      boost::split(strs, paramString, boost::is_any_of(";"));
+      for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+        vector<string> kv ;
+        boost::split(kv, *it, boost::is_any_of("="));
+        params.push_back(make_pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+      }
+    }
+    return true ;
+  }
 
 	void parseGenericHeader( msg_common_t* p, string& hvalue) {
 		string str((const char*) p->h_data, p->h_len) ;

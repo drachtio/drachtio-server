@@ -76,6 +76,7 @@ namespace drachtio {
                 try {
                     string strUrl = pt.get<string>("drachtio.sip.contact") ;
                     m_vecSipUrl.push_back( make_pair(strUrl,"") ) ;
+                    m_vecTransports.push_back( boost::make_shared<SipTransport>(strUrl) );
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
 
@@ -86,7 +87,9 @@ namespace drachtio {
                             // v.second is the child tree.
                             if( 0 == v.first.compare("contact") ) {
                                 string external = v.second.get<string>("<xmlattr>.external-ip","") ;            
+                                string localNet = v.second.get<string>("<xmlattr>.local-net","") ;            
                                 m_vecSipUrl.push_back( make_pair(v.second.data(), external) );
+                                m_vecTransports.push_back( boost::make_shared<SipTransport>(v.second.data(), localNet, external) );
                             }
                         }
                     } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -279,6 +282,11 @@ namespace drachtio {
             return m_mapSpammers ;
         }
 
+        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+            transports = m_vecTransports ;
+        }
+
+
  
     private:
         
@@ -321,6 +329,7 @@ namespace drachtio {
         string m_actionSpammer ;
         string m_tcpActionSpammer ;
         mapHeader2Values m_mapSpammers ;
+        vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
 
   } ;
     
@@ -355,9 +364,8 @@ namespace drachtio {
         return m_pimpl->getConsoleLogTarget() ;
     }
 
-    bool DrachtioConfig::getSipUrls( std::vector< pair<string,string> >& urls ) const {
+    void DrachtioConfig::getSipUrls( std::vector< pair<string,string> >& urls ) const {
         m_pimpl->getSipUrls(urls) ;
-        return true ;
     }
     bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {
         return m_pimpl->getSipOutboundProxy( sipOutboundProxy ) ;
@@ -387,6 +395,10 @@ namespace drachtio {
     DrachtioConfig::mapHeader2Values& DrachtioConfig::getSpammers( string& action, string& tcpAction ) {
         return m_pimpl->getSpammers( action, tcpAction ) ;
     }
+    void DrachtioConfig::getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+        return m_pimpl->getTransports(transports) ;
+    }
+
 
 
 }

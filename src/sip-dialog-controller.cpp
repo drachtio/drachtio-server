@@ -34,6 +34,7 @@ namespace drachtio {
 #include "controller.hpp"
 #include "cdr.hpp"
 #include "sip-dialog-controller.hpp"
+#include "sip-transports.hpp"
 
 namespace {
     void cloneRespondToSipRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
@@ -349,7 +350,9 @@ namespace drachtio {
         string name ;
         string sipOutboundProxy ;
         tport_t* tp = NULL ;
+        boost::shared_ptr<SipTransport> pSelectedTransport ;
         bool forceTport = false ;
+        string host, port, proto, contact, desc ;
 
         try {
             bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
@@ -374,6 +377,16 @@ namespace drachtio {
                     forceTport = true ;
                     tp = pData->getTport() ;
                     DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
+
+                    getTransportDescription( tp, desc ) ;
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << std::hex << (void*)tp << ": " << desc << " for request-uri " << requestUri  ;            
+
+                    const tp_name_t* tpn = tport_name( tport_parent( tp ) );
+                    string host = tpn->tpn_host ;
+                    string port = tpn->tpn_port ;
+                    string proto = tpn->tpn_proto ;
+
+                    string contact = "<sip:" + host + ":" + port + ";transport=" + proto + ">";
                }
             }
             if( NULL == tp ) {
@@ -381,7 +394,6 @@ namespace drachtio {
                 string tcp = "transport=tcp" ;
                 string wss = "transport=wss" ;
                 string ws = "transport=ws" ;
-                bool ipv6 = string::npos != requestUri.find('[') ;
 
                 typedef const boost::iterator_range<std::string::const_iterator> StringRange;
 
@@ -396,26 +408,22 @@ namespace drachtio {
                 }
 
                 DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
-                tp = m_pController->getTportForProtocol( proto.c_str(), ipv6 ) ;
-                if( !tp ) {
-                    tp = m_pController->getTportForProtocol( 0 == proto.compare("udp") ? "tcp" : "udp", false ) ;
-                }
+                pSelectedTransport = SipTransport::findAppropriateTransport( requestUri.c_str(), proto.c_str() ) ;
+                assert(pSelectedTransport); 
+
+                pSelectedTransport->getDescription(desc);
+                pSelectedTransport->getContactUri( contact, true ) ;
+                contact = "<" + contact + ">" ;
+                host = pSelectedTransport->getHost() ;
+                port = pSelectedTransport->getPort() ;
+
+                tp = (tport_t *) pSelectedTransport->getTport() ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
-
-            string desc ;
-            getTransportDescription( tp, desc ) ;
-            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << std::hex << (void*)tp << ": " << desc << " for request-uri " << requestUri  ;            
 
             tagi_t* tags = makeTags( pData->getHeaders(), desc ) ;
            
             //if user supplied all or part of the From use it
-            const tp_name_t* tpn = tport_name( tport_parent( tp ) );
-            string host = tpn->tpn_host ;
-            string port = tpn->tpn_port ;
-            string proto = tpn->tpn_proto ;
-
-            string contact = "<sip:" + host + ":" + port + ";transport=" + proto + ">";
             string from, to, callid ;
             if( searchForHeader( tags, siptag_from_str, from ) ) {
                 if( string::npos != from.find("localhost") ) {
@@ -714,6 +722,8 @@ namespace drachtio {
         string clientMsgId( pData->getClientMsgId()) ;
         string contentType ;
         string dialogId ;
+        string contact, transportDesc ;
+        boost::shared_ptr<SipTransport> pSelectedTransport ;
         bool bSentOK = true ;
         string failMsg ;
         bool bDestroyIrq = false ;
@@ -750,18 +760,12 @@ namespace drachtio {
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
             tport_t *tport = tport_parent( tp ) ;
-            const tp_name_t* tpn = tport_name( tport );
 
-            string transportDesc = string(tpn->tpn_proto) + "/" + tpn->tpn_host + ":" + tpn->tpn_port ;
-            string contact = "<" ;
-            contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
-            contact.append( tpn->tpn_host ) ;
-            contact.append( ":" ) ;
-            contact.append( tpn->tpn_port ) ;
-            contact.append( ";transport=" ) ;
-            contact.append( tpn->tpn_proto ) ;
-            contact.append(">") ;
-            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - contact header: " << contact  ;
+            pSelectedTransport = SipTransport::findTransport( tport ) ;
+            assert(pSelectedTransport); 
+
+            pSelectedTransport->getContactUri(contact);
+            pSelectedTransport->getDescription(transportDesc);
 
             tport_unref( tp ) ;
     
@@ -853,19 +857,12 @@ namespace drachtio {
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
             tport_t *tport = tport_parent( tp ) ;
-            const tp_name_t* tpn = tport_name( tport );
 
-            string transportDesc = string(tpn->tpn_proto) + "/" + tpn->tpn_host + ":" + tpn->tpn_port ;
+            pSelectedTransport = SipTransport::findTransport( tport ) ;
+            assert(pSelectedTransport); 
 
-            string contact = "<" ;
-            contact.append( tport_has_tls(tport) ? "sips:" : "sip:") ;
-            contact.append( tpn->tpn_host ) ;
-            contact.append( ":" ) ;
-            contact.append( tpn->tpn_port ) ;
-            contact.append( ";transport=" ) ;
-            contact.append( tpn->tpn_proto ) ;
-            contact.append(">") ;
-            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - constructed contact header: " << contact  ;
+            pSelectedTransport->getContactUri(contact);
+            pSelectedTransport->getDescription(transportDesc);
 
             tport_unref( tp ) ;
     
