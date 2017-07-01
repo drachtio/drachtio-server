@@ -663,7 +663,7 @@ namespace drachtio {
          
          /* create our agent */
         bool tlsTransport = string::npos != m_vecTransports[0]->getContact().find("sips") || string::npos != m_vecTransports[0]->getContact().find("tls") ;
-		m_nta = nta_agent_create( m_root,
+    		m_nta = nta_agent_create( m_root,
              URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
              stateless_callback,                            /* no callback function */
              this,                                      /* therefore no context */
@@ -833,8 +833,9 @@ namespace drachtio {
 
                 //check if we are in the first Route header; if so proxy accordingly
 
-                bool match = 0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) &&
-                                0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
+                bool match = (0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) || 
+                  (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host ) ) ) &&
+                  0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
 
                 tport_unref( tp_incoming ) ;
 

@@ -38,6 +38,7 @@ namespace drachtio {
 #include "controller.hpp"
 #include "pending-request-controller.hpp"
 #include "cdr.hpp"
+#include "sip-transports.hpp"
 
 #define TIMER_C_MSECS (185000)
 #define TIMER_B_MSECS (NTA_SIP_T1 * 64)
@@ -474,16 +475,20 @@ namespace drachtio {
                         URL_STRING_MAKE(buf), (void **) &tp ) ;
             assert( 0 == rc ) ;
             if( 0 == rc ) {
-                const tp_name_t* tpn = tport_name( tp );
-                record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
-                    tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
+                boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
+                assert(p) ;
+
+                p->getContactUri(record_route) ;
+                record_route = "<" + record_route + ";lr>";
+                DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardPrack - record route will be " << record_route ;
             }
         }
  
         int rc = nta_msg_tsend( nta, 
             msg, 
             NULL, 
-            TAG_IF( pCore->shouldAddRecordRoute() && hasRoute, SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute() && hasRoute, 
+                SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
             NTATAG_BRANCH_KEY( m_branchPrack.c_str() ),
             SIPTAG_RACK( sip->sip_rack ),
             TAG_END() ) ;
@@ -531,21 +536,15 @@ namespace drachtio {
         int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
                     URL_STRING_MAKE(m_target.c_str()), (void **) &tp ) ;
         assert( 0 == rc ) ;
-        if( 0 == rc ) {
-            const tp_name_t* tpn = tport_name( tp );
-            record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
-                tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
-            transport = string(tpn->tpn_proto) + tpn->tpn_host + ":" + tpn->tpn_port ;
+        if( 0 == rc && pCore->shouldAddRecordRoute() ) {
 
-            //TMP: for testing
-            /*
-            if( theOneAndOnlyController->hasPublicAddress() ) {
-                string publicAddress ;
-                theOneAndOnlyController->getPublicAddress( publicAddress ) ;
-                DR_LOG(log_error) << "ServerTransaction::forwardResponse replacing record route with " << publicAddress ; 
-                record_route = "<sip:" + publicAddress + ";lr>" ;
-            }
-            */
+            //TODO: need also to check that if REGISTER we have a Supported: path header
+            boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
+            assert(p) ;
+
+            p->getContactUri(record_route) ;
+            record_route = "<" + record_route + ";lr>";
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
         }
 
         tagi_t* tags = makeTags( headers, transport ) ;
@@ -553,7 +552,13 @@ namespace drachtio {
         rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
             URL_STRING_MAKE(m_target.c_str()), 
-            TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
+                SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
+                SIPTAG_PATH_STR( record_route.c_str() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
+                SIPTAG_REQUIRE_STR( "path" ) ),
+            //TODO: add Required: Path if we are adding a path header to a REGISTER
             NTATAG_BRANCH_KEY(m_branch.c_str()),
             TAG_NEXT(tags) ) ;
 
