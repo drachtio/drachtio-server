@@ -201,7 +201,9 @@ namespace drachtio {
     void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) {
         str = sip->sip_call_id->i_id ;
         str.append("|") ;
-        str.append(sip->sip_cseq->cs_method_name) ;
+        str.append((sip->sip_request && sip_method_cancel == sip->sip_request->rq_method) ?
+          "INVITE" :
+          sip->sip_cseq->cs_method_name) ;
         str.append("|") ;
         str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
     }

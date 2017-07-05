@@ -243,6 +243,11 @@ namespace drachtio {
 
   boost::shared_ptr<SipTransport> SipTransport::findTransport(tport_t* tp) {
     mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
+    if( it == m_mapTport2SipTransport.end() ) {
+      tport_t* tpp = tport_parent(tp);
+      DR_LOG(log_debug) << "SipTransport::findTransport - could not find transport: " << hex << tp << " searching for parent " <<  tpp ;
+      it = m_mapTport2SipTransport.find(tport_parent(tpp));
+    }
     assert( it != m_mapTport2SipTransport.end() ) ;
     return it->second ;
   }
