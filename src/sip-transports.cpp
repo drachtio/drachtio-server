@@ -130,6 +130,16 @@ namespace drachtio {
     s += ")" ;
   }
 
+  void SipTransport::getHostport(string& s) {
+    assert(hasTport()) ;
+    s = "" ;
+    s += getProtocol() ;
+    s += "/" ;
+    s += hasExternalIp() ? getExternalIp() : getHost() ;
+    s += ":" ;
+    s += getPort() ;
+  }
+
   void SipTransport::getBindableContactUri(string& contact) {
     contact = m_contactScheme ;
     contact.append(":");
@@ -331,7 +341,7 @@ namespace drachtio {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       boost::shared_ptr<SipTransport> p = it->second ;
       string desc ;
-      p->getDescription(desc, true);
+      p->getHostport(desc);
       vec.push_back(desc) ;
     }
   }

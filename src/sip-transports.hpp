@@ -66,6 +66,7 @@ namespace drachtio {
     bool isLocalhost(void) ;
 
     void getDescription(string& s, bool shortVersion = true) ;
+    void getHostport(string& s) ;
 
     static void addTransports(boost::shared_ptr<SipTransport> config);
     static boost::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
