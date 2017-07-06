@@ -255,7 +255,11 @@ namespace drachtio {
     boost::regex e("^<?(sip|sips):(?:([^;]+)@)?([^;|^>|^:]+)(?::(\\d+))?(?:;([^>]+))?>?$");
     boost::smatch mr; 
     if (!boost::regex_search(uri, mr, e)) {
-      return false ;
+
+      boost::regex e2("^<?(sip|sips):(?:([^;]+)@)?(\\[[0-9a-fA-F:]+\\])(?::(\\d+))?(?:;([^>]+))?>?$");
+      if (!boost::regex_search(uri, mr, e2)) {
+        return false ;
+      }
     }
 
     scheme = mr[1] ;
