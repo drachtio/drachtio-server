@@ -30,8 +30,5 @@ depcomp
 *.la
 *.a
 
-Dockerfile
 *.tar.gz
-entrypoint.sh
 build/
-docker.drachtio.conf.xml
