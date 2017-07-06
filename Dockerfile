@@ -1,19 +1,14 @@
 FROM debian:jessie
 
-WORKDIR /usr/local/src
-
-# tar up the drachtio-server directory as below before running this Dockerfile
-# or, to build from a checked in version, refer to https://github.com/davehorton/docker-drachtio-server
-
-
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
   && apt-get install -y --no-install-recommends ca-certificates gcc g++ make build-essential git autoconf automake  curl libtool libtool-bin libssl-dev \
-
-ADD drachtio-server.tar.gz .
-
-RUN ./bootstrap.sh \
-  && mkdir build && cd $_  \
+  && git clone --depth=50 --branch=cluster-experimental git://github.com/davehorton/drachtio-server.git /usr/local/src/drachtio-server \
+  && cd /usr/local/src/drachtio-server \
+  && git submodule update --init --recursive \
+  && ./bootstrap.sh \
+  && mkdir /usr/local/src/drachtio-server/build  \
+  && cd /usr/local/src/drachtio-server/build  \
   && ../configure CPPFLAGS='-DNDEBUG' CXXFLAGS='-O0' \
   && make \
   && make install \
@@ -26,7 +21,8 @@ RUN ./bootstrap.sh \
   && cd /usr/local/bin \
   && rm -f timer ssltest parser uri_test
 
-COPY ./docker.drachtio.conf.xml /etc/drachtio.conf.xml
+COPY ./docker.drachtio.conf.xml /etc
+COPY ./entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
 
