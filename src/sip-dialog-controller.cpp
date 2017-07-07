@@ -148,14 +148,14 @@ namespace drachtio {
                 throw std::runtime_error("unable to find dialog for dialog id provided") ;
             }
 
-            string sourceAddress = dlg->getSourceAddress() ;
-            unsigned int sourcePort = dlg->getSourcePort() ;
-
-            string routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
-                ";transport=" + dlg->getProtocol() ;
-            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;
-
-
+            string routeUrl ;
+            if (dlg->getRole() == SipDialog::we_are_uas) {
+                string sourceAddress = dlg->getSourceAddress() ;
+                unsigned int sourcePort = dlg->getSourcePort() ;
+                routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
+                    ";transport=" + dlg->getProtocol() ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;                
+            }
             string transport ;
             dlg->getTransportDesc(transport) ;
             tagi_t* tags = makeTags( pData->getHeaders(), transport) ;
@@ -242,7 +242,7 @@ namespace drachtio {
 
                 }
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    URL_STRING_MAKE( routeUrl.c_str() ),                     
+                    routeUrl.empty() ? NULL : URL_STRING_MAKE(routeUrl.c_str()),                     
                     method, name.c_str()
                     ,URL_STRING_MAKE(requestUri.c_str())
                     ,TAG_IF( addContact, SIPTAG_CONTACT_STR( contact.c_str() ) )
