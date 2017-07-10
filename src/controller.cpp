@@ -31,7 +31,7 @@ THE SOFTWARE.
 #include <boost/foreach.hpp>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
-
+#include <boost/log/support/date_time.hpp>
 
 #include <boost/log/core.hpp>
 #include <boost/log/attributes.hpp>
@@ -79,11 +79,11 @@ namespace drachtio {
 /* clone static functions, used to post a message into the main su event loop from the worker client controller thread */
 namespace {
     void my_formatter(logging::record_view const& rec, logging::formatting_ostream& strm) {
-        strm << std::hex << std::setw(8) << std::setfill('0') << logging::extract< unsigned int >("LineID", rec) << "|";
-        strm << logging::extract<boost::posix_time::ptime>("TimeStamp", rec) << "| ";
-        //strm << logging::extract<unsigned int>("Severity", rec) << "| ";
-
-        strm << rec[expr::smessage];
+        typedef boost::log::formatter formatter;
+            formatter f = expr::stream << expr::format_date_time<boost::posix_time::ptime>(
+                "TimeStamp", "%Y-%m-%d %H:%M:%S.%f") << " " <<
+                expr::smessage ;
+        f(rec, strm);
     }
 
     int clone_init( su_root_t* root, drachtio::DrachtioController* pController ) {
@@ -135,7 +135,6 @@ namespace {
             msg = boost::make_shared<drachtio::StackMsg>( output ) ;
         }
         else {
-            //boost::replace_all(output, "\n", " ") ;
             int len = strlen(output) ;
             output[len-1] = '\0' ;
             DR_LOG(drachtio::log_info) << output ;
@@ -549,7 +548,7 @@ namespace drachtio {
                                 expr::stream
                                     << expr::attr< unsigned int >("RecordID")
                                     << ": "
-                                    << expr::attr< boost::posix_time::ptime >("TimeStamp")
+                                    << expr::format_date_time< boost::posix_time::ptime >("TimeStamp", "%Y-%m-%d %H:%M:%S")
                                     << "> " << expr::smessage
                             )
                         )
@@ -1211,11 +1210,15 @@ namespace drachtio {
         DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
     }
     boost::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+        boost::shared_ptr<UaInvalidData> p ;
         string uri = "" ;
+
+        if( !user ) {
+            return p ;
+        }
         uri.append(user) ;
         uri.append("@") ;
         uri.append(host) ;
-        boost::shared_ptr<UaInvalidData> p ;
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
         if( m_mapUri2InvalidData.end() != it ) {
             p = it->second ;
