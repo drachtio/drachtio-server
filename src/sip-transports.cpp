@@ -290,50 +290,59 @@ namespace drachtio {
       p->getDescription(desc) ;
 
       if( 0 != strcmp( p->getProtocol(), proto) ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport because protocol does not match: " << desc ;
+        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport " << hex << p->getTport() << 
+          " because protocol does not match: " << desc ;
         continue ;
       }
       if( wantsIpV6 && !p->isIpV6() ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport because transport is not ipv6: " << desc ;
+        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport " << hex << p->getTport() << 
+          " because transport is not ipv6: " << desc ;
         continue ;        
       }
       if( !wantsIpV6 && p->isIpV6() ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport because transport is not ipv4: " << desc ;
+        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport " << hex << p->getTport() << 
+          " because transport is not ipv4: " << desc ;
         continue ;        
       }
 
       // check if remote host is on the local network of the transport, as this will be the optimal match
       if( p->hasExternalIp() && p->isInNetwork(remoteHost) ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - selecting transport because it is in the local network: " << desc ;
+        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - selecting transport " << hex << p->getTport() << 
+          " because it is in the local network: " << desc ;
         return p ;
       }
 
       if( 0 == strcmp(remoteHost, p->getHost())) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - selecting transport because it matches exactly (probably localhost): " << desc ;
+        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - selecting transport " << hex << p->getTport() << 
+          " because it matches exactly (probably localhost): " << desc ;
         return p ;
       }
 
       if( p->isLocalhost() ) {
         //only select if we don't have something better
         if( !pBestMatchSoFar ) {
-          DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - setting transport as best match because although its localhost we have no current best match: " << desc ;
+          DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - setting transport " << hex << p->getTport() << 
+            " as best match because although its localhost we have no current best match: " << desc ;
           pBestMatchSoFar = p ;
         }
       }
       else {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - setting transport as best match: " << desc ;
+        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - setting transport " << hex << p->getTport() << 
+          " as best match: " << desc ;
         pBestMatchSoFar = p ;        
       }
     }
 
     if (pBestMatchSoFar) {
       pBestMatchSoFar->getDescription(desc) ;
-      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning transport as final best match: " << desc ;
+      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning transport " << hex << pBestMatchSoFar->getTport() << 
+        " as final best match: " << desc ;
       return pBestMatchSoFar ;
     }
 
     m_masterTransport->getDescription(desc) ;
-    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport as we found no better matches: " << desc ;
+    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() << 
+      " as we found no better matches: " << desc ;
     return m_masterTransport ;
   }
 

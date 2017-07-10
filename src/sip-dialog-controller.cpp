@@ -369,14 +369,19 @@ namespace drachtio {
             sip_method_t method = parseStartLine( pData->getStartLine(), name, requestUri ) ;
 
             int rc = 0 ;
-            if( NULL != strstr( sip_request->rq_url->url_host, ".invalid") ) {
+            if( (sip_method_invite == sip_request->rq_method || 
+                sip_method_options == sip_request->rq_method ||
+                sip_method_notify == sip_request->rq_method ||
+                sip_method_message == sip_request->rq_method) && 
+                !tport_is_dgram(tp) /*&& NULL != strstr( sip_request->rq_url->url_host, ".invalid")*/ ) {
+
                 boost::shared_ptr<UaInvalidData> pData = 
                     m_pController->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host ) ;
 
                 if( NULL != pData ) {
                     forceTport = true ;
                     tp = pData->getTport() ;
-                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
+                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selecting existing secondary transport " << std::hex << (void *) tp ;
 
                     getTransportDescription( tp, desc ) ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << std::hex << (void*)tp << ": " << desc << " for request-uri " << requestUri  ;            
@@ -386,7 +391,7 @@ namespace drachtio {
                     string port = tpn->tpn_port ;
                     string proto = tpn->tpn_proto ;
 
-                    string contact = "<sip:" + host + ":" + port + ";transport=" + proto + ">";
+                    contact = "<sip:" + host + ":" + port + ";transport=" + proto + ">";
                }
             }
             if( NULL == tp ) {
@@ -394,17 +399,21 @@ namespace drachtio {
                 string tcp = "transport=tcp" ;
                 string wss = "transport=wss" ;
                 string ws = "transport=ws" ;
+                string tls = "transport=tls" ;
 
                 typedef const boost::iterator_range<std::string::const_iterator> StringRange;
 
-                if ( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(tcp.begin(), tcp.end()) ) ) {
+                if ( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(tcp.begin(), tcp.end()))) {
                     proto = "tcp" ;
                 }
-                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(wss.begin(), wss.end()) ) ) {
+                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(wss.begin(), wss.end()))) {
                     proto = "wss";
                 }
-                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(ws.begin(), ws.end()) ) ) {
+                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(ws.begin(), ws.end()))) {
                     proto = "ws";
+                }
+                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(tls.begin(), tls.end()))) {
+                    proto = "tls";
                 }
 
                 DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
@@ -418,6 +427,7 @@ namespace drachtio {
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
+                forceTport = true ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
@@ -799,7 +809,7 @@ namespace drachtio {
 
                 sip_contact_t* contact = sip->sip_contact ;
                 if( contact ) {
-                    if( NULL != strstr( contact->m_url->url_host, ".invalid")  ) {
+                    if( !tport_is_dgram(tp) /*&& NULL != strstr( contact->m_url->url_host, ".invalid") */) {
                         bool add = true ;
                         int expires = 0 ;
 
