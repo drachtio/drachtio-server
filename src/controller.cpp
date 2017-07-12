@@ -833,8 +833,7 @@ namespace drachtio {
                 //check if we are in the first Route header; if so proxy accordingly
 
                 bool match = (0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) || 
-                  (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host ) ) ) &&
-                  0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
+                  (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host ) ) ) ;
 
                 tport_unref( tp_incoming ) ;
 
