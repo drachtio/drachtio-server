@@ -47,5 +47,5 @@ ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure --with-glib=no && $(MAKE)
 
 ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a:
-	cd ${srcdir}/deps/jansson-2.10 && ./configure && $(MAKE)
+	cd ${srcdir}/deps/jansson-2.10 && autoreconf -fi && ./configure && $(MAKE)
 
