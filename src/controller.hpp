@@ -66,6 +66,7 @@ THE SOFTWARE.
 #include "sip-proxy-controller.hpp"
 #include "ua-invalid.hpp"
 #include "sip-transports.hpp"
+#include "request-router.hpp"
 
 typedef boost::mt19937 RNGType;
 
@@ -116,6 +117,7 @@ namespace drachtio {
                 boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
                 boost::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
                 boost::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
+                boost::shared_ptr<RequestHandler> getRequestHandler(void) { return m_pRequestHandler ; }
                 boost::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
                 boost::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
                 su_root_t* getRoot(void) { return m_root; }
@@ -158,6 +160,8 @@ namespace drachtio {
                 void flushTportForSubscription( const char* user, const char* host ) ; 
                 boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
+                RequestRouter& getRequestRouter(void) { return m_requestRouter; }
+
 	private:
 
         	DrachtioController() ;
@@ -195,7 +199,8 @@ namespace drachtio {
                 severity_levels m_current_severity_threshold ;
                 int m_nSofiaLoglevel ;
 
-                shared_ptr< ClientController > m_pClientController ;
+                shared_ptr<ClientController> m_pClientController ;
+                shared_ptr<RequestHandler> m_pRequestHandler ;
                 shared_ptr<SipDialogController> m_pDialogController ;
                 shared_ptr<SipProxyController> m_pProxyController ;
                 shared_ptr<PendingRequestController> m_pPendingRequestController ;
@@ -216,6 +221,11 @@ namespace drachtio {
                 typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
                 mapUri2InvalidData m_mapUri2InvalidData ;
 
+                bool    m_bIsOutbound ;
+                string  m_strRequestServer ;
+                string  m_strRequestPath ;
+
+                RequestRouter   m_requestRouter ;
         } ;
 
 } ;

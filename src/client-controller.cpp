@@ -163,12 +163,12 @@ namespace drachtio {
     }
     bool ClientController::route_ack_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, 
         sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
+
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             client = this->findClientForNetTransaction( inviteTransactionId );
             if( !client ) {
-               DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;            
-                //TODO: try to find another client providing the same service
+               DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected, or the call was rejected as part of outbound request handler: " << dialogId  ;            
                 return false ;
             }
         }
@@ -340,6 +340,9 @@ namespace drachtio {
         return true;
     }
     bool ClientController::route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) {
+        if( clientMsgId.empty() ) {
+            return true ;
+        }
        client_ptr client = this->findClientForApiRequest( clientMsgId );
         if( !client ) {
             removeApiRequest( clientMsgId ) ;

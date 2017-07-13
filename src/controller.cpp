@@ -188,7 +188,7 @@ namespace drachtio {
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
-        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1) {
+        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -197,6 +197,8 @@ namespace drachtio {
         
         logging::add_common_attributes();
         m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
+
+        m_pRequestHandler = boost::make_shared<RequestHandler>( this ) ;
 
         if( !m_Config->isValid() ) {
             exit(-1) ;
@@ -216,12 +218,21 @@ namespace drachtio {
         if( log_none == m_current_severity_threshold ) {
             m_current_severity_threshold = m_Config->getLoglevel() ;
         }
+
+        m_Config->getRequestRouter( m_requestRouter ) ;
         
         return true ;
         
     }
     void DrachtioController::logConfig() {
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
+
+        vector<string> routes ;
+        m_requestRouter.getAllRoutes( routes ) ;
+
+        BOOST_FOREACH(string &r, routes) {
+            DR_LOG(log_notice) << "Route for outbound connection:         " << r;
+        }
     }
 
     void DrachtioController::handleSigTerm( int signal ) {
@@ -874,7 +885,7 @@ namespace drachtio {
                         }
 
                         string transactionId ;
-                        int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
+                        int status = m_pPendingRequestController->processNewRequest( msg, sip, tp_incoming, transactionId ) ;
 
                         //write attempt record
                         if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {

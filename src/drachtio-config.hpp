@@ -30,13 +30,17 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 #include "sip-transports.hpp"
+#include "request-router.hpp"
 
 using namespace std ;
 
 namespace drachtio {
+
+
     
     class DrachtioConfig : private boost::noncopyable {
     public:
+
         DrachtioConfig( const char* szFilename, bool isDaemonized = true ) ;
         ~DrachtioConfig() ;
         
@@ -58,18 +62,20 @@ namespace drachtio {
         bool isSecret( const string& secret ) const ;
         severity_levels getLoglevel() ;
         unsigned int getSofiaLogLevel(void) ;
- 
-         unsigned int getAdminPort( string& address ) ;
 
-         bool getRedisAddress( string& address, unsigned int& port ) const ;
+        unsigned int getAdminPort( string& address ) ;
 
-         bool getTlsFiles( string& keyFile, string& certFile, string& chainFile ) const ;
+        bool getRedisAddress( string& address, unsigned int& port ) const ;
 
-         bool generateCdrs(void) const ;
+        bool getTlsFiles( string& keyFile, string& certFile, string& chainFile ) const ;
 
-         void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;
+        bool generateCdrs(void) const ;
+
+        void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;
 
         mapHeader2Values& getSpammers( string& action, string& tcpAction ) ;
+
+        void getRequestRouter( RequestRouter& router ) ;
 
         void Log() const ;
         
