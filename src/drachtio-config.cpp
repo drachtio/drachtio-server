@@ -103,7 +103,21 @@ namespace drachtio {
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
                 m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
 
-                
+                try {
+                     BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.request-handlers")) {
+                        if( 0 == v.first.compare("request-handler") ) {
+                            string sipMethod = v.second.get<string>("<xmlattr>.sip-method","*") ;            
+                            string httpMethod = v.second.get<string>("<xmlattr>.http-method","GET") ;  
+                            string httpUrl = v.second.data() ;
+                            m_router.addRoute(sipMethod, httpMethod, httpUrl) ;          
+                        }
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    // optional
+                }
+
+
+
                 /* logging configuration  */
  
                 m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
@@ -286,6 +300,9 @@ namespace drachtio {
             transports = m_vecTransports ;
         }
 
+        void getRequestRouter( RequestRouter& router ) {
+            router = m_router ;
+        }
 
  
     private:
@@ -330,6 +347,7 @@ namespace drachtio {
         string m_tcpActionSpammer ;
         mapHeader2Values m_mapSpammers ;
         vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
+        RequestRouter m_router ;
 
   } ;
     
@@ -397,6 +415,9 @@ namespace drachtio {
     }
     void DrachtioConfig::getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
         return m_pimpl->getTransports(transports) ;
+    }
+    void DrachtioConfig::getRequestRouter( RequestRouter& router ) {
+        return m_pimpl->getRequestRouter(router) ;
     }
 
 

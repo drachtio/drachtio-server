@@ -507,7 +507,9 @@ namespace drachtio {
     }
 
     void splitLines( const string& s, vector<string>& vec ) {
-        split( vec, s, boost::is_any_of("\r\n"), boost::token_compress_on ); 
+        if( s.length() ) {
+            split( vec, s, boost::is_any_of("\r\n"), boost::token_compress_on ); 
+        }
     }
 
     void splitTokens( const string& s, vector<string>& vec ) {
@@ -609,7 +611,6 @@ namespace drachtio {
 
     tagi_t* makeTags( const string&  hdrs, const string& transport ) {
         vector<string> vec ;
-        //theOneAndOnlyController->getMyHostports( vec ) ;
         string proto, host, port, myHostport ;
         
         parseTransportDescription(transport, proto, host, port ) ;

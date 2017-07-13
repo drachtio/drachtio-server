@@ -38,6 +38,7 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 #include "client-controller.hpp"
+#include "request-handler.hpp"
 #include "timer-queue.hpp"
 
 using namespace std ;
@@ -84,7 +85,7 @@ namespace drachtio {
     PendingRequestController(DrachtioController* pController);
     ~PendingRequestController() ;
 
-    int processNewRequest( msg_t* msg, sip_t* sip, string& transactionId ) ;
+    int processNewRequest( msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) ;
 
     boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
 
@@ -122,6 +123,7 @@ namespace drachtio {
     DrachtioController* m_pController ;
     nta_agent_t*    m_agent ;
     boost::shared_ptr< ClientController > m_pClientController ;
+    boost::shared_ptr< RequestHandler > m_pRequestHandler ;
 
     boost::mutex    m_mutex ;
 

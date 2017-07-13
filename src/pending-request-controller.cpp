@@ -30,6 +30,7 @@ namespace drachtio {
 #include "pending-request-controller.hpp"
 #include "controller.hpp"
 #include "cdr.hpp"
+#include "request-router.hpp"
 
 #define CLIENT_TIMEOUT (64000)
 
@@ -56,7 +57,7 @@ namespace drachtio {
 
   PendingRequestController::PendingRequestController( DrachtioController* pController) : m_pController(pController), 
     m_agent(pController->getAgent()), m_pClientController(pController->getClientController()), 
-    m_timerQueue(pController->getRoot(), "pending-request" ) {
+    m_timerQueue(pController->getRoot(), "pending-request" ), m_pRequestHandler(pController->getRequestHandler()) {
 
     assert(m_agent) ;
  
@@ -64,17 +65,26 @@ namespace drachtio {
   PendingRequestController::~PendingRequestController() {
   }
 
-  int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, string& transactionId ) {
+  int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) {
     assert(sip->sip_request->rq_method != sip_method_invite || NULL == sip->sip_to->a_tag ) ; //new INVITEs only
 
-    client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
-    if( !client ) {
-      DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
-      generateUuid( transactionId ) ;
-      return 503 ;
+    client_ptr client ;
+    RequestRouter& router = m_pController->getRequestRouter() ;
+    string httpMethod, httpUrl ;
+
+    if( !router.getRoute( sip->sip_request->rq_method_name, httpMethod, httpUrl ) ) {
+
+      //using inbound connections for this call
+      client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
+      if( !client ) {
+        DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
+        generateUuid( transactionId ) ;
+        return 503 ;
+      }
     }
 
     boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
+    transactionId = p->getTransactionId() ;      
 
     msg_destroy( msg ) ;  //our PendingRequest_t is now the holder of the message
 
@@ -82,12 +92,25 @@ namespace drachtio {
     EncodeStackMessage( sip, encodedMessage ) ;
     SipMsgData_t meta( msg ) ;
 
-    m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+    if( !httpUrl.empty() ) {
+      // using outbound connection for this call
+      
+      vector< pair<string, string> > v;
+      v.push_back( make_pair("method", sip->sip_request->rq_method_name )) ;
+      v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host )) ;
+      v.push_back( make_pair("protocol", meta.getProtocol() )) ;
+      v.push_back( make_pair("source_address", meta.getAddress() )) ;
+      v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user )) ;
+      v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user )) ;
 
-    m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
-        encodedMessage, meta ) ) ;
-    
-    transactionId = p->getTransactionId() ;
+      m_pController->getRequestHandler()->processRequest(transactionId, httpMethod, httpUrl, encodedMessage, v ) ;
+    }
+    else {
+      m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+
+      m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+          encodedMessage, meta ) ) ;
+    }
 
     return 0 ;
   }

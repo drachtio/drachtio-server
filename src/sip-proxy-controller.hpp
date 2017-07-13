@@ -343,6 +343,7 @@ namespace drachtio {
       }
 
       const char* getClientMsgId() { return m_szClientMsgId; } 
+      bool hasClientMsgId() { return m_szClientMsgId[0] != '\0'; }
       const char* getTransactionId() { return m_szTransactionId; } 
       bool getRecordRoute() { return m_bRecordRoute;}
       bool getFullResponse() { return m_bFullResponse;}
