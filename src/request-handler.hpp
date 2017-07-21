@@ -43,7 +43,7 @@ namespace drachtio {
         template <class T>
         class Client : public boost::enable_shared_from_this< Client<T> >{
         public:
-            Client<tcp::socket>(boost::shared_ptr<RequestHandler> pRequestHandler, 
+            Client<boost::asio::ip::tcp::socket>(boost::shared_ptr<RequestHandler> pRequestHandler, 
                 const string& transactionId, 
                 const std::string& server, const std::string& path, 
                 const std::string& service, const string& httpMethod) ;
@@ -69,9 +69,6 @@ namespace drachtio {
             void handle_read_headers(const boost::system::error_code& err) ;
             void handle_read_content(const boost::system::error_code& err) ;
             void wrapUp(void) ;
-
-            //tcp::socket socket_;
-            //boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SslSocket_ ;
 
             boost::asio::ssl::context   m_ctx ;
             T                           socket_ ;
