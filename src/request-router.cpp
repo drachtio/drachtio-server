@@ -25,21 +25,22 @@ THE SOFTWARE.
 
 namespace drachtio {
 
-  void RequestRouter::addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl) {
-    m_mapSipMethod2Route.insert( mapSipMethod2Route::value_type(boost::to_upper_copy<std::string>(sipMethod), Route_t(httpMethod, httpUrl)) ) ;
+  void RequestRouter::addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl, bool verifyPeer) {
+    m_mapSipMethod2Route.insert( mapSipMethod2Route::value_type(boost::to_upper_copy<std::string>(sipMethod), Route_t(httpMethod, httpUrl, verifyPeer)) ) ;
   }
-  bool RequestRouter::getRoute(const char* szMethod, string& httpMethod, string& httpUrl) {
+  bool RequestRouter::getRoute(const char* szMethod, string& httpMethod, string& httpUrl, bool& verifyPeer) {
     mapSipMethod2Route::iterator it = m_mapSipMethod2Route.find(szMethod) ;
 
     if( it == m_mapSipMethod2Route.end() ) {
-      it =  m_mapSipMethod2Route.find("*") ;
-      if( it != m_mapSipMethod2Route.end() ) {
-        Route_t& route = it->second ;
-        httpMethod = route.httpMethod ;
-        httpUrl = route.url ;
-        return true ;        
-      } 
+      it = m_mapSipMethod2Route.find("*") ;
     }
+    if( it != m_mapSipMethod2Route.end() ) {
+      Route_t& route = it->second ;
+      httpMethod = route.httpMethod ;
+      httpUrl = route.url ;
+      verifyPeer = route.verifyPeer ;
+      return true ;        
+    } 
     return false ;
   }
 
@@ -48,11 +49,12 @@ namespace drachtio {
     for( mapSipMethod2Route::iterator it = m_mapSipMethod2Route.begin(); it != m_mapSipMethod2Route.end(); it++, count++ ) {
       Route_t& route = it->second ;
       string sipMethod = it->first ;
+      /*
       string httpMethod = route.httpMethod ;
       string httpUrl = route.url ;
-
+      */
       std::ostringstream s ;
-      s << "sip-method: " << it->first << ", http-method: " <<  route.httpMethod << ", http-url: " << route.url ;
+      s << "sip-method: " << it->first << ", http-method: " <<  route.httpMethod << ", http-url: " << route.url << ", verify cert?: " << route.verifyPeer;
       vecRoutes.push_back( s.str() ) ;
 
     }

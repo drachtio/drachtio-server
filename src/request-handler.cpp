@@ -27,11 +27,20 @@ THE SOFTWARE.
 #include <boost/asio.hpp>
 #include <boost/assign/list_of.hpp>
 
+#include <jansson.h>
+
 #include "sofia-sip/url.h"
 
 #include "request-handler.hpp"
 #include "controller.hpp"
 
+namespace {
+    inline bool is_ssl_short_read_error(boost::system::error_code err) {
+        return err.category() == boost::asio::error::ssl_category &&
+            (err.value() == 335544539 || //short read error
+            err.value() == 336130329); //decryption failed or bad record mac
+    }
+}
 namespace drachtio {
 
     static boost::unordered_map<unsigned int, std::string> responseReasons = boost::assign::map_list_of
@@ -109,12 +118,16 @@ namespace drachtio {
 
 
     // RequestHandler::Client
-    
-    RequestHandler::Client::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
-        const std::string& server, const std::string& path, const std::string& service, const string& httpMethod) : pRequestHandler_(pRequestHandler),
-            resolver_(pRequestHandler->getIOService()), socket_(pRequestHandler->getIOService()), status_code_(0), transactionId_(transactionId) {
+    template <>
+    RequestHandler::Client<tcp::socket>::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
+        const std::string& server, const std::string& path, const std::string& service, const string& httpMethod) : 
+            pRequestHandler_(pRequestHandler),
+            m_ctx(boost::asio::ssl::context::sslv23),
+            resolver_(pRequestHandler->getIOService()), 
+            socket_(pRequestHandler->getIOService()),
+            status_code_(0), transactionId_(transactionId), m_verifyPeer(false), serverName_(server) {
 
-            DR_LOG(log_debug) << "RequestHandler::Client::Client: Host " << server << " GET " << path ;
+            DR_LOG(log_debug) << "RequestHandler::Client::Client: Host (http): " << server << " GET " << path ;
 
             // Form the request. We specify the "Connection: close" header so that the
             // server will close the socket after transmitting the response. This will
@@ -134,27 +147,13 @@ namespace drachtio {
                     boost::asio::placeholders::iterator));
     }
 
-    void RequestHandler::Client::handle_resolve(const boost::system::error_code& err, tcp::resolver::iterator endpoint_iterator) {
+    template <>
+    void RequestHandler::Client< boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >::handle_connect(const boost::system::error_code& err) {
         if (!(err_ = err)) {
-          // Attempt a connection to each endpoint in the list until we
-          // successfully establish a connection.
-          boost::asio::async_connect(socket_, endpoint_iterator,
-              boost::bind(&Client::handle_connect, this,
-                boost::asio::placeholders::error));
-        }
-        else
-        {
-          DR_LOG(log_error) << "RequestHandler::Client::handle_resolve: Error: " << err.message() ;
-          wrapUp() ;
-        }
-    }
-
-    void RequestHandler::Client::handle_connect(const boost::system::error_code& err) {
-        if (!(err_ = err)) {
-          // The connection was successful. Send the request.
-          boost::asio::async_write(socket_, request_,
-              boost::bind(&Client::handle_write_request, this,
-                boost::asio::placeholders::error));
+            // The connection was successful. Send the request.
+            
+            socket_.async_handshake(boost::asio::ssl::stream_base::client,
+                boost::bind(&Client::handle_handshake, this, boost::asio::placeholders::error));
         }
         else
         {
@@ -163,7 +162,170 @@ namespace drachtio {
         }
     }
 
-    void RequestHandler::Client::handle_write_request(const boost::system::error_code& err) {
+    template <>
+    void RequestHandler::Client< boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >::handle_resolve(const boost::system::error_code& err, tcp::resolver::iterator endpoint_iterator) {
+        if (!(err_ = err)) {
+            socket_.set_verify_mode(boost::asio::ssl::verify_peer);
+
+            if( !m_verifyPeer ) {
+                // just log
+                socket_.set_verify_callback(
+                    boost::bind(&Client::verify_certificate, this, _1, _2));
+            }
+
+            boost::asio::async_connect(socket_.lowest_layer(), endpoint_iterator,
+                boost::bind(&Client::handle_connect, this, boost::asio::placeholders::error));
+        }
+        else
+        {
+          DR_LOG(log_error) << "RequestHandler::Client::handle_resolve: Error: " << err.message() ;
+          wrapUp() ;
+        }
+    }
+
+
+    template <>
+    RequestHandler::Client< boost::asio::ssl::stream<boost::asio::ip::tcp::socket>  >::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
+        const std::string& server, const std::string& path, const std::string& service, const string& httpMethod, 
+        boost::asio::ssl::context_base::method m, bool verifyPeer) : 
+            pRequestHandler_(pRequestHandler),
+            m_ctx(m),
+            resolver_(pRequestHandler->getIOService()), 
+            socket_(pRequestHandler->getIOService(), m_ctx),
+            status_code_(0), transactionId_(transactionId), serverName_(server),
+            m_verifyPeer(verifyPeer) {
+
+            SSL_set_tlsext_host_name(socket_.native_handle(), server.c_str());
+            socket_.set_verify_mode(boost::asio::ssl::verify_peer);
+
+            if( verifyPeer ) {
+                socket_.set_verify_callback(boost::asio::ssl::rfc2818_verification(server.c_str()));
+                m_ctx.set_default_verify_paths();
+            }
+
+            DR_LOG(log_debug) << "RequestHandler::Client::Client: Host (https): " << server << " GET " << path ;
+
+            // Form the request. We specify the "Connection: close" header so that the
+            // server will close the socket after transmitting the response. This will
+            // allow us to treat all data up until the EOF as the content.
+            std::ostream request_stream(&request_);
+            request_stream << "GET " << path << " HTTP/1.1\r\n";
+            request_stream << "Host: " << server << "\r\n";
+            request_stream << "Accept: application/json\r\n";
+            request_stream << "Connection: close\r\n\r\n";
+
+            // Start an asynchronous resolve to translate the server and service names
+            // into a list of endpoints.
+            tcp::resolver::query query(server, service);
+            resolver_.async_resolve(query,
+                boost::bind(&Client::handle_resolve, this,
+                    boost::asio::placeholders::error,
+                    boost::asio::placeholders::iterator));
+    }
+
+    template <class T>
+    void RequestHandler::Client<T>::handle_resolve(const boost::system::error_code& err, tcp::resolver::iterator endpoint_iterator) {
+        if (!(err_ = err)) {
+            boost::asio::async_connect(socket_, endpoint_iterator, 
+                boost::bind(&Client::handle_connect, this, boost::asio::placeholders::error));                
+        }
+        else
+        {
+          DR_LOG(log_error) << "RequestHandler::Client::handle_resolve: Error: " << err.message() ;
+          wrapUp() ;
+        }
+    }
+
+    template <class T>
+    bool RequestHandler::Client<T>::verify_certificate(bool preverified, boost::asio::ssl::verify_context& ctx) {
+        // The verify callback can be used to check whether the certificate that is
+        // being presented is valid for the peer. For example, RFC 2818 describes
+        // the steps involved in doing this for HTTPS. Consult the OpenSSL
+        // documentation for more details. Note that the callback is called once
+        // for each certificate in the certificate chain, starting from the root
+        // certificate authority.
+
+        // In this example we will simply print the certificate's subject name.
+        
+        char subject_name[256];
+        X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
+        X509_NAME_oneline(X509_get_subject_name(cert), subject_name, 256);
+        DR_LOG(log_debug) << "RequestHandler::Client::verify_certificate - Verifying " << subject_name ;
+
+        //return preverified;   
+        return true;     
+/*
+        int8_t subject_name[256];
+        X509_STORE_CTX *cts = ctx.native_handle();
+        int32_t length = 0;
+        X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
+        DR_LOG(log_debug) << "CTX ERROR : " << cts->error;
+
+        int32_t depth = X509_STORE_CTX_get_error_depth(cts);
+        DR_LOG(log_debug) << "CTX DEPTH : " << depth ;
+
+        switch (cts->error)
+        {
+        case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
+            DR_LOG(log_debug) <<  "X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT";
+            break;
+        case X509_V_ERR_CERT_NOT_YET_VALID:
+        case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD:
+            DR_LOG(log_debug) <<  "Certificate not yet valid!!";
+            break;
+        case X509_V_ERR_CERT_HAS_EXPIRED:
+        case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
+            DR_LOG(log_debug) <<  "Certificate expired..";
+            break;
+        case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
+            DR_LOG(log_debug) <<  "Self signed certificate in chain!!!";
+            preverified = true;
+            break;
+        default:
+            break;
+        }
+        const int32_t name_length = 256;
+        X509_NAME_oneline(X509_get_subject_name(cert), reinterpret_cast<char*>(subject_name), name_length);
+        DR_LOG(log_debug) <<  "Verifying " << subject_name;
+        DR_LOG(log_debug) <<  "Verification status " << preverified;
+        return preverified ;       
+*/
+    }
+
+    template <class T>
+    void RequestHandler::Client<T>::handle_connect(const boost::system::error_code& err) {
+        if (!(err_ = err)) {
+            // The connection was successful. Send the request.
+            boost::asio::async_write(socket_, request_,
+                boost::bind(&Client::handle_write_request, this, boost::asio::placeholders::error));
+        }
+        else
+        {
+          DR_LOG(log_error) << "RequestHandler::Client::handle_connect: (" << (void*) this << ") Error: " << err.message() ;
+          wrapUp() ;
+        }
+    }
+
+    template <class T>
+    void RequestHandler::Client<T>::handle_handshake(const boost::system::error_code& error)
+    {
+        if (!error)
+        {
+            DR_LOG(log_debug) << "RequestHandler::Client::handle_handshake - Handshake OK ";
+
+            // The handshake was successful. Send the request.
+            boost::asio::async_write(socket_, request_,
+                boost::bind(&Client::handle_write_request, this, boost::asio::placeholders::error));
+        }
+        else
+        {
+            DR_LOG(log_error) << "RequestHandler::Client::handle_handshake - Handshake failed to server " << serverName_ << ": " << error.message() ;
+            wrapUp() ;
+        }
+    }
+
+    template <class T>
+    void RequestHandler::Client<T>::handle_write_request(const boost::system::error_code& err) {
         if (!(err_ = err)) {
           // Read the response status line. The response_ streambuf will
           // automatically grow to accommodate the entire line. The growth may be
@@ -179,7 +341,8 @@ namespace drachtio {
         }
     }
 
-    void RequestHandler::Client::handle_read_status_line(const boost::system::error_code& err) {
+    template <class T>
+    void RequestHandler::Client<T>::handle_read_status_line(const boost::system::error_code& err) {
         if (!(err_ = err)) {
             // Check that response is OK.
             std::istream response_stream(&response_);
@@ -199,6 +362,8 @@ namespace drachtio {
                 return;
             }
 
+            DR_LOG(log_debug) << "RequestHandler::Client::handle_read_status_line: returned status code " << std::dec << status_code_;
+
             // Read the response headers, which are terminated by a blank line.
             boost::asio::async_read_until(socket_, response_, "\r\n\r\n",
               boost::bind(&Client::handle_read_headers, this,
@@ -210,7 +375,8 @@ namespace drachtio {
         }
     }
 
-    void RequestHandler::Client::handle_read_headers(const boost::system::error_code& err) {
+    template <class T>
+    void RequestHandler::Client<T>::handle_read_headers(const boost::system::error_code& err) {
         if (!(err_ = err)) {
             // Process the response headers.
             std::istream response_stream(&response_);
@@ -218,11 +384,11 @@ namespace drachtio {
             while (std::getline(response_stream, header) && header != "\r") {
                 DR_LOG(log_debug) << header ;
             }
-            DR_LOG(log_debug) << "";
 
             // Write whatever content we already have to output.
             if (response_.size() > 0) {
-                DR_LOG(log_debug) << &response_;
+                body_ << &response_ ;
+                //DR_LOG(log_debug) << "initial body: " << body_.str() ;
             }
 
             // Start reading remaining data until EOF.
@@ -237,11 +403,13 @@ namespace drachtio {
         }
     }
 
-    void RequestHandler::Client::handle_read_content(const boost::system::error_code& err) {
+    template <class T>
+    void RequestHandler::Client<T>::handle_read_content(const boost::system::error_code& err) {
         if (!(err_ = err)) {
           // Write all of the data that has been read so far.
+          //DR_LOG(log_debug) << "RequestHandler::Client::handle_read_content - read some content "  ;
+
           body_ << &response_ ;
-          DR_LOG(log_debug) << &response_;
 
           // Continue reading remaining data until EOF.
           boost::asio::async_read(socket_, response_,
@@ -249,16 +417,19 @@ namespace drachtio {
               boost::bind(&Client::handle_read_content, this,
                 boost::asio::placeholders::error));
         }
-        else if (err != boost::asio::error::eof) {
-          DR_LOG(log_error) << "RequestHandler::Client::handle_read_content Error: " << err.message() ;
+        else if (err != boost::asio::error::eof && !is_ssl_short_read_error(err) ) {
+            
+            DR_LOG(log_error) << "RequestHandler::Client::handle_read_content Error: " << err.message() ;
+            wrapUp() ;
         }
         else {
             wrapUp() ;
         }
     }
 
-    void RequestHandler::Client::wrapUp() {
-        pRequestHandler_->requestCompleted( shared_from_this(), err_, status_code_, body_.str()) ;
+    template <class T>
+    void RequestHandler::Client<T>::wrapUp() {
+        pRequestHandler_->requestCompleted( this->shared_from_this(), err_, status_code_, body_.str()) ;
     }
 
     // RequestHandler
@@ -292,7 +463,7 @@ namespace drachtio {
     }
 
     void RequestHandler::processRequest(const string& transactionId, const string& httpMethod, const string& httpUrl, 
-        const string& encodedMessage, vector< pair<string, string> >& vecParams) {
+        const string& encodedMessage, vector< pair<string, string> >& vecParams, bool verifyPeer) {
 
         url_t url ;
         char szUrl[URL_MAXLEN] ;
@@ -310,7 +481,9 @@ namespace drachtio {
             service.assign(url.url_port);
         }
 
-        path = "/?" ;
+        path.assign("/");
+        path.append( NULL != url.url_path ? url.url_path : "");
+        path.append("?") ;
         bool hasParams = false ;
         if( url.url_headers ) {
             path.append(url.url_headers) ;
@@ -329,45 +502,197 @@ namespace drachtio {
             path.append(p.second);
         }
 
-        boost::shared_ptr<Client> pClient = boost::make_shared<Client>( shared_from_this(), transactionId, server, path, service, httpMethod ) ;
+        
+        if( 0 == strcmp("https", url.url_scheme) ) {
+            boost::asio::ssl::context ctx(boost::asio::ssl::context::sslv23);
 
-        m_setClients.insert( pClient ) ;
+            boost::shared_ptr< Client<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> > > pClient = 
+                boost::make_shared< Client<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> > >(shared_from_this(), 
+                    transactionId, 
+                    server, 
+                    path, 
+                    service, 
+                    httpMethod,
+                    boost::asio::ssl::context::sslv23, 
+                    verifyPeer) ;            
+            m_setSslClients.insert( pClient ) ;
+        }
+        else {
+            boost::shared_ptr< Client<tcp::socket> > pClient = 
+                boost::make_shared< Client<tcp::socket> >(shared_from_this(), 
+                    transactionId, 
+                    server, 
+                    path, 
+                    service, 
+                    httpMethod) ;            
+            m_setClients.insert( pClient ) ;
+            DR_LOG(log_info) << "RequestHandler::processRequest - started (" << hex << (void*) pClient.get() << ") " << httpMethod << " request to " << url.url_scheme << "://" << server << path 
+                << ", there are now " << m_setClients.size() << " requests in flight" ;
+        }
 
-        DR_LOG(log_info) << "RequestHandler::processRequest - started (" << hex << (void*) pClient.get() << ") " << httpMethod << " request to " << url.url_scheme << "://" << server << path 
-            << ", there are now " << m_setClients.size() << " requests in flight" ;
     }
 
-    void RequestHandler::requestCompleted(boost::shared_ptr<Client> pClient, const boost::system::error_code& err, unsigned int status_code, const string& body) {
+    void RequestHandler::requestCompleted( boost::shared_ptr< Client< boost::asio::ssl::stream< boost::asio::ip::tcp::socket> > > pClient, 
+        const boost::system::error_code& err, unsigned int status_code, const string& body) {
+        string transactionId = pClient->getTransactionId() ;
+
+        m_setSslClients.erase( pClient ) ;
+
+        finishRequest(transactionId, err, status_code, body);
+
+    }
+
+    void RequestHandler::requestCompleted(boost::shared_ptr< Client<tcp::socket> > pClient, const boost::system::error_code& err, unsigned int status_code, const string& body) {
         string transactionId = pClient->getTransactionId() ;
 
         m_setClients.erase( pClient ) ;
 
-        if( 200 == status_code && (!err || err == boost::asio::error::eof)) {
-            // normal case
-            DR_LOG(log_info) << "RequestHandler::requestCompleted - successfully completed request (" << hex << (void*) pClient.get() << 
-                "), there are now " << dec << m_setClients.size() << " requests in flight"  ;
+        finishRequest(transactionId, err, status_code, body);
+    }
+    void RequestHandler::finishRequest(const string& transactionId, const boost::system::error_code& err, 
+        unsigned int status_code, const string& body) {
 
+        if( 200 == status_code && !body.empty() ) {
+            DR_LOG(log_debug) << "RequestHandler::finishRequest received instructions: " << body ;
             processRoutingInstructions(transactionId, body) ;
         }
         else if( 200 != status_code && 0 != status_code ) {
-            DR_LOG(log_error) << "RequestHandler::requestCompleted - error completing request (" << hex << (void*) pClient.get() << 
-                ") with status code " << dec << status_code << ", there are now " << m_setClients.size() << " requests in flight"  ;
+            DR_LOG(log_debug) << "RequestHandler::finishRequest returne non-success status: " << status_code ;
             processRejectInstruction(transactionId, status_code) ;
-
         }
         else {
-            DR_LOG(log_error) << "RequestHandler::requestCompleted - error completing request (" << hex << (void*) pClient.get() << 
-                ") with err " << err.message() << ", there are now " << dec << m_setClients.size() << " requests in flight"  ;
             processRejectInstruction(transactionId, 503) ;
         }
-
-        // already removed in reject and proxy scenarios, but be sure
-
     }
 
     void RequestHandler::processRoutingInstructions(const string& transactionId, const string& body) {
         DR_LOG(log_debug) << "RequestHandler::processRoutingInstructions: " << body ;
 
+        std::ostringstream msg ;
+        json_t *root;
+        json_error_t error;
+        root = json_loads(body.c_str(), 0, &error);
+
+        try {
+            if( !root ) {
+                msg << "error parsing body as JSON on line " << error.line  << ": " << error.text ;
+                return throw std::runtime_error(msg.str()) ;  
+            }
+
+            if(!json_is_object(root)) {
+                throw std::runtime_error("expected JSON object but got something else") ;  
+            }
+
+            json_t* action = json_object_get( root, "action") ;
+            json_t* data = json_object_get(root, "data") ;
+            if( !json_is_string(action) ) {
+                throw std::runtime_error("missing or invalid 'action' attribute") ;  
+            }
+            if( !json_is_object(data) ) {
+                throw std::runtime_error("missing 'data' object") ;  
+            }
+            const char* actionText = json_string_value(action) ;
+            if( 0 == strcmp("reject", actionText)) {
+                json_t* status = json_object_get(data, "status") ;
+                json_t* reason = json_object_get(data, "reason") ;
+
+                if( !status || !json_is_number(status) ) {
+                    throw std::runtime_error("'status' is missing or is not a number") ;  
+                }
+                processRejectInstruction(transactionId, json_integer_value(status), json_string_value(reason));
+            }
+            else if( 0 == strcmp("proxy", actionText)) {
+                bool recordRoute = false ;
+                bool followRedirects = true ;
+                bool simultaneous = false ;
+                string provisionalTimeout = "5s";
+                string finalTimeout = "60s";
+                vector<string> vecDestination ;
+
+                json_t* rr = json_object_get(data, "recordRoute") ;
+                if( rr && json_is_boolean(rr) ) {
+                    recordRoute = json_boolean_value(rr) ;
+                }
+
+                json_t* follow = json_object_get(data, "followRedirects") ;
+                if( follow && json_is_boolean(follow) ) {
+                    followRedirects = json_boolean_value(follow) ;
+                }
+
+                json_t* sim = json_object_get(data, "simultaneous") ;
+                if( sim && json_is_boolean(sim) ) {
+                    simultaneous = json_boolean_value(sim) ;
+                }
+
+                json_t* pTimeout = json_object_get(data, "provisionalTimeout") ;
+                if( pTimeout && json_is_string(pTimeout) ) {
+                    provisionalTimeout = json_string_value(pTimeout) ;
+                }
+
+                json_t* fTimeout = json_object_get(data, "finalTimeout") ;
+                if( fTimeout && json_is_string(fTimeout) ) {
+                    finalTimeout = json_string_value(fTimeout) ;
+                }
+
+                json_t* destination = json_object_get(data, "destination") ;
+                if( json_is_string(destination) ) {
+                    vecDestination.push_back( json_string_value(destination) ) ;
+                }
+                else if( json_is_array(destination) ) {
+                    size_t size = json_array_size(destination);
+                    for( unsigned int i = 0; i < size; i++ ) {
+                        json_t* aDest = json_array_get(destination, i);
+                        if( !json_is_string(aDest) ) {
+                            throw std::runtime_error("RequestHandler::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
+                        }
+                        vecDestination.push_back( json_string_value(aDest) );
+                    }
+                }
+
+                processProxyInstruction(transactionId, recordRoute, followRedirects, 
+                    simultaneous, provisionalTimeout, finalTimeout, vecDestination) ;
+            }
+            else if( 0 == strcmp("redirect", actionText)) {
+                json_t* contact = json_object_get(data, "contact") ;
+                vector<string> vecContact ;
+
+                if( json_is_string(contact) ) {
+                    vecContact.push_back( json_string_value(contact) ) ;
+                }
+                else if( json_is_array(contact) ) {
+                    size_t size = json_array_size(contact);
+                    for( unsigned int i = 0; i < size; i++ ) {
+                        json_t* aContact = json_array_get(contact, i);
+                        if( !json_is_string(aContact) ) {
+                            throw std::runtime_error("RequestHandler::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
+                        }
+                        vecContact.push_back( json_string_value(aContact) );
+                    }
+                }
+                else {
+                    throw std::runtime_error("RequestHandler::processRoutingInstructions - invalid 'contact' attribute in redirect action: must be string or array") ;  
+                }
+                processRedirectInstruction(transactionId, vecContact);
+
+            }
+            else if( 0 == strcmp("route", actionText)) {
+
+            }
+            else {
+                msg << "RequestHandler::processRoutingInstructions - invalid 'action' attribute value '" << actionText << 
+                    "': valid values are 'reject', 'proxy', 'redirect', and 'route'" ;
+                return throw std::runtime_error(msg.str()) ;  
+            }
+
+            json_decref(root) ; 
+        } catch( std::runtime_error& err ) {
+            DR_LOG(log_error) << "RequestHandler::processRoutingInstructions " << err.what();
+            DR_LOG(log_error) << body ;
+            processRejectInstruction(transactionId, 500) ;
+            if( root ) { 
+                json_decref(root) ; 
+            }
+        }
 
         // clean up needed?  not in reject scenarios, nor redirect nor route (proxy?)
         //m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
@@ -393,7 +718,33 @@ namespace drachtio {
             DR_LOG(log_error) << "RequestHandler::processRejectInstruction - error sending rejection with status " << status ;
         }
     }
-    
+    void RequestHandler::processRedirectInstruction(const string& transactionId, vector<string>& vecContact) {
+        string headers;
+        string body ;
+
+        int i = 0 ;
+        BOOST_FOREACH(string& c, vecContact) {
+            if( i++ > 0 ) {
+                headers.append("\n");
+            }
+            headers.append("Contact: ") ;
+            headers.append(c) ;
+        }
+
+        if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 302 Moved", headers, body) )) {
+            DR_LOG(log_error) << "RequestHandler::processRedirectInstruction - error sending redirect" ;
+        }
+    }
+
+    void RequestHandler::processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
+        bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) {
+        string headers;
+        string body ;
+
+        m_pController->getProxyController()->proxyRequest( "", transactionId, recordRoute, false, 
+            followRedirects, 
+            simultaneous, provisionalTimeout, finalTimeout, vecDestination, headers ) ;
+    }
 
     void RequestHandler::stop() {
         m_ioservice.stop() ;

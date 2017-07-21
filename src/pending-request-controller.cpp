@@ -71,8 +71,9 @@ namespace drachtio {
     client_ptr client ;
     RequestRouter& router = m_pController->getRequestRouter() ;
     string httpMethod, httpUrl ;
+    bool verifyPeer ;
 
-    if( !router.getRoute( sip->sip_request->rq_method_name, httpMethod, httpUrl ) ) {
+    if( !router.getRoute( sip->sip_request->rq_method_name, httpMethod, httpUrl, verifyPeer ) ) {
 
       //using inbound connections for this call
       client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
@@ -103,7 +104,7 @@ namespace drachtio {
       v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user )) ;
       v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user )) ;
 
-      m_pController->getRequestHandler()->processRequest(transactionId, httpMethod, httpUrl, encodedMessage, v ) ;
+      m_pController->getRequestHandler()->processRequest(transactionId, httpMethod, httpUrl, encodedMessage, v, verifyPeer ) ;
     }
     else {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;

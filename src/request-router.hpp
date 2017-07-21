@@ -34,17 +34,18 @@ namespace drachtio {
     public:
 
         struct Route_t {
-            Route_t(const string& httpMethod, const string& url) : httpMethod(httpMethod), url(url) {}
+            Route_t(const string& httpMethod, const string& url, bool verifyPeer) : httpMethod(httpMethod), url(url), verifyPeer(verifyPeer) {}
 
             string  httpMethod;
             string  url ;
+            bool    verifyPeer ;
         } ;
 
         RequestRouter() {}
         ~RequestRouter() {}
         
-        void addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl);
-        bool getRoute(const char* szMethod, string& httpMethod, string& httpUrl) ;
+        void addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl, bool verifyPeer = false);
+        bool getRoute(const char* szMethod, string& httpMethod, string& httpUrl, bool& verifyPeer) ;
         int getAllRoutes( vector< string >& vecRoutes ) ;
 
     private:
