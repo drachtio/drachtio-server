@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include <boost/foreach.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/algorithm/string.hpp>    
 
 #include "drachtio-config.hpp"
 
@@ -106,10 +107,19 @@ namespace drachtio {
                 try {
                      BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.request-handlers")) {
                         if( 0 == v.first.compare("request-handler") ) {
-                            string sipMethod = v.second.get<string>("<xmlattr>.sip-method","*") ;            
+                            string sipMethod = v.second.get<string>("<xmlattr>.sip-method","*") ;    
+                            boost::algorithm::to_upper(sipMethod);
+
                             string httpMethod = v.second.get<string>("<xmlattr>.http-method","GET") ;  
+                            string verifyPeer = v.second.get<string>("<xmlattr>.verify-peer","false") ;  
                             string httpUrl = v.second.data() ;
-                            m_router.addRoute(sipMethod, httpMethod, httpUrl) ;          
+
+                            bool wantsVerifyPeer = (
+                                0 == verifyPeer.compare("true") || 
+                                0 == verifyPeer.compare("1") || 
+                                0 == verifyPeer.compare("yes") ) ;
+
+                            m_router.addRoute(sipMethod, httpMethod, httpUrl, wantsVerifyPeer) ;          
                         }
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
