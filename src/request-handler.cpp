@@ -118,8 +118,8 @@ namespace drachtio {
 
 
     // RequestHandler::Client
-    template <>
-    RequestHandler::Client<tcp::socket>::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
+    template <class T>
+    RequestHandler::Client<T>::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
         const std::string& server, const std::string& path, const std::string& service, const string& httpMethod) : 
             pRequestHandler_(pRequestHandler),
             m_ctx(boost::asio::ssl::context::sslv23),
@@ -184,8 +184,8 @@ namespace drachtio {
     }
 
 
-    template <>
-    RequestHandler::Client< boost::asio::ssl::stream<boost::asio::ip::tcp::socket>  >::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
+    template <class T>
+    RequestHandler::Client<T>::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
         const std::string& server, const std::string& path, const std::string& service, const string& httpMethod, 
         boost::asio::ssl::context_base::method m, bool verifyPeer) : 
             pRequestHandler_(pRequestHandler),
