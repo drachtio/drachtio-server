@@ -33,7 +33,7 @@ if LINUX
 drachtio_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
 timer_LDADD += -lrt
 parser_LDADD += -lrt
-test_https_LDADD += -lrt ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
+test_https_LDADD += -lrt ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
 endif
 if OSX
 drachtio_LDADD += -lboost_thread -lboost_filesystem -lboost_system -lboost_regex -lboost_log
