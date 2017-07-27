@@ -527,6 +527,7 @@ namespace drachtio {
 
         //only replace request uri if it is a local address
         if( isLocalSipUri( m_target ) ) {
+            DR_LOG(log_info) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << m_target ;
             sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }

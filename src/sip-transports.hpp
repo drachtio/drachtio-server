@@ -73,6 +73,7 @@ namespace drachtio {
     static boost::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp") ;
     static void logTransports() ;
     static void getAllHostports( vector<string>& vec ) ;
+    static void getAllExternalIps( vector<string>& vec ) ;
     
   protected:
     void init() ;

@@ -442,6 +442,13 @@ namespace drachtio {
                     setLocalUris.insert( localUri ) ;
                 }
             }
+
+            // add public ip addresses
+            vector<string> vecIps ;
+            SipTransport::getAllExternalIps(vecIps) ;
+            for(vector<string>::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
+                setLocalUris.insert(*it);
+            }
        }
 
         su_home_t* home = theOneAndOnlyController->getHome() ;
