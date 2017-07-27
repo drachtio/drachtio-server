@@ -30,8 +30,6 @@ THE SOFTWARE.
 #include <boost/property_tree/ptree.hpp>
 #include <boost/foreach.hpp>
 
-//#include <boost/log/filters.hpp>
-
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 
@@ -44,6 +42,7 @@ THE SOFTWARE.
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/attributes/scoped_attribute.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/core/null_deleter.hpp>
 
 #include <boost/lambda/lambda.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -55,6 +54,7 @@ THE SOFTWARE.
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/regex.hpp>
 
 #include <sofia-sip/msg_addr.h>
 #include <sofia-sip/sip_util.h>
@@ -175,7 +175,7 @@ namespace drachtio {
             m_os.flush() ;
             m_sipMessage = m_os.str() ;
             m_sipMessage.resize( m_sipMessage.length() - 1) ;
-            boost::replace_all(m_sipMessage, "\n", CRLF);
+            boost::replace_all(m_sipMessage, "\n", DR_CRLF);
         }
         else if( 0 == strcmp(szLine, "\n") ) {
             m_os << endl ;
@@ -188,7 +188,7 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -226,6 +226,12 @@ namespace drachtio {
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
     }
 
+    void DrachtioController::handleSigTerm( int signal ) {
+        DR_LOG(log_notice) << "Received SIGTERM; exiting.."  ;
+        nta_agent_destroy(m_nta);
+        exit(0);
+    }
+
     void DrachtioController::handleSigHup( int signal ) {
         
         if( !m_ConfigNew ) {
@@ -252,6 +258,7 @@ namespace drachtio {
             {
                 /* These options set a flag. */
                 {"daemon", no_argument,       &m_bDaemonize, true},
+                {"noconfig", no_argument,       &m_bNoConfig, true},
                 
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
@@ -325,7 +332,7 @@ namespace drachtio {
     }
 
     void DrachtioController::usage() {
-        cout << "drachtio -f <filename> --daemon"  ;
+        cout << "drachtio -f <path-to-config-file> --user <user-to-run-as> --port <tcp port for admin connections> --daemon --noconfig --version"  ;
     }
 
     void DrachtioController::daemonize() {
@@ -389,81 +396,108 @@ namespace drachtio {
            logging::core::get()->remove_sink( m_sinkTextFile ) ;
             m_sinkTextFile.reset() ;            
         }
+        if( m_sinkConsole ) {
+           logging::core::get()->remove_sink( m_sinkConsole ) ;
+            m_sinkConsole.reset() ;            
+        }
     }
     void DrachtioController::initializeLogging() {
         try {
-            // Create a syslog sink
-            sinks::syslog::facility facility  ;
-            string syslogAddress ;
-            unsigned int syslogPort;
-            
-            // initalize syslog sink, if configuredd
-            if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
-                m_Config->getSyslogFacility( facility ) ;
 
-                m_sinkSysLog.reset(
-                    new sinks::synchronous_sink< sinks::syslog_backend >(
-                         keywords::use_impl = sinks::syslog::udp_socket_based
-                        , keywords::facility = facility
-                    )
-                );
-
-                // We'll have to map our custom levels to the syslog levels
-                sinks::syslog::custom_severity_mapping< severity_levels > mapping("Severity");
-                mapping[log_debug] = sinks::syslog::debug;
-                mapping[log_notice] = sinks::syslog::notice;
-                mapping[log_info] = sinks::syslog::info;
-                mapping[log_warning] = sinks::syslog::warning;
-                mapping[log_error] = sinks::syslog::critical;
-
-                m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
-
-                // Set the remote address to sent syslog messages to
-                m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
-
-                logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
-
-                // Add the sink to the core
-                logging::core::get()->add_sink(m_sinkSysLog);
-
-            }
-
-            //initialize text file sink, of configured
-            string name, archiveDirectory ;
-            unsigned int rotationSize, maxSize, minSize ;
-            bool autoFlush ;
-            if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ) {
-
-                m_sinkTextFile.reset(
-                    new sinks::synchronous_sink< sinks::text_file_backend >(
-                        keywords::file_name = name,                                          
-                        keywords::rotation_size = rotationSize * 1024 * 1024,
-                        keywords::auto_flush = autoFlush,
-                        keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
-                        keywords::format = 
-                        (
-                            expr::stream
-                                << expr::attr< unsigned int >("RecordID")
-                                << ": "
-                                << expr::attr< boost::posix_time::ptime >("TimeStamp")
-                                << "> " << expr::smessage
-                        )
-                    )
+            if( m_bNoConfig || m_Config->getConsoleLogTarget() ) {
+                cout << "adding console logger now" << endl;
+                m_sinkConsole.reset(
+                    new sinks::synchronous_sink< sinks::text_ostream_backend >()
                 );        
+                m_sinkConsole->locked_backend()->add_stream( boost::shared_ptr<std::ostream>(&std::clog, boost::null_deleter()));
 
-                m_sinkTextFile->set_formatter( &my_formatter ) ;
+                // flush
+                m_sinkConsole->locked_backend()->auto_flush(true);
 
-                m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
-                    keywords::target = archiveDirectory,                      
-                    keywords::max_size = maxSize * 1024 * 1024,          
-                    keywords::min_free_space = minSize * 1024 * 1024   
-                ));
-                           
-                logging::core::get()->add_sink(m_sinkTextFile);
+                m_sinkConsole->set_formatter( &my_formatter ) ;
+                          
+                logging::core::get()->add_sink(m_sinkConsole);
+
+                 logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
+                ) ;
             }
-            logging::core::get()->set_filter(
-               expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
-            ) ;
+            if( !m_bNoConfig ) {
+
+
+                // Create a syslog sink
+                sinks::syslog::facility facility  ;
+                string syslogAddress ;
+                unsigned int syslogPort;
+                
+                // initalize syslog sink, if configuredd
+                if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
+                    m_Config->getSyslogFacility( facility ) ;
+
+                    m_sinkSysLog.reset(
+                        new sinks::synchronous_sink< sinks::syslog_backend >(
+                             keywords::use_impl = sinks::syslog::udp_socket_based
+                            , keywords::facility = facility
+                        )
+                    );
+
+                    // We'll have to map our custom levels to the syslog levels
+                    sinks::syslog::custom_severity_mapping< severity_levels > mapping("Severity");
+                    mapping[log_debug] = sinks::syslog::debug;
+                    mapping[log_notice] = sinks::syslog::notice;
+                    mapping[log_info] = sinks::syslog::info;
+                    mapping[log_warning] = sinks::syslog::warning;
+                    mapping[log_error] = sinks::syslog::critical;
+
+                    m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
+
+                    // Set the remote address to sent syslog messages to
+                    m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
+
+                    logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
+
+                    // Add the sink to the core
+                    logging::core::get()->add_sink(m_sinkSysLog);
+
+                }
+
+                //initialize text file sink, of configured
+                string name, archiveDirectory ;
+                unsigned int rotationSize, maxSize, minSize ;
+                bool autoFlush ;
+                if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ) {
+
+                    m_sinkTextFile.reset(
+                        new sinks::synchronous_sink< sinks::text_file_backend >(
+                            keywords::file_name = name,                                          
+                            keywords::rotation_size = rotationSize * 1024 * 1024,
+                            keywords::auto_flush = autoFlush,
+                            keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
+                            keywords::format = 
+                            (
+                                expr::stream
+                                    << expr::attr< unsigned int >("RecordID")
+                                    << ": "
+                                    << expr::attr< boost::posix_time::ptime >("TimeStamp")
+                                    << "> " << expr::smessage
+                            )
+                        )
+                    );        
+
+                    m_sinkTextFile->set_formatter( &my_formatter ) ;
+
+                    m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
+                        keywords::target = archiveDirectory,                      
+                        keywords::max_size = maxSize * 1024 * 1024,          
+                        keywords::min_free_space = minSize * 1024 * 1024   
+                    ));
+                               
+                    logging::core::get()->add_sink(m_sinkTextFile);
+                }
+                logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
+                ) ;
+            }
             
             m_bLoggingInitialized = true ;
 
@@ -486,7 +520,7 @@ namespace drachtio {
 
         DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
 
-       /* open stats connection */
+       /* open admin connection */
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
         if( 0 != m_adminPort ) adminPort = m_adminPort ;
@@ -496,13 +530,23 @@ namespace drachtio {
         }
 
         string url = m_sipContact ;
-        if( 0 == url.length() ) m_Config->getSipUrl( url ) ;
-        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << url ;
+        vector<string> urls ;
+        if( 0 == m_sipContact.length() ) {
+            m_Config->getSipUrls( urls ) ;
+        }
+        else {
+            urls.push_back( m_sipContact ) ;
+        }
+
+        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << urls[0] ;
 
         string outboundProxy ;
         if( m_Config->getSipOutboundProxy(outboundProxy) ) {
             DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
         }
+
+        string tlsKeyFile, tlsCertFile, tlsChainFile ;
+        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
         
         int rv = su_init() ;
         if( rv < 0 ) {
@@ -539,14 +583,18 @@ namespace drachtio {
         }
          
          /* create our agent */
-        char str[URL_MAXLEN] ;
-        memset(str, 0, URL_MAXLEN) ;
-        strncpy( str, url.c_str(), url.length() ) ;
-        
+        bool tlsTransport = string::npos != urls[0].find("sips") || string::npos != urls[0].find("tls") ;
 		m_nta = nta_agent_create( m_root,
-                                 URL_STRING_MAKE(str),               /* our contact address */
+                                 URL_STRING_MAKE(urls[0].c_str()),               /* our contact address */
                                  stateless_callback,         /* no callback function */
                                  this,                  /* therefore no context */
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                                 TAG_IF( tlsTransport &&hasTlsFiles, 
+                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                                 NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
+                                 NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
                                  TAG_NULL(),
                                  TAG_END() ) ;
         
@@ -554,41 +602,41 @@ namespace drachtio {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
+        m_my_contact = nta_agent_contact( m_nta ) ;
 
-        /* get tports for various protocols */
-        const char* proto[] = {"udp","tcp","tls","ws","wss", NULL} ;
-        for( int i = 0; proto[i] != NULL; i++ ) {
-            tport_t* tp =  tport_by_protocol(nta_agent_tports(m_nta), proto[i]);
-            if( tp ) {
-                DR_LOG(log_info) << "Added transport: " << proto[i] ;
-                m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(proto[i], tp) ) ;
+        for( vector<string>::iterator it = urls.begin() + 1; it != urls.end(); it++ ) {
+            string url = *it ;
+            tlsTransport = string::npos != url.find("sips") || string::npos != url.find("tls") ;
+
+            DR_LOG(log_info) << "DrachtioController::run: adding additional contact " << url  ;
+
+            rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(url.c_str()),
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                                 TAG_IF( tlsTransport &&hasTlsFiles, 
+                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                                 TAG_NULL(),
+                                 TAG_END() ) ;
+
+            if( rv < 0 ) {
+                DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
+                return ;            
             }
         }
 
-        
-        /* save my contact url, via, etc */
-        m_my_contact = nta_agent_contact( m_nta ) ;
-        ostringstream s ;
-        s << "SIP/2.0/UDP " <<  m_my_contact->m_url[0].url_host ;
-        if( m_my_contact->m_url[0].url_port ) s << ":" <<  m_my_contact->m_url[0].url_port  ;
-        m_my_via.assign( s.str().c_str(), s.str().length() ) ;
-        DR_LOG(log_debug) << "My via header: " << m_my_via  ;
-
-        const char* szRR = su_sprintf(m_home, "<" URL_PRINT_FORMAT ";lr>", URL_PRINT_ARGS(m_my_contact->m_url));
-        m_my_record_route = sip_route_make(m_home, szRR);
-
+        tport_t* tp = nta_agent_tports(m_nta);
+        while( NULL != (tp = tport_next(tp) ) ) {
+            const tp_name_t* tpn = tport_name(tp) ;
+            string desc ;
+            m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(tpn->tpn_proto, tp) ) ;
+            getTransportDescription( tp, desc ); 
+            DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
+        }
+       
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
-
-        string redisAddress ;
-        unsigned int redisPort ;
-        if( m_Config->getRedisAddress( redisAddress, redisPort ) ) {
-            m_pRedisService = boost::make_shared<RedisService>( this, redisAddress, redisPort ) ;
-        }
-        else {
-            DR_LOG(log_warning) << "DrachtioController::run: No redis configuration found in configuration file" ;
-        }
 
         // set sip timers
         unsigned int t1, t2, t4, t1x64 ;
@@ -624,87 +672,175 @@ namespace drachtio {
         
     }
     int DrachtioController::processMessageStatelessly( msg_t* msg, sip_t* sip ) {
+        int rc = 0 ;
+
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
             " does not match an existing call leg"  ;
 
         if( sip->sip_request ) {
 
+            // sofia sanity check on message format
             if( sip_sanity_check(sip) < 0 ) {
-                DR_LOG(log_error) << "invalid incoming request message; discarding call-id " << sip->sip_call_id->i_id ;
+                DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: invalid incoming request message; discarding call-id " << sip->sip_call_id->i_id ;
                 nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
                 return -1 ;
             }
-            //check if we are in the first Route header; if so proxy accordingly
-            if( sip->sip_route && 
-                url_has_param(sip->sip_route->r_url, "lr") &&
-                url_cmp(m_my_record_route->r_url, sip->sip_route->r_url) == 0) {
 
-                //request within an established dialog in which we are a stateful proxy
-                if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
-                   nta_msg_discard( m_nta, msg ) ;                
+            tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
+            tport_t* tp = tport_parent( tp_incoming ) ;
+            const tp_name_t* tpn = tport_name( tp );
+
+            // spammer check
+            string action, tcpAction ;
+            DrachtioConfig::mapHeader2Values& mapSpammers =  m_Config->getSpammers( action, tcpAction );
+            if( mapSpammers.size() > 0 ) {
+                if( 0 == strcmp( tpn->tpn_proto, "tcp") || 0 == strcmp( tpn->tpn_proto, "ws") || 0 == strcmp( tpn->tpn_proto, "wss") ) {
+                    if( tcpAction.length() > 0 ) {
+                        action = tcpAction ;
+                    }
                 }
-            }
-            else {
-                //CANCEL or other request within a proxy transaction
-                if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
-                    m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
-                }
-                else {
-                    switch (sip->sip_request->rq_method ) {
-                        case sip_method_invite:
-                        case sip_method_register:
-                        case sip_method_message:
-                        case sip_method_options:
-                        case sip_method_info:
-                        case sip_method_notify:
-                        case sip_method_subscribe:
-                        {
-                            if( m_pPendingRequestController->isRetransmission( sip ) ||
-                                m_pProxyController->isRetransmission( sip ) ) {
-                            
-                                DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
-                                nta_msg_discard(m_nta, msg) ;  
-                                return -1 ;
-                            }
 
-                            if( sip_method_invite == sip->sip_request->rq_method ) {
-                                nta_msg_treply( m_nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
-                            }
+                try {
+                    for( DrachtioConfig::mapHeader2Values::iterator it = mapSpammers.begin(); mapSpammers.end() != it; ++it ) {
+                        string hdrName = it->first ;
+                        vector<string> vecValue = it->second ;
 
-                            string transactionId ;
-                            int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
-
-                            //write attempt record
-                            if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
-
-                                Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
-                            }
-
-                            //reject message if necessary, write stop record
-                            if( status > 0  ) {
-                                msg_t* reply = nta_msg_create(m_nta, 0) ;
-                                msg_ref_create(reply) ;
-                                nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
-
-                                if( sip->sip_request->rq_method == sip_method_invite ) {
-                                    Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                        // currently limited to looking at User-Agent, From, and To
+                        if( 0 == hdrName.compare("user-agent") && sip->sip_user_agent && sip->sip_user_agent->g_string ) {
+                            for( std::vector<string>::iterator it = vecValue.begin(); it != vecValue.end(); ++it ) {
+                                if( NULL != strstr( sip->sip_user_agent->g_string, (*it).c_str() ) ) {
+                                    throw runtime_error(sip->sip_user_agent->g_string) ;
                                 }
-                                msg_destroy(reply) ;
-                                return -1 ;                    
                             }
                         }
-                        break ;
-
-                        case sip_method_prack:
-                            assert(0) ;//should not get here
-                        break ;
-
-                        default:
-                            nta_msg_discard( m_nta, msg ) ;
-                        break ;
-                    }             
-
+                        if( 0 == hdrName.compare("to") && sip->sip_to && sip->sip_to->a_url->url_user ) {
+                            for( std::vector<string>::iterator it = vecValue.begin(); it != vecValue.end(); ++it ) {
+                                if( NULL != strstr( sip->sip_to->a_url->url_user, (*it).c_str() ) ) {
+                                    throw runtime_error(sip->sip_to->a_url->url_user) ;
+                                }
+                            }
+                        }
+                        if( 0 == hdrName.compare("from") && sip->sip_from && sip->sip_from->a_url->url_user ) {
+                            for( std::vector<string>::iterator it = vecValue.begin(); it != vecValue.end(); ++it ) {
+                                if( NULL != strstr( sip->sip_from->a_url->url_user, (*it).c_str() ) ) {
+                                    throw runtime_error(sip->sip_from->a_url->url_user) ;
+                                }
+                            }
+                        }
+                    }
+                } catch( runtime_error& err ) {
+                    DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: detected spammer due to header value: " << err.what()  ;
+                    if( 0 == action.compare("reject") ) {
+                        nta_msg_treply( m_nta, msg, 603, NULL, TAG_END() ) ;
+                    }
+                    //TODO: TARPIT
+                    return -1 ;
                 }
+            }
+
+            if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
+
+                //check if we are in the first Route header; if so proxy accordingly
+
+                bool match = 0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) &&
+                                0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
+
+                tport_unref( tp_incoming ) ;
+
+                if( match ) {
+                    //request within an established dialog in which we are a stateful proxy
+                    if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
+                       nta_msg_discard( m_nta, msg ) ;                
+                    }          
+                    return 0 ;          
+                }
+            }
+
+            if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
+                //CANCEL or other request within a proxy transaction
+                m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
+            }
+            else {
+                switch (sip->sip_request->rq_method ) {
+                    case sip_method_invite:
+                    case sip_method_register:
+                    case sip_method_message:
+                    case sip_method_options:
+                    case sip_method_info:
+                    case sip_method_notify:
+                    case sip_method_subscribe:
+                    {
+                        if( m_pPendingRequestController->isRetransmission( sip ) ||
+                            m_pProxyController->isRetransmission( sip ) ) {
+                        
+                            DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
+                            nta_msg_discard(m_nta, msg) ;  
+                            return -1 ;
+                        }
+
+                        if( sip_method_invite == sip->sip_request->rq_method ) {
+                            nta_msg_treply( m_nta, msg_ref_create( msg ), 100, NULL, TAG_END() ) ;  
+                        }
+
+                        string transactionId ;
+                        int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
+
+                        //write attempt record
+                        if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
+
+                            Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
+                        }
+
+                        //reject message if necessary, write stop record
+                        if( status > 0  ) {
+                            msg_t* reply = nta_msg_create(m_nta, 0) ;
+                            msg_ref_create(reply) ;
+                            nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
+
+                            if( sip->sip_request->rq_method == sip_method_invite ) {
+                                Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                            }
+                            msg_destroy(reply) ;
+                            return -1 ;                    
+                        }
+                    }
+                    break ;
+
+                    case sip_method_prack:
+                        assert(0) ;//should not get here
+                    break ;
+
+                    case sip_method_cancel:
+                    {
+                        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findInviteByCallId( sip->sip_call_id->i_id ) ;
+                        if( p ) {
+                            DR_LOG(log_info) << "received quick cancel for invite that is out to client for disposition: " << sip->sip_call_id->i_id  ;
+
+                            string encodedMessage ;
+                            EncodeStackMessage( sip, encodedMessage ) ;
+                            SipMsgData_t meta( msg ) ;
+
+                            client_ptr client = m_pClientController->findClientForNetTransaction( p->getTransactionId() ); 
+
+                            if( client ) {
+                                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+                                    encodedMessage, meta ) ) ;                                
+                            }
+
+                            nta_msg_treply( m_nta, msg, 200, NULL, TAG_END() ) ;  
+                            p->cancel() ;
+                            nta_msg_treply( m_nta, msg_dup(p->getMsg()), 487, NULL, TAG_END() ) ;
+                        }
+                        else {
+                            nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;                              
+                        }
+                    }
+                    break ;
+
+                    default:
+                        nta_msg_discard( m_nta, msg ) ;
+                    break ;
+                }             
             }
         }
         else {
@@ -719,7 +855,7 @@ namespace drachtio {
                 }
             } 
         }
-        return 0 ;
+        return rc ;
     }
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
@@ -731,7 +867,7 @@ namespace drachtio {
         msg_t* msg = p->getMsg() ;
         tport_t* tp = p->getTport() ;
 
-        if( sip_method_invite == sip->sip_request->rq_method ) {
+        if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ) {
 
             //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating an incoming transaction"  ;
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
@@ -760,7 +896,6 @@ namespace drachtio {
             dlg->setTransactionId( transactionId ) ;
 
             string contactStr ;
-            generateOutgoingContact( sip->sip_contact, contactStr ) ;
             nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
             m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;            
@@ -768,7 +903,7 @@ namespace drachtio {
         else {
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
-                DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
+                DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite or subscribe" ;
                 return false ;
             }
             m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
@@ -788,6 +923,9 @@ namespace drachtio {
             case sip_method_invite:
             {
                 /* TODO:  should support optional config to only allow invites from defined addresses */
+                //bool ipv6 = NULL != strstr( sip->sip_request->)
+                //tport_t* tp = getTportForProtocol( const char* proto, bool ipv6 ) ;
+                //tport_t *nta_incoming_transport(m_nta, irq, msg_t *msg);
 
                 nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
 
@@ -831,8 +969,6 @@ namespace drachtio {
                 boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
                 dlg->setTransactionId( transactionId ) ;
 
-                string contactStr ;
-                generateOutgoingContact( sip->sip_contact, contactStr ) ;
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
                 m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
@@ -895,77 +1031,40 @@ namespace drachtio {
          
         boost::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
+            if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && dlg->getSipStatus() >= 200 ) {
+               DR_LOG(log_info) << "DrachtioController::processRequestInsideDialog - received INVITE out of order (still waiting ACK from prev transaction)" ;
+               return this->processMessageStatelessly( nta_incoming_getrequest( irq ), (sip_t *) sip ) ;
+            }
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
         assert(false) ;
 
         return 0 ;
     }
-    /*
-    int DrachtioController::sendRequestInsideDialog( boost::shared_ptr<JsonMsg> pMsg, const string& rid, const char* dialogId, const char* call_id ) {
-        boost::shared_ptr<SipDialog> dlg ;
-
-        assert( dialogId || call_id ) ;
- 
-        if( dialogId && !m_pDialogController->findDialogById( dialogId, dlg ) ) {
-            return -1;
-        }   
-        else if( call_id && !m_pDialogController->findDialogByCallId( call_id, dlg ) ) {
-            return -1;
-        }     
-        m_pDialogController->sendRequestInsideDialog( pMsg, rid, dlg ) ;
-
-        return 0 ;
-    }
-    */
      sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
         return nta_incoming_received( irq, NULL ) ;
     }
     void DrachtioController::getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) {
-        su_sockaddr_t su[1];
-        socklen_t sulen = sizeof su;
         msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
-        if( 0 != msg_get_address(msg, su, &sulen) ) {
-            throw std::runtime_error("Failed trying to retrieve socket associated with incoming sip message") ;             
-        }
+        tport_t* tp = nta_incoming_transport( m_nta, irq, msg);
         msg_destroy(msg);   //releases reference
-        char h[256], s[256] ;
-        su_getnameinfo(su, sulen, h, 256, s, 256, NI_NUMERICHOST | NI_NUMERICSERV);
+        const tp_name_t* tpn = tport_name( tp );
+        host = tpn->tpn_host ;
+        port = ::atoi( tpn->tpn_port ) ;
 
-        host = h ;
-        port = ::atoi( s ) ;
     }
 
-    void DrachtioController::generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) {
-        ostringstream o ;
-        
-        if( incomingContact->m_display && *incomingContact->m_display ) {
-            o << incomingContact->m_display ;
-        }
-        o << "<sip:" ;
-        
-        if( incomingContact->m_url[0].url_user ) {
-            o << incomingContact->m_url[0].url_user ;
-            o << "@" ;
-        }
-        sip_contact_t* contact = nta_agent_contact( m_nta ) ;
-        o << contact->m_url[0].url_host ;
-        if( contact->m_url[0].url_port && *contact->m_url[0].url_port ) {
-            o << ":" ;
-            o << contact->m_url[0].url_port ;
-        }
-        o << ">" ;
-        
-        DR_LOG(log_debug) << "generated Contact: " << o.str()  ;
-        
-        strContact = o.str() ;
-    }
-
-    tport_t* DrachtioController::getTportForProtocol( const char* proto ) {
+    tport_t* DrachtioController::getTportForProtocol( const char* proto, bool ipv6 ) {
+        DR_LOG(log_debug) << "DrachtioController::getTportForProtocol: " << proto << (ipv6 ? " for ipv6" : "for ipv4")  ;
         tport_t* tp = NULL ;
-        mapProtocol2Tport::iterator it = m_mapProtocol2Tport.find( proto ) ;
-        if( m_mapProtocol2Tport.end() != it ) {
-            tp = it->second ;
+        std::pair< mapProtocol2Tport::iterator, mapProtocol2Tport::iterator > itRange = m_mapProtocol2Tport.equal_range( proto ) ;
+        for( mapProtocol2Tport::iterator it = itRange.first; it != itRange.second; ++it ) {
+            tport_t* tp = it->second ;
+            const tp_name_t* tpn = tport_name(tp) ;
+            if( (ipv6 && NULL != strstr( tpn->tpn_host, "[") && NULL != strstr( tpn->tpn_host, "]") ) ||
+                (!ipv6 && NULL == strstr( tpn->tpn_host, "[") && NULL == strstr( tpn->tpn_host, "]")) ) {
+                return tp ;
+            }
         }
         return tp ;
     }
@@ -989,6 +1088,72 @@ namespace drachtio {
         }
         return 0 ;
     }
+    void DrachtioController::getMyHostports( vector<string>& vec ) {
+        for( mapProtocol2Tport::iterator it = m_mapProtocol2Tport.begin(); it != m_mapProtocol2Tport.end(); it++ ) {
+            string desc ;
+            getTransportDescription( it->second, desc ) ;
+            vec.push_back( desc ) ;
+        }
+    }
+    bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port, bool ipv6 ) {
+        string desc, p ;
+        tport_t* tp = getTportForProtocol( proto, ipv6 ) ;
+        if( !tp ) {            
+            DR_LOG(log_error) << "DrachtioController::getMySipAddress - invalid or non-configured protocol: " << proto  ;
+            assert( 0 ) ;
+            return false;
+        }
+        getTransportDescription( tp, desc ) ;
+
+        return parseTransportDescription( desc, p, host, port ) ;
+    }
+
+    void DrachtioController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
+        string uri ;
+        boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
+        pUa->getUri( uri ) ;
+
+        std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
+        if( ret.second == false ) {
+            mapUri2InvalidData::iterator it = ret.first ;
+            *(it->second) = *pUa ;
+            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+        }
+        else {
+            boost::shared_ptr<UaInvalidData> p = (ret.first)->second ;
+            p->extendExpires( expires ) ;
+            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+        }
+    }
+    void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
+        string uri = "" ;
+        uri.append(user) ;
+        uri.append("@") ;
+        uri.append(host) ;
+
+        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
+        if( m_mapUri2InvalidData.end() != it ) {
+            m_mapUri2InvalidData.erase( it ) ;
+        }
+        DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
+    }
+    boost::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+        string uri = "" ;
+        uri.append(user) ;
+        uri.append("@") ;
+        uri.append(host) ;
+        boost::shared_ptr<UaInvalidData> p ;
+        mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
+        if( m_mapUri2InvalidData.end() != it ) {
+            p = it->second ;
+            DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: found transport for " << uri  ;
+        }
+        else {
+            DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: no transport found for " << uri  ;
+        }
+        return p ;
+    }
+
 
     void DrachtioController::printStats() {
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
@@ -1074,11 +1239,29 @@ namespace drachtio {
     }
     void DrachtioController::processWatchdogTimer() {
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
+    
+        // expire any UaInvalidData
+        for(  mapUri2InvalidData::iterator it = m_mapUri2InvalidData.begin(); it != m_mapUri2InvalidData.end(); ) {
+            boost::shared_ptr<UaInvalidData> p = it->second ;
+            if( p->isExpired() ) {
+                string uri  ;
+                p->getUri(uri) ;
+                DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer expiring transport for webrtc client: "  << uri << " " << (void *) p->getTport() ;
+                m_mapUri2InvalidData.erase(it++) ;
+            }
+            else {
+                ++it ;
+            }
+        }
+
         this->printStats() ;
         m_pDialogController->logStorageCount() ;
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
+
+        DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
+
 #ifdef SOFIA_MSG_DEBUG_TRACE
         DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
 #endif

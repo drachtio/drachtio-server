@@ -26,7 +26,6 @@ namespace drachtio {
 
 #include <algorithm> // for remove_if
 #include <functional> // for unary_function
-#
 #include <boost/regex.hpp>
 #include <boost/bind.hpp>
 
@@ -185,9 +184,51 @@ namespace drachtio {
 
             //mapping of the re-written RSeq value on the UAS side to what the RSeq value recived on the UAC side was
             //DR_LOG(log_debug) << "saving to map original rseq " << sip->sip_rseq->rs_response << " that was replaced by " << m_rseq ;
-            m_mapAleg2BlegRseq.insert( make_pair<uint32_t,uint32_t>(m_rseq,sip->sip_rseq->rs_response) ) ;
+            m_mapAleg2BlegRseq.insert( make_pair(m_rseq,sip->sip_rseq->rs_response) ) ;
 
             sip->sip_rseq->rs_response = m_rseq; 
+        }
+
+        // we need to cache source address / port / transport for dialogs where UAC contact is in the .invalid domain
+        if( (sip->sip_cseq->cs_method == sip_method_subscribe && sip->sip_status->st_status == 202) ||
+            (sip->sip_cseq->cs_method == sip_method_register && sip->sip_status->st_status == 200) ) {
+
+            sip_t* sipReq = sip_object( m_msg ) ;
+            sip_contact_t* contact = sipReq->sip_contact ;
+            if( contact ) {
+                if( NULL != strstr( contact->m_url->url_host, ".invalid")  ) {
+                    bool add = true ;
+                    int expires = 0 ;
+
+                    boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+                    assert( pCore ) ;
+
+                    if( sip->sip_cseq->cs_method == sip_method_subscribe ) {
+                        if(  0 == strcmp( sip->sip_subscription_state->ss_substate, "terminated" ) ) {
+                            add = false ;
+                        }
+                        else {
+                            expires = ::atoi( sip->sip_subscription_state->ss_expires ) ;
+                        }                        
+                    }
+                    else {
+                        if( NULL != sip->sip_contact && NULL != sip->sip_contact->m_expires ) {
+                            expires = ::atoi( sip->sip_contact->m_expires ) ;
+                        }        
+                        else {
+                            expires = 0 ;
+                        }
+                        add = expires > 0 ;
+                    }
+                    
+                    if( add ) {
+                        theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, pCore->getTport() ) ;
+                    }
+                    else {
+                        theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                    }
+                }
+            }
         }
 
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
@@ -398,12 +439,28 @@ namespace drachtio {
 
         string random ;
         generateUuid( random ) ;
-        m_branchPrack =string(rfc3261prefix) + random ;
+        m_branchPrack = string(rfc3261prefix) + random ;
 
+        string record_route ;
+        bool hasRoute = NULL != sip->sip_route ;
+        if( hasRoute ) {
+            tport_t* tp ;
+            char buf[255];
+            url_e(buf, 255, sip->sip_route->r_url);
+            int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
+                        URL_STRING_MAKE(buf), (void **) &tp ) ;
+            assert( 0 == rc ) ;
+            if( 0 == rc ) {
+                const tp_name_t* tpn = tport_name( tp );
+                record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
+                    tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
+            }
+        }
+ 
         int rc = nta_msg_tsend( nta, 
             msg, 
             NULL, 
-            TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE(pCore->getMyRecordRoute() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute() && hasRoute, SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
             NTATAG_BRANCH_KEY( m_branchPrack.c_str() ),
             SIPTAG_RACK( sip->sip_rack ),
             TAG_END() ) ;
@@ -446,12 +503,24 @@ namespace drachtio {
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
 
-        tagi_t* tags = makeTags( headers ) ;
+        string record_route, transport ;
+        tport_t* tp ;
+        int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
+                    URL_STRING_MAKE(m_target.c_str()), (void **) &tp ) ;
+        assert( 0 == rc ) ;
+        if( 0 == rc ) {
+            const tp_name_t* tpn = tport_name( tp );
+            record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
+                tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
+            transport = string(tpn->tpn_proto) + tpn->tpn_host + ":" + tpn->tpn_port ;
+        }
 
-        int rc = nta_msg_tsend( nta, 
+        tagi_t* tags = makeTags( headers, transport ) ;
+
+        rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
             URL_STRING_MAKE(m_target.c_str()), 
-            TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE(pCore->getMyRecordRoute() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
             NTATAG_BRANCH_KEY(m_branch.c_str()),
             TAG_NEXT(tags) ) ;
 
@@ -546,7 +615,8 @@ namespace drachtio {
                 //proxy core will attempt to cancel any invite not in the terminated state
                 //so set that first before announcing our success
                 setState( this->isInviteTransaction() ? terminated : completed ) ;
-                pCore->notifyForwarded200OK( me ) ;                 
+                pCore->notifyForwarded200OK( me ) ;         
+
             }
             else if( m_sipStatus >= 300 ) {
                 setState( completed ) ;
@@ -612,7 +682,7 @@ namespace drachtio {
                 string s ;
                 meta.toMessageFormat(s) ;
 
-                string data = s + "|||continue" + CRLF + encodedMessage ; 
+                string data = s + "|||continue" + DR_CRLF + encodedMessage ; 
 
                 theOneAndOnlyController->getClientController()->route_api_response( pCore->getClientMsgId(), "OK", data ) ;   
                 if( (m_sipStatus >= 200 && m_sipStatus <= 299) || (pCore->isCanceled() && pCore->exhaustedAllTargets() ) ) {
@@ -908,9 +978,6 @@ namespace drachtio {
 
     const string& ProxyCore::getTransactionId() { return m_transactionId; }
     tport_t* ProxyCore::getTport() { return m_tp; }
-    const sip_record_route_t* ProxyCore::getMyRecordRoute(void) {
-        return theOneAndOnlyController->getMyRecordRoute() ;
-    }
     bool ProxyCore::allClientsAreTerminated(void) {
         vector< boost::shared_ptr<ProxyCore::ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for(; it != m_vecClientTransactions.end(); ++it ) {
@@ -922,19 +989,32 @@ namespace drachtio {
     }
     bool ProxyCore::processResponse(msg_t* msg, sip_t* sip) {
         bool handled = false ;
+        string target ;
         int status = sip->sip_status->st_status  ;
         vector< boost::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end() && !handled; ++it ) {
             boost::shared_ptr<ClientTransaction> pClient = *it ;
             if( pClient->processResponse( msg, sip ) ) {
                 handled = true ;
+                target = pClient->getTarget() ;
             }
         }
-        removeTerminated() ;
-        if( status > 200 ) startRequests() ;
 
-        if( m_searching && exhaustedAllTargets() ) {
+        // if we get a 401 Unauthorized or 407 Proxy Authorization required, then stop searching and send back
+        if(    (401 == status || 407 == status)  
+            && (NULL != sip->sip_www_authenticate || NULL != sip->sip_proxy_authenticate )
+            && theProxyController->addChallenge( sip, target ) ) {
+            
+            removeTerminated(true) ;
             forwardBestResponse() ;
+        }
+        else {
+            removeTerminated() ;
+            if( status > 200 ) startRequests() ;
+
+            if( m_searching && exhaustedAllTargets() ) {
+                forwardBestResponse() ;
+            }
         }
         DR_LOG(log_debug) << "ProxyCore::processResponse - done" ;
         return handled ;
@@ -992,55 +1072,11 @@ namespace drachtio {
             theOneAndOnlyController->getClientController()->route_api_response( getClientMsgId(), "OK", "done" ) ;
          }             
     }
-    bool ProxyCore::isResendWithCredentials( msg_t* msg, sip_t* sip ) {
-      if( this->getMethod() == sip->sip_request->rq_method ) {
-        if( sip->sip_cseq->cs_seq > this->getCseq()->cs_seq && NULL != sip->sip_authorization) {
-            return true ;
-        }
-      }
-      return false ;
-    }
-    bool ProxyCore::doResendWithCredentials( msg_t* msg, sip_t* sip ) {
-
-        // remove all of the client transactions except the one that had the nonce
-        bool started = false ;
-        string nonce ;
-        sip_authorization_t* auth = sip->sip_authorization ;
-        if( auth ) {
-            nonce = msg_header_find_param(auth->au_common, "nonce");
-
-             m_vecClientTransactions.erase(
-                std::remove_if( 
-                     m_vecClientTransactions.begin(), 
-                     m_vecClientTransactions.end(), 
-                     without_nonce( nonce)
-                ),
-                 m_vecClientTransactions.end() 
-             ) ;
-
-            if( 1 == m_vecClientTransactions.size() ) {
-
-                // create a new server transaction
-                m_pServerTransaction = boost::make_shared<ServerTransaction>( shared_from_this(), msg ) ;
-
-                // reset the client
-                 boost::shared_ptr< ClientTransaction > pClient = m_vecClientTransactions.at(0) ;
-
-                 // destroy the final response from the previous request (the one without credentials)
-                 pClient->reinitState() ;
-                 m_searching = true ;
-
-                 this->startRequests() ;
-                 started = true ;
-             }
-        }
-        return started ;
-    }
 
 
     ///SipProxyController
     SipProxyController::SipProxyController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
-        m_agent(pController->getAgent())   {
+        m_agent(pController->getAgent()), m_timerQueue(pController->getRoot(), "challenges")   {
 
             assert(m_agent) ;
             nta = m_agent ;
@@ -1088,14 +1124,22 @@ namespace drachtio {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
         }
         else {
+            msg_t* msg = p->getMsg() ;
+            sip_t* sip = sip_object(msg);
             vector<string> vecDestination ;
-            pData->getDestinations( vecDestination ) ;
+            string target ;
+
+            if( isResponseToChallenge( sip, target ) ) {
+                DR_LOG(log_info) << "SipProxyController::doProxy - proxying request with credentials after challenge to " << target ;
+                vecDestination.push_back( target ) ;
+            }
+            else {
+                pData->getDestinations( vecDestination ) ;
+            }
             boost::shared_ptr<ProxyCore> pCore = addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), pData->getRecordRoute(), 
                 pData->getFullResponse(), pData->getFollowRedirects(), pData->getSimultaneous(), pData->getProvisionalTimeout(), 
                 pData->getFinalTimeout(), vecDestination, pData->getHeaders() ) ;
 
-            msg_t* msg = p->getMsg() ;
-            sip_t* sip = sip_object(msg);
 
             if( sip->sip_max_forwards && sip->sip_max_forwards->mf_count <= 0 ) {
                 DR_LOG(log_error) << "SipProxyController::doProxy rejecting request due to max forwards used up " << sip->sip_call_id->i_id ;
@@ -1184,7 +1228,7 @@ namespace drachtio {
         }
 
         if( sip_method_prack == sip->sip_request->rq_method ) {
-            boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
+            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip ) ;
             if( !p ) {
                DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader unknown call-id for PRACK " <<  
                     sip->sip_call_id->i_id ;
@@ -1194,7 +1238,22 @@ namespace drachtio {
             p->forwardPrack( msg, sip ) ;
             return true ;
         }
+
+        //If the request-uri has the '.invalid' domain, then we need to look up the transport to use
+        // on a successful SUBSCRIBE / 202 Accepted transaction, the transport desc should have been stored
+        bool forceTport = false ;
+        tport_t* tp = NULL ;
+        if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
+            boost::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
+            if( NULL != pData ) {
+                tp = pData->getTport() ;
+                forceTport = true ;
+                DR_LOG(log_debug) << "SipProxyController::processRequestWithRouteHeader forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
+           }
+        }
+        
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL, 
+            TAG_IF(forceTport, NTATAG_TPORT(tp)),
             TAG_END() ) ;
         if( rc < 0 ) {
             msg_destroy(msg) ;
@@ -1228,21 +1287,6 @@ namespace drachtio {
             nta_msg_discard( nta, msg ) ;
             return true ;
         }
-
-        if( p->isResendWithCredentials( msg, sip ) ) {
-            // here we have a new request to proxy, but it is a resend with credentials and we want it to be "sticky"
-            // in the sense of sending it to the same place the 401 or 407 came back
-            
-            DR_LOG(log_debug) << "SipProxyController::processRequestWithoutRouteHeader - received a resend request with an Authorization header " <<  callId ;
-            if( sip_method_invite == sip->sip_request->rq_method ) {
-                nta_msg_treply( nta, msg_dup(msg), 100, NULL, TAG_END() ) ;  
-            }
-
-            p->doResendWithCredentials( msg, sip ) ;
-
-            return true ;
-        }
-
 
         bool bRetransmission = p->isRetransmission( sip ) ;
 
@@ -1329,12 +1373,86 @@ namespace drachtio {
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(id, p) ) ;
       return p ;         
     }
+
+    bool SipProxyController::addChallenge( sip_t* sip, const string& target ) {
+        const char* nonce = NULL; 
+        const char* realm = NULL;
+        string remoteAddress ;
+        bool added = false ;
+
+        sip_www_authenticate_t* auth = sip->sip_www_authenticate ;
+        if( auth ) {
+            realm = msg_header_find_param(auth->au_common, "realm") ;
+            nonce = msg_header_find_param(auth->au_common, "nonce") ;
+        }
+        else {
+            sip_proxy_authenticate_t* auth2 = sip->sip_proxy_authenticate ;
+            if( auth2 ) {
+                realm = msg_header_find_param(auth2->au_common, "realm") ;
+                nonce = msg_header_find_param(auth2->au_common, "nonce") ;
+            }
+        }
+        if( nonce && realm ) {
+            boost::shared_ptr<ChallengedRequest> pChallenge = boost::make_shared<ChallengedRequest>( realm, nonce, target) ;
+            m_mapNonce2Challenge.insert( mapNonce2Challenge::value_type( nonce, pChallenge) );  
+
+            // give client 2 seconds to resend with credentials before clearing state
+            TimerEventHandle handle = m_timerQueue.add( boost::bind(&SipProxyController::timeoutChallenge, shared_from_this(), 
+                nonce), NULL, 2000 ) ;
+            pChallenge->setTimerHandle( handle ) ;
+   
+            added = true ;       
+        }
+
+        return added ;
+    }
+    bool SipProxyController::isResponseToChallenge( sip_t* sip, string& target ) {
+        const char* nonce = NULL ; 
+        const char* realm = NULL;
+        bool isResponse = false ;
+
+        sip_authorization_t* auth = sip->sip_authorization ;
+        if( auth ) {
+            realm = msg_header_find_param(auth->au_common, "realm") ;
+            nonce = msg_header_find_param(auth->au_common, "nonce") ;
+        }
+        else {
+            sip_proxy_authorization_t* auth2 = sip->sip_proxy_authorization ;
+            if( auth2 ) {
+                realm = msg_header_find_param(auth2->au_common, "realm") ;
+                nonce = msg_header_find_param(auth2->au_common, "nonce") ;
+            }            
+        }
+        if( nonce && realm ) {
+            mapNonce2Challenge::iterator it = m_mapNonce2Challenge.find( nonce ) ;
+            if( m_mapNonce2Challenge.end() != it ) {
+                boost::shared_ptr<ChallengedRequest> pChallenge = it->second ;
+                if( 0 == pChallenge->getRealm().compare( realm ) ) {
+                    isResponse = true ;
+                    target = pChallenge->getRemoteAddress() ;
+                    m_mapNonce2Challenge.erase( it ) ;
+                    m_timerQueue.remove( pChallenge->getTimerHandle() ) ;
+                }
+            }
+        }
+        return isResponse ;
+    }
+    void SipProxyController::timeoutChallenge(const char* nonce) {
+        mapNonce2Challenge::iterator it = m_mapNonce2Challenge.find( nonce ) ;
+        if( m_mapNonce2Challenge.end() != it ) {
+            m_mapNonce2Challenge.erase( it ) ;
+            DR_LOG(log_debug) << "SipProxyController::timeoutChallenge - after removing nonce: " << nonce
+                << " there are " <<  m_mapNonce2Challenge.size() << " saved challenges "; 
+        }
+    }
+
     void SipProxyController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
+        
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;
         DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        DR_LOG(log_info) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
         m_pTQM->logQueueSizes() ;
     }
 

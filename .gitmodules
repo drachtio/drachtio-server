@@ -1,9 +1,6 @@
 [submodule "deps/sofia-sip"]
         path = deps/sofia-sip
         url = https://github.com/davehorton/sofia-sip.git
-[submodule "deps/redisclient"]
-        path = deps/redisclient
-        url = https://github.com/davehorton/redisclient.git
 [submodule "deps/libzrtp"]
 	path = deps/libzrtp
 	url = https://github.com/traviscross/libzrtp.git

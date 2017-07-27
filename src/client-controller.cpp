@@ -183,14 +183,14 @@ namespace drachtio {
     }
     bool ClientController::route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
         const string& transactionId, const string& dialogId  ) {
-        //client_ptr client = this->findClientForDialog( dialogId );
-        //if( !client ) {
-            client_ptr client = this->findClientForNetTransaction( transactionId );
+        client_ptr client = this->findClientForDialog( dialogId );
+        if( !client ) {
+            client = this->findClientForNetTransaction( transactionId );
             if( !client ) {
                 DR_LOG(log_warning) << "ClientController::route_response_inside_invite - client managing transaction has disconnected: " << transactionId  ;
                 return false ;
             }
-        //}
+        }
  
         DR_LOG(log_debug) << "ClientController::route_response_inside_invite - sending response to client"  ;
         m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
@@ -213,7 +213,12 @@ namespace drachtio {
 
         // if this is a BYE from the network, it ends the dialog 
         string method_name = sip->sip_request->rq_method_name ;
-        if( 0 == method_name.compare("BYE") ) {
+        if( 0 == method_name.compare("BYE") || 
+            (sip_method_notify == sip->sip_request->rq_method && 
+            NULL != sip->sip_subscription_state && 
+            NULL != sip->sip_subscription_state->ss_substate &&
+            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated"))) {
+
             removeDialog( dialogId ) ;
         }
 
@@ -424,6 +429,7 @@ namespace drachtio {
     void ClientController::removeAppTransaction( const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapAppTransactions.erase( transactionId ) ;        
+        DR_LOG(log_debug) << "ClientController::removeAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size()  ;
     }
     void ClientController::removeNetTransaction( const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
@@ -438,6 +444,7 @@ namespace drachtio {
     void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         m_mapAppTransactions.insert( make_pair( transactionId, client ) ) ;        
+        DR_LOG(log_debug) << "ClientController::addAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size()  ;
     }
     void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
         boost::lock_guard<boost::mutex> l( m_lock ) ;

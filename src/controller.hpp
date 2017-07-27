@@ -49,6 +49,7 @@ THE SOFTWARE.
 #include <boost/log/attributes.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/syslog_backend.hpp>
+#include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/thread.hpp>
@@ -63,7 +64,7 @@ THE SOFTWARE.
 #include "sip-dialog.hpp"
 #include "pending-request-controller.hpp"
 #include "sip-proxy-controller.hpp"
-#include "redis-service.hpp"
+#include "ua-invalid.hpp"
 
 typedef boost::mt19937 RNGType;
 
@@ -99,13 +100,34 @@ namespace drachtio {
                 ostringstream   m_os ;
         } ;
 
+        class TransportContact {
+        public:
+                TransportContact( string via, sip_contact_t* contact, sip_record_route_t* record_route ) :
+                        m_my_via(via), m_my_contact( contact ), m_my_record_route( record_route ) {
+
+                }
+                ~TransportContact() {}
+
+                const string& getVia(void) const { return m_my_via; }
+                sip_contact_t* getContact(void) const { return m_my_contact; }
+                sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
+
+        private:
+                TransportContact() {}
+
+                string          m_my_via ;
+                sip_contact_t*  m_my_contact ;
+                sip_record_route_t* m_my_record_route ;
+        } ;
+
 	class DrachtioController {
 	public:
 
         	DrachtioController( int argc, char* argv[]  ) ;
         	~DrachtioController() ;
 
-        	void handleSigHup( int signal ) ;
+                void handleSigHup( int signal ) ;
+                void handleSigTerm( int signal ) ;
         	void run() ;
         	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
                 src::severity_logger_mt< severity_levels >* createLogger() ;
@@ -135,26 +157,14 @@ namespace drachtio {
                 nta_agent_t* getAgent(void) { return m_nta; }
                 su_home_t* getHome(void) { return m_home; }
 
-                const sip_contact_t* getMyContact(void) { return m_my_contact; }
-                const sip_record_route_t* getMyRecordRoute(void) { return m_my_record_route; }
-                void getMyHostport( string& str ) {
-                	str = m_my_contact->m_url->url_host ;
-                	if( m_my_contact->m_url->url_port ) {
-                		str.append(":") ;
-                		str.append( m_my_contact->m_url->url_port ) ;
-                	}
-                }
-                const char* getMySipAddress(void) {
-                        return m_my_contact->m_url->url_host ;
-                }
-                const char* getMySipPort(void) {
-                        return m_my_contact->m_url->url_port ? m_my_contact->m_url->url_port : "5060";
-                }
+                void getMyHostports( vector<string>& vec ) ;
+
+                bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
 
                 void printStats(void) ;
                 void processWatchdogTimer(void) ;
 
-                tport_t* getTportForProtocol( const char* proto ) ;
+                tport_t* getTportForProtocol( const char* proto, bool ipv6 = false ) ;
 
                 sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
                 void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
@@ -164,16 +174,18 @@ namespace drachtio {
 
                 bool isDaemonized(void) { return m_bDaemonize; }
 
+                void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
+                void flushTportForSubscription( const char* user, const char* host ) ; 
+                boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
+
 	private:
-                typedef boost::unordered_map<string, tport_t*> mapProtocol2Tport ;
+                typedef multimap<string, tport_t*> mapProtocol2Tport ;
                 mapProtocol2Tport m_mapProtocol2Tport ;
 
         	DrachtioController() ;
 
         	bool parseCmdArgs( int argc, char* argv[] ) ;
         	void usage() ;
-
-        	void generateOutgoingContact( sip_contact_t* const incomingContact, string& strContact ) ;
         	
         	void daemonize() ;
         	void initializeLogging() ;
@@ -194,16 +206,17 @@ namespace drachtio {
 
                 shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
                 shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
+                shared_ptr<  sinks::synchronous_sink< sinks::text_ostream_backend > > m_sinkConsole ;
 
                 shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
                 int m_bDaemonize ;
+                int m_bNoConfig ;
                 severity_levels m_current_severity_threshold ;
 
                 shared_ptr< ClientController > m_pClientController ;
                 shared_ptr<SipDialogController> m_pDialogController ;
                 shared_ptr<SipProxyController> m_pProxyController ;
                 shared_ptr<PendingRequestController> m_pPendingRequestController ;
-                shared_ptr<RedisService> m_pRedisService ;
 
                 shared_ptr<StackMsg> m_lastSentMsg ;
                 shared_ptr<StackMsg> m_lastRecvMsg ;
@@ -214,11 +227,13 @@ namespace drachtio {
                 su_timer_t*     m_timer ;
                 nta_agent_t*	m_nta ;
                 nta_leg_t*      m_defaultLeg ;
-                string          m_my_via ;
-                sip_contact_t*  m_my_contact ;
-                sip_record_route_t* m_my_record_route ;
-
         	su_clone_r 	m_clone ;
+
+                sip_contact_t*  m_my_contact ;
+
+                typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
+                mapUri2InvalidData m_mapUri2InvalidData ;
+
         } ;
 
 } ;

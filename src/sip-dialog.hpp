@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include <boost/enable_shared_from_this.hpp>
 
 #include <sofia-sip/nta.h>
+#include <sofia-sip/nta_tport.h>
 
 using namespace std ;
 
@@ -36,7 +37,7 @@ namespace drachtio {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
 		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
-			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg ) ;
+			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport ) ;
 		~SipDialog() ;
 
 		int processRequest( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
@@ -99,10 +100,16 @@ namespace drachtio {
 		void setLocalSignalingAddress( const char* szAddress ) { m_localEndpoint.m_strSignalingAddress = szAddress; }
 		void setRemoteSignalingPort( unsigned int port ) { m_remoteEndpoint.m_signalingPort = port; }
 		void setLocalSignalingPort( unsigned int port ) { m_localEndpoint.m_signalingPort = port; }
+		const string& getLocalSignalingAddress(void) { return m_localEndpoint.m_strSignalingAddress; }
+		unsigned int getLocalSignalingPort(void) { return m_localEndpoint.m_signalingPort; }
+
+		const string& getTransportAddress(void) const { return m_transportAddress; }
+		const string& getTransportPort(void) const { return m_transportPort; }
+		const string& getProtocol(void) const { return m_protocol; }
+		void getTransportDesc(string desc) const { desc = m_protocol + "/" + m_transportAddress + ":" + m_transportPort; }
 
 		const string& getSourceAddress(void) const { return m_sourceAddress;}
 		unsigned int getSourcePort(void) const { return m_sourcePort; }
-		const string& getProtocol(void) const { return m_protocol; }
 		void setSourceAddress( const string& host ) { m_sourceAddress = host; }
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
 
@@ -129,6 +136,10 @@ namespace drachtio {
 
 		bool hasAckBeenSent(void) { return m_bAckSent;}
 		void ackSent(void) { m_bAckSent = true;}
+		tport_t* getTport(void) { return m_tp ;}
+		void setTport(tport_t* tp) ;
+
+		nta_leg_t* getNtaLeg(void) { return m_leg; }
 
 	protected:
 		string 			m_dialogId ;
@@ -142,7 +153,11 @@ namespace drachtio {
 		time_t			m_connectTime ;
 		time_t			m_endTime ;
 		ReleaseCause_t	m_releaseCause ;
-        
+
+		string 			m_transportAddress ;
+		string 			m_transportPort ;
+		string 			m_transportProtocol ;
+
     /* session timer */
     unsigned long 	m_nSessionExpiresSecs ;
     unsigned long 	m_nMinSE ;
@@ -156,6 +171,9 @@ namespace drachtio {
 
 		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
 		bool			m_bAckSent ;
+
+		nta_leg_t* 	m_leg; 
+		tport_t* 	m_tp ;
 	}  ;
 
 }

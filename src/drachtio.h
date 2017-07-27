@@ -49,16 +49,18 @@ THE SOFTWARE.
 #include <boost/lexical_cast.hpp>
 #include <sofia-sip/sip_protos.h>
 #include <sofia-sip/sip_tag.h>
+#include <sofia-sip/tport.h>
 #include <sofia-sip/sip_extra.h>
 #include <sofia-sip/msg_types.h>
 #include <sofia-sip/nta.h>
 
 using namespace std ;
 
-const string CRLF = "\r\n" ;
-const string CRLF2 = "\r\n\r\n" ;
+const string DR_CRLF = "\r\n" ;
+const string DR_CRLF2 = "\r\n\r\n" ;
 
 #define MSG_ID_LEN (128)
+#define URI_LEN (256)
 
 namespace logging = boost::log;
 namespace sinks = boost::log::sinks;
@@ -93,6 +95,10 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
   void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) ;
 
+	void getTransportDescription( const tport_t* tp, string& desc ) ;
+
+	bool parseTransportDescription( const string& desc, string& proto, string& host, string& port ) ;
+
 	void generateUuid(std::string& uuid) ;
 
 	void parseGenericHeader( msg_common_t* p, std::string& hvalue) ;
@@ -101,9 +107,9 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	bool getTagTypeForHdr( const std::string& hdr, tag_type_t& tag ) ;
 
-	bool normalizeSipUri( std::string& uri ) ;
+	bool normalizeSipUri( std::string& uri, int brackets ) ;
   
-	bool replaceHostInUri( std::string& uri, const std::string& hostport )  ;
+	bool replaceHostInUri( std::string& uri, const char* szHost, const char* szPort ) ;
 
 	sip_method_t methodType( const std::string& method ) ;
 
@@ -129,7 +135,7 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
 
-	tagi_t* makeTags( const string& hdrs ) ;
+	tagi_t* makeTags( const string& hdrs, const string& transport ) ;
 	void deleteTags( tagi_t* tags ) ;
 
 	int ackResponse( msg_t* msg ) ;

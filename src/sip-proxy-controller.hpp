@@ -22,6 +22,8 @@ THE SOFTWARE.
 #ifndef __SIP_PROXY_CONTROLLER_HPP__
 #define __SIP_PROXY_CONTROLLER_HPP__
 
+#include <time.h>
+
 #include <boost/shared_ptr.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
@@ -38,7 +40,6 @@ THE SOFTWARE.
 #include "timer-queue.hpp"
 #include "timer-queue-manager.hpp"
 
-#define URI_LEN (256)
 #define MAX_DESTINATIONS (10)
 #define HDR_STR_LEN (1024)
 
@@ -202,8 +203,6 @@ namespace drachtio {
     int startRequests(void) ;
     void removeTerminated(bool alsoRemoveNotStarted = false) ;
     void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
-    bool isResendWithCredentials( msg_t* msg, sip_t* sip ) ;
-    bool doResendWithCredentials( msg_t* msg, sip_t* sip ) ;
 
     void timerA( boost::shared_ptr<ClientTransaction> pClient ) ;
     void timerB( boost::shared_ptr<ClientTransaction> pClient ) ;
@@ -231,7 +230,6 @@ namespace drachtio {
     const string& getClientMsgId() { return m_clientMsgId; }
     const string& getTransactionId() ;
     tport_t* getTport() ;
-    const sip_record_route_t* getMyRecordRoute(void) ;
     bool wantsFullResponse(void) { return m_fullResponse; }
     const string& getHeaders(void) { return m_headers; }
 
@@ -277,6 +275,25 @@ namespace drachtio {
   public:
     SipProxyController(DrachtioController* pController, su_clone_r* pClone );
     ~SipProxyController() ;
+
+  class ChallengedRequest : public boost::enable_shared_from_this<ChallengedRequest>{
+    public:
+      ChallengedRequest(const char *realm, const char* nonce, const string& remoteAddress) : m_realm(realm), 
+        m_nonce(nonce), m_remoteAddress(remoteAddress) {}
+      ~ChallengedRequest() {}
+
+      const string& getRealm(void) { return m_realm; }
+      const string& getNonce(void) { return m_nonce; }
+      const string& getRemoteAddress(void) { return m_remoteAddress; }
+      TimerEventHandle getTimerHandle(void) { return m_handle;}
+      void setTimerHandle( TimerEventHandle handle ) { m_handle = handle;}
+
+    private:
+      string  m_realm ;
+      string  m_nonce ;
+      string  m_remoteAddress ;
+      TimerEventHandle m_handle ;
+    } ;
 
     class ProxyData {
     public:
@@ -381,6 +398,9 @@ namespace drachtio {
     void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;
     void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
 
+    bool addChallenge( sip_t* sip, const string& target ) ;
+    void timeoutChallenge(const char* nonce) ;
+
   protected:
 
     void clearTimerProvisional( boost::shared_ptr<ProxyCore> p );
@@ -401,10 +421,23 @@ namespace drachtio {
       }
       return p ;
     }
+    boost::shared_ptr<ProxyCore> getProxyByCallId( sip_t* sip ) {
+      boost::shared_ptr<ProxyCore> p ;
+      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      for( mapCallId2Proxy::iterator it = m_mapCallId2Proxy.begin(); it != m_mapCallId2Proxy.end(); ++it ) {
+        if( string::npos != it->first.find( sip->sip_call_id->i_id ) ) {
+          return it->second ;
+        }
+      }
+      return p ;
+    }
+
+
     boost::shared_ptr<ProxyCore> removeProxy( sip_t* sip );
 
     bool isTerminatingResponse( int status ) ;
 
+    bool isResponseToChallenge( sip_t* sip, string& target ) ;
 
   private:
     DrachtioController* m_pController ;
@@ -417,6 +450,11 @@ namespace drachtio {
 
     typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapCallId2Proxy ;
     mapCallId2Proxy m_mapCallId2Proxy ;
+
+    typedef boost::unordered_map<string, boost::shared_ptr<ChallengedRequest> > mapNonce2Challenge ;
+    mapNonce2Challenge m_mapNonce2Challenge ;
+
+    TimerQueue      m_timerQueue ;
 
   } ;
 

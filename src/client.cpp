@@ -51,6 +51,10 @@ namespace drachtio {
         }
 
     }
+    Client::~Client() {
+        DR_LOG(log_debug) << "Client::~Client";
+    }
+
 
     boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
         return m_controller.getDialogController(); 
@@ -211,9 +215,10 @@ read_again:
                 return false ;       
             } 
             else {
-                string hostport ;
-                theOneAndOnlyController->getMyHostport( hostport ) ;
-                createResponseMsg( tokens[0], msgResponse, true, hostport.c_str() ) ;
+                vector<string> hps ;
+                theOneAndOnlyController->getMyHostports( hps ) ;
+                string hostports = boost::algorithm::join(hps, ",") ;
+                createResponseMsg( tokens[0], msgResponse, true, hostports.c_str() ) ;
                 DR_LOG(log_info) << "Client::processAuthentication - secret validated successfully: " << secret ;
                 return true ;
             }            
@@ -304,20 +309,20 @@ read_again:
         generateUuid( strUuid ) ;
         meta.toMessageFormat(s) ;
 
-        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + dialogId + "|" + CRLF + rawSipMsg) ;
+        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + dialogId + "|" + DR_CRLF + rawSipMsg) ;
     }
     void Client::sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) {
         string strUuid, s ;
         generateUuid( strUuid ) ;
         meta.toMessageFormat(s) ;
 
-        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + CRLF + rawSipMsg) ;
+        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + DR_CRLF + rawSipMsg) ;
     }
     void Client::sendCdrToClient( const string& rawSipMsg, const string& meta ) {
         string strUuid, s ;
         generateUuid( strUuid ) ;
 
-        send(strUuid + "|" + meta + CRLF + rawSipMsg) ;
+        send(strUuid + "|" + meta + DR_CRLF + rawSipMsg) ;
     }
     void Client::sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) {
         string strUuid ;

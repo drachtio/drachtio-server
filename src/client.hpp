@@ -39,7 +39,7 @@ namespace drachtio {
 	class Client : public boost::enable_shared_from_this<Client> {
 	public:
 	    Client( boost::asio::io_service& io_service, ClientController& controller ) ;
-	    ~Client() {}
+	    ~Client() ;
 	    
 	    boost::asio::ip::tcp::socket& socket() {
 	        return m_sock;

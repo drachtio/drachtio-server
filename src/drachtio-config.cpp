@@ -39,7 +39,7 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_redisPort(0), m_bDaemon(isDaemonized) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), m_bConsoleLogger(false) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -64,34 +64,60 @@ namespace drachtio {
                     m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 8022) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
-
-                    m_sipUrl = pt.get<string>("drachtio.sip.contact", "sip:*") ;
-                    m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
-
-
-
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                     cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
                     return ;
                 }
+
+
+                /* sip contacts */
+
+                // old way: a single contact
+                try {
+                    string strUrl = pt.get<string>("drachtio.sip.contact") ;
+                    m_vecSipUrl.push_back( strUrl ) ;
+
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+
+                    //good, hopefull they moved to the new way: a parent <contacts> tag containing multiple contacts
+                    try {
+                         BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.sip.contacts")) {
+                            // v.first is the name of the child.
+                            // v.second is the child tree.
+                            if( 0 != v.first.compare("contact") ) {
+                                cerr << "Invalid child element of 'contacts':  " << v.first << endl ;
+                                return ;
+                            }
+
+                            m_vecSipUrl.push_back( v.second.data() );
+                        }
+
+                    } catch( boost::property_tree::ptree_bad_path& e ) {
+                        //neither <contact> nor <contacts> found: default to sip:*
+                        m_vecSipUrl.push_back("sip:*") ;
+                    }
+                }
+
+                m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
+
+                m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
+                m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
+                m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
+
                 
                 /* logging configuration  */
  
                 m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
+
+                // syslog
                 try {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
                     m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
                     m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
-                    if( !m_bDaemon ) {
-                        cout << "logging to syslog at " << m_syslogAddress << ":" << m_sysLogPort << ", using facility " 
-                            << m_syslogFacility << endl ;
-                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                        cout << "syslog logging not enabled" << endl ;
-                    }
                 }
 
+                // file log
                 try {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
@@ -99,30 +125,20 @@ namespace drachtio {
                     m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1000 * 1000) ; //max size of stored files: 16M default
                     m_minSize = pt.get<unsigned int>("drachtio.logging.file.c", 2 * 1000 * 1000 * 1000) ;//min free space on disk: 2G default
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
-                    if( !m_bDaemon ) {
-                        cout << "logging to text file at " << m_logFileName << ", archiving logs to " << m_logArchiveDirectory 
-                            << ", rotation size: daily at midnight or when log file grows to " << m_rotationSize << "MB " << endl ; 
-                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                        cout << "text file logging not enabled" << endl ;
-                    }
                 }
 
-                if( 0 == m_logFileName.length() && 0 == m_syslogAddress.length() ) {
-                    cerr << "You must configure either syslog or text file logging " << endl ;
-                    return ;
+                if( (0 == m_logFileName.length() && 0 == m_syslogAddress.length()) || pt.get_child_optional("drachtio.logging.console") ) {
+                    m_bConsoleLogger = true ;
                 }
-                else {
-                    string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
-                    
-                    if( 0 == loglevel.compare("notice") ) m_loglevel = log_notice ;
-                    else if( 0 == loglevel.compare("error") ) m_loglevel = log_error ;
-                    else if( 0 == loglevel.compare("warning") ) m_loglevel = log_warning ;
-                    else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
-                    else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
-                    else m_loglevel = log_info ;                    
-                }
+                string loglevel = pt.get<string>("drachtio.logging.loglevel", "info") ;
+                
+                if( 0 == loglevel.compare("notice") ) m_loglevel = log_notice ;
+                else if( 0 == loglevel.compare("error") ) m_loglevel = log_error ;
+                else if( 0 == loglevel.compare("warning") ) m_loglevel = log_warning ;
+                else if( 0 == loglevel.compare("info") ) m_loglevel = log_info ;
+                else if( 0 == loglevel.compare("debug") ) m_loglevel = log_debug ;
+                else m_loglevel = log_info ;                    
 
                 // timers
                 try {
@@ -137,17 +153,31 @@ namespace drachtio {
                     }
                 }
 
-                //redis config
+                // spammers
                 try {
-                    m_redisAddress = pt.get<string>("drachtio.redis.address") ;
-                    m_redisPort = pt.get<unsigned int>("drachtio.redis.port", 6379) ;
-                    if( !m_bDaemon ) {
-                        cout << "connecting to redis at " << m_redisAddress << ":" << m_redisPort  ;
+                    BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.sip.spammers")) {
+                        // v.first is the name of the child.
+                        // v.second is the child tree.
+                        if( 0 == v.first.compare("header") ) {
+                            ptree pt = v.second ;
+
+                            string header = pt.get<string>("<xmlattr>.name", ""); 
+                            if( header.length() > 0 ) {
+                                std::vector<string> vec ;
+                                BOOST_FOREACH(ptree::value_type &v, pt ) {
+                                    if( v.second.data().length() > 0 ) {
+                                        vec.push_back( v.second.data() ) ;
+                                    }
+                                }
+                                std::transform(header.begin(), header.end(), header.begin(), ::tolower) ;
+                                m_mapSpammers.insert( make_pair( header,vec ) ) ;
+                            }
+                        }
+                        m_actionSpammer = pt.get<string>("drachtio.sip.spammers.<xmlattr>.action", "discard") ;
+                        m_tcpActionSpammer = pt.get<string>("drachtio.sip.spammers.<xmlattr>.tcp-action", "discard") ;
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    if( !m_bDaemon ) {
-                       cout << "redis not enabled" << endl ;
-                    }
+                    //no spammer config...its optional
                 }
 
                 string cdrs = pt.get<string>("drachtio.cdrs", "") ;
@@ -186,6 +216,9 @@ namespace drachtio {
             }
             return false ;
         }
+        bool getConsoleLogTarget() {
+            return m_bConsoleLogger ;
+        }
 
 		severity_levels getLoglevel() {
 			return m_loglevel ;
@@ -208,11 +241,20 @@ namespace drachtio {
             
             return true ;
         }
-        const string& getSipUrl() const { return m_sipUrl; }
+        void getSipUrls( vector<string>& urls) const { urls = m_vecSipUrl; }
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const {
             sipOutboundProxy = m_sipOutboundProxy ;
             return sipOutboundProxy.length() > 0 ;
+        }
+
+        bool getTlsFiles( string& tlsKeyFile, string& tlsCertFile, string& tlsChainFile ) {
+            tlsKeyFile = m_tlsKeyFile ;
+            tlsCertFile = m_tlsCertFile ;
+            tlsChainFile = m_tlsChainFile ;
+
+            // both key and cert are minimally required
+            return tlsKeyFile.length() > 0 && tlsCertFile.length() > 0 ;
         }
         
         unsigned int getAdminPort( string& address ) {
@@ -221,14 +263,6 @@ namespace drachtio {
         }
         bool isSecret( const string& secret ) {
             return 0 == secret.compare( m_secret ) ;
-        }
-        bool getRedisAddress( std::string& address, unsigned int& port ) const {
-            if( m_redisAddress.length() > 0 ) {
-                address = m_redisAddress ;
-                port = m_redisPort  ;
-                return true ;
-            }
-            return false ;
         }
         bool generateCdrs(void) const {
             return m_bGenerateCdrs ;
@@ -240,6 +274,15 @@ namespace drachtio {
             t4 = m_nTimerT4 ;
             t1x64 = m_nTimerT1x64 ;
         }
+
+        DrachtioConfig::mapHeader2Values& getSpammers( string& action, string& tcpAction ) {
+            if( !m_mapSpammers.empty() ) {
+                action = m_actionSpammer ;
+                tcpAction = m_tcpActionSpammer ;
+            }
+            return m_mapSpammers ;
+        }
+
  
     private:
         
@@ -255,14 +298,15 @@ namespace drachtio {
             return true ;
         }
     
-        
-        
         bool m_bIsValid ;
-        string m_sipUrl ;
+        vector<string> m_vecSipUrl ;
         string m_sipOutboundProxy ;
         string m_syslogAddress ;
         string m_logFileName ;
         string m_logArchiveDirectory ;
+        string m_tlsKeyFile ;
+        string m_tlsCertFile ;
+        string m_tlsChainFile ;
         bool m_bAutoFlush ;
         unsigned int m_rotationSize ;
         unsigned int m_maxSize ;
@@ -274,11 +318,14 @@ namespace drachtio {
         string m_adminAddress ;
         unsigned int m_adminPort ;
         string m_secret ;
-        string m_redisAddress ;
-        unsigned int m_redisPort ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
+        bool m_bConsoleLogger ;
         unsigned int m_nTimerT1, m_nTimerT2, m_nTimerT4, m_nTimerT1x64 ;
+        string m_actionSpammer ;
+        string m_tcpActionSpammer ;
+        mapHeader2Values m_mapSpammers ;
+
   } ;
     
     /*
@@ -308,9 +355,12 @@ namespace drachtio {
         bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) {
         return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ;
     }
+    bool DrachtioConfig::getConsoleLogTarget() {
+        return m_pimpl->getConsoleLogTarget() ;
+    }
 
-    bool DrachtioConfig::getSipUrl( std::string& sipUrl ) const {
-        sipUrl = m_pimpl->getSipUrl() ;
+    bool DrachtioConfig::getSipUrls( std::vector<string>& urls ) const {
+        m_pimpl->getSipUrls(urls) ;
         return true ;
     }
     bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {
@@ -329,8 +379,8 @@ namespace drachtio {
     bool DrachtioConfig::isSecret( const string& secret ) const {
         return m_pimpl->isSecret( secret ) ;
     }
-    bool DrachtioConfig::getRedisAddress( std::string& address, unsigned int& port ) const {
-        return m_pimpl->getRedisAddress( address, port ) ;
+    bool DrachtioConfig::getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const {
+        return m_pimpl->getTlsFiles( keyFile, certFile, chainFile ) ;
     }
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;
@@ -338,5 +388,9 @@ namespace drachtio {
     void DrachtioConfig::getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) {
         return m_pimpl->getTimers( t1, t2, t4, t1x64 ) ;
     }
+    DrachtioConfig::mapHeader2Values& DrachtioConfig::getSpammers( string& action, string& tcpAction ) {
+        return m_pimpl->getSpammers( action, tcpAction ) ;
+    }
+
 
 }

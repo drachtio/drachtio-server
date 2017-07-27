@@ -64,6 +64,8 @@ namespace drachtio {
     tport_t* getTport() ;
     TimerEventHandle getTimerHandle(void) { return m_handle;}
     void setTimerHandle( TimerEventHandle handle ) { m_handle = handle;}
+    bool isCanceled(void) { return m_canceled;}
+    void cancel(void) { m_canceled = true ;}
 
   private:
     msg_t*  m_msg ;
@@ -73,6 +75,7 @@ namespace drachtio {
     string m_methodName ;
     tport_t* m_tp ;
     TimerEventHandle m_handle ;
+    bool m_canceled;
   } ;
 
 
@@ -94,6 +97,20 @@ namespace drachtio {
       mapCallId2Invite::iterator it = m_mapCallId2Invite.find( id ) ;   
       return it != m_mapCallId2Invite.end() ;
     }
+
+    boost::shared_ptr<PendingRequest_t> findInviteByCallId( const char* call_id ) {
+      boost::shared_ptr<PendingRequest_t> p ;
+      string callId = call_id ;
+      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      for( mapCallId2Invite::iterator it = m_mapCallId2Invite.begin() ; m_mapCallId2Invite.end() != it; it++ ) {
+        boost::shared_ptr<PendingRequest_t> p = it->second ;
+        sip_t* sip = p->getSipObject() ;
+        if( 0 == callId.compare( sip->sip_call_id->i_id) && sip->sip_request->rq_method == sip_method_invite) {
+          return p ;
+        }
+      }   
+      return p ;
+   }
 
     void timeout(const string& transactionId) ;
 

@@ -40,7 +40,7 @@ THE SOFTWARE.
 
 #define START_LEN (512)
 #define HDR_LEN (4192)
-#define BODY_LEN (4192)
+#define BODY_LEN (8384)
 
 namespace drachtio {
 
@@ -89,15 +89,21 @@ namespace drachtio {
 			m_transactionId(transactionId) {}
 		RIP( const string& transactionId, const string& dialogId ) : 
 			m_transactionId(transactionId), m_dialogId(dialogId) {}
+		RIP( const string& transactionId, const string& dialogId,  boost::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse = false ) : 
+			m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
+			}
 
 		~RIP() {}
 
 		const string& getTransactionId(void) { return m_transactionId; }
 		const string& getDialogId(void) { return m_dialogId; }
+		bool shouldClearDialogOnResponse(void) { return m_bClearDialogOnResponse;}
 
 	private:
-		string 			m_transactionId ;
-		string			m_dialogId ;
+		string 												m_transactionId ;
+		string												m_dialogId ;
+		bool													m_bClearDialogOnResponse;
+		boost::shared_ptr<SipDialog> 	m_dlg ;
 	} ;
 
 
@@ -245,10 +251,10 @@ namespace drachtio {
 			assert( leg ) ;
 
 			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-	        m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
-	        m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
+      m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
+      m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
 
-	        m_pClientController->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;		
+      m_pClientController->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;		
 		}
 		bool findDialogByLeg( nta_leg_t* leg, boost::shared_ptr<SipDialog>& dlg ) {
 			/* look in invites-in-progress first */
@@ -285,24 +291,9 @@ namespace drachtio {
 		}
 
 		/// RIP helpers
-		void addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,rip)) ;
-		}
-		bool findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-	        mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
-	        if( m_mapOrq2RIP.end() == it ) return false ;
-	        rip = it->second ;
-	        return true ;						
-		}
-		void clearRIP( nta_outgoing_t* orq ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
-			nta_outgoing_destroy( orq ) ;
-			if( m_mapOrq2RIP.end() == it ) return  ;
-			m_mapOrq2RIP.erase( it ) ;						
-		}
+		void addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) ;
+		bool findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) ;
+		void clearRIP( nta_outgoing_t* orq ) ;
 
 		/// IRQ helpers
 		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
@@ -361,7 +352,6 @@ namespace drachtio {
 	private:
 		DrachtioController* m_pController ;
 		su_clone_r*			m_pClone ;
-		sip_contact_t*		m_my_contact ;
 
 		/* since access to the various maps below can be triggered either by arriva or network message, or client message - 
 			each in a different thread - we use this mutex to protect them.  To keep things straight, the mutex lock operations
