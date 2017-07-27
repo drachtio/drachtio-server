@@ -346,6 +346,14 @@ namespace drachtio {
     return m_masterTransport ;
   }
 
+  void SipTransport::getAllExternalIps( vector<string>& vec ) {
+    for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
+      boost::shared_ptr<SipTransport> p = it->second ;
+      if( p->hasExternalIp() ) {
+        vec.push_back(p->getExternalIp()) ;
+      }
+    }
+  }
   void SipTransport::getAllHostports( vector<string>& vec ) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       boost::shared_ptr<SipTransport> p = it->second ;
