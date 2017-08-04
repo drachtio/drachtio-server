@@ -525,9 +525,27 @@ namespace drachtio {
             sip_add_tl(msg, sip, SIPTAG_MAX_FORWARDS_STR("70"), TAG_END());
         }
 
+        string route ;
+        bool useOutboundProxy = theOneAndOnlyController->getConfig()->getSipOutboundProxy( route ) ;
+        if( !useOutboundProxy ) {
+            route = m_target ;
+        }
+        else if( !m_target.empty() ) {
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - proxying request through outbound proxy: " << route ;            
+        }
+        else {
+            throw std::runtime_error("ProxyCore::ClientTransaction::forwardRequest: TODO: need to implement support for app providing no destination (proxy to ruri)") ;
+        }
+
+        // check if the original request-uri was a local address -- if so, replace it with the provided destination
+        string originalUri = sip->sip_request->rq_url->url_scheme ;
+        originalUri.append(":");
+        originalUri.append(sip->sip_request->rq_url->url_host) ;
+
         //only replace request uri if it is a local address
-        if( isLocalSipUri( m_target ) ) {
-            DR_LOG(log_info) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << m_target ;
+        //TODO: should be checking the original request uri, not where we are sending it
+        if( isLocalSipUri( originalUri ) ) {
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << originalUri ;
             sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
@@ -552,7 +570,7 @@ namespace drachtio {
 
         rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
-            URL_STRING_MAKE(m_target.c_str()), 
+            URL_STRING_MAKE(route.c_str()), 
             TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
                 SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
             TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 

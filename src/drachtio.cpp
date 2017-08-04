@@ -420,6 +420,8 @@ namespace drachtio {
         static bool initialized = false ;
         static boost::unordered_set<string> setLocalUris ;
 
+        DR_LOG(log_debug) << "isLocalSipUri: " << requestUri  ;
+
         if( !initialized ) {
             initialized = true ;
 
@@ -431,14 +433,13 @@ namespace drachtio {
                     continue ;
 
                 string localUri = tpn->tpn_host ;
-                localUri += ":" ;
-                localUri += (tpn->tpn_port ? tpn->tpn_port : "5060");
+
+                DR_LOG(log_debug) << "isLocalSipUri: adding local address: " << localUri  ;
 
                 setLocalUris.insert( localUri ) ;
 
                 if( 0 == strcmp(tpn->tpn_host,"127.0.0.1") ) {
                     localUri = "localhost:" ;
-                    localUri += (tpn->tpn_port ? tpn->tpn_port : "5060");
                     setLocalUris.insert( localUri ) ;
                 }
             }
@@ -447,6 +448,7 @@ namespace drachtio {
             vector<string> vecIps ;
             SipTransport::getAllExternalIps(vecIps) ;
             for(vector<string>::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
+                DR_LOG(log_debug) << "isLocalSipUri: adding public address: " << *it  ;
                 setLocalUris.insert(*it);
             }
        }
@@ -475,12 +477,7 @@ namespace drachtio {
             su_free(home, (void *) params) ;
         }
 
-
-        string uri = url->url_host ;
-        uri += ":" ;
-        uri += ( url->url_port ? url->url_port : "5060") ;
-
-        return setLocalUris.end() != setLocalUris.find( uri ) ;
+        return setLocalUris.end() != setLocalUris.find( url->url_host ) ;
     }
 
     void* my_json_malloc( size_t bytes ) {
