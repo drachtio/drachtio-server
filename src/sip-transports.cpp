@@ -367,6 +367,9 @@ namespace drachtio {
       if( p->hasExternalIp() ) {
         vec.push_back(p->getExternalIp()) ;
       }
+      for( vector<string>::const_iterator itDns = p->getDnsNames().begin(); itDns != p->getDnsNames().end(); ++itDns ) {
+        vec.push_back(*itDns) ;
+      }
     }
   }
   void SipTransport::getAllHostports( vector<string>& vec ) {
@@ -389,6 +392,11 @@ namespace drachtio {
       boost::shared_ptr<SipTransport> p = it->second ;
       if( p->isLocalAddress(szHost) ) {
         return true ;
+      }
+      for( vector<string>::const_iterator itDns = p->getDnsNames().begin(); itDns != p->getDnsNames().end(); ++itDns ) {
+        if( 0 == (*itDns).compare(szHost) ) {
+          return true;
+        }
       }
     }
 

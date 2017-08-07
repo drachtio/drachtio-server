@@ -543,7 +543,6 @@ namespace drachtio {
         originalUri.append(sip->sip_request->rq_url->url_host) ;
 
         //only replace request uri if it is a local address
-        //TODO: should be checking the original request uri, not where we are sending it
         if( isLocalSipUri( originalUri ) ) {
             DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << originalUri ;
             sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
