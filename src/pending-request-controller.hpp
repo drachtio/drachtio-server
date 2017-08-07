@@ -67,6 +67,10 @@ namespace drachtio {
     void setTimerHandle( TimerEventHandle handle ) { m_handle = handle;}
     bool isCanceled(void) { return m_canceled;}
     void cancel(void) { m_canceled = true ;}
+    const SipMsgData_t& getMeta(void) { return m_meta; }
+    void setMeta(SipMsgData_t& meta) { m_meta = meta ;}
+    const string& getEncodedMsg(void) { return m_encodedMsg;}
+    void setEncodedMsg(const string& msg) { m_encodedMsg = msg; }
 
   private:
     msg_t*  m_msg ;
@@ -77,6 +81,8 @@ namespace drachtio {
     tport_t* m_tp ;
     TimerEventHandle m_handle ;
     bool m_canceled;
+    SipMsgData_t m_meta ;
+    string m_encodedMsg ;
   } ;
 
 
@@ -86,6 +92,7 @@ namespace drachtio {
     ~PendingRequestController() ;
 
     int processNewRequest( msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) ;
+    int routeNewRequestToClient( client_ptr client, const string& transactionId) ; 
 
     boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
 
@@ -117,6 +124,7 @@ namespace drachtio {
 
   protected:
 
+    boost::shared_ptr<PendingRequest_t> find( const string& transactionId ) ;
     boost::shared_ptr<PendingRequest_t> add( msg_t* msg, sip_t* sip ) ;
 
   private:

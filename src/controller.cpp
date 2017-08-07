@@ -29,6 +29,8 @@ THE SOFTWARE.
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/log/support/date_time.hpp>
@@ -78,24 +80,22 @@ namespace drachtio {
 
 /* clone static functions, used to post a message into the main su event loop from the worker client controller thread */
 namespace {
-    void my_formatter(logging::record_view const& rec, logging::formatting_ostream& strm) {
-        typedef boost::log::formatter formatter;
-            formatter f = expr::stream << expr::format_date_time<boost::posix_time::ptime>(
-                "TimeStamp", "%Y-%m-%d %H:%M:%S.%f") << " " <<
-                expr::smessage ;
-        f(rec, strm);
-    }
-
-    int clone_init( su_root_t* root, drachtio::DrachtioController* pController ) {
-        return 0 ;
-    }
-
-    void clone_destroy( su_root_t* root, drachtio::DrachtioController* pController ) {
-        return ;
-    }
-    void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
-        theOneAndOnlyController->processWatchdogTimer() ;
-    }
+  void my_formatter(logging::record_view const& rec, logging::formatting_ostream& strm) {
+    typedef boost::log::formatter formatter;
+      formatter f = expr::stream << expr::format_date_time<boost::posix_time::ptime>(
+        "TimeStamp", "%Y-%m-%d %H:%M:%S.%f") << " " <<
+        expr::smessage ;
+    f(rec, strm);
+  }
+  int clone_init( su_root_t* root, drachtio::DrachtioController* pController ) {
+    return 0 ;
+  }
+  void clone_destroy( su_root_t* root, drachtio::DrachtioController* pController ) {
+    return ;
+  }
+  void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
+    theOneAndOnlyController->processWatchdogTimer() ;
+  }
 }
 
 
@@ -104,65 +104,63 @@ namespace {
 	/* sofia logging is redirected to this function */
 	static void __sofiasip_logger_func(void *logarg, char const *fmt, va_list ap) {
         
-        static bool loggingSipMsg = false ;
-        static boost::shared_ptr<drachtio::StackMsg> msg ;
+    static bool loggingSipMsg = false ;
+    static boost::shared_ptr<drachtio::StackMsg> msg ;
 
-        char output[MAXLOGLEN+1] ;
-        vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
-        va_end(ap) ;
+    char output[MAXLOGLEN+1] ;
+    vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
+    va_end(ap) ;
 
-        if( loggingSipMsg ) {
-            loggingSipMsg = NULL == ::strstr( fmt, MSG_SEPARATOR) ;
-            msg->appendLine( output, !loggingSipMsg ) ;
+    if( loggingSipMsg ) {
+      loggingSipMsg = NULL == ::strstr( fmt, MSG_SEPARATOR) ;
+      msg->appendLine( output, !loggingSipMsg ) ;
 
-            if( !loggingSipMsg ) {
-                //DR_LOG(drachtio::log_debug) << "Completed logging sip message"  ;
+      if( !loggingSipMsg ) {
+        //DR_LOG(drachtio::log_debug) << "Completed logging sip message"  ;
 
-                DR_LOG( drachtio::log_info ) << msg->getFirstLine()  << msg->getSipMessage() <<  " " ;            
+        DR_LOG( drachtio::log_info ) << msg->getFirstLine()  << msg->getSipMessage() <<  " " ;            
 
-                msg->isIncoming() 
-                    ? theOneAndOnlyController->setLastRecvStackMessage( msg ) 
-                    : theOneAndOnlyController->setLastSentStackMessage( msg ) ;
-            }
-        }
-        else if( ::strstr( output, "recv ") == output || ::strstr( output, "send ") == output ) {
-            //DR_LOG(drachtio::log_debug) << "started logging sip message: " << output  ;
-            loggingSipMsg = true ;
+        msg->isIncoming() 
+          ? theOneAndOnlyController->setLastRecvStackMessage( msg ) 
+          : theOneAndOnlyController->setLastSentStackMessage( msg ) ;
+      }
+    }
+    else if( ::strstr( output, "recv ") == output || ::strstr( output, "send ") == output ) {
+      //DR_LOG(drachtio::log_debug) << "started logging sip message: " << output  ;
+      loggingSipMsg = true ;
 
-            char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
-            if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
+      char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
+      if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
 
-            msg = boost::make_shared<drachtio::StackMsg>( output ) ;
-        }
-        else {
-            int len = strlen(output) ;
-            output[len-1] = '\0' ;
-            DR_LOG(drachtio::log_info) << output ;
-        }
+      msg = boost::make_shared<drachtio::StackMsg>( output ) ;
+    }
+    else {
+      int len = strlen(output) ;
+      output[len-1] = '\0' ;
+      DR_LOG(drachtio::log_info) << output ;
+    }
 	} ;
 
-    int defaultLegCallback( nta_leg_magic_t* controller,
-                           nta_leg_t* leg,
-                           nta_incoming_t* irq,
-                           sip_t const *sip) {
-        
-        return controller->processRequestOutsideDialog( leg, irq, sip ) ;
-    }
-    int legCallback( nta_leg_magic_t* controller,
-                           nta_leg_t* leg,
-                           nta_incoming_t* irq,
-                           sip_t const *sip) {
-        
-        return controller->processRequestInsideDialog( leg, irq, sip ) ;
-    }
-    int stateless_callback(nta_agent_magic_t *controller,
-                       nta_agent_t *agent,
-                       msg_t *msg,
-                       sip_t *sip) {
-        return controller->processMessageStatelessly( msg, sip ) ;
-    }
-
-
+  int defaultLegCallback( nta_leg_magic_t* controller,
+                       nta_leg_t* leg,
+                       nta_incoming_t* irq,
+                       sip_t const *sip) {
+    
+    return controller->processRequestOutsideDialog( leg, irq, sip ) ;
+  }
+  int legCallback( nta_leg_magic_t* controller,
+                       nta_leg_t* leg,
+                       nta_incoming_t* irq,
+                       sip_t const *sip) {
+    
+    return controller->processRequestInsideDialog( leg, irq, sip ) ;
+  }
+  int stateless_callback(nta_agent_magic_t *controller,
+                   nta_agent_t *agent,
+                   msg_t *msg,
+                   sip_t *sip) {
+    return controller->processMessageStatelessly( msg, sip ) ;
+  }
  }
 
 namespace drachtio {
@@ -1241,6 +1239,26 @@ namespace drachtio {
         return p ;
     }
 
+    void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
+      string host ;
+      string port = "9021";
+      vector<string> strs;
+
+      boost::split(strs, uri, boost::is_any_of(":"));
+      if( strs.size() > 2 ) {
+        DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
+        //TODO: send 480, remove pending connection
+        return ;              
+      }
+      host = strs.at(0) ;
+      if( 2 == strs.size() ) {
+        port = strs.at(1);
+      }
+
+      DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
+        host << ":" << port ;
+      m_pClientController->makeOutboundConnection( transactionId, host, port ) ;
+    }
 
     void DrachtioController::printStats() {
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;

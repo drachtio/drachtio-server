@@ -43,6 +43,8 @@ namespace drachtio {
 
     ~SipTransport() ;
 
+    void addDnsName(const string& name) { m_dnsNames.push_back(name); }
+
     void getContactUri(string& contact, bool useExternalIp = true) ;
     void getBindableContactUri(string& contact) ;
 
@@ -64,6 +66,7 @@ namespace drachtio {
     const char* getProtocol(void) const { return m_tpName ? m_tpName->tpn_proto : ""; }
     bool isIpV6(void) ;
     bool isLocalhost(void) ;
+    bool isLocal(const char* szHost) ;
 
     void getDescription(string& s, bool shortVersion = true) ;
     void getHostport(string& s) ;
@@ -74,6 +77,7 @@ namespace drachtio {
     static void logTransports() ;
     static void getAllHostports( vector<string>& vec ) ;
     static void getAllExternalIps( vector<string>& vec ) ;
+    static bool isLocalAddress(const char* szHost, tport_t* tp = NULL) ;
     
   protected:
     void init() ;
@@ -98,6 +102,7 @@ namespace drachtio {
     string m_contactHostpart ;
     string m_contactPort ;
     vector< pair<string,string> > m_contactParams ;
+    vector<string> m_dnsNames; 
 
     // these are given when we actually create a transport with the info above
     tport_t* m_tp;

@@ -75,6 +75,21 @@ namespace drachtio {
         m_clients.erase( client ) ;
         DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
+    void ClientController::outboundFailed( client_ptr client, const string& transactionId ) {
+      string headers, body;
+      if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 480 Temporarily Unavailable", 
+        headers, body) )) {
+        DR_LOG(log_error) << "ClientController::outboundFailed - error sending 480 for transactionId: " << transactionId ;
+      }
+    }
+    void ClientController::outboundReady( client_ptr client, const string& transactionId ) {
+      int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
+      if( rc ) {
+        DR_LOG(log_error) << "ClientController::outboundFailed - error routing over outbound connection transactionId: " << transactionId ;
+        return outboundFailed( client, transactionId);
+      }
+    }
+
     void ClientController::addNamedService( client_ptr client, string& strAppName ) {
         //TODO: should we be locking here?  need to review entire locking strategy for this class
         client_weak_ptr p( client ) ;
@@ -84,11 +99,16 @@ namespace drachtio {
 	void ClientController::start_accept() {
 		client_ptr new_session( new Client( m_ioservice, *this ) ) ;
 		m_acceptor.async_accept( new_session->socket(), boost::bind(&ClientController::accept_handler, this, new_session, boost::asio::placeholders::error));
-    }
+  }
 	void ClientController::accept_handler( client_ptr session, const boost::system::error_code& ec) {
-        if(!ec) session->start() ;
-        start_accept(); 
-    }
+    if(!ec) session->start() ;
+    start_accept(); 
+  }
+  void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
+    client_ptr new_session( new Client( m_ioservice, transactionId, host, port, *this ) ) ;
+    new_session->async_connect() ;
+  }
+
     bool ClientController::wants_requests( client_ptr client, const string& verb ) {
         RequestSpecifier spec( client ) ;
         boost::lock_guard<boost::mutex> l( m_lock ) ;
