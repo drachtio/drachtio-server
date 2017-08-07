@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>    
+#include <boost/algorithm/string/split.hpp>
 
 #include "drachtio-config.hpp"
 
@@ -76,7 +77,6 @@ namespace drachtio {
                 // old way: a single contact
                 try {
                     string strUrl = pt.get<string>("drachtio.sip.contact") ;
-                    m_vecSipUrl.push_back( make_pair(strUrl,"") ) ;
                     m_vecTransports.push_back( boost::make_shared<SipTransport>(strUrl) );
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -88,9 +88,19 @@ namespace drachtio {
                             // v.second is the child tree.
                             if( 0 == v.first.compare("contact") ) {
                                 string external = v.second.get<string>("<xmlattr>.external-ip","") ;            
-                                string localNet = v.second.get<string>("<xmlattr>.local-net","") ;            
-                                m_vecSipUrl.push_back( make_pair(v.second.data(), external) );
-                                m_vecTransports.push_back( boost::make_shared<SipTransport>(v.second.data(), localNet, external) );
+                                string localNet = v.second.get<string>("<xmlattr>.local-net","") ;   
+                                string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");         
+
+                                boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(v.second.data(), localNet, external) ;
+                                vector<string> names;
+                                boost::split(names, dnsNames, boost::is_any_of(",; "));
+                                for (vector<string>::iterator it = names.begin(); it != names.end(); ++it) {
+                                    if( (*it).length() ) {
+                                        p->addDnsName((*it)) ;
+                                    }
+                                }
+
+                                m_vecTransports.push_back(p);
                             }
                         }
                     } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -264,7 +274,6 @@ namespace drachtio {
             
             return true ;
         }
-        void getSipUrls( vector< pair<string,string> >& urls) const { urls = m_vecSipUrl; }
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const {
             sipOutboundProxy = m_sipOutboundProxy ;
@@ -392,9 +401,6 @@ namespace drachtio {
         return m_pimpl->getConsoleLogTarget() ;
     }
 
-    void DrachtioConfig::getSipUrls( std::vector< pair<string,string> >& urls ) const {
-        m_pimpl->getSipUrls(urls) ;
-    }
     bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {
         return m_pimpl->getSipOutboundProxy( sipOutboundProxy ) ;
     }

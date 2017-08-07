@@ -108,6 +108,7 @@ namespace drachtio {
         void processRedirectInstruction(const string& transactionId, vector<string>& vecContact) ;
         void processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
             bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) ;
+        void processOutboundConnectionInstruction(const string& transactionId, const char* uri) ;
 
         void finishRequest( const string& transactionId, const boost::system::error_code& err, 
             unsigned int status_code, const string& body) ;

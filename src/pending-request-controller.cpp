@@ -92,6 +92,8 @@ namespace drachtio {
     string encodedMessage ;
     EncodeStackMessage( sip, encodedMessage ) ;
     SipMsgData_t meta( msg ) ;
+    p->setMeta(meta); 
+    p->setEncodedMsg(encodedMessage);
 
     if( !httpUrl.empty() ) {
       // using outbound connection for this call
@@ -112,7 +114,18 @@ namespace drachtio {
       m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
           encodedMessage, meta ) ) ;
     }
+    return 0 ;
+  }
 
+  int PendingRequestController::routeNewRequestToClient( client_ptr client, const string& transactionId) {
+    boost::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
+    if( !p ) {
+      DR_LOG(log_error) << "PendingRequestController::routeNewRequestToClient: transactionId not found: " << transactionId ;
+      return 500 ;
+    }
+    m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+    m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+        p->getEncodedMsg(), p->getMeta() ) ) ;
     return 0 ;
   }
 
@@ -155,6 +168,16 @@ namespace drachtio {
       if( !timeout ) {
         m_timerQueue.remove( p->getTimerHandle() ) ;
       }
+    }   
+    return p ;
+  }
+
+  boost::shared_ptr<PendingRequest_t> PendingRequestController::find( const string& transactionId ) {
+    boost::shared_ptr<PendingRequest_t> p ;
+    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+    mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
+    if( it != m_mapTxnId2Invite.end() ) {
+      p = it->second ;
     }   
     return p ;
   }

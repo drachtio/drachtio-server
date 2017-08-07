@@ -34,41 +34,86 @@ THE SOFTWARE.
 #include "controller.hpp"
 
 namespace drachtio {
-    std::size_t hash_value( Client const &c ) {
-        std::size_t seed = 0 ;
-        boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
-        boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
-        return seed ;
-    }
+  std::size_t hash_value( Client const &c ) {
+    std::size_t seed = 0 ;
+    boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
+    boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
+    return seed ;
+  }
 
 	Client::Client( boost::asio::io_service& io_service, ClientController& controller ) : m_sock(io_service), m_controller( controller ),  
-        m_state(initial), m_buffer(12228), m_nMessageLength(0) {
-            
-        int optval = 1 ;
-        socklen_t optlen = sizeof(optval);
-        if( setsockopt(m_sock.native(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
-            DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
-        }
+    m_state(initial), m_buffer(12228), m_nMessageLength(0) {
+          
+    int optval = 1 ;
+    socklen_t optlen = sizeof(optval);
+    if( setsockopt(m_sock.native(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
+      DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
+    }
+  }
+    
+  Client::Client( boost::asio::io_service& io_service, const string& transactionId, const string& host, 
+    const string& port, ClientController& controller ) :
+    m_sock(io_service), m_controller(controller), m_transactionId(transactionId), m_host(host), m_port(port),
+    m_state(initial), m_buffer(12228), m_nMessageLength(0)  {
+  }
+
+  Client::~Client() {
+      DR_LOG(log_debug) << "Client::~Client";
+  }
+
+  void Client::async_connect() {
+    boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
+    boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
+    tcp::resolver::iterator endpointIterator = resolver.resolve(query);
+    tcp::endpoint endpoint = *endpointIterator;
+
+    m_sock.async_connect(endpoint,
+      boost::bind(&Client::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+  }
+  void Client::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
+    if( !ec ) {
+      DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
+        this->const_socket().remote_endpoint().address().to_string() << ":" << 
+        this->const_socket().remote_endpoint().port() ;
+
+      m_controller.join( shared_from_this() ) ;
+      m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+        boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+          boost::asio::placeholders::bytes_transferred ) ) ;
+
+      //TODO: set a timeout of 2 secs or so for remote side to authenticate
 
     }
-    Client::~Client() {
-        DR_LOG(log_debug) << "Client::~Client";
+    else if( endpointIterator != tcp::resolver::iterator() ) {
+      DR_LOG(log_debug) << "Client::connect_handler - failed to connected to " <<
+        this->const_socket().remote_endpoint().address().to_string() << ":" << 
+        this->const_socket().remote_endpoint().port() ;
+      m_sock.close() ;
+      tcp::endpoint endpoint = *endpointIterator;
+      m_sock.async_connect(endpoint,
+        boost::bind(&Client::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
     }
-
-
-    boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
-        return m_controller.getDialogController(); 
+    else {
+      // final failure
+      DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
+      m_controller.outboundFailed(shared_from_this(), m_transactionId);
     }
+  }
 
-    void Client::start() {
+  boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
+    return m_controller.getDialogController(); 
+  }
 
-        DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
+  void Client::start() {
 
-        m_controller.join( shared_from_this() ) ;
-        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-                        boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        
-    }
+    DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
+
+    m_controller.join( shared_from_this() ) ;
+    m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+      boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+        boost::asio::placeholders::bytes_transferred ) ) ;
+      
+  }
     bool Client::readMessageLength(unsigned int& len) {
         bool continueOn = true ;
         boost::array<char, 6> ch ;
@@ -220,6 +265,9 @@ read_again:
                 string hostports = boost::algorithm::join(hps, ",") ;
                 createResponseMsg( tokens[0], msgResponse, true, hostports.c_str() ) ;
                 DR_LOG(log_info) << "Client::processAuthentication - secret validated successfully: " << secret ;
+                if( this->isOutbound() ) {
+                  m_controller.outboundReady( shared_from_this(), m_transactionId ) ;
+                }
                 return true ;
             }            
         }

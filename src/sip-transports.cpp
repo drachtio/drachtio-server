@@ -173,7 +173,6 @@ namespace drachtio {
       contact.append(m_contactHostpart);
     }
     DR_LOG(log_debug) << "SipTransport::getBindableContactUri: " << contact;
-
   }
 
   void SipTransport::getContactUri(string& contact, bool useExternalIp) {
@@ -211,10 +210,34 @@ namespace drachtio {
       }
     }
 
-
     DR_LOG(log_debug) << "SipTransport::getContactUri - created Contact header: " << contact;
   }
 
+  bool SipTransport::isIpV6(void) {
+    return hasTport() && NULL != strstr( getHost(), "[") && NULL != strstr( getHost(), "]") ;
+  }
+
+  bool SipTransport::isLocalhost(void) {
+    return hasTport() && (0 == strcmp(getHost(), "127.0.0.1") || 0 == strcmp(getHost(), "[::1]"));
+  }
+
+  bool SipTransport::isLocal(const char* szHost) {
+    if( 0 == strcmp(getHost(), szHost) ) {
+      return true ;
+    }
+    else if( 0 == m_contactHostpart.compare(szHost) ) {
+      return true ;
+    }
+    else if( hasExternalIp() && 0 == m_strExternalIp.compare(szHost) ) {
+      return true ;
+    }
+    for( vector<string>::const_iterator it = m_dnsNames.begin(); it != m_dnsNames.end(); ++it ) {
+      if( 0 == (*it).compare(szHost) ) {
+        return true ;
+      }
+    }
+    return false ;
+  }
 
   /** static methods */
 
@@ -260,14 +283,6 @@ namespace drachtio {
     }
     assert( it != m_mapTport2SipTransport.end() ) ;
     return it->second ;
-  }
-
-  bool SipTransport::isIpV6(void) {
-    return hasTport() && NULL != strstr( getHost(), "[") && NULL != strstr( getHost(), "]") ;
-  }
-
-  bool SipTransport::isLocalhost(void) {
-    return hasTport() && (0 == strcmp(getHost(), "127.0.0.1") || 0 == strcmp(getHost(), "[::1]"));
   }
 
   boost::shared_ptr<SipTransport> SipTransport::findAppropriateTransport(const char* remoteHost, const char* proto) {
@@ -361,6 +376,23 @@ namespace drachtio {
       p->getHostport(desc);
       vec.push_back(desc) ;
     }
+  }
+
+  bool SipTransport::isLocalAddress(const char* szHost, tport_t* tp) {
+    if( tp ) {
+     boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
+     return p->isLocalAddress(szHost); 
+    }
+
+    // search all
+    for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
+      boost::shared_ptr<SipTransport> p = it->second ;
+      if( p->isLocalAddress(szHost) ) {
+        return true ;
+      }
+    }
+
+    return false;
   }
 
   void SipTransport::logTransports() {

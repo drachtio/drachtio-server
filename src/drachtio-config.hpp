@@ -48,7 +48,6 @@ namespace drachtio {
 
         bool isValid() ;
 
-        void getSipUrls( vector< pair<string,string> >& urls ) const ;
         void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const ;
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const ;

@@ -79,154 +79,156 @@ namespace drachtio {
 	using boost::shared_ptr;
 	using boost::scoped_ptr;
 
-        class StackMsg {
-        public:
-                StackMsg( const char *szLine ) ;
-                ~StackMsg() {}
+  class StackMsg {
+  public:
+    StackMsg( const char *szLine ) ;
+    ~StackMsg() {}
 
-                void appendLine(char *szLine, bool done) ;
-                bool isIncoming(void) const { return m_bIncoming; }
-                bool isComplete(void) const { return m_bComplete ;}
-                const string& getSipMessage(void) const { return m_sipMessage; }
-                const SipMsgData_t& getSipMetaData(void) const { return m_meta; }
-                const string& getFirstLine(void) const { return m_firstLine;}
+    void appendLine(char *szLine, bool done) ;
+    bool isIncoming(void) const { return m_bIncoming; }
+    bool isComplete(void) const { return m_bComplete ;}
+    const string& getSipMessage(void) const { return m_sipMessage; }
+    const SipMsgData_t& getSipMetaData(void) const { return m_meta; }
+    const string& getFirstLine(void) const { return m_firstLine;}
 
-        private:
-                StackMsg() {}
+  private:
+    StackMsg() {}
 
-                SipMsgData_t    m_meta ;
-                bool            m_bIncoming ;
-                bool            m_bComplete ;
-                string          m_sipMessage ;
-                string          m_firstLine ;
-                ostringstream   m_os ;
-        } ;
+    SipMsgData_t    m_meta ;
+    bool            m_bIncoming ;
+    bool            m_bComplete ;
+    string          m_sipMessage ;
+    string          m_firstLine ;
+    ostringstream   m_os ;
+  } ;
 
 	class DrachtioController {
 	public:
 
-        	DrachtioController( int argc, char* argv[]  ) ;
-        	~DrachtioController() ;
+  	DrachtioController( int argc, char* argv[]  ) ;
+  	~DrachtioController() ;
 
-                void handleSigHup( int signal ) ;
-                void handleSigTerm( int signal ) ;
-        	void run() ;
-        	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
-                src::severity_logger_mt< severity_levels >* createLogger() ;
-              
-                boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
-                boost::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
-                boost::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
-                boost::shared_ptr<RequestHandler> getRequestHandler(void) { return m_pRequestHandler ; }
-                boost::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
-                boost::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
-                su_root_t* getRoot(void) { return m_root; }
-                
-                enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
+    void handleSigHup( int signal ) ;
+    void handleSigTerm( int signal ) ;
+  	void run() ;
+  	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
+    src::severity_logger_mt< severity_levels >* createLogger() ;
+  
+    boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
+    boost::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
+    boost::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
+    boost::shared_ptr<RequestHandler> getRequestHandler(void) { return m_pRequestHandler ; }
+    boost::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
+    boost::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
+    su_root_t* getRoot(void) { return m_root; }
+    
+    enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
 
-                /* network --> client messages */
-                int processRequestOutsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
-                int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
+    /* network --> client messages */
+    int processRequestOutsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
+    int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
-                /* stateless callback for messages not associated with a leg */
-                int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
+    /* stateless callback for messages not associated with a leg */
+    int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
 
-                bool setupLegForIncomingRequest( const string& transactionId ) ;
+    bool setupLegForIncomingRequest( const string& transactionId ) ;
 
-                bool isSecret( const string& secret ) {
-                	return m_Config->isSecret( secret ) ;
-                }
+    bool isSecret( const string& secret ) {
+    	return m_Config->isSecret( secret ) ;
+    }
 
-                nta_agent_t* getAgent(void) { return m_nta; }
-                su_home_t* getHome(void) { return m_home; }
+    nta_agent_t* getAgent(void) { return m_nta; }
+    su_home_t* getHome(void) { return m_home; }
 
-                void getMyHostports( vector<string>& vec ) ;
+    void getMyHostports( vector<string>& vec ) ;
 
-                bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
+    bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
 
-                void printStats(void) ;
-                void processWatchdogTimer(void) ;
+    void printStats(void) ;
+    void processWatchdogTimer(void) ;
 
-                const tport_t* getTportForProtocol( const string& remoteHost, const char* proto ) ;
+    const tport_t* getTportForProtocol( const string& remoteHost, const char* proto ) ;
 
-                sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
-                void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
+    sip_time_t getTransactionTime( nta_incoming_t* irq ) ;
+    void getTransactionSender( nta_incoming_t* irq, string& host, unsigned int& port ) ;
 
-                void setLastSentStackMessage(shared_ptr<StackMsg> msg) { m_lastSentMsg = msg; }
-                void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
+    void setLastSentStackMessage(shared_ptr<StackMsg> msg) { m_lastSentMsg = msg; }
+    void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
-                bool isDaemonized(void) { return m_bDaemonize; }
-                void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
-                void flushTportForSubscription( const char* user, const char* host ) ; 
-                boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
+    bool isDaemonized(void) { return m_bDaemonize; }
+    void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
+    void flushTportForSubscription( const char* user, const char* host ) ; 
+    boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
-                RequestRouter& getRequestRouter(void) { return m_requestRouter; }
+    RequestRouter& getRequestRouter(void) { return m_requestRouter; }
+
+    void makeOutboundConnection(const string& transactionId, const string& uri);
 
 	private:
 
-        	DrachtioController() ;
+  	DrachtioController() ;
 
-        	bool parseCmdArgs( int argc, char* argv[] ) ;
-        	void usage() ;
-        	
-        	void daemonize() ;
-        	void initializeLogging() ;
-        	void deinitializeLogging() ;
-        	bool installConfig() ;
-        	void logConfig() ;
-                int validateSipMessage( sip_t const *sip ) ;
+  	bool parseCmdArgs( int argc, char* argv[] ) ;
+  	void usage() ;
+  	
+  	void daemonize() ;
+  	void initializeLogging() ;
+  	void deinitializeLogging() ;
+  	bool installConfig() ;
+  	void logConfig() ;
+    int validateSipMessage( sip_t const *sip ) ;
 
-        	scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
-        	boost::mutex m_mutexGlobal ;
-        	boost::shared_mutex m_mutexConfig ; 
-        	bool m_bLoggingInitialized ;
-        	string m_configFilename ;
-                
-                string  m_user ;    //system user to run as
-                unsigned int m_adminPort; //if provided on command-line overrides config file setting
-                string m_sipContact; //if provided on command line overrides config file setting
+  	scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
+  	boost::mutex m_mutexGlobal ;
+  	boost::shared_mutex m_mutexConfig ; 
+  	bool m_bLoggingInitialized ;
+  	string m_configFilename ;
+          
+    string  m_user ;    //system user to run as
+    unsigned int m_adminPort; //if provided on command-line overrides config file setting
+    string m_sipContact; //if provided on command line overrides config file setting
 
-                string m_publicAddress ;
+    string m_publicAddress ;
 
-                shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
-                shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
-                shared_ptr<  sinks::synchronous_sink< sinks::text_ostream_backend > > m_sinkConsole ;
+    shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
+    shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
+    shared_ptr<  sinks::synchronous_sink< sinks::text_ostream_backend > > m_sinkConsole ;
 
-                shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
-                int m_bDaemonize ;
-                int m_bNoConfig ;
+    shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
+    int m_bDaemonize ;
+    int m_bNoConfig ;
 
-                severity_levels m_current_severity_threshold ;
-                int m_nSofiaLoglevel ;
+    severity_levels m_current_severity_threshold ;
+    int m_nSofiaLoglevel ;
 
-                shared_ptr<ClientController> m_pClientController ;
-                shared_ptr<RequestHandler> m_pRequestHandler ;
-                shared_ptr<SipDialogController> m_pDialogController ;
-                shared_ptr<SipProxyController> m_pProxyController ;
-                shared_ptr<PendingRequestController> m_pPendingRequestController ;
+    shared_ptr<ClientController> m_pClientController ;
+    shared_ptr<RequestHandler> m_pRequestHandler ;
+    shared_ptr<SipDialogController> m_pDialogController ;
+    shared_ptr<SipProxyController> m_pProxyController ;
+    shared_ptr<PendingRequestController> m_pPendingRequestController ;
 
-                shared_ptr<StackMsg> m_lastSentMsg ;
-                shared_ptr<StackMsg> m_lastRecvMsg ;
+    shared_ptr<StackMsg> m_lastSentMsg ;
+    shared_ptr<StackMsg> m_lastRecvMsg ;
 
- 
-                su_home_t* 	m_home ;
-                su_root_t* 	m_root ;
-                su_timer_t*     m_timer ;
-                nta_agent_t*	m_nta ;
-                nta_leg_t*      m_defaultLeg ;
-        	su_clone_r 	m_clone ;
 
-                vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
-                
-                typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
-                mapUri2InvalidData m_mapUri2InvalidData ;
+    su_home_t* 	m_home ;
+    su_root_t* 	m_root ;
+    su_timer_t*     m_timer ;
+    nta_agent_t*	m_nta ;
+    nta_leg_t*      m_defaultLeg ;
+  	su_clone_r 	m_clone ;
 
-                bool    m_bIsOutbound ;
-                string  m_strRequestServer ;
-                string  m_strRequestPath ;
+    vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
+    
+    typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
+    mapUri2InvalidData m_mapUri2InvalidData ;
 
-                RequestRouter   m_requestRouter ;
-        } ;
+    bool    m_bIsOutbound ;
+    string  m_strRequestServer ;
+    string  m_strRequestPath ;
+
+    RequestRouter   m_requestRouter ;
+  } ;
 
 } ;
 
