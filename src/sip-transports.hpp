@@ -51,6 +51,7 @@ namespace drachtio {
     const string& getContact(void) { return m_strContact; }
     bool hasExternalIp(void) const { return !m_strExternalIp.empty() ; }
     const string& getExternalIp(void) const { return m_strExternalIp; }
+    const vector<string>& getDnsNames(void) const  { return m_dnsNames; }
     const string& getLocalNet(void) const { return m_strLocalNet; }    
     bool shouldAdvertisePublic(const char* address) const ;
     bool isInNetwork(const char* address) const;

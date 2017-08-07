@@ -444,7 +444,7 @@ namespace drachtio {
                 }
             }
 
-            // add public ip addresses
+            // add public ip addresses and dns names
             vector<string> vecIps ;
             SipTransport::getAllExternalIps(vecIps) ;
             for(vector<string>::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
