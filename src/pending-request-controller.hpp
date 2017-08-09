@@ -131,7 +131,6 @@ namespace drachtio {
     DrachtioController* m_pController ;
     nta_agent_t*    m_agent ;
     boost::shared_ptr< ClientController > m_pClientController ;
-    boost::shared_ptr< RequestHandler > m_pRequestHandler ;
 
     boost::mutex    m_mutex ;
 

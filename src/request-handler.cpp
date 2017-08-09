@@ -41,722 +41,494 @@ namespace {
       err.value() == 336130329); //decryption failed or bad record mac
   }
 }
+
+
 namespace drachtio {
 
-  static boost::unordered_map<unsigned int, std::string> responseReasons = boost::assign::map_list_of
-    (100, "Trying") 
-    (180, "Ringing")
-    (181, "Call is Being Forwarded")
-    (182, "Queued")
-    (183, "Session in Progress")
-    (199, "Early Dialog Terminated")
-    (200, "OK")
-    (202, "Accepted") 
-    (204, "No Notification") 
-    (300, "Multiple Choices") 
-    (301, "Moved Permanently") 
-    (302, "Moved Temporarily") 
-    (305, "Use Proxy") 
-    (380, "Alternative Service") 
-    (400, "Bad Request") 
-    (401, "Unauthorized") 
-    (402, "Payment Required") 
-    (403, "Forbidden") 
-    (404, "Not Found") 
-    (405, "Method Not Allowed") 
-    (406, "Not Acceptable") 
-    (407, "Proxy Authentication Required") 
-    (408, "Request Timeout") 
-    (409, "Conflict") 
-    (410, "Gone") 
-    (411, "Length Required") 
-    (412, "Conditional Request Failed") 
-    (413, "Request Entity Too Large") 
-    (414, "Request-URI Too Long") 
-    (415, "Unsupported Media Type") 
-    (416, "Unsupported URI Scheme") 
-    (417, "Unknown Resource-Priority") 
-    (420, "Bad Extension") 
-    (421, "Extension Required") 
-    (422, "Session Interval Too Small") 
-    (423, "Interval Too Brief") 
-    (424, "Bad Location Information") 
-    (428, "Use Identity Header") 
-    (429, "Provide Referrer Identity") 
-    (430, "Flow Failed") 
-    (433, "Anonymity Disallowed") 
-    (436, "Bad Identity-Info") 
-    (437, "Unsupported Certificate") 
-    (438, "Invalid Identity Header") 
-    (439, "First Hop Lacks Outbound Support") 
-    (470, "Consent Needed") 
-    (480, "Temporarily Unavailable") 
-    (481, "Call Leg/Transaction Does Not Exist") 
-    (482, "Loop Detected") 
-    (483, "Too Many Hops") 
-    (484, "Address Incomplete") 
-    (485, "Ambiguous") 
-    (486, "Busy Here") 
-    (487, "Request Terminated") 
-    (488, "Not Acceptable Here") 
-    (489, "Bad Event") 
-    (491, "Request Pending") 
-    (493, "Undecipherable") 
-    (494, "Security Agreement Required") 
-    (500, "Server Internal Error") 
-    (501, "Not Implemented") 
-    (502, "Bad Gateway") 
-    (503, "Service Unavailable") 
-    (504, "Server Timeout") 
-    (505, "Version Not Supported") 
-    (513, "Message Too Large") 
-    (580, "Precondition Failure") 
-    (600, "Busy Everywhere") 
-    (603, "Decline") 
-    (604, "Does Not Exist Anywhere") 
-    (606, "Not Acceptable");
-
-
-  // RequestHandler::Client
-  template <class T>
-  RequestHandler::Client<T>::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
-    const std::string& server, const std::string& path, const std::string& service, const string& httpMethod) : 
-    pRequestHandler_(pRequestHandler),
-    m_ctx(boost::asio::ssl::context::sslv23),
-    resolver_(pRequestHandler->getIOService()), 
-    socket_(pRequestHandler->getIOService()),
-    status_code_(0), transactionId_(transactionId), m_verifyPeer(false), serverName_(server) {
-
-      DR_LOG(log_debug) << "RequestHandler::Client::Client: Host (http): " << server << " GET " << path ;
-
-      // Form the request. We specify the "Connection: close" header so that the
-      // server will close the socket after transmitting the response. This will
-      // allow us to treat all data up until the EOF as the content.
-      std::ostream request_stream(&request_);
-      request_stream << "GET " << path << " HTTP/1.1\r\n";
-      request_stream << "Host: " << server << "\r\n";
-      request_stream << "Accept: application/json\r\n";
-      request_stream << "Connection: close\r\n\r\n";
-
-      // Start an asynchronous resolve to translate the server and service names
-      // into a list of endpoints.
-      tcp::resolver::query query(server, service);
-      resolver_.async_resolve(query,
-        boost::bind(&Client::handle_resolve, this,
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::iterator));
-  }
-
-  template <>
-  void RequestHandler::Client< boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >::handle_connect(const boost::system::error_code& err) {
-    if (!(err_ = err)) {
-      // The connection was successful. Send the request.
-      
-      socket_.async_handshake(boost::asio::ssl::stream_base::client,
-          boost::bind(&Client::handle_handshake, this, boost::asio::placeholders::error));
-    }
-    else
-    {
-      DR_LOG(log_error) << "RequestHandler::Client::handle_connect: (" << (void*) this << ") Error: " << err.message() ;
-      wrapUp() ;
-    }
-  }
-
-  template <>
-  void RequestHandler::Client< boost::asio::ssl::stream<boost::asio::ip::tcp::socket> >::handle_resolve(const boost::system::error_code& err, tcp::resolver::iterator endpoint_iterator) {
-    if (!(err_ = err)) {
-        socket_.set_verify_mode(boost::asio::ssl::verify_peer);
-
-        if( !m_verifyPeer ) {
-            // just log
-            socket_.set_verify_callback(
-                boost::bind(&Client::verify_certificate, this, _1, _2));
-        }
-
-        boost::asio::async_connect(socket_.lowest_layer(), endpoint_iterator,
-            boost::bind(&Client::handle_connect, this, boost::asio::placeholders::error));
-    }
-    else
-    {
-      DR_LOG(log_error) << "RequestHandler::Client::handle_resolve: Error: " << err.message() ;
-      wrapUp() ;
-    }
-  }
-
-
-  template <class T>
-  RequestHandler::Client<T>::Client(boost::shared_ptr<RequestHandler> pRequestHandler, const string& transactionId,
-    const std::string& server, const std::string& path, const std::string& service, const string& httpMethod, 
-    boost::asio::ssl::context_base::method m, bool verifyPeer) : 
-      pRequestHandler_(pRequestHandler),
-      m_ctx(m),
-      resolver_(pRequestHandler->getIOService()), 
-      socket_(pRequestHandler->getIOService(), m_ctx),
-      status_code_(0), transactionId_(transactionId), serverName_(server),
-      m_verifyPeer(verifyPeer) {
-
-      SSL_set_tlsext_host_name(socket_.native_handle(), server.c_str());
-      socket_.set_verify_mode(boost::asio::ssl::verify_peer);
-
-      if( verifyPeer ) {
-        socket_.set_verify_callback(boost::asio::ssl::rfc2818_verification(server.c_str()));
-        m_ctx.set_default_verify_paths();
-      }
-
-      DR_LOG(log_debug) << "RequestHandler::Client::Client: Host (https): " << server << " GET " << path ;
-
-      // Form the request. We specify the "Connection: close" header so that the
-      // server will close the socket after transmitting the response. This will
-      // allow us to treat all data up until the EOF as the content.
-      std::ostream request_stream(&request_);
-      request_stream << "GET " << path << " HTTP/1.1\r\n";
-      request_stream << "Host: " << server << "\r\n";
-      request_stream << "Accept: application/json\r\n";
-      request_stream << "Connection: close\r\n\r\n";
-
-      // Start an asynchronous resolve to translate the server and service names
-      // into a list of endpoints.
-      tcp::resolver::query query(server, service);
-      resolver_.async_resolve(query,
-        boost::bind(&Client::handle_resolve, this,
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::iterator));
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_resolve(const boost::system::error_code& err, tcp::resolver::iterator endpoint_iterator) {
-      if (!(err_ = err)) {
-          boost::asio::async_connect(socket_, endpoint_iterator, 
-              boost::bind(&Client::handle_connect, this, boost::asio::placeholders::error));                
-      }
-      else
-      {
-        DR_LOG(log_error) << "RequestHandler::Client::handle_resolve: Error: " << err.message() ;
-        wrapUp() ;
-      }
-  }
-
-  template <class T>
-  bool RequestHandler::Client<T>::verify_certificate(bool preverified, boost::asio::ssl::verify_context& ctx) {
-      // The verify callback can be used to check whether the certificate that is
-      // being presented is valid for the peer. For example, RFC 2818 describes
-      // the steps involved in doing this for HTTPS. Consult the OpenSSL
-      // documentation for more details. Note that the callback is called once
-      // for each certificate in the certificate chain, starting from the root
-      // certificate authority.
-
-      // In this example we will simply print the certificate's subject name.
-      
-      char subject_name[256];
-      X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
-      X509_NAME_oneline(X509_get_subject_name(cert), subject_name, 256);
-      DR_LOG(log_debug) << "RequestHandler::Client::verify_certificate - Verifying " << subject_name ;
-
-      //return preverified;   
-      return true;     
-/*
-      int8_t subject_name[256];
-      X509_STORE_CTX *cts = ctx.native_handle();
-      int32_t length = 0;
-      X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
-      DR_LOG(log_debug) << "CTX ERROR : " << cts->error;
-
-      int32_t depth = X509_STORE_CTX_get_error_depth(cts);
-      DR_LOG(log_debug) << "CTX DEPTH : " << depth ;
-
-      switch (cts->error)
-      {
-      case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
-          DR_LOG(log_debug) <<  "X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT";
-          break;
-      case X509_V_ERR_CERT_NOT_YET_VALID:
-      case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD:
-          DR_LOG(log_debug) <<  "Certificate not yet valid!!";
-          break;
-      case X509_V_ERR_CERT_HAS_EXPIRED:
-      case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
-          DR_LOG(log_debug) <<  "Certificate expired..";
-          break;
-      case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
-          DR_LOG(log_debug) <<  "Self signed certificate in chain!!!";
-          preverified = true;
-          break;
-      default:
-          break;
-      }
-      const int32_t name_length = 256;
-      X509_NAME_oneline(X509_get_subject_name(cert), reinterpret_cast<char*>(subject_name), name_length);
-      DR_LOG(log_debug) <<  "Verifying " << subject_name;
-      DR_LOG(log_debug) <<  "Verification status " << preverified;
-      return preverified ;       
-*/
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_connect(const boost::system::error_code& err) {
-      if (!(err_ = err)) {
-          // The connection was successful. Send the request.
-          boost::asio::async_write(socket_, request_,
-              boost::bind(&Client::handle_write_request, this, boost::asio::placeholders::error));
-      }
-      else
-      {
-        DR_LOG(log_error) << "RequestHandler::Client::handle_connect: (" << (void*) this << ") Error: " << err.message() ;
-        wrapUp() ;
-      }
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_handshake(const boost::system::error_code& error)
-  {
-      if (!error)
-      {
-          DR_LOG(log_debug) << "RequestHandler::Client::handle_handshake - Handshake OK ";
-
-          // The handshake was successful. Send the request.
-          boost::asio::async_write(socket_, request_,
-              boost::bind(&Client::handle_write_request, this, boost::asio::placeholders::error));
-      }
-      else
-      {
-          DR_LOG(log_error) << "RequestHandler::Client::handle_handshake - Handshake failed to server " << serverName_ << ": " << error.message() ;
-          wrapUp() ;
-      }
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_write_request(const boost::system::error_code& err) {
-      if (!(err_ = err)) {
-        // Read the response status line. The response_ streambuf will
-        // automatically grow to accommodate the entire line. The growth may be
-        // limited by passing a maximum size to the streambuf constructor.
-        boost::asio::async_read_until(socket_, response_, "\r\n",
-            boost::bind(&Client::handle_read_status_line, this,
-              boost::asio::placeholders::error));
-      }
-      else
-      {
-        DR_LOG(log_error) << "RequestHandler::Client::handle_write_request: Error: " << err.message() ;
-        wrapUp() ;
-      }
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_read_status_line(const boost::system::error_code& err) {
-      if (!(err_ = err)) {
-          // Check that response is OK.
-          std::istream response_stream(&response_);
-          std::string http_version;
-          response_stream >> http_version;
-          response_stream >> status_code_;
-          std::string status_message;
-          std::getline(response_stream, status_message);
-          if (!response_stream || http_version.substr(0, 5) != "HTTP/") {
-              DR_LOG(log_error) << "RequestHandler::Client::handle_read_status_line: invalid/unexpected status line response " << http_version ;
-              wrapUp() ;
-              return;
-          }
-          if (status_code_ != 200) {
-              DR_LOG(log_error) << "RequestHandler::Client::handle_read_status_line: returned status code " << std::dec << status_code_;
-              wrapUp() ;
-              return;
-          }
-
-          DR_LOG(log_debug) << "RequestHandler::Client::handle_read_status_line: returned status code " << std::dec << status_code_;
-
-          // Read the response headers, which are terminated by a blank line.
-          boost::asio::async_read_until(socket_, response_, "\r\n\r\n",
-            boost::bind(&Client::handle_read_headers, this,
-              boost::asio::placeholders::error));
-      }
-      else {
-        DR_LOG(log_error) << "RequestHandler::Client::handle_read_status_line Error: " << err.message() ;
-        wrapUp() ;
-      }
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_read_headers(const boost::system::error_code& err) {
-      if (!(err_ = err)) {
-          // Process the response headers.
-          std::istream response_stream(&response_);
-          std::string header;
-          while (std::getline(response_stream, header) && header != "\r") {
-              DR_LOG(log_debug) << header ;
-          }
-
-          // Write whatever content we already have to output.
-          if (response_.size() > 0) {
-              body_ << &response_ ;
-              //DR_LOG(log_debug) << "initial body: " << body_.str() ;
-          }
-
-          // Start reading remaining data until EOF.
-          boost::asio::async_read(socket_, response_,
-            boost::asio::transfer_at_least(1),
-            boost::bind(&Client::handle_read_content, this,
-              boost::asio::placeholders::error));
-      }
-      else {
-        DR_LOG(log_error) << "RequestHandler::Client::handle_read_headers Error: " << err.message() ;
-        wrapUp() ;
-      }
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::handle_read_content(const boost::system::error_code& err) {
-      if (!(err_ = err)) {
-        // Write all of the data that has been read so far.
-        //DR_LOG(log_debug) << "RequestHandler::Client::handle_read_content - read some content "  ;
-
-        body_ << &response_ ;
-
-        // Continue reading remaining data until EOF.
-        boost::asio::async_read(socket_, response_,
-            boost::asio::transfer_at_least(1),
-            boost::bind(&Client::handle_read_content, this,
-              boost::asio::placeholders::error));
-      }
-      else if (err != boost::asio::error::eof && !is_ssl_short_read_error(err) ) {
-          
-          DR_LOG(log_error) << "RequestHandler::Client::handle_read_content Error: " << err.message() ;
-          wrapUp() ;
-      }
-      else {
-          wrapUp() ;
-      }
-  }
-
-  template <class T>
-  void RequestHandler::Client<T>::wrapUp() {
-      pRequestHandler_->requestCompleted( this->shared_from_this(), err_, status_code_, body_.str()) ;
-  }
-
-  // RequestHandler
+  unsigned int RequestHandler::easyHandleCacheSize = 4 ;
+  bool RequestHandler::instanceFlag = false;
+  boost::shared_ptr<RequestHandler> RequestHandler::single ;
+  std::deque<CURL*> RequestHandler::m_cacheEasyHandles ;
+  boost::mutex RequestHandler::m_lock ;
 
   RequestHandler::RequestHandler( DrachtioController* pController ) :
-      m_pController( pController ) {
+      m_pController( pController ), m_timer(m_ioservice) {
           
+      memset(&m_g, 0, sizeof(GlobalInfo));
+      m_g.multi = curl_multi_init();
+
+      assert(m_g.multi);
+
+      curl_multi_setopt(m_g.multi, CURLMOPT_SOCKETFUNCTION, sock_cb);
+      curl_multi_setopt(m_g.multi, CURLMOPT_SOCKETDATA, &m_g);
+      curl_multi_setopt(m_g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
+      curl_multi_setopt(m_g.multi, CURLMOPT_TIMERDATA, &m_g);
+
       boost::thread t(&RequestHandler::threadFunc, this) ;
       m_thread.swap( t ) ;
-          
-      //this->start_accept() ;
   }
   RequestHandler::~RequestHandler() {
-      this->stop() ;
+    curl_multi_cleanup(m_g.multi);
   }
   void RequestHandler::threadFunc() {
                
-      /* to make sure the event loop doesn"), t terminate when there is no work to do */
-      boost::asio::io_service::work work(m_ioservice);
-      
-      for(;;) {
-          
-          try {
-              m_ioservice.run() ;
-              break ;
-          }
-          catch( std::exception& e) {
-              DR_LOG(log_error) << "RequestHandler::threadFunc - Error in event thread: " << string( e.what() )  ;
-          }
-      }
-  }
-
-  void RequestHandler::processRequest(const string& transactionId, const string& httpMethod, const string& httpUrl, 
-      const string& encodedMessage, vector< pair<string, string> >& vecParams, bool verifyPeer) {
-
-      url_t url ;
-      char szUrl[URL_MAXLEN] ;
-      string server, path, service ;
-
-      strncpy( szUrl, httpUrl.c_str(), URL_MAXLEN ) ;
-      url_d(&url, szUrl);
-      server.assign(url.url_host) ;
-      service.assign(url.url_scheme) ;
-
-      if( url.url_port && 0 != strcmp("80", url.url_port) && 0 == strcmp("http", url.url_scheme) ) {
-          service.assign(url.url_port);
-      }
-      else if( url.url_port && 0 != strcmp("443", url.url_port) && 0 == strcmp("https", url.url_scheme) ) {
-          service.assign(url.url_port);
-      }
-
-      path.assign("/");
-      path.append( NULL != url.url_path ? url.url_path : "");
-      path.append("?") ;
-      bool hasParams = false ;
-      if( url.url_headers ) {
-          path.append(url.url_headers) ;
-          path.append("&");
-      }
-      
-      // append our query args
-      int i = 0 ;
-      pair<string,string> p;
-      BOOST_FOREACH(p, vecParams) {
-          if( i++ > 0 ) {
-              path.append("&") ;
-          }
-          path.append(p.first) ;
-          path.append("=") ;
-          path.append(p.second);
-      }
-
-      
-      if( 0 == strcmp("https", url.url_scheme) ) {
-          boost::asio::ssl::context ctx(boost::asio::ssl::context::sslv23);
-
-          boost::shared_ptr< Client<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> > > pClient = 
-              boost::make_shared< Client<boost::asio::ssl::stream<boost::asio::ip::tcp::socket> > >(shared_from_this(), 
-                  transactionId, 
-                  server, 
-                  path, 
-                  service, 
-                  httpMethod,
-                  boost::asio::ssl::context::sslv23, 
-                  verifyPeer) ;            
-          m_setSslClients.insert( pClient ) ;
-      }
-      else {
-          boost::shared_ptr< Client<tcp::socket> > pClient = 
-              boost::make_shared< Client<tcp::socket> >(shared_from_this(), 
-                  transactionId, 
-                  server, 
-                  path, 
-                  service, 
-                  httpMethod) ;            
-          m_setClients.insert( pClient ) ;
-          DR_LOG(log_info) << "RequestHandler::processRequest - started (" << hex << (void*) pClient.get() << ") " << httpMethod << " request to " << url.url_scheme << "://" << server << path 
-              << ", there are now " << m_setClients.size() << " requests in flight" ;
-      }
-
-  }
-
-  void RequestHandler::requestCompleted( boost::shared_ptr< Client< boost::asio::ssl::stream< boost::asio::ip::tcp::socket> > > pClient, 
-      const boost::system::error_code& err, unsigned int status_code, const string& body) {
-      string transactionId = pClient->getTransactionId() ;
-
-      m_setSslClients.erase( pClient ) ;
-
-      finishRequest(transactionId, err, status_code, body);
-
-  }
-
-  void RequestHandler::requestCompleted(boost::shared_ptr< Client<tcp::socket> > pClient, const boost::system::error_code& err, unsigned int status_code, const string& body) {
-      string transactionId = pClient->getTransactionId() ;
-
-      m_setClients.erase( pClient ) ;
-
-      finishRequest(transactionId, err, status_code, body);
-  }
-  void RequestHandler::finishRequest(const string& transactionId, const boost::system::error_code& err, 
-      unsigned int status_code, const string& body) {
-
-      if( 200 == status_code && !body.empty() ) {
-          DR_LOG(log_debug) << "RequestHandler::finishRequest received instructions: " << body ;
-          processRoutingInstructions(transactionId, body) ;
-      }
-      else if( 200 != status_code && 0 != status_code ) {
-          DR_LOG(log_debug) << "RequestHandler::finishRequest returne non-success status: " << status_code ;
-          processRejectInstruction(transactionId, status_code) ;
-      }
-      else {
-          processRejectInstruction(transactionId, 503) ;
-      }
-  }
-
-  void RequestHandler::processRoutingInstructions(const string& transactionId, const string& body) {
-      DR_LOG(log_debug) << "RequestHandler::processRoutingInstructions: " << body ;
-
-      std::ostringstream msg ;
-      json_t *root;
-      json_error_t error;
-      root = json_loads(body.c_str(), 0, &error);
-
+    /* to make sure the event loop doesn't terminate when there is no work to do */
+    boost::asio::io_service::work work(m_ioservice);
+    
+    for(;;) {
+        
       try {
-          if( !root ) {
-              msg << "error parsing body as JSON on line " << error.line  << ": " << error.text ;
-              return throw std::runtime_error(msg.str()) ;  
-          }
-
-          if(!json_is_object(root)) {
-              throw std::runtime_error("expected JSON object but got something else") ;  
-          }
-
-          json_t* action = json_object_get( root, "action") ;
-          json_t* data = json_object_get(root, "data") ;
-          if( !json_is_string(action) ) {
-              throw std::runtime_error("missing or invalid 'action' attribute") ;  
-          }
-          if( !json_is_object(data) ) {
-              throw std::runtime_error("missing 'data' object") ;  
-          }
-          const char* actionText = json_string_value(action) ;
-          if( 0 == strcmp("reject", actionText)) {
-              json_t* status = json_object_get(data, "status") ;
-              json_t* reason = json_object_get(data, "reason") ;
-
-              if( !status || !json_is_number(status) ) {
-                  throw std::runtime_error("'status' is missing or is not a number") ;  
-              }
-              processRejectInstruction(transactionId, json_integer_value(status), json_string_value(reason));
-          }
-          else if( 0 == strcmp("proxy", actionText)) {
-              bool recordRoute = false ;
-              bool followRedirects = true ;
-              bool simultaneous = false ;
-              string provisionalTimeout = "5s";
-              string finalTimeout = "60s";
-              vector<string> vecDestination ;
-
-              json_t* rr = json_object_get(data, "recordRoute") ;
-              if( rr && json_is_boolean(rr) ) {
-                  recordRoute = json_boolean_value(rr) ;
-              }
-
-              json_t* follow = json_object_get(data, "followRedirects") ;
-              if( follow && json_is_boolean(follow) ) {
-                  followRedirects = json_boolean_value(follow) ;
-              }
-
-              json_t* sim = json_object_get(data, "simultaneous") ;
-              if( sim && json_is_boolean(sim) ) {
-                  simultaneous = json_boolean_value(sim) ;
-              }
-
-              json_t* pTimeout = json_object_get(data, "provisionalTimeout") ;
-              if( pTimeout && json_is_string(pTimeout) ) {
-                  provisionalTimeout = json_string_value(pTimeout) ;
-              }
-
-              json_t* fTimeout = json_object_get(data, "finalTimeout") ;
-              if( fTimeout && json_is_string(fTimeout) ) {
-                  finalTimeout = json_string_value(fTimeout) ;
-              }
-
-              json_t* destination = json_object_get(data, "destination") ;
-              if( json_is_string(destination) ) {
-                  vecDestination.push_back( json_string_value(destination) ) ;
-              }
-              else if( json_is_array(destination) ) {
-                  size_t size = json_array_size(destination);
-                  for( unsigned int i = 0; i < size; i++ ) {
-                      json_t* aDest = json_array_get(destination, i);
-                      if( !json_is_string(aDest) ) {
-                          throw std::runtime_error("RequestHandler::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
-                      }
-                      vecDestination.push_back( json_string_value(aDest) );
-                  }
-              }
-
-              processProxyInstruction(transactionId, recordRoute, followRedirects, 
-                  simultaneous, provisionalTimeout, finalTimeout, vecDestination) ;
-          }
-          else if( 0 == strcmp("redirect", actionText)) {
-              json_t* contact = json_object_get(data, "contact") ;
-              vector<string> vecContact ;
-
-              if( json_is_string(contact) ) {
-                  vecContact.push_back( json_string_value(contact) ) ;
-              }
-              else if( json_is_array(contact) ) {
-                  size_t size = json_array_size(contact);
-                  for( unsigned int i = 0; i < size; i++ ) {
-                      json_t* aContact = json_array_get(contact, i);
-                      if( !json_is_string(aContact) ) {
-                          throw std::runtime_error("RequestHandler::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
-                      }
-                      vecContact.push_back( json_string_value(aContact) );
-                  }
-              }
-              else {
-                  throw std::runtime_error("RequestHandler::processRoutingInstructions - invalid 'contact' attribute in redirect action: must be string or array") ;  
-              }
-              processRedirectInstruction(transactionId, vecContact);
-
-          }
-          else if( 0 == strcmp("route", actionText)) {
-            json_t* uri = json_object_get(data, "uri") ;
-
-            if( !uri || !json_is_string(uri) ) {
-                throw std::runtime_error("'uri' is missing or is not a string") ;  
-            }
-            processOutboundConnectionInstruction(transactionId, json_string_value(uri));
-          }
-          else {
-              msg << "RequestHandler::processRoutingInstructions - invalid 'action' attribute value '" << actionText << 
-                  "': valid values are 'reject', 'proxy', 'redirect', and 'route'" ;
-              return throw std::runtime_error(msg.str()) ;  
-          }
-
-          json_decref(root) ; 
-      } catch( std::runtime_error& err ) {
-          DR_LOG(log_error) << "RequestHandler::processRoutingInstructions " << err.what();
-          DR_LOG(log_error) << body ;
-          processRejectInstruction(transactionId, 500) ;
-          if( root ) { 
-              json_decref(root) ; 
-          }
+        m_ioservice.run() ;
+        break ;
       }
-
-      // clean up needed?  not in reject scenarios, nor redirect nor route (proxy?)
-      //m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
-
+      catch( std::exception& e) {
+        DR_LOG(log_error) << "RequestHandler::threadFunc - Error in event thread: " << string( e.what() )  ;
+      }
+    }
   }
+  int RequestHandler::sock_cb(CURL *e, curl_socket_t s, int what, void *cbp, void *sockp) {
+    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    GlobalInfo *g = &(p->getGlobal()) ;
 
-  void RequestHandler::processRejectInstruction(const string& transactionId, unsigned int status, const char* reason) {
-      string headers;
-      string body ;
-      std::ostringstream statusLine ;
+    int *actionp = (int *) sockp;
+    static const char *whatstr[] = { "none", "IN", "OUT", "INOUT", "REMOVE"};
 
-      statusLine << "SIP/2.0 " << status << " " ;
-      if( reason ) {
-          statusLine << reason ;
+    if(what == CURL_POLL_REMOVE) {
+      remsock(actionp, g);
+    }
+    else {
+      if(!actionp) {
+        addsock(s, e, what, g);
       }
       else {
-          boost::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
-          if( it != responseReasons.end() ) {
-              statusLine << it->second ;
-          }
+        setsock(actionp, s, e, what, *actionp, g);
       }
-      if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, statusLine.str(), headers, body) )) {
-          DR_LOG(log_error) << "RequestHandler::processRejectInstruction - error sending rejection with status " << status ;
-      }
+    }
+    return 0;  
   }
-  void RequestHandler::processRedirectInstruction(const string& transactionId, vector<string>& vecContact) {
-      string headers;
-      string body ;
+  void RequestHandler::addsock(curl_socket_t s, CURL *easy, int action, RequestHandler::GlobalInfo *g) {
+    /* fdp is used to store current action */
+    int *fdp = (int *) calloc(sizeof(int), 1);
 
-      int i = 0 ;
-      BOOST_FOREACH(string& c, vecContact) {
-          if( i++ > 0 ) {
-              headers.append("\n");
-          }
-          headers.append("Contact: ") ;
-          headers.append(c) ;
-      }
-
-      if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 302 Moved", headers, body) )) {
-          DR_LOG(log_error) << "RequestHandler::processRedirectInstruction - error sending redirect" ;
-      }
+    setsock(fdp, s, easy, action, 0, g);
+    curl_multi_assign(g->multi, s, fdp);
+  }
+  void RequestHandler::remsock(int *f, RequestHandler::GlobalInfo *g) {
+    if(f) {
+      free(f);
+    }
   }
 
-  void RequestHandler::processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
-    bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) {
-    string headers;
-    string body ;
+  void RequestHandler::setsock(int *fdp, curl_socket_t s, CURL *e, int act, int oldact, RequestHandler::GlobalInfo *g) {
+    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
 
-    m_pController->getProxyController()->proxyRequest( "", transactionId, recordRoute, false, followRedirects, 
-      simultaneous, provisionalTimeout, finalTimeout, vecDestination, headers ) ;
+    std::map<curl_socket_t, boost::asio::ip::tcp::socket *>::iterator it =
+      socket_map.find(s);
+
+    if(it == socket_map.end()) {
+      return;
+    }
+
+    boost::asio::ip::tcp::socket * tcp_socket = it->second;
+
+    *fdp = act;
+
+    if(act == CURL_POLL_IN) {
+      if(oldact != CURL_POLL_IN && oldact != CURL_POLL_INOUT) {
+        tcp_socket->async_read_some(boost::asio::null_buffers(),
+                                    boost::bind(&event_cb, g, s,
+                                                CURL_POLL_IN, _1, fdp));
+      }
+    }
+    else if(act == CURL_POLL_OUT) {
+      if(oldact != CURL_POLL_OUT && oldact != CURL_POLL_INOUT) {
+        tcp_socket->async_write_some(boost::asio::null_buffers(),
+                                     boost::bind(&event_cb, g, s,
+                                                 CURL_POLL_OUT, _1, fdp));
+      }
+    }
+    else if(act == CURL_POLL_INOUT) {
+      if(oldact != CURL_POLL_IN && oldact != CURL_POLL_INOUT) {
+        tcp_socket->async_read_some(boost::asio::null_buffers(),
+                                    boost::bind(&event_cb, g, s,
+                                                CURL_POLL_IN, _1, fdp));
+      }
+      if(oldact != CURL_POLL_OUT && oldact != CURL_POLL_INOUT) {
+        tcp_socket->async_write_some(boost::asio::null_buffers(),
+                                     boost::bind(&event_cb, g, s,
+                                                 CURL_POLL_OUT, _1, fdp));
+      }
+    }
   }
 
-  void RequestHandler::processOutboundConnectionInstruction(const string& transactionId, const char* uri) {
-    string routeUri = uri ;
-    m_pController->makeOutboundConnection(transactionId, routeUri);
+  int RequestHandler::multi_timer_cb(CURLM *multi, long timeout_ms, RequestHandler::GlobalInfo *g) {
+    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    boost::asio::deadline_timer& timer = p->getTimer() ;
+
+    /* cancel running timer */
+    timer.cancel();
+
+    if(timeout_ms > 0) {
+      /* update timer */
+      timer.expires_from_now(boost::posix_time::millisec(timeout_ms));
+      timer.async_wait(boost::bind(&timer_cb, _1, g));
+    }
+    else if(timeout_ms == 0) {
+      /* call timeout function immediately */
+      boost::system::error_code error; /*success*/
+      timer_cb(error, g);
+    }
+
+    return 0;
+  }
+  int RequestHandler::mcode_test(const char *where, CURLMcode code) {
+    if(CURLM_OK != code) {
+      const char *s;
+      switch(code) {
+      case CURLM_CALL_MULTI_PERFORM:
+        s = "CURLM_CALL_MULTI_PERFORM";
+        break;
+      case CURLM_BAD_HANDLE:
+        s = "CURLM_BAD_HANDLE";
+        break;
+      case CURLM_BAD_EASY_HANDLE:
+        s = "CURLM_BAD_EASY_HANDLE";
+        break;
+      case CURLM_OUT_OF_MEMORY:
+        s = "CURLM_OUT_OF_MEMORY";
+        break;
+      case CURLM_INTERNAL_ERROR:
+        s = "CURLM_INTERNAL_ERROR";
+        break;
+      case CURLM_UNKNOWN_OPTION:
+        s = "CURLM_UNKNOWN_OPTION";
+        break;
+      case CURLM_LAST:
+        s = "CURLM_LAST";
+        break;
+      default:
+        s = "CURLM_unknown";
+        break;
+      case CURLM_BAD_SOCKET:
+        s = "CURLM_BAD_SOCKET";
+        break;
+      }
+
+      DR_LOG(log_debug) << "RequestHandler::mcode_test ERROR: " << where << " returns " << s;
+
+      return -1;
+    }
+    return 0 ;
   }
 
-  void RequestHandler::stop() {
-    m_ioservice.stop() ;
-    m_thread.join() ;
+  /* Check for completed transfers, and remove their easy handles */
+  void RequestHandler::check_multi_info(RequestHandler::GlobalInfo *g) {
+    char *eff_url;
+    CURLMsg *msg;
+    int msgs_left;
+    RequestHandler::ConnInfo *conn;
+    CURL *easy;
+    CURLcode res;
+
+    while((msg = curl_multi_info_read(g->multi, &msgs_left))) {
+      if(msg->msg == CURLMSG_DONE) {
+        long response_code;
+        double namelookup=0, connect=0, total=0 ;
+        char *ct = NULL ;
+        easy = msg->easy_handle;
+        res = msg->data.result;
+        curl_easy_getinfo(easy, CURLINFO_PRIVATE, &conn);
+        curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &eff_url);
+        curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &response_code);
+        curl_easy_getinfo(easy, CURLINFO_CONTENT_TYPE, &ct);
+
+        curl_easy_getinfo(easy, CURLINFO_NAMELOOKUP_TIME, &namelookup);
+        curl_easy_getinfo(easy, CURLINFO_CONNECT_TIME, &connect);
+        curl_easy_getinfo(easy, CURLINFO_TOTAL_TIME, &total);
+
+        DR_LOG(log_debug) << "response " << response_code << " received from server in " << dec <<
+          std::setprecision(3) << total << " secs: " << conn->response;
+
+        //notify controller
+        theOneAndOnlyController->httpCallRoutingComplete(conn->transactionId, response_code, conn->response) ;
+
+        // return easy handle to cache
+        {
+          boost::lock_guard<boost::mutex> l( m_lock ) ;
+          m_cacheEasyHandles.push_back(easy) ;
+          DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after returning handle " << dec <<
+            m_cacheEasyHandles.size() << " are available in cache";
+        }
+
+        curl_multi_remove_handle(g->multi, easy);
+        
+        if( conn->hdr_list ) curl_slist_free_all(conn->hdr_list);
+        free(conn);
+      }
+    }
+  }
+
+  /* Called by asio when there is an action on a socket */
+  void RequestHandler::event_cb(RequestHandler::GlobalInfo *g, curl_socket_t s,
+                       int action, const boost::system::error_code & error,
+                       int *fdp) {
+    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
+    boost::asio::deadline_timer& timer = p->getTimer() ;
+
+    if(socket_map.find(s) == socket_map.end()) {
+      DR_LOG(log_error) << "event_cb: socket already closed";
+      return;
+    }
+
+    /* make sure the event matches what are wanted */
+    if(*fdp == action || *fdp == CURL_POLL_INOUT) {
+      CURLMcode rc;
+      if(error)
+        action = CURL_CSELECT_ERR;
+      rc = curl_multi_socket_action(g->multi, s, action, &g->still_running);
+
+      mcode_test("event_cb: curl_multi_socket_action", rc);
+      check_multi_info(g);
+
+      if(g->still_running <= 0) {
+        timer.cancel();
+      }
+
+      /* keep on watching.
+       * the socket may have been closed and/or fdp may have been changed
+       * in curl_multi_socket_action(), so check them both */
+      if(!error && socket_map.find(s) != socket_map.end() &&
+         (*fdp == action || *fdp == CURL_POLL_INOUT)) {
+        boost::asio::ip::tcp::socket *tcp_socket = socket_map.find(s)->second;
+
+        if(action == CURL_POLL_IN) {
+          tcp_socket->async_read_some(boost::asio::null_buffers(),
+                                      boost::bind(&event_cb, g, s,
+                                                  action, _1, fdp));
+        }
+        if(action == CURL_POLL_OUT) {
+          tcp_socket->async_write_some(boost::asio::null_buffers(),
+                                       boost::bind(&event_cb, g, s,
+                                                   action, _1, fdp));
+        } 
+      }
+    }
+  }
+
+  /* CURLOPT_PROGRESSFUNCTION */
+  int RequestHandler::prog_cb(void *p, double dltotal, double dlnow, double ult,
+                     double uln) {
+    RequestHandler::ConnInfo *conn = (RequestHandler::ConnInfo *)p;
+
+    (void)ult;
+    (void)uln;
+
+    DR_LOG(log_debug) << "Progress: " << conn->url << " (" << dlnow << "/" << dltotal << ")";
+    DR_LOG(log_debug) << "Progress: " << conn->url << " (" << ult << ")";
+
+    return 0;
+  }
+
+  /* Called by asio when our timeout expires */
+  void RequestHandler::timer_cb(const boost::system::error_code & error, RequestHandler::GlobalInfo *g)
+  {
+    if(!error) {
+      CURLMcode rc;
+      rc = curl_multi_socket_action(g->multi, CURL_SOCKET_TIMEOUT, 0,
+                                    &g->still_running);
+
+      mcode_test("timer_cb: curl_multi_socket_action", rc);
+      check_multi_info(g);
+    }
+  }
+
+  /* CURLOPT_WRITEFUNCTION */
+  size_t RequestHandler::write_cb(void *ptr, size_t size, size_t nmemb, ConnInfo *conn) {
+    size_t written = size * nmemb;
+    conn->response.append((const char *) ptr, written) ;
+    return written;
+  }
+
+  size_t RequestHandler::header_callback(char *buffer, size_t size, size_t nitems, ConnInfo *conn) {
+    size_t written = size * nitems;
+    string header(buffer, written);
+    DR_LOG(log_debug) << header ;
+    return written;
+  }
+
+
+  /* CURLOPT_OPENSOCKETFUNCTION */
+  curl_socket_t RequestHandler::opensocket(void *clientp, curlsocktype purpose,
+                                  struct curl_sockaddr *address) {
+    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
+    boost::asio::io_service& io_service = p->getIOService() ;
+
+    curl_socket_t sockfd = CURL_SOCKET_BAD;
+
+    /* restrict to IPv4 */
+    if(purpose == CURLSOCKTYPE_IPCXN && address->family == AF_INET) {
+      /* create a tcp socket object */
+      boost::asio::ip::tcp::socket *tcp_socket =
+        new boost::asio::ip::tcp::socket(io_service);
+
+      /* open it and get the native handle*/
+      boost::system::error_code ec;
+      tcp_socket->open(boost::asio::ip::tcp::v4(), ec);
+
+      if(ec) {
+        /* An error occurred */
+        DR_LOG(log_error) << "Couldn't open socket [" << ec << "][" << ec.message() << "]";
+      }
+      else {
+        sockfd = tcp_socket->native_handle();
+
+        /* save it for monitoring */
+        socket_map.insert(std::pair<curl_socket_t,
+                          boost::asio::ip::tcp::socket *>(sockfd, tcp_socket));
+      }
+    }
+
+    return sockfd;
+  }
+
+  /* CURLOPT_CLOSESOCKETFUNCTION */
+  int RequestHandler::close_socket(void *clientp, curl_socket_t item) {
+    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
+
+    std::map<curl_socket_t, boost::asio::ip::tcp::socket *>::iterator it =
+      socket_map.find(item);
+
+    if(it != socket_map.end()) {
+      delete it->second;
+      socket_map.erase(it);
+    }
+
+    return 0;
+  }
+  int RequestHandler::debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, 
+    RequestHandler::ConnInfo *conn) {
+
+    return 0 ;
+  }
+
+  /* Create a new easy handle, and add it to the global curl_multi */
+  void RequestHandler::startRequest(const string& transactionId, 
+    const string& httpMethod, const string& url, const string& body, bool verifyPeer) {
+
+    RequestHandler::ConnInfo *conn;
+    CURLMcode rc;
+
+    conn = (RequestHandler::ConnInfo *) calloc(1, sizeof(RequestHandler::ConnInfo));
+
+    CURL* easy = NULL ;
+    {
+      boost::lock_guard<boost::mutex> l( m_lock ) ;
+      if( m_cacheEasyHandles.empty() ) {
+        m_cacheEasyHandles.push_back(createEasyHandle()) ;
+      }
+      easy = m_cacheEasyHandles.front() ;
+      m_cacheEasyHandles.pop_front() ;
+      DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after acquiring handle " << dec <<
+        m_cacheEasyHandles.size() << " remain in cache";
+    }
+
+    conn->easy = easy;
+
+    conn->global = &m_g;
+    conn->url = url ;
+    conn->body = body ;
+    conn->transactionId = transactionId;
+    conn->hdr_list = NULL ;
+
+    curl_easy_setopt(easy, CURLOPT_URL, conn->url.c_str());
+    curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION, write_cb);
+    curl_easy_setopt(easy, CURLOPT_WRITEDATA, conn);
+    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, conn->error);
+    curl_easy_setopt(easy, CURLOPT_PRIVATE, conn);
+    //curl_easy_setopt(easy, CURLOPT_PROGRESSFUNCTION, prog_cb);
+    //curl_easy_setopt(easy, CURLOPT_PROGRESSDATA, conn);
+    curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 3L);
+    curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 10L);
+    //curl_easy_setopt(easy, CURLOPT_DEBUGFUNCTION, debug_callback);
+    //curl_easy_setopt(easy, CURLOPT_DEBUGDATA, &conn);
+    curl_easy_setopt(easy, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1L);
+    //curl_easy_setopt(easy, CURLOPT_HEADERFUNCTION, header_callback);
+    //curl_easy_setopt(easy, CURLOPT_HEADERDATA, conn);
+
+    
+    /* call this function to get a socket */
+    curl_easy_setopt(easy, CURLOPT_OPENSOCKETFUNCTION, opensocket);
+
+    /* call this function to close a socket */
+    curl_easy_setopt(easy, CURLOPT_CLOSESOCKETFUNCTION, close_socket);
+
+    if( 0 == url.find("https:") ) {
+      curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, verifyPeer);
+    }
+
+    conn->hdr_list = curl_slist_append(conn->hdr_list, "Accept: application/json");
+    
+    if( 0 == httpMethod.compare("POST") ) {
+      curl_easy_setopt(easy, CURLOPT_POSTFIELDS, conn->body.c_str() );
+      curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE, conn->body.length() );
+      conn->hdr_list = curl_slist_append(conn->hdr_list, "Content-Type: text/plain; charset=UTF-8");
+    }
+    curl_easy_setopt(easy, CURLOPT_HTTPHEADER, conn->hdr_list);
+
+    rc = curl_multi_add_handle(m_g.multi, conn->easy);
+    mcode_test("new_conn: curl_multi_add_handle", rc);
+
+    /* note that the add_handle() will set a time-out to trigger very soon so
+       that the necessary socket_action() call will be called by this app */
+  }
+
+  CURL* RequestHandler::createEasyHandle(void) {
+    CURL* easy = curl_easy_init();
+    if(!easy) {
+      DR_LOG(log_error) << "curl_easy_init() failed, exiting!";
+      throw new std::runtime_error("curl_easy_init() failed");
+    }  
+
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPIDLE, 120L);
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPINTVL, 60L);
+    curl_easy_setopt(easy, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(easy, CURLOPT_USERAGENT, "Drachtio/"DRACHTIO_VERSION);
+
+    // set connect timeout to 2 seconds and total timeout to 3 seconds
+    curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
+    curl_easy_setopt(easy, CURLOPT_TIMEOUT, 3L);
+
+    return easy ;    
+  }
+
+  // public API
+
+  boost::shared_ptr<RequestHandler> RequestHandler::getInstance() {
+    if(!instanceFlag) {
+
+      for( int i = 0; i < easyHandleCacheSize; i++ ) {
+        CURL* easy = createEasyHandle() ;
+        m_cacheEasyHandles.push_back( easy ) ;
+      }
+
+      single.reset(new RequestHandler(theOneAndOnlyController));
+      instanceFlag = true;
+      return single;
+    }
+    else {
+      return single;
+    }
+  }  
+
+  void RequestHandler::makeRequestForRoute(const string& transactionId, const string& httpMethod, 
+    const string& httpUrl, const string& body, bool verifyPeer) {
+
+    m_ioservice.post( boost::bind(&RequestHandler::startRequest, this, transactionId, httpMethod, httpUrl, body, verifyPeer)) ;
   }
  }

@@ -133,6 +133,9 @@ namespace drachtio {
 
     bool setupLegForIncomingRequest( const string& transactionId ) ;
 
+    /* callback from http outbound requests for route selection */
+    void httpCallRoutingComplete(const string& transactionId, long response_code, const string& response) ;
+
     bool isSecret( const string& secret ) {
     	return m_Config->isSecret( secret ) ;
     }
@@ -177,6 +180,16 @@ namespace drachtio {
   	bool installConfig() ;
   	void logConfig() ;
     int validateSipMessage( sip_t const *sip ) ;
+
+    void processRejectInstruction(const string& transactionId, unsigned int status, const char* reason = NULL) ;
+    void processRedirectInstruction(const string& transactionId, vector<string>& vecContact) ;
+    void processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
+        bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) ;
+    void processOutboundConnectionInstruction(const string& transactionId, const char* uri) ;
+
+    void finishRequest( const string& transactionId, const boost::system::error_code& err, 
+        unsigned int status_code, const string& body) ;
+
 
   	scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
   	boost::mutex m_mutexGlobal ;
