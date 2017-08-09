@@ -33,7 +33,9 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 
-#define TXNID_SIZE 255
+#define TXNID_LEN (255)
+#define URL_LEN (1024)
+#define HTTP_BODY_LEN (16384)
 
 using boost::asio::ip::tcp;
 
@@ -52,10 +54,10 @@ namespace drachtio {
     /* Information associated with a specific easy handle */
     typedef struct _ConnInfo {
         CURL *easy;
-        string url;
-        string body ;
-        string transactionId;
-        string response ;
+        char url[URL_LEN+1];
+        char body[HTTP_BODY_LEN+1];
+        char transactionId[TXNID_LEN+1];
+        char response[HTTP_BODY_LEN+1] ;
         struct curl_slist *hdr_list;
         GlobalInfo *global;
         char error[CURL_ERROR_SIZE];
