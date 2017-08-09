@@ -347,7 +347,15 @@ namespace drachtio {
   /* CURLOPT_WRITEFUNCTION */
   size_t RequestHandler::write_cb(void *ptr, size_t size, size_t nmemb, ConnInfo *conn) {
     size_t written = size * nmemb;
-    conn->response.append((const char *) ptr, written) ;
+    size_t needed = strlen(conn->response) + written ;
+    if( needed > HTTP_BODY_LEN ) {
+      DR_LOG(log_error) << "RequestHandler::write_cb total length of response " << needed << 
+        " exceeds buffer size";
+      return 0 ;
+    }
+    else {
+      strncat( conn->response, (const char *) ptr, written) ;
+    }
     return written;
   }
 
@@ -396,6 +404,8 @@ namespace drachtio {
 
   /* CURLOPT_CLOSESOCKETFUNCTION */
   int RequestHandler::close_socket(void *clientp, curl_socket_t item) {
+    //DR_LOG(log_debug) <<"close_socket : " << hex << item;
+
     boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
 
@@ -439,20 +449,20 @@ namespace drachtio {
     conn->easy = easy;
 
     conn->global = &m_g;
-    conn->url = url ;
-    conn->body = body ;
-    conn->transactionId = transactionId;
+    strncpy(conn->url, url.c_str(), URL_LEN) ;
+    strncpy(conn->body, body.c_str(), HTTP_BODY_LEN);
+    strncpy(conn->transactionId, transactionId.c_str(), TXNID_LEN);
     conn->hdr_list = NULL ;
 
-    curl_easy_setopt(easy, CURLOPT_URL, conn->url.c_str());
+    curl_easy_setopt(easy, CURLOPT_URL, conn->url);
     curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(easy, CURLOPT_WRITEDATA, conn);
     curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, conn->error);
     curl_easy_setopt(easy, CURLOPT_PRIVATE, conn);
     //curl_easy_setopt(easy, CURLOPT_PROGRESSFUNCTION, prog_cb);
     //curl_easy_setopt(easy, CURLOPT_PROGRESSDATA, conn);
-    curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 3L);
-    curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 10L);
+    //curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 3L);
+    //curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 10L);
     //curl_easy_setopt(easy, CURLOPT_DEBUGFUNCTION, debug_callback);
     //curl_easy_setopt(easy, CURLOPT_DEBUGDATA, &conn);
     curl_easy_setopt(easy, CURLOPT_VERBOSE, 0L);
@@ -474,8 +484,8 @@ namespace drachtio {
     conn->hdr_list = curl_slist_append(conn->hdr_list, "Accept: application/json");
     
     if( 0 == httpMethod.compare("POST") ) {
-      curl_easy_setopt(easy, CURLOPT_POSTFIELDS, conn->body.c_str() );
-      curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE, conn->body.length() );
+      curl_easy_setopt(easy, CURLOPT_POSTFIELDS, conn->body);
+      curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE, strlen(conn->body));
       conn->hdr_list = curl_slist_append(conn->hdr_list, "Content-Type: text/plain; charset=UTF-8");
     }
     curl_easy_setopt(easy, CURLOPT_HTTPHEADER, conn->hdr_list);
