@@ -28,7 +28,7 @@ THE SOFTWARE.
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/asio/ssl.hpp>
-
+#include <boost/pool/object_pool.hpp>
 #include <curl/curl.h>
 
 #include "drachtio.h"
@@ -53,14 +53,18 @@ namespace drachtio {
 
     /* Information associated with a specific easy handle */
     typedef struct _ConnInfo {
-        CURL *easy;
-        char url[URL_LEN+1];
-        char body[HTTP_BODY_LEN+1];
-        char transactionId[TXNID_LEN+1];
-        char response[HTTP_BODY_LEN+1] ;
-        struct curl_slist *hdr_list;
-        GlobalInfo *global;
-        char error[CURL_ERROR_SIZE];
+      _ConnInfo() {
+        memset(this, 0, sizeof(ConnInfo));
+      }
+
+      CURL *easy;
+      char url[URL_LEN+1];
+      char body[HTTP_BODY_LEN+1];
+      char transactionId[TXNID_LEN+1];
+      char response[HTTP_BODY_LEN+1] ;
+      struct curl_slist *hdr_list;
+      GlobalInfo *global;
+      char error[CURL_ERROR_SIZE];
     } ConnInfo;
 
     static boost::shared_ptr<RequestHandler> getInstance();
@@ -112,7 +116,8 @@ namespace drachtio {
     static boost::shared_ptr<RequestHandler> single;
     static unsigned int       easyHandleCacheSize ;
     static std::deque<CURL*>   m_cacheEasyHandles ;
-    static boost::mutex        m_lock ;
+    //static boost::mutex        m_lock ;
+    static boost::object_pool<ConnInfo> m_pool ;
 
     DrachtioController*         m_pController ;
     boost::thread               m_thread ;
