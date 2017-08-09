@@ -2,6 +2,8 @@ language: cpp
 compiler:
   - gcc
   - clang
+dist: trusty
+sudo: required
 # Change this to your needs
 script: ./bootstrap.sh && mkdir build && cd build && ../configure && make
 
