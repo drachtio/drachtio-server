@@ -49,7 +49,7 @@ namespace drachtio {
   bool RequestHandler::instanceFlag = false;
   boost::shared_ptr<RequestHandler> RequestHandler::single ;
   std::deque<CURL*> RequestHandler::m_cacheEasyHandles ;
-  boost::mutex RequestHandler::m_lock ;
+  boost::object_pool<RequestHandler::ConnInfo> RequestHandler::m_pool(16, 256) ;
 
   RequestHandler::RequestHandler( DrachtioController* pController ) :
       m_pController( pController ), m_timer(m_ioservice) {
@@ -255,16 +255,21 @@ namespace drachtio {
 
         // return easy handle to cache
         {
-          boost::lock_guard<boost::mutex> l( m_lock ) ;
+          //alloc and free happen in the same thread
+          //boost::lock_guard<boost::mutex> l( m_lock ) ;
           m_cacheEasyHandles.push_back(easy) ;
-          DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after returning handle " << dec <<
-            m_cacheEasyHandles.size() << " are available in cache";
+          DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after returning handle  in thread" << 
+            boost::this_thread::get_id() << " " << dec <<
+            m_cacheEasyHandles.size() << " handles are available in cache";
         }
 
         curl_multi_remove_handle(g->multi, easy);
         
         if( conn->hdr_list ) curl_slist_free_all(conn->hdr_list);
-        free(conn);
+
+        memset(conn, 0, sizeof(ConnInfo));
+        m_pool.destroy(conn) ;
+        //free(conn);
       }
     }
   }
@@ -432,18 +437,21 @@ namespace drachtio {
     RequestHandler::ConnInfo *conn;
     CURLMcode rc;
 
-    conn = (RequestHandler::ConnInfo *) calloc(1, sizeof(RequestHandler::ConnInfo));
+    //conn = (RequestHandler::ConnInfo *) calloc(1, sizeof(RequestHandler::ConnInfo));
+    conn = m_pool.malloc() ;
 
     CURL* easy = NULL ;
     {
-      boost::lock_guard<boost::mutex> l( m_lock ) ;
+      //alloc and free happen in the same thread
+      //boost::lock_guard<boost::mutex> l( m_lock ) ;
       if( m_cacheEasyHandles.empty() ) {
         m_cacheEasyHandles.push_back(createEasyHandle()) ;
       }
       easy = m_cacheEasyHandles.front() ;
       m_cacheEasyHandles.pop_front() ;
-      DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after acquiring handle " << dec <<
-        m_cacheEasyHandles.size() << " remain in cache";
+      DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after acquiring handle in thread " << 
+        boost::this_thread::get_id() << " " << dec <<
+        m_cacheEasyHandles.size() << " handles remain in cache";
     }
 
     conn->easy = easy;
