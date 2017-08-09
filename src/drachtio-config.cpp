@@ -89,13 +89,13 @@ namespace drachtio {
                             if( 0 == v.first.compare("contact") ) {
                                 string external = v.second.get<string>("<xmlattr>.external-ip","") ;            
                                 string localNet = v.second.get<string>("<xmlattr>.local-net","") ;   
-                                string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");         
+                                string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");      
 
                                 boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(v.second.data(), localNet, external) ;
                                 vector<string> names;
                                 boost::split(names, dnsNames, boost::is_any_of(",; "));
                                 for (vector<string>::iterator it = names.begin(); it != names.end(); ++it) {
-                                    if( (*it).length() ) {
+                                    if( !(*it).empty() ) {
                                         p->addDnsName((*it)) ;
                                     }
                                 }

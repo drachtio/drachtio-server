@@ -25,12 +25,14 @@ namespace drachtio {
 }
 
 #include <boost/bind.hpp>
-
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include "pending-request-controller.hpp"
 #include "controller.hpp"
 #include "cdr.hpp"
 #include "request-router.hpp"
+#include "request-handler.hpp"
 
 #define CLIENT_TIMEOUT (64000)
 
@@ -57,7 +59,7 @@ namespace drachtio {
 
   PendingRequestController::PendingRequestController( DrachtioController* pController) : m_pController(pController), 
     m_agent(pController->getAgent()), m_pClientController(pController->getClientController()), 
-    m_timerQueue(pController->getRoot(), "pending-request" ), m_pRequestHandler(pController->getRequestHandler()) {
+    m_timerQueue(pController->getRoot(), "pending-request" ) {
 
     assert(m_agent) ;
  
@@ -106,7 +108,39 @@ namespace drachtio {
       v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user )) ;
       v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user )) ;
 
-      m_pController->getRequestHandler()->processRequest(transactionId, httpMethod, httpUrl, encodedMessage, v, verifyPeer ) ;
+      // add request uri params to the querystring as well
+      if (sip->sip_request->rq_url->url_params) {
+        string paramString(sip->sip_request->rq_url->url_params);
+        vector<string> strs;
+        boost::split(strs, paramString, boost::is_any_of(";"));
+        for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+          vector<string> kv ;
+          boost::split(kv, *it, boost::is_any_of("="));
+          v.push_back(make_pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+        }
+      }
+
+      //tmp!!
+      httpUrl.append("/");
+      int i = 0 ;
+      pair<string,string> p;
+      BOOST_FOREACH(p, v) {
+          if( i++ > 0 ) {
+              httpUrl.append("&") ;
+          }
+          else {
+            httpUrl.append("?");
+          }
+          httpUrl.append(p.first) ;
+          httpUrl.append("=") ;
+          httpUrl.append(p.second);
+      }
+      DR_LOG(log_error) << "PendingRequestController::processNewRequest: presenting url: " << httpUrl ;
+      //
+
+      boost::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
+      pHandler->makeRequestForRoute(transactionId, httpMethod, httpUrl, encodedMessage) ;
+      //m_pController->getRequestHandler()->processRequest(transactionId, httpMethod, httpUrl, encodedMessage, v, verifyPeer ) ;
     }
     else {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;

@@ -45,6 +45,7 @@ THE SOFTWARE.
 #include <boost/log/attributes/scoped_attribute.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/core/null_deleter.hpp>
+#include <boost/assign/list_of.hpp>
 
 #include <boost/lambda/lambda.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -57,6 +58,8 @@ THE SOFTWARE.
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/regex.hpp>
+
+#include <jansson.h>
 
 #include <sofia-sip/msg_addr.h>
 #include <sofia-sip/sip_util.h>
@@ -161,6 +164,79 @@ namespace {
                    sip_t *sip) {
     return controller->processMessageStatelessly( msg, sip ) ;
   }
+
+  static boost::unordered_map<unsigned int, std::string> responseReasons = boost::assign::map_list_of
+    (100, "Trying") 
+    (180, "Ringing")
+    (181, "Call is Being Forwarded")
+    (182, "Queued")
+    (183, "Session in Progress")
+    (199, "Early Dialog Terminated")
+    (200, "OK")
+    (202, "Accepted") 
+    (204, "No Notification") 
+    (300, "Multiple Choices") 
+    (301, "Moved Permanently") 
+    (302, "Moved Temporarily") 
+    (305, "Use Proxy") 
+    (380, "Alternative Service") 
+    (400, "Bad Request") 
+    (401, "Unauthorized") 
+    (402, "Payment Required") 
+    (403, "Forbidden") 
+    (404, "Not Found") 
+    (405, "Method Not Allowed") 
+    (406, "Not Acceptable") 
+    (407, "Proxy Authentication Required") 
+    (408, "Request Timeout") 
+    (409, "Conflict") 
+    (410, "Gone") 
+    (411, "Length Required") 
+    (412, "Conditional Request Failed") 
+    (413, "Request Entity Too Large") 
+    (414, "Request-URI Too Long") 
+    (415, "Unsupported Media Type") 
+    (416, "Unsupported URI Scheme") 
+    (417, "Unknown Resource-Priority") 
+    (420, "Bad Extension") 
+    (421, "Extension Required") 
+    (422, "Session Interval Too Small") 
+    (423, "Interval Too Brief") 
+    (424, "Bad Location Information") 
+    (428, "Use Identity Header") 
+    (429, "Provide Referrer Identity") 
+    (430, "Flow Failed") 
+    (433, "Anonymity Disallowed") 
+    (436, "Bad Identity-Info") 
+    (437, "Unsupported Certificate") 
+    (438, "Invalid Identity Header") 
+    (439, "First Hop Lacks Outbound Support") 
+    (470, "Consent Needed") 
+    (480, "Temporarily Unavailable") 
+    (481, "Call Leg/Transaction Does Not Exist") 
+    (482, "Loop Detected") 
+    (483, "Too Many Hops") 
+    (484, "Address Incomplete") 
+    (485, "Ambiguous") 
+    (486, "Busy Here") 
+    (487, "Request Terminated") 
+    (488, "Not Acceptable Here") 
+    (489, "Bad Event") 
+    (491, "Request Pending") 
+    (493, "Undecipherable") 
+    (494, "Security Agreement Required") 
+    (500, "Server Internal Error") 
+    (501, "Not Implemented") 
+    (502, "Bad Gateway") 
+    (503, "Service Unavailable") 
+    (504, "Server Timeout") 
+    (505, "Version Not Supported") 
+    (513, "Message Too Large") 
+    (580, "Precondition Failure") 
+    (600, "Busy Everywhere") 
+    (603, "Decline") 
+    (604, "Does Not Exist Anywhere") 
+    (606, "Not Acceptable");
  }
 
 namespace drachtio {
@@ -195,8 +271,6 @@ namespace drachtio {
         
         logging::add_common_attributes();
         m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
-
-        m_pRequestHandler = boost::make_shared<RequestHandler>( this ) ;
 
         if( !m_Config->isValid() ) {
             exit(-1) ;
@@ -589,13 +663,13 @@ namespace drachtio {
 
     void DrachtioController::run() {
         
-        if( m_bDaemonize ) {
-            daemonize() ;
-        }
+      if( m_bDaemonize ) {
+          daemonize() ;
+      }
 
-		/* now we can initialize logging */
-		m_logger.reset( this->createLogger() );
-		this->logConfig() ;
+      /* now we can initialize logging */
+      m_logger.reset( this->createLogger() );
+      this->logConfig() ;
 
         DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
 
@@ -766,7 +840,7 @@ namespace drachtio {
         int rc = 0 ;
 
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
-            " does not match an existing call leg"  ;
+            " does not match an existing call leg, processed in thread " << boost::this_thread::get_id()  ;
 
         if( sip->sip_request ) {
 
@@ -839,15 +913,19 @@ namespace drachtio {
 
             if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
 
-                //check if we are in the first Route header; if so proxy accordingly
-
-                bool match = (0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) || 
-                  (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host ) ) ) &&
-                  0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
+                //check if we are in the first Route header, and the request-uri is not us; if so proxy accordingly
+                bool hostMatch = 
+                  (0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) || 
+                  (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host )));
+                bool portMatch = 
+                  (tpn->tpn_port && sip->sip_route->r_url->url_port && 0 == strcmp(tpn->tpn_port,sip->sip_route->r_url->url_port)) ||
+                  (!tpn->tpn_port && !sip->sip_route->r_url->url_port) ||
+                  (!tpn->tpn_port && 0 == strcmp(sip->sip_route->r_url->url_port, "5060")) ||
+                  (!sip->sip_route->r_url->url_port && 0 == strcmp(tpn->tpn_port, "5060")) ;
 
                 tport_unref( tp_incoming ) ;
 
-                if( match ) {
+                if( hostMatch && portMatch && !SipTransport::isLocalAddress(sip->sip_request->rq_url->url_host)) {
                     //request within an established dialog in which we are a stateful proxy
                     if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
                        nta_msg_discard( m_nta, msg ) ;                
@@ -957,6 +1035,7 @@ namespace drachtio {
         }
         return rc ;
     }
+
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
         boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
@@ -1239,27 +1318,224 @@ namespace drachtio {
         return p ;
     }
 
-    void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
-      string host ;
-      string port = "9021";
-      vector<string> strs;
+  void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
+    string host ;
+    string port = "9021";
+    vector<string> strs;
 
-      boost::split(strs, uri, boost::is_any_of(":"));
-      if( strs.size() > 2 ) {
-        DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
-        //TODO: send 480, remove pending connection
-        return ;              
-      }
-      host = strs.at(0) ;
-      if( 2 == strs.size() ) {
-        port = strs.at(1);
-      }
-
-      DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
-        host << ":" << port ;
-      m_pClientController->makeOutboundConnection( transactionId, host, port ) ;
+    boost::split(strs, uri, boost::is_any_of(":"));
+    if( strs.size() > 2 ) {
+      DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
+      //TODO: send 480, remove pending connection
+      return ;              
+    }
+    host = strs.at(0) ;
+    if( 2 == strs.size() ) {
+      port = strs.at(1);
     }
 
+    DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
+      host << ":" << port ;
+    m_pClientController->makeOutboundConnection( transactionId, host, port ) ;
+  }
+
+  // handling responses from http route lookups
+  // N.B.: these execute in the http thread, not the main thread
+  void DrachtioController::httpCallRoutingComplete(const string& transactionId, long response_code, 
+    const string& body) {
+
+    std::ostringstream msg ;
+    json_t *root;
+    json_error_t error;
+    root = json_loads(body.c_str(), 0, &error);
+
+    DR_LOG(log_debug) << "DrachtioController::httpCallRoutingComplete thread id " << boost::this_thread::get_id() << 
+      " transaction id " << transactionId << " response: (" << response_code << ") " << body ; 
+
+    try {
+      if( !root ) {
+        msg << "error parsing body as JSON on line " << error.line  << ": " << error.text ;
+        return throw std::runtime_error(msg.str()) ;  
+      }
+
+      if(!json_is_object(root)) {
+        throw std::runtime_error("expected JSON object but got something else") ;  
+      }
+
+      json_t* action = json_object_get( root, "action") ;
+      json_t* data = json_object_get(root, "data") ;
+      if( !json_is_string(action) ) {
+        throw std::runtime_error("missing or invalid 'action' attribute") ;  
+      }
+      if( !json_is_object(data) ) {
+        throw std::runtime_error("missing 'data' object") ;  
+      }
+      const char* actionText = json_string_value(action) ;
+      if( 0 == strcmp("reject", actionText)) {
+        json_t* status = json_object_get(data, "status") ;
+        json_t* reason = json_object_get(data, "reason") ;
+
+        if( !status || !json_is_number(status) ) {
+          throw std::runtime_error("'status' is missing or is not a number") ;  
+        }
+        processRejectInstruction(transactionId, json_integer_value(status), json_string_value(reason));
+      }
+      else if( 0 == strcmp("proxy", actionText)) {
+        bool recordRoute = false ;
+        bool followRedirects = true ;
+        bool simultaneous = false ;
+        string provisionalTimeout = "5s";
+        string finalTimeout = "60s";
+        vector<string> vecDestination ;
+
+        json_t* rr = json_object_get(data, "recordRoute") ;
+        if( rr && json_is_boolean(rr) ) {
+          recordRoute = json_boolean_value(rr) ;
+        }
+
+        json_t* follow = json_object_get(data, "followRedirects") ;
+        if( follow && json_is_boolean(follow) ) {
+          followRedirects = json_boolean_value(follow) ;
+        }
+
+        json_t* sim = json_object_get(data, "simultaneous") ;
+        if( sim && json_is_boolean(sim) ) {
+          simultaneous = json_boolean_value(sim) ;
+        }
+
+        json_t* pTimeout = json_object_get(data, "provisionalTimeout") ;
+        if( pTimeout && json_is_string(pTimeout) ) {
+          provisionalTimeout = json_string_value(pTimeout) ;
+        }
+
+        json_t* fTimeout = json_object_get(data, "finalTimeout") ;
+        if( fTimeout && json_is_string(fTimeout) ) {
+          finalTimeout = json_string_value(fTimeout) ;
+        }
+
+        json_t* destination = json_object_get(data, "destination") ;
+        if( json_is_string(destination) ) {
+          vecDestination.push_back( json_string_value(destination) ) ;
+        }
+        else if( json_is_array(destination) ) {
+          size_t size = json_array_size(destination);
+          for( unsigned int i = 0; i < size; i++ ) {
+            json_t* aDest = json_array_get(destination, i);
+            if( !json_is_string(aDest) ) {
+              throw std::runtime_error("DrachtioController::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
+            }
+            vecDestination.push_back( json_string_value(aDest) );
+          }
+        }
+
+        processProxyInstruction(transactionId, recordRoute, followRedirects, 
+            simultaneous, provisionalTimeout, finalTimeout, vecDestination) ;
+      }
+      else if( 0 == strcmp("redirect", actionText)) {
+        json_t* contact = json_object_get(data, "contact") ;
+        vector<string> vecContact ;
+
+        if( json_is_string(contact) ) {
+          vecContact.push_back( json_string_value(contact) ) ;
+        }
+        else if( json_is_array(contact) ) {
+          size_t size = json_array_size(contact);
+          for( unsigned int i = 0; i < size; i++ ) {
+            json_t* aContact = json_array_get(contact, i);
+            if( !json_is_string(aContact) ) {
+              throw std::runtime_error("DrachtioController::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
+            }
+            vecContact.push_back( json_string_value(aContact) );
+          }
+        }
+        else {
+          throw std::runtime_error("DrachtioController::processRoutingInstructions - invalid 'contact' attribute in redirect action: must be string or array") ;  
+        }
+        processRedirectInstruction(transactionId, vecContact);
+
+      }
+      else if( 0 == strcmp("route", actionText)) {
+        json_t* uri = json_object_get(data, "uri") ;
+
+        if( !uri || !json_is_string(uri) ) {
+          throw std::runtime_error("'uri' is missing or is not a string") ;  
+        }
+        processOutboundConnectionInstruction(transactionId, json_string_value(uri));
+      }
+      else {
+        msg << "DrachtioController::processRoutingInstructions - invalid 'action' attribute value '" << actionText << 
+            "': valid values are 'reject', 'proxy', 'redirect', and 'route'" ;
+        return throw std::runtime_error(msg.str()) ;  
+      }
+
+      json_decref(root) ; 
+    } catch( std::runtime_error& err ) {
+      DR_LOG(log_error) << "DrachtioController::processRoutingInstructions " << err.what();
+      DR_LOG(log_error) << body ;
+      processRejectInstruction(transactionId, 500) ;
+      if( root ) { 
+        json_decref(root) ; 
+      }
+    }
+      // clean up needed?  not in reject scenarios, nor redirect nor route (proxy?)
+      //m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
+  }
+
+  void DrachtioController::processRejectInstruction(const string& transactionId, unsigned int status, 
+    const char* reason) {
+      string headers;
+      string body ;
+      std::ostringstream statusLine ;
+
+      statusLine << "SIP/2.0 " << status << " " ;
+      if( reason ) {
+          statusLine << reason ;
+      }
+      else {
+          boost::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
+          if( it != responseReasons.end() ) {
+              statusLine << it->second ;
+          }
+      }
+      if(( !this->getDialogController()->respondToSipRequest("", transactionId, statusLine.str(), headers, body) )) {
+          DR_LOG(log_error) << "DrachtioController::processRejectInstruction - error sending rejection with status " << status ;
+      }
+  }
+  void DrachtioController::processRedirectInstruction(const string& transactionId, vector<string>& vecContact) {
+      string headers;
+      string body ;
+
+      int i = 0 ;
+      BOOST_FOREACH(string& c, vecContact) {
+          if( i++ > 0 ) {
+              headers.append("\n");
+          }
+          headers.append("Contact: ") ;
+          headers.append(c) ;
+      }
+
+      if(( !this->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 302 Moved", headers, body) )) {
+          DR_LOG(log_error) << "DrachtioController::processRedirectInstruction - error sending redirect" ;
+      }
+  }
+
+  void DrachtioController::processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
+    bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) {
+    string headers;
+    string body ;
+
+    this->getProxyController()->proxyRequest( "", transactionId, recordRoute, false, followRedirects, 
+      simultaneous, provisionalTimeout, finalTimeout, vecDestination, headers ) ;
+  }
+
+  void DrachtioController::processOutboundConnectionInstruction(const string& transactionId, const char* uri) {
+    string routeUri = uri ;
+    makeOutboundConnection(transactionId, routeUri);
+  }
+
+
+    // logging / stats 
+    
     void DrachtioController::printStats() {
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
        usize_t irq_used = -1, orq_used = -1, leg_used = -1 ;

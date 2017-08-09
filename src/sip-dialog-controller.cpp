@@ -581,8 +581,6 @@ namespace drachtio {
 
         return true ;
     }
-
-
    
     void SipDialogController::doSendCancelRequest( SipMessageData* pData ) {
         string transactionId( pData->getTransactionId() ) ;
@@ -747,6 +745,8 @@ namespace drachtio {
         nta_incoming_t* irq = NULL ;
         int rc = -1 ;
         boost::shared_ptr<IIP> iip ;
+
+        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest thread " << boost::this_thread::get_id() ;
 
         /* search for requests within a dialog first */
         irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;

@@ -50,10 +50,10 @@ namespace drachtio {
     init() ;
   }
   SipTransport::SipTransport(const boost::shared_ptr<drachtio::SipTransport> other) :
-    m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), m_tp(NULL) {
+    m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
+    m_dnsNames(other->m_dnsNames), m_tp(NULL) {
     init() ;
   }
-
 
   SipTransport::~SipTransport() {
   }
@@ -128,6 +128,17 @@ namespace drachtio {
     s += ", local-net: " ;
     s += getLocalNet() ;
     s += ")" ;
+
+    if( m_dnsNames.size() ) {
+      s += " dns names: " ;
+      int i = 0 ;
+      for( vector<string>::const_iterator it = m_dnsNames.begin(); it != m_dnsNames.end(); ++it, i++ ) {
+        if( i++ ) {
+          s+= ", " ;
+        }
+        s += *it ;
+      }
+    }
   }
 
   void SipTransport::getHostport(string& s) {
@@ -390,7 +401,7 @@ namespace drachtio {
     // search all
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       boost::shared_ptr<SipTransport> p = it->second ;
-      if( p->isLocalAddress(szHost) ) {
+      if( p->isLocal(szHost) ) {
         return true ;
       }
       for( vector<string>::const_iterator itDns = p->getDnsNames().begin(); itDns != p->getDnsNames().end(); ++itDns ) {

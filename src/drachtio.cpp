@@ -420,8 +420,6 @@ namespace drachtio {
         static bool initialized = false ;
         static boost::unordered_set<string> setLocalUris ;
 
-        DR_LOG(log_debug) << "isLocalSipUri: " << requestUri  ;
-
         if( !initialized ) {
             initialized = true ;
 
@@ -448,7 +446,6 @@ namespace drachtio {
             vector<string> vecIps ;
             SipTransport::getAllExternalIps(vecIps) ;
             for(vector<string>::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
-                DR_LOG(log_debug) << "isLocalSipUri: adding public address: " << *it  ;
                 setLocalUris.insert(*it);
             }
        }

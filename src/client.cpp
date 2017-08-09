@@ -47,7 +47,7 @@ namespace drachtio {
     int optval = 1 ;
     socklen_t optlen = sizeof(optval);
     if( setsockopt(m_sock.native(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
-      DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
+      //DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
     }
   }
     
