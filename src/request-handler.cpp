@@ -247,7 +247,7 @@ namespace drachtio {
         curl_easy_getinfo(easy, CURLINFO_CONNECT_TIME, &connect);
         curl_easy_getinfo(easy, CURLINFO_TOTAL_TIME, &total);
 
-        DR_LOG(log_debug) << "response " << response_code << " received from server in " << dec <<
+        DR_LOG(log_info) << "http " << response_code << " response received from server in " << dec <<
           std::setprecision(3) << total << " secs: " << conn->response;
 
         //notify controller
@@ -437,7 +437,8 @@ namespace drachtio {
     RequestHandler::ConnInfo *conn;
     CURLMcode rc;
 
-    //conn = (RequestHandler::ConnInfo *) calloc(1, sizeof(RequestHandler::ConnInfo));
+    DR_LOG(log_info) << "RequestHandler::startRequest: sending http " << httpMethod << ": " << url ;
+
     conn = m_pool.malloc() ;
 
     CURL* easy = NULL ;
