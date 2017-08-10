@@ -5,6 +5,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <getopt.h>
+#include <string.h>
 
 #define PATHLEN (256)
 char cert_file[PATHLEN] ;
