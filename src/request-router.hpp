@@ -30,29 +30,30 @@ using namespace std ;
 
 namespace drachtio {
     
-    class RequestRouter {
-    public:
+  class RequestRouter {
+  public:
 
-        struct Route_t {
-            Route_t(const string& httpMethod, const string& url, bool verifyPeer) : httpMethod(httpMethod), url(url), verifyPeer(verifyPeer) {}
+    struct Route_t {
+      Route_t(const string& httpMethod, const string& url, bool verifyPeer) : httpMethod(httpMethod), url(url), verifyPeer(verifyPeer) {}
 
-            string  httpMethod;
-            string  url ;
-            bool    verifyPeer ;
-        } ;
-
-        RequestRouter() {}
-        ~RequestRouter() {}
-        
-        void addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl, bool verifyPeer = false);
-        bool getRoute(const char* szMethod, string& httpMethod, string& httpUrl, bool& verifyPeer) ;
-        int getAllRoutes( vector< string >& vecRoutes ) ;
-
-    private:
-
-        typedef boost::unordered_map<string, Route_t> mapSipMethod2Route ;
-        mapSipMethod2Route m_mapSipMethod2Route ;
+      string  httpMethod;
+      string  url ;
+      bool    verifyPeer ;
     } ;
+
+    RequestRouter() {}
+    ~RequestRouter() {}
+    
+    void addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl, bool verifyPeer = false);
+    bool getRoute(const char* szMethod, string& httpMethod, string& httpUrl, bool& verifyPeer) ;
+    int getAllRoutes( vector< string >& vecRoutes ) ;
+    int getCountOfRoutes(void) { return m_mapSipMethod2Route.size(); }
+
+  private:
+
+    typedef boost::unordered_map<string, Route_t> mapSipMethod2Route ;
+    mapSipMethod2Route m_mapSipMethod2Route ;
+  } ;
 
 }  
 
