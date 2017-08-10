@@ -116,7 +116,7 @@ namespace drachtio {
         for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
           vector<string> kv ;
           boost::split(kv, *it, boost::is_any_of("="));
-          v.push_back(make_pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+          v.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
         }
       }
 
