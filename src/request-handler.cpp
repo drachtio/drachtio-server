@@ -516,7 +516,7 @@ namespace drachtio {
     curl_easy_setopt(easy, CURLOPT_TCP_KEEPIDLE, 120L);
     curl_easy_setopt(easy, CURLOPT_TCP_KEEPINTVL, 60L);
     curl_easy_setopt(easy, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(easy, CURLOPT_USERAGENT, "Drachtio/"DRACHTIO_VERSION);
+    curl_easy_setopt(easy, CURLOPT_USERAGENT, "Drachtio/" DRACHTIO_VERSION);
 
     // set connect timeout to 2 seconds and total timeout to 3 seconds
     curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
