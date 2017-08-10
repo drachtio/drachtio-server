@@ -49,12 +49,11 @@ namespace drachtio {
     for( mapSipMethod2Route::iterator it = m_mapSipMethod2Route.begin(); it != m_mapSipMethod2Route.end(); it++, count++ ) {
       Route_t& route = it->second ;
       string sipMethod = it->first ;
-      /*
-      string httpMethod = route.httpMethod ;
-      string httpUrl = route.url ;
-      */
       std::ostringstream s ;
-      s << "sip-method: " << it->first << ", http-method: " <<  route.httpMethod << ", http-url: " << route.url << ", verify cert?: " << route.verifyPeer;
+      s << "sip-method: " << it->first << ", http-method: " <<  route.httpMethod << ", http-url: " << route.url ;
+      if(string::npos != route.url.find("https")) {
+        s << ", cert " << (route.verifyPeer ? "will" : "will not") << " be verified";
+      }
       vecRoutes.push_back( s.str() ) ;
 
     }

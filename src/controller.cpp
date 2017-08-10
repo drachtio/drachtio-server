@@ -291,7 +291,9 @@ namespace drachtio {
             m_current_severity_threshold = m_Config->getLoglevel() ;
         }
 
-        m_Config->getRequestRouter( m_requestRouter ) ;
+        if( 0 == m_requestRouter.getCountOfRoutes() ) {
+          m_Config->getRequestRouter( m_requestRouter ) ;
+        }
         
         return true ;
         
@@ -334,6 +336,11 @@ namespace drachtio {
         string publicAddress ;
         string localNet ;
         string contact ;
+        vector<string> vecDnsNames;
+        string httpMethod = "GET";
+        string httpUrl ;
+        string method;
+
         while (1)
         {
             static struct option long_options[] =
@@ -345,11 +352,15 @@ namespace drachtio {
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
                 {"file",    required_argument, 0, 'f'},
+                {"help",    no_argument, 0, 'h'},
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
                 {"external-ip",    required_argument, 0, 'x'},
                 {"local-net",    required_argument, 0, 'n'},
+                {"dns-name",    required_argument, 0, 'd'},
+                {"http-handler",    required_argument, 0, 'a'},
+                {"http-method",    required_argument, 0, 'm'},
                 {"loglevel",    required_argument, 0, 'l'},
                 {"sofia-loglevel",    required_argument, 0, 's'},
                 {"version",    no_argument, 0, 'v'},
@@ -376,10 +387,21 @@ namespace drachtio {
                         cout << " with arg " << optarg;
                     cout << endl ;
                     break;
-                                        
+                case 'a':
+                    httpUrl = optarg ;
+                    break;
+
+                case 'd':
+                    vecDnsNames.push_back(optarg);
+                    break;
+
                 case 'f':
                     m_configFilename = optarg ;
                     break;
+
+                case 'h':
+                    usage() ;
+                    exit(0);
 
                 case 'l':
                     if( 0 == strcmp(optarg, "notice") ) m_current_severity_threshold = log_notice ;
@@ -392,6 +414,13 @@ namespace drachtio {
                         return false ;
                     }
 
+                    break;
+
+                case 'm':
+                    method = optarg ;
+                    if( boost::iequals(method, "POST")) {
+                      httpMethod = "POST";
+                    }
                     break;
 
                 case 's':
@@ -460,7 +489,15 @@ namespace drachtio {
         }
 
         if( !contact.empty() ) {
-            m_vecTransports.push_back( boost::make_shared<SipTransport>(contact, localNet, publicAddress)) ;
+          boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(contact, localNet, publicAddress);
+          for( std::vector<string>::const_iterator it = vecDnsNames.begin(); it != vecDnsNames.end(); ++it) {
+            p->addDnsName(*it);
+          }
+          m_vecTransports.push_back(p) ;
+        }
+
+        if( !httpUrl.empty() ) {
+          m_requestRouter.addRoute("*", httpMethod, httpUrl, true);
         }
 
         /* Print any remaining command line arguments (not options). */
@@ -481,11 +518,15 @@ namespace drachtio {
         cerr << "Options:" << endl << endl ;
         cerr << "    --daemon           Run the process as a daemon background process" << endl ;
         cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
+        cerr << "    --dns-name         specifies a DNS name that resolves to the local host, if any" << endl ;
         cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
-        cerr << "-l, --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "    --http-handler     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
+        cerr << "    --http-method      method to use with http-handler: GET (default) or POST" << endl ;
+        cerr << "    --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
         cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
-        cerr << "-s, --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
-        cerr << "-x, --external-ip      External IP address to use in SIP messaging" << endl ;
+        cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
+        cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
     }
 
     void DrachtioController::daemonize() {

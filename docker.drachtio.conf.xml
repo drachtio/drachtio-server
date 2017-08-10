@@ -37,10 +37,10 @@
         <console/>
         
         <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
-        <sofia-loglevel>9</sofia-loglevel>
+        <sofia-loglevel>3</sofia-loglevel>
         
         <!-- notice, warning, error, info, debug.  Default: info -->
-        <loglevel>debug</loglevel>
+        <loglevel>info</loglevel>
     </logging>
         
 </drachtio>
