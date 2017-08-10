@@ -135,12 +135,9 @@ namespace drachtio {
           httpUrl.append("=") ;
           httpUrl.append(p.second);
       }
-      DR_LOG(log_error) << "PendingRequestController::processNewRequest: presenting url: " << httpUrl ;
-      //
 
       boost::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
       pHandler->makeRequestForRoute(transactionId, httpMethod, httpUrl, encodedMessage) ;
-      //m_pController->getRequestHandler()->processRequest(transactionId, httpMethod, httpUrl, encodedMessage, v, verifyPeer ) ;
     }
     else {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
