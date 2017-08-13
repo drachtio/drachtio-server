@@ -223,11 +223,10 @@ namespace drachtio {
 read_again:
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-
        
     }
     void Client::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-    	DR_LOG(log_debug) << "Wrote " << bytes_transferred << " bytes: "  ;
+    	DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
     }
 
     bool Client::processClientMessage( const string& msg, string& msgResponse ) {
@@ -386,7 +385,9 @@ read_again:
     void Client::send( const string& str ) {
         ostringstream o ;
         o << str.length() << "#" << str ;
-        boost::asio::write( m_sock, boost::asio::buffer( o.str() ) ) ;
+       
+        boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
+            boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
         //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
     }
     void Client::createResponseMsg(const string& msgId, string& msg, bool ok, const char* szReason ) {
