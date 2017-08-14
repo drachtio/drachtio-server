@@ -74,7 +74,13 @@
     -->
 
     <request-handlers>
-        <request-handler sip-method="*" http-method="GET">http://127.0.0.1/sip-request-routing?foo=bar</request-handler>
+        <request-handler sip-method="invite" http-method="GET">http://35.187.89.96:80</request-handler>
+<!--
+        <request-handler sip-method="invite" http-method="GET" verify-peer="true">https://us-central1-voxbone-recording-app.cloudfunctions.net/dractio-outbound-test</request-handler>
+-->
+<!--
+        <request-handler sip-method="invite" http-method="GET">http://127.0.0.1:3000</request-handler> 
+-->
     </request-handlers>
   
     <!-- sip configuration -->
@@ -96,7 +102,7 @@
             <contact>sips:*;transport=tls</contact>
             <contact>sips:*:443;transport=wss</contact>
 -->
-            <contact>sip:*;transport=udp,tcp</contact>
+            <contact>sip:*:5061;transport=udp,tcp</contact>
 
         </contacts>
 
@@ -170,10 +176,10 @@
         -->
 
         <!-- sofia (internal sip library) log level, from 0 (minimal) to 9 (verbose) -->
-        <sofia-loglevel>5</sofia-loglevel>
+        <sofia-loglevel>8</sofia-loglevel>
         
         <!-- general process log level: notice, warning, error, info, debug.  Default: info -->
-        <loglevel>info</loglevel>
+        <loglevel>debug</loglevel>
     </logging>
         
 </drachtio>
