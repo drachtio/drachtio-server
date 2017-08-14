@@ -176,10 +176,12 @@ namespace drachtio {
         /* while we have at least one full message, process it */
         while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
             string msgResponse ;
+            string in ;
             bool bContinue = true ;
             try {
-                DR_LOG(log_debug) << "Client::read_handler read: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
-                bContinue = processClientMessage( string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength), msgResponse ) ;
+                in.assign(m_buffer.begin(), m_buffer.begin() + m_nMessageLength);
+                DR_LOG(log_debug) << "Client::read_handler read: " << in << endl ;
+                bContinue = processClientMessage( in, msgResponse ) ;
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
                 m_controller.leave( shared_from_this() ) ;
@@ -189,14 +191,21 @@ namespace drachtio {
             /* send response if indicated */
             if( !msgResponse.empty() ) {
                 msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
-                //DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
-                boost::asio::write( m_sock, boost::asio::buffer( msgResponse ) ) ;
+                DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
+                boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
+                    boost::bind( &Client::write_handler, shared_from_this(), 
+                        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
             }
             if( !bContinue ) {
                  DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
+
+            if( this->isOutbound() && string::npos != in.find("|authenticate|")) {
+              m_controller.outboundReady( shared_from_this(), m_transactionId ) ;
+            }
+
 
             /* reload for next message */
             m_buffer.erase_begin( m_nMessageLength ) ;
@@ -264,9 +273,6 @@ read_again:
                 string hostports = boost::algorithm::join(hps, ",") ;
                 createResponseMsg( tokens[0], msgResponse, true, hostports.c_str() ) ;
                 DR_LOG(log_info) << "Client::processAuthentication - secret validated successfully: " << secret ;
-                if( this->isOutbound() ) {
-                  m_controller.outboundReady( shared_from_this(), m_transactionId ) ;
-                }
                 return true ;
             }            
         }
