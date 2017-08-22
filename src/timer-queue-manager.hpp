@@ -38,7 +38,7 @@ namespace drachtio {
     SipTimerQueueManager(su_root_t* root) : 
         m_queue(root, "general-sip"), m_queueA(root,"timerA"), m_queueB(root,"timerB"),
         m_queueC(root, "timerC"), m_queueD(root, "timerD"), m_queueE(root, "timerE"), 
-        m_queueF(root, "timerF"), m_queueK(root, "timerK") {}
+        m_queueF(root, "timerF"), m_queueG(root, "timerG"), m_queueH(root, "timerH"), m_queueK(root, "timerK") {}
     ~SipTimerQueueManager() {}
 
     TimerEventHandle addTimer( const char* szTimerClass, TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
@@ -49,6 +49,8 @@ namespace drachtio {
         else if( 0 == strcmp("timerD", szTimerClass) ) handle = m_queueD.add( f, functionArgs, milliseconds );
         else if( 0 == strcmp("timerE", szTimerClass) ) handle = m_queueE.add( f, functionArgs, milliseconds );
         else if( 0 == strcmp("timerF", szTimerClass) ) handle = m_queueF.add( f, functionArgs, milliseconds );
+        else if( 0 == strcmp("timerG", szTimerClass) ) handle = m_queueG.add( f, functionArgs, milliseconds );
+        else if( 0 == strcmp("timerH", szTimerClass) ) handle = m_queueH.add( f, functionArgs, milliseconds );
         else if( 0 == strcmp("timerK", szTimerClass) ) handle = m_queueK.add( f, functionArgs, milliseconds );
         else handle = m_queue.add( f, functionArgs, milliseconds );
         return handle ;
@@ -60,6 +62,8 @@ namespace drachtio {
         else if( 0 == strcmp("timerD", szTimerClass) ) m_queueD.remove( handle ) ;
         else if( 0 == strcmp("timerE", szTimerClass) ) m_queueE.remove( handle ) ;
         else if( 0 == strcmp("timerF", szTimerClass) ) m_queueF.remove( handle ) ;
+        else if( 0 == strcmp("timerG", szTimerClass) ) m_queueG.remove( handle ) ;
+        else if( 0 == strcmp("timerH", szTimerClass) ) m_queueH.remove( handle ) ;
         else if( 0 == strcmp("timerK", szTimerClass) ) m_queueK.remove( handle ) ;
         else m_queue.remove( handle ) ;
     }
@@ -73,6 +77,8 @@ namespace drachtio {
     TimerQueue      m_queueD ;    
     TimerQueue      m_queueE ;    
     TimerQueue      m_queueF ;    
+    TimerQueue      m_queueG ;    
+    TimerQueue      m_queueH ;    
     TimerQueue      m_queueK ;    
   } ;
 

@@ -40,10 +40,6 @@ namespace drachtio {
 #include "cdr.hpp"
 #include "sip-transports.hpp"
 
-#define TIMER_C_MSECS (185000)
-#define TIMER_B_MSECS (NTA_SIP_T1 * 64)
-#define TIMER_D_MSECS (32500)
-
 static nta_agent_t* nta = NULL ;
 static drachtio::SipProxyController* theProxyController = NULL ;
 

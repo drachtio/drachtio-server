@@ -29,6 +29,8 @@ THE SOFTWARE.
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
 
+#include "timer-queue.hpp"
+
 using namespace std ;
 
 namespace drachtio {
@@ -135,11 +137,28 @@ namespace drachtio {
 		void setMinSE(unsigned long secs) { m_nMinSE = secs;}
 
 		bool hasAckBeenSent(void) { return m_bAckSent;}
-		void ackSent(void) { m_bAckSent = true;}
+		void ackSent(nta_outgoing_t* ack = NULL) { m_bAckSent = true; if (ack) { m_ackOrq = ack; }}
+		void retransmitAck(void) ;
 		tport_t* getTport(void) { return m_tp ;}
 		void setTport(tport_t* tp) ;
 
 		nta_leg_t* getNtaLeg(void) { return m_leg; }
+
+		void setTimerD(TimerEventHandle& handle) { m_timerD = handle; }
+		TimerEventHandle getTimerD(void) { return m_timerD; }
+		void setTimerG(TimerEventHandle& handle) { 
+			m_timerG = handle; 
+			if( 0 == m_durationTimerG ) {
+				m_durationTimerG = NTA_SIP_T1;
+			}
+		}
+		TimerEventHandle getTimerG(void) { return m_timerG; }
+		uint32_t bumpTimerG(void) {
+			m_durationTimerG = std::min( m_durationTimerG << 1, (uint32_t) NTA_SIP_T2);
+			return m_durationTimerG;
+		}
+		void setTimerH(TimerEventHandle& handle) { m_timerH = handle; }
+		TimerEventHandle getTimerH(void) { return m_timerH; }
 
 	protected:
 		string 			m_dialogId ;
@@ -174,6 +193,14 @@ namespace drachtio {
 
 		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp ;
+		nta_outgoing_t*  m_ackOrq;
+
+		// sip timers
+    TimerEventHandle  m_timerD ;
+    TimerEventHandle  m_timerG ;
+    TimerEventHandle  m_timerH ;
+    uint32_t					m_durationTimerG;
+    uint32_t					m_countTimerG;
 	}  ;
 
 }

@@ -86,12 +86,11 @@ namespace {
 namespace drachtio {
 
 	SipDialogController::SipDialogController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
-        m_agent(pController->getAgent()), m_pClientController(pController->getClientController()) {
+        m_agent(pController->getAgent()), m_pClientController(pController->getClientController())  {
 
             assert(m_agent) ;
             assert(m_pClientController) ;
-
-
+            m_pTQM = boost::make_shared<SipTimerQueueManager>( pController->getRoot() ) ;
 	}
 	SipDialogController::~SipDialogController() {
 	}
@@ -209,10 +208,10 @@ namespace drachtio {
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),
                         TAG_NEXT(tags) ) ;
-                    dlg->ackSent() ;  
+                    dlg->ackSent(orq) ;  
                     dlg->setTport( nta_outgoing_transport( orq ) ) ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
-                    this->clearIIP( leg ) ;                 
+                    this->clearIIP( leg ) ;     
                 }
             }
             else if( sip_method_prack == method ) {
@@ -286,7 +285,7 @@ namespace drachtio {
                     if( dlg->getSipStatus() > 200 ) {
                         m_pClientController->removeDialog( dlg->getDialogId() ) ;
                     }
-                    nta_outgoing_destroy( orq ) ;
+                    //nta_outgoing_destroy( orq ) ;  //save for retransmission -- held in SipDialog
                 }
                 else {
                     bool clearDialogOnResponse = false ;
@@ -659,8 +658,9 @@ namespace drachtio {
             //check for retransmission 
             if( sip->sip_cseq->cs_method == sip_method_invite  && dlg->getSipStatus() >= 200 && dlg->getSipStatus() == sip->sip_status->st_status ) {
                 if( dlg->hasAckBeenSent() ) {
-                    DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - received retransmitted final response: " << sip->sip_status->st_status 
-                        << " " << sip->sip_status->st_phrase << ": note we currently are not retransmitting the ACK (bad)" ;
+                    dlg->retransmitAck() ;
+                    //DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - received retransmitted final response: " << sip->sip_status->st_status 
+                    //    << " " << sip->sip_status->st_phrase << ": note we currently are not retransmitting the ACK (bad)" ;
                 }
                 else {
                     DR_LOG(log_warning) << "SipDialogController::processResponseOutsideDialog - received retransmitted final response: " << sip->sip_status->st_status 
@@ -948,6 +948,7 @@ namespace drachtio {
                     iip->setReliable( rel ) ;
                     addReliable( rel, iip ) ;                    
                 }
+                //TODO: should probably set timer here
             }
             else {
                 DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
@@ -972,6 +973,21 @@ namespace drachtio {
                       DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
                       this->addDialog( dlg ) ;
                     }
+                }
+
+                if( sip_method_invite == nta_incoming_method(irq) && code >= 200 ) {
+                    // set timer G for retransmit if we don't get ack
+                    // 
+                    TimerEventHandle t = m_pTQM->addTimer("timerG", 
+                        boost::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
+                    dlg->setTimerG(t) ;
+
+                    // set timer H, which sets the time to stop retransmissions
+                    // 
+                    t = m_pTQM->addTimer("timerH", 
+                        boost::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
+                    dlg->setTimerH(t) ;
+                    
                 }
             }
 
@@ -1058,13 +1074,20 @@ namespace drachtio {
                         DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
                         assert(0) ;
                         return -1 ;
-
                     }
                 }
                 else {
                     transactionId = iip->getTransactionId() ;
 
                     dlg = this->clearIIP( leg ) ;
+                    TimerEventHandle h = dlg->getTimerG() ;
+                    if( h ) {
+                        m_pTQM->removeTimer( h, "timerG");
+                    }
+                    h = dlg->getTimerH() ;
+                    if( h ) {
+                        m_pTQM->removeTimer( h, "timerH");
+                    }
                     addDialog( dlg ) ;
                 }
                 string encodedMessage ;
@@ -1261,6 +1284,16 @@ namespace drachtio {
                 return 0 ;
             }
             boost::shared_ptr<SipDialog> dlg = this->clearIIP( iip->leg() ) ;
+
+            TimerEventHandle h = dlg->getTimerG() ;
+            if( h ) {
+                m_pTQM->removeTimer( h, "timerG");
+            }
+            h = dlg->getTimerH() ;
+            if( h ) {
+                m_pTQM->removeTimer( h, "timerH");
+            }
+
             string transactionId ;
             generateUuid( transactionId ) ;
 
@@ -1408,12 +1441,31 @@ namespace drachtio {
     }
 
     boost::shared_ptr<SipDialog> SipDialogController::clearIIP( nta_leg_t* leg ) {
-        DR_LOG(log_debug) << "SipDialogController::clearIIP:  clearing leg " << std::hex << leg  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
         mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
         assert( it != m_mapLeg2IIP.end() ) ;
         boost::shared_ptr<IIP> iip = it->second ;
+        nta_outgoing_t* orq = iip->orq() ;
+        boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
+
+        if (orq && 0 == dlg->getProtocol().compare("udp") ) {
+            // for outbound dialogs, need to set Timer D (>32s on UDP) to handle retransmits of final responses
+            DR_LOG(log_debug) << "SipDialogController::clearIIP - setting Timer D to keep transaction around for retransmits on leg " << hex << leg;
+            TimerEventHandle t = m_pTQM->addTimer("timerD", boost::bind(&SipDialogController::clearIIPFinal, this, iip, leg), 
+                NULL, TIMER_D_MSECS ) ;
+            dlg->setTimerD(t) ;
+            return dlg ;
+        }
+        else {
+            clearIIPFinal(iip, leg) ;
+        }
+        return dlg ;            
+    }
+    void SipDialogController::clearIIPFinal(boost::shared_ptr<IIP>  iip, nta_leg_t* leg) {
+        mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
+        assert( it != m_mapLeg2IIP.end() ) ;
+
         nta_incoming_t* irq = iip->irq() ;
         nta_outgoing_t* orq = iip->orq() ;
         nta_reliable_t* rel = iip->rel(); 
@@ -1424,6 +1476,8 @@ namespace drachtio {
         assert( itTransaction != m_mapTransactionId2IIP.end() ) ;
 
         assert( !(m_mapIrq2IIP.end() == itIrq && m_mapOrq2IIP.end() == itOrq )) ;
+
+        DR_LOG(log_debug) << "SipDialogController::clearIIPFinal:  clearing leg " << std::hex << leg  ;
 
         m_mapLeg2IIP.erase( it ) ;
         if( itIrq != m_mapIrq2IIP.end() ) m_mapIrq2IIP.erase( itIrq ) ;
@@ -1439,8 +1493,7 @@ namespace drachtio {
                 m_mapRel2IIP.erase( itRel ) ;
             }
             nta_reliable_destroy( rel ) ;
-        }
-        return dlg ;            
+        }        
     }
     void SipDialogController::clearDialog( const string& strDialogId ) {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
@@ -1484,6 +1537,26 @@ namespace drachtio {
         if( m_mapOrq2RIP.end() == it ) return  ;
         m_mapOrq2RIP.erase( it ) ;                      
     }
+    
+    void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg) {
+        DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) irq;
+        incoming_retransmit_reply(irq, tp);
+
+        // set next timer
+        uint32_t ms = dlg->bumpTimerG() ;
+        TimerEventHandle t = m_pTQM->addTimer("timerG", 
+            boost::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, ms ) ;
+        dlg->setTimerG(t) ;
+    }
+
+    void SipDialogController::endRetransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg) {
+        DR_LOG(log_debug) << "SipDialogController::endRetransmitFinalResponse irq:" << std::hex << (void*) irq;
+
+        TimerEventHandle h = dlg->getTimerG() ;
+        if( h ) { 
+            m_pTQM->removeTimer(h, "timerG");
+        }
+    }
 
     void SipDialogController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
@@ -1496,6 +1569,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "m_mapLeg2Dialog size:                                            " << m_mapLeg2Dialog.size()  ;
         DR_LOG(log_debug) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size()  ;
         DR_LOG(log_debug) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;
+        m_pTQM->logQueueSizes() ;
     }
 
 }

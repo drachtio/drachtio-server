@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include <sofia-sip/msg_addr.h>
 #include <sofia-sip/su_addrinfo.h>
+#include <sofia-sip/nta.h>
 
 #include "sip-dialog.hpp"
 #include "controller.hpp"
@@ -53,7 +54,7 @@ namespace drachtio {
 	SipDialog::SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t* msg ) : m_type(we_are_uas), m_recentSipStatus(100), 
 		m_startTime(time(NULL)), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ), 
-    m_leg( leg )
+    m_leg( leg ), m_ackOrq(NULL), m_timerD(NULL), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL)
 	{
     const tp_name_t* tpn = tport_name( m_tp );
 		//generateUuid( m_dialogId ) ;
@@ -85,7 +86,8 @@ namespace drachtio {
 	SipDialog::SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
 		nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport) : m_type(we_are_uac), m_recentSipStatus(0), 
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
-		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(NULL), m_leg(leg)
+		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(NULL), m_leg(leg),m_timerD(NULL), 
+    m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL)
 	{
 		m_dialogId = dialogId ;
 		m_transactionId = transactionId ;
@@ -149,7 +151,11 @@ namespace drachtio {
 		}
     if( NULL != m_tp ) {
       tport_unref( m_tp ) ;
-    } 
+    }
+    if( NULL != m_ackOrq ) {
+      DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying ack orq " << hex << (void*) m_ackOrq ;
+      nta_outgoing_destroy( m_ackOrq ) ;
+    }
 	}
   void SipDialog::setTport(tport_t* tp) {
     m_tp = tp ;
@@ -158,6 +164,15 @@ namespace drachtio {
     m_transportAddress = tpn->tpn_host ;
     m_transportPort = tpn->tpn_port ;
     m_protocol = tpn->tpn_proto ;      
+  }
+  void SipDialog::retransmitAck() {
+    if( m_ackOrq ) {
+      DR_LOG(log_debug) << "SipDialog::retransmitAck - retransmitting ack";
+      outgoing_retransmit(m_ackOrq) ;
+    }
+    else {
+      DR_LOG(log_debug) << "SipDialog::retransmitAck - not retransmitting ack because we don't have the orq";      
+    }
   }
 	void SipDialog::setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) {
 		assert( NULL == m_timerSessionRefresh ) ;

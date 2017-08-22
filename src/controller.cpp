@@ -994,7 +994,7 @@ namespace drachtio {
                         
                             DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
                             nta_msg_discard(m_nta, msg) ;  
-                            return -1 ;
+                            return sip_method_invite == sip->sip_request->rq_method ? 100 : -1 ;
                         }
 
                         if( sip_method_invite == sip->sip_request->rq_method ) {
