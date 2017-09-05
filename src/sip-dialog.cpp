@@ -86,7 +86,7 @@ namespace drachtio {
 	SipDialog::SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
 		nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport) : m_type(we_are_uac), m_recentSipStatus(0), 
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
-		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(NULL), m_leg(leg),m_timerD(NULL), 
+		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(NULL), m_leg(leg), m_ackOrq(NULL), m_timerD(NULL), 
     m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL)
 	{
 		m_dialogId = dialogId ;

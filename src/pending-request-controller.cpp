@@ -133,7 +133,7 @@ namespace drachtio {
           }
           httpUrl.append(p.first) ;
           httpUrl.append("=") ;
-          httpUrl.append(p.second);
+          httpUrl.append(urlencode(p.second));
       }
 
       boost::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();

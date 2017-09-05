@@ -151,6 +151,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
   bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
         vector< pair<string,string> >& params) ;
 
+	string urlencode(const string &s);
+
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 
 	class SipMsgData_t {
