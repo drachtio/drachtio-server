@@ -1452,7 +1452,7 @@ namespace drachtio {
         if (orq && 0 == dlg->getProtocol().compare("udp") ) {
             // for outbound dialogs, need to set Timer D (>32s on UDP) to handle retransmits of final responses
             DR_LOG(log_debug) << "SipDialogController::clearIIP - setting Timer D to keep transaction around for retransmits on leg " << hex << leg;
-            TimerEventHandle t = m_pTQM->addTimer("timerD", boost::bind(&SipDialogController::clearIIPFinal, this, iip, leg), 
+            TimerEventHandle t = m_pTQM->addTimer("timerD", boost::bind(&SipDialogController::timerD, this, iip, leg, dlg->getDialogId()), 
                 NULL, TIMER_D_MSECS ) ;
             dlg->setTimerD(t) ;
             return dlg ;
@@ -1461,6 +1461,11 @@ namespace drachtio {
             clearIIPFinal(iip, leg) ;
         }
         return dlg ;            
+    }
+    void SipDialogController::timerD(boost::shared_ptr<IIP>  iip, nta_leg_t* leg, const string& dialogId) {
+        DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << ", dialog id " << dialogId << leg ;
+        clearIIPFinal(iip, leg);
+        clearDialog(dialogId);
     }
     void SipDialogController::clearIIPFinal(boost::shared_ptr<IIP>  iip, nta_leg_t* leg) {
         mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
@@ -1500,8 +1505,8 @@ namespace drachtio {
         
         mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
         if( m_mapId2Dialog.end() == it ) {
-            DR_LOG(log_error) << "SipDialogController::clearDialog - unable to find dialog id " << strDialogId 
-                << " possibly because dialog was cleared from far end (race condition) or 408 Request Timeout to BYE"; 
+            DR_LOG(log_info) << "SipDialogController::clearDialog - unable to find dialog id " << strDialogId 
+                << " probably because dialog failed (non-2XX), was cleared from far end (race condition), or 408 Request Timeout to BYE"; 
             return ;
         }
         boost::shared_ptr<SipDialog> dlg = it->second ;
@@ -1514,8 +1519,30 @@ namespace drachtio {
             assert(0) ;
             return ;
         }
-        m_mapLeg2Dialog.erase( itLeg ) ;                
+        m_mapLeg2Dialog.erase( itLeg ) ;    
+        DR_LOG(log_debug) << "SipDialogController::clearDialog - cleared dialog id " << strDialogId ;          
     }
+    void SipDialogController::clearDialog( nta_leg_t* leg ) {
+    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+
+    mapLeg2Dialog::iterator it = m_mapLeg2Dialog.find( leg ) ;
+    if( m_mapLeg2Dialog.end() == it ) {
+        assert(0) ;
+        return ;
+    }
+    boost::shared_ptr<SipDialog> dlg = it->second ;
+    string strDialogId = dlg->getDialogId() ;
+    m_mapLeg2Dialog.erase( it ) ;
+
+    mapId2Dialog::iterator itId = m_mapId2Dialog.find( strDialogId ) ;
+    if( m_mapId2Dialog.end() == itId ) {
+        assert(0) ;
+        return ;
+    }
+    DR_LOG(log_debug) << "SipDialogController::clearDialog - cleared dialog id " << strDialogId << " referenced from leg " << hex << leg ;          
+    m_mapId2Dialog.erase( itId );           
+}
+
     void SipDialogController::addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) {
         DR_LOG(log_debug) << "SipDialogController::addRIP adding orq " << std::hex << (void*) orq  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;

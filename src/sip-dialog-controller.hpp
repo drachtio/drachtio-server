@@ -320,6 +320,7 @@ namespace drachtio {
 			return irq ;
 		}
 
+		void timerD(boost::shared_ptr<IIP> iip, nta_leg_t* leg, const string& dialogId);
 		void clearIIPFinal(boost::shared_ptr<IIP> iip, nta_leg_t* leg);
 
 		// retransmit final response to invite
@@ -332,25 +333,7 @@ namespace drachtio {
 		
 		void clearDialog( const string& strDialogId ) ;
 		
-		void clearDialog( nta_leg_t* leg ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-
-			mapLeg2Dialog::iterator it = m_mapLeg2Dialog.find( leg ) ;
-			if( m_mapLeg2Dialog.end() == it ) {
-				assert(0) ;
-				return ;
-			}
-			boost::shared_ptr<SipDialog> dlg = it->second ;
-			string strDialogId = dlg->getDialogId() ;
-			m_mapLeg2Dialog.erase( it ) ;
-
-			mapId2Dialog::iterator itId = m_mapId2Dialog.find( strDialogId ) ;
-			if( m_mapId2Dialog.end() == itId ) {
-				assert(0) ;
-				return ;
-			}
-			m_mapId2Dialog.erase( itId );			
-		}
+		void clearDialog( nta_leg_t* leg ) ;
 
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
 
