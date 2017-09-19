@@ -1449,6 +1449,7 @@ namespace drachtio {
         nta_outgoing_t* orq = iip->orq() ;
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
 
+        /* remove timerD processing temporarily until all race conditions have been addressed
         if (orq && 0 == dlg->getProtocol().compare("udp") ) {
             // for outbound dialogs, need to set Timer D (>32s on UDP) to handle retransmits of final responses
             DR_LOG(log_debug) << "SipDialogController::clearIIP - setting Timer D to keep transaction around for retransmits on leg " << hex << leg;
@@ -1460,6 +1461,8 @@ namespace drachtio {
         else {
             clearIIPFinal(iip, leg) ;
         }
+        */
+        clearIIPFinal(iip, leg) ;
         return dlg ;            
     }
     void SipDialogController::timerD(boost::shared_ptr<IIP>  iip, nta_leg_t* leg, const string& dialogId) {
@@ -1506,7 +1509,7 @@ namespace drachtio {
         mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
         if( m_mapId2Dialog.end() == it ) {
             DR_LOG(log_info) << "SipDialogController::clearDialog - unable to find dialog id " << strDialogId 
-                << " probably because dialog failed (non-2XX), was cleared from far end (race condition), or 408 Request Timeout to BYE"; 
+                << " probably because dialog was cleared from far end (race condition), or 408 Request Timeout to BYE"; 
             return ;
         }
         boost::shared_ptr<SipDialog> dlg = it->second ;
