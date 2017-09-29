@@ -105,8 +105,8 @@ namespace drachtio {
       v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host )) ;
       v.push_back( make_pair("protocol", meta.getProtocol() )) ;
       v.push_back( make_pair("source_address", meta.getAddress() )) ;
-      v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user )) ;
-      v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user )) ;
+      v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user ? sip->sip_from->a_url->url_user : "" )) ;
+      v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user ? sip->sip_to->a_url->url_user : "" )) ;
 
       // add request uri params to the querystring as well
       if (sip->sip_request->rq_url->url_params) {
