@@ -320,7 +320,7 @@ namespace drachtio {
 
 //send request outside dialog
     //client thread
-    bool SipDialogController::sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) {
+    bool SipDialogController::sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId, string& routeUrl ) {
         if( 0 == transactionId.length() ) { generateUuid( transactionId ) ; }
         if( string::npos != startLine.find("INVITE") ) {
             generateUuid( dialogId ) ;
@@ -334,7 +334,7 @@ namespace drachtio {
         void* place = su_msg_data( msg ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        SipMessageData* msgData = new(place) SipMessageData( clientMsgId, transactionId, "", dialogId, startLine, headers, body ) ;
+        SipMessageData* msgData = new(place) SipMessageData( clientMsgId, transactionId, "", dialogId, startLine, headers, body, routeUrl ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
             return  false;
@@ -354,7 +354,18 @@ namespace drachtio {
         string host, port, proto, contact, desc ;
 
         try {
-            bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
+            bool useOutboundProxy = false ;
+            const char *szRouteUrl = pData->getRouteUrl() ;
+            if (*szRouteUrl != '\0') {
+                useOutboundProxy = true ;
+                sipOutboundProxy.assign(szRouteUrl);
+            }
+            else {
+                useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
+            }
+            if (useOutboundProxy) {
+                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog sending request to route url: " << sipOutboundProxy ;
+            }
 
             sip_request_t *sip_request = sip_request_make(m_pController->getHome(), pData->getStartLine() ) ;
             if( NULL == sip_request || 
@@ -415,8 +426,13 @@ namespace drachtio {
                     proto = "tls";
                 }
 
-                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
-                pSelectedTransport = SipTransport::findAppropriateTransport( requestUri.c_str(), proto.c_str() ) ;
+                if (useOutboundProxy) {
+                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for route url " << sipOutboundProxy << " proto: " << proto ;
+                }
+                else {
+                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
+                }
+                pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str(), proto.c_str() ) ;
                 assert(pSelectedTransport); 
 
                 pSelectedTransport->getDescription(desc);

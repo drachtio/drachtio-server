@@ -278,13 +278,14 @@ read_again:
         }
         else if( 0 == tokens[1].compare("sip") ) {
             bool bOK = false ;
-            string transactionId, dialogId ;
+            string transactionId, dialogId, routeUrl ;
 
             DR_LOG(log_debug) << "Client::processMessage - got request with " << tokens.size() << " tokens"  ;
-            assert( 4 == tokens.size() ) ;
+            assert(tokens.size() >= 4) ;
 
             transactionId = tokens[2] ;
             dialogId = tokens[3] ;
+            if (tokens.size() > 4) routeUrl = tokens[4] ;
 
             DR_LOG(log_debug) << "Client::processMessage - request id " << tokens[0] << ", request type: " << tokens[1] 
                 << " transaction id: " << transactionId << ", dialog id: " << dialogId  ;
@@ -325,7 +326,7 @@ read_again:
                     }
                 }
                 DR_LOG(log_debug) << "Client::processMessage - sending a request outside of a dialog"  ;
-                bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId ) ;
+                bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId, routeUrl ) ;
              }
 
              return true ;

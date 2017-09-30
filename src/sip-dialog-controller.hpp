@@ -124,6 +124,7 @@ namespace drachtio {
 				memset(m_szStartLine, 0, sizeof(m_szStartLine) ) ;
 				memset(m_szHeaders, 0, sizeof(m_szHeaders) ) ;
 				memset(m_szBody, 0, sizeof(m_szBody) ) ;
+				memset(m_szRouteUrl, 0, sizeof(m_szRouteUrl) ) ;
 			}
 			SipMessageData(const string& clientMsgId, const string& transactionId, const string& requestId, const string& dialogId,
 				const string& startLine, const string& headers, const string& body ) {
@@ -135,6 +136,17 @@ namespace drachtio {
 				strncpy( m_szHeaders, headers.c_str(), HDR_LEN ) ;
 				strncpy( m_szBody, body.c_str(), BODY_LEN ) ;
 			}
+			SipMessageData(const string& clientMsgId, const string& transactionId, const string& requestId, const string& dialogId,
+				const string& startLine, const string& headers, const string& body, const string& routeUrl ) {
+				strncpy( m_szClientMsgId, clientMsgId.c_str(), MSG_ID_LEN ) ;
+				if( !transactionId.empty() ) strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
+				if( !requestId.empty() ) strncpy( m_szRequestId, requestId.c_str(), MSG_ID_LEN ) ;
+				if( !dialogId.empty() ) strncpy( m_szDialogId, dialogId.c_str(), MSG_ID_LEN ) ;
+				strncpy( m_szStartLine, startLine.c_str(), START_LEN ) ;
+				strncpy( m_szHeaders, headers.c_str(), HDR_LEN ) ;
+				strncpy( m_szBody, body.c_str(), BODY_LEN ) ;
+				strncpy( m_szRouteUrl, routeUrl.c_str(), START_LEN ) ;
+			}
 			~SipMessageData() {}
 			SipMessageData& operator=(const SipMessageData& md) {
 				strncpy( m_szClientMsgId, md.m_szClientMsgId, MSG_ID_LEN) ;
@@ -144,6 +156,7 @@ namespace drachtio {
 				strncpy( m_szStartLine, md.m_szStartLine, START_LEN ) ;
 				strncpy( m_szHeaders, md.m_szHeaders, HDR_LEN ) ;
 				strncpy( m_szBody, md.m_szBody, BODY_LEN ) ;
+				strncpy( m_szRouteUrl, md.m_szRouteUrl, START_LEN ) ;
 				return *this ;
 			}
 
@@ -154,6 +167,7 @@ namespace drachtio {
 			const char* getHeaders() { return m_szHeaders; } 
 			const char* getStartLine() { return m_szStartLine; } 
 			const char* getBody() { return m_szBody; } 
+			const char* getRouteUrl() { return m_szRouteUrl; } 
 
 		private:
 			char	m_szClientMsgId[MSG_ID_LEN];
@@ -163,11 +177,12 @@ namespace drachtio {
 			char	m_szStartLine[START_LEN];
 			char	m_szHeaders[HDR_LEN];
 			char	m_szBody[BODY_LEN];
+			char	m_szRouteUrl[START_LEN];
 		} ;
 
 		//NB: sendXXXX are called when client is sending a message
 		bool sendRequestInsideDialog( const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) ;
-		bool sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId ) ;
+		bool sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId, string& routeUrl ) ;
     bool respondToSipRequest( const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;		
 		bool sendCancelRequest( const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
 
