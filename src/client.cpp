@@ -228,7 +228,7 @@ read_again:
             string transactionId, dialogId ;
 
             DR_LOG(log_debug) << "Client::processMessage - got request with " << tokens.size() << " tokens"  ;
-            assert( 4 == tokens.size() ) ;
+            assert( tokens.size() >= 5 ) ;
 
             transactionId = tokens[2] ;
             dialogId = tokens[3] ;
