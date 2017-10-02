@@ -78,6 +78,7 @@ namespace drachtio {
     static void logTransports() ;
     static void getAllHostports( vector<string>& vec ) ;
     static void getAllExternalIps( vector<string>& vec ) ;
+    static void getAllExternalContacts( vector< pair<string, string> >& vec ) ;
     static bool isLocalAddress(const char* szHost, tport_t* tp = NULL) ;
     
   protected:

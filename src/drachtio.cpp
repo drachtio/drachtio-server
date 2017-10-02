@@ -418,7 +418,7 @@ namespace drachtio {
     bool isLocalSipUri( const string& requestUri ) {
 
         static bool initialized = false ;
-        static boost::unordered_set<string> setLocalUris ;
+        static vector< pair<string, string> > vecLocalUris ;
 
         if( !initialized ) {
             initialized = true ;
@@ -431,22 +431,23 @@ namespace drachtio {
                     continue ;
 
                 string localUri = tpn->tpn_host ;
+                string localPort = NULL != tpn->tpn_port ? tpn->tpn_port : "5060" ;
 
-                DR_LOG(log_debug) << "isLocalSipUri: adding local address: " << localUri  ;
+                DR_LOG(log_debug) << "isLocalSipUri: adding local address: " << localUri << ":" << localPort ;
 
-                setLocalUris.insert( localUri ) ;
+
+                vecLocalUris.push_back(make_pair(localUri, localPort)) ;
 
                 if( 0 == strcmp(tpn->tpn_host,"127.0.0.1") ) {
-                    localUri = "localhost:" ;
-                    setLocalUris.insert( localUri ) ;
+                    vecLocalUris.push_back(make_pair("localhost", localPort)) ;
                 }
             }
 
             // add public ip addresses and dns names
-            vector<string> vecIps ;
-            SipTransport::getAllExternalIps(vecIps) ;
-            for(vector<string>::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
-                setLocalUris.insert(*it);
+            vector< pair<string, string> > vecIps ;
+            SipTransport::getAllExternalContacts(vecIps) ;
+            for(vector< pair<string, string> >::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
+                vecLocalUris.push_back(*it) ;
             }
        }
 
@@ -474,7 +475,17 @@ namespace drachtio {
             su_free(home, (void *) params) ;
         }
 
-        return setLocalUris.end() != setLocalUris.find( url->url_host ) ;
+        for(vector< pair<string, string> >::const_iterator it = vecLocalUris.begin(); it != vecLocalUris.end(); ++it) {
+            string host = it->first ;
+            string port = it->second ;
+
+            DR_LOG(log_debug) << "isLocalSipUri: comparing known local address: " << host << ":" << port ;
+
+            if (0 == host.compare(url->url_host) && 0 == port.compare(url->url_port)) {
+                return true ;
+            }
+        }
+        return false ;
     }
 
     void* my_json_malloc( size_t bytes ) {

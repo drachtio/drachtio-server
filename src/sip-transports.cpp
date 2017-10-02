@@ -383,6 +383,18 @@ namespace drachtio {
       }
     }
   }
+  void SipTransport::getAllExternalContacts( vector< pair<string, string> >& vec ) {
+    for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
+      boost::shared_ptr<SipTransport> p = it->second ;
+      string port = p->getPort() != NULL ? p->getPort() : "5060";
+      if( p->hasExternalIp() ) {
+        vec.push_back( make_pair(p->getExternalIp(), port)) ;
+      }
+      for( vector<string>::const_iterator itDns = p->getDnsNames().begin(); itDns != p->getDnsNames().end(); ++itDns ) {
+        vec.push_back( make_pair(*itDns, port)) ;
+      }
+    }
+  }
   void SipTransport::getAllHostports( vector<string>& vec ) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       boost::shared_ptr<SipTransport> p = it->second ;
