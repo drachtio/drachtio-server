@@ -21,7 +21,7 @@ RUN apt-get update \
   && cd /usr/local/bin \
   && rm -f timer ssltest parser uri_test test_https test_asio_curl
 
-COPY ./docker.drachtio.conf.xml /etc
+COPY ./docker.drachtio.conf.xml /etc/drachtio.conf.xml
 COPY ./entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
