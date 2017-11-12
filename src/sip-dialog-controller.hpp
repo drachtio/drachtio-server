@@ -313,27 +313,9 @@ namespace drachtio {
 		void clearRIP( nta_outgoing_t* orq ) ;
 
 		/// IRQ helpers
-		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
-		}
-		bool findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-	        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
-	        if( m_mapTransactionId2Irq.end() == it ) return false ;
-	        irq = it->second ;
-	        return true ;						
-		}
-		nta_incoming_t* findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
-			nta_incoming_t* irq = NULL ;
-			mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
-			if( m_mapTransactionId2Irq.end() != it ) {
-				irq = it->second ;
-				m_mapTransactionId2Irq.erase( it ) ;
-			}
-			return irq ;
-		}
+		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) ;
+		bool findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) ;
+		nta_incoming_t* findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) ;
 
 		void timerD(boost::shared_ptr<IIP> iip, nta_leg_t* leg, const string& dialogId);
 		void clearIIPFinal(boost::shared_ptr<IIP> iip, nta_leg_t* leg);

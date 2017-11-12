@@ -991,8 +991,10 @@ namespace drachtio {
                     }
                 }
 
-                if( sip_method_invite == nta_incoming_method(irq) && code >= 200 ) {
-                    // set timer G for retransmit if we don't get ack
+                // sofia handles retransmits for us for final failures, but not for success
+                // TODO: figure out why this is
+                if( sip_method_invite == nta_incoming_method(irq) && code == 200 ) {
+                    // set timer G to retransmit 200 OK if we don't get ack
                     // 
                     TimerEventHandle t = m_pTQM->addTimer("timerG", 
                         boost::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
@@ -1004,6 +1006,9 @@ namespace drachtio {
                         boost::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
                     dlg->setTimerH(t) ;
                     
+                }
+                else if (sip_method_invite == nta_incoming_method(irq) ) {
+                    bClearIIP = true;
                 }
             }
 
@@ -1055,12 +1060,7 @@ namespace drachtio {
         if( sip_method_invite != nta_incoming_method(irq) && code >= 200 ) {
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;
         }
-        else if( sip_method_invite == nta_incoming_method(irq) && code == 403 ) {
-            //XXXX: We have a leak when someone sends us an INVITE, we reject, and they never send us an ACK
-            //in that case the clientController netTransaction is kep forever, waiting for that ACK
-            //long run need a better way to time those out;
-            //short term, this only seems to happen from sipcli hack attempts that we respond 403 Forbidden
-            //so at least for that case let's just clear the state in advance of the ACK
+        else if( sip_method_invite == nta_incoming_method(irq) && code > 200 ) {
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;            
         }
 
@@ -1168,7 +1168,7 @@ namespace drachtio {
                     //clear dialog when we send a 200 OK response to BYE
                     this->clearDialog( leg ) ;
                     if( !routed ) {
-                        nta_incoming_treply( irq, SIP_200_OK, TAG_END() ) ;                
+                        nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;                
                     }
                 } 
             }
@@ -1255,7 +1255,8 @@ namespace drachtio {
 
     int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
         if( !sip ) {
-            DR_LOG(log_debug) << "SipDialogController::processCancel called with null sip pointer"  ;
+            DR_LOG(log_debug) << "SipDialogController::processCancel called with null sip pointer; irq " << hex << (void*) irq  ;
+            nta_incoming_destroy(irq);
             return -1 ;
         }
         DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name  ;
@@ -1444,7 +1445,7 @@ namespace drachtio {
 
         this->bindIrq( irq ) ;
         DR_LOG(log_debug) << "SipDialogController::addIncomingInviteTransaction:  added iip: " << hex << p << " with leg " 
-            << leg << ", irq: " << irq << ", transacionId " << transactionId;
+            << leg << ", irq: " << irq << ", transactionId " << transactionId;
     }
     void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
         DR_LOG(log_debug) << "SipDialogController::addOutgoingInviteTransaction:  adding leg " << std::hex << leg  ;
@@ -1465,8 +1466,9 @@ namespace drachtio {
         nta_outgoing_t* orq = iip->orq() ;
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
 
-        if (orq && 0 == dlg->getProtocol().compare("udp") ) {
+        if (orq && 0 == dlg->getProtocol().compare("udp") && dlg->getSipStatus() == 200) {
             // for outbound dialogs, need to set Timer D (>32s on UDP) to handle retransmits of final responses
+            // TODO...I think sofia may handle this for non 2xx responses...check this
             DR_LOG(log_debug) << "SipDialogController::clearIIP - setting Timer D to keep transaction around for retransmits on leg " << hex << leg;
             TimerEventHandle t = m_pTQM->addTimer("timerD", boost::bind(&SipDialogController::timerD, this, iip, leg, dlg->getDialogId()), 
                 NULL, TIMER_D_MSECS ) ;
@@ -1481,7 +1483,6 @@ namespace drachtio {
     void SipDialogController::timerD(boost::shared_ptr<IIP>  iip, nta_leg_t* leg, const string& dialogId) {
         DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << ", dialog id " << dialogId << leg ;
         clearIIPFinal(iip, leg);
-        clearDialog(dialogId);
     }
     void SipDialogController::clearIIPFinal(boost::shared_ptr<IIP>  iip, nta_leg_t* leg) {
         mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
@@ -1532,7 +1533,7 @@ namespace drachtio {
 
         mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
         if( m_mapLeg2Dialog.end() == itLeg ) {
-            assert(0) ;
+            DR_LOG(log_debug) << "SipDialogController::clearDialog - failed to find/clear dialog id " << strDialogId ;          
             return ;
         }
         m_mapLeg2Dialog.erase( itLeg ) ;    
@@ -1543,7 +1544,7 @@ namespace drachtio {
 
     mapLeg2Dialog::iterator it = m_mapLeg2Dialog.find( leg ) ;
     if( m_mapLeg2Dialog.end() == it ) {
-        assert(0) ;
+        DR_LOG(log_debug) << "SipDialogController::clearDialog - failed to find/clear dialog for leg " << hex <<  leg ;          
         return ;
     }
     boost::shared_ptr<SipDialog> dlg = it->second ;
@@ -1593,13 +1594,42 @@ namespace drachtio {
     }
 
     void SipDialogController::endRetransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg) {
-        DR_LOG(log_debug) << "SipDialogController::endRetransmitFinalResponse irq:" << std::hex << (void*) irq;
+        DR_LOG(log_error) << "SipDialogController::endRetransmitFinalResponse - never received ACK for final response to incoming INVITE; irq:" << 
+            std::hex << (void*) irq << " source address was " << dlg->getSourceAddress() ;
 
         TimerEventHandle h = dlg->getTimerG() ;
         if( h ) { 
             m_pTQM->removeTimer(h, "timerG");
         }
+        clearIIP(dlg->getNtaLeg());
     }
+    void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
+        DR_LOG(log_error) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
+    }
+    bool SipDialogController::findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) {
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
+        if( m_mapTransactionId2Irq.end() == it ) return false ;
+        irq = it->second ;
+        return true ;                       
+    }
+    nta_incoming_t* SipDialogController::findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) {
+        DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - searching transactionId " << transactionId ;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        nta_incoming_t* irq = NULL ;
+        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
+        if( m_mapTransactionId2Irq.end() != it ) {
+            irq = it->second ;
+            m_mapTransactionId2Irq.erase( it ) ;
+        }
+        else {
+            DR_LOG(log_info) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId ;
+        }
+        return irq ;
+    }
+
 
     void SipDialogController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
