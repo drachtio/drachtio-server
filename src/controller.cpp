@@ -1056,6 +1056,11 @@ namespace drachtio {
                     }
                     break ;
 
+                    case sip_method_bye:
+                        nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   
+                        break;                           
+
+
                     default:
                         nta_msg_discard( m_nta, msg ) ;
                     break ;
