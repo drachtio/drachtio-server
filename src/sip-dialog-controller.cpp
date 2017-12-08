@@ -1007,9 +1007,12 @@ namespace drachtio {
                     dlg->setTimerH(t) ;
                     
                 }
-                else if (sip_method_invite == nta_incoming_method(irq) ) {
-                    bClearIIP = true;
-                }
+                // commenting this out, because it was causing us to generate a 500 response immediately
+                // after sending a 183.  Not sure why this was here, because we clear the IIP 
+                // when we receive the ACK -- leaving it in though commented out for posterity...
+                //else if (sip_method_invite == nta_incoming_method(irq) ) {
+                //    bClearIIP = true;
+                //}
             }
 
             msg_destroy( msg ); //release the reference
@@ -1467,8 +1470,7 @@ namespace drachtio {
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
 
         if (orq && 0 == dlg->getProtocol().compare("udp") && dlg->getSipStatus() == 200) {
-            // for outbound dialogs, need to set Timer D (>32s on UDP) to handle retransmits of final responses
-            // TODO...I think sofia may handle this for non 2xx responses...check this
+            // for outbound dialogs, sofia handles resends of ACKs for failures, but we need to do so for 200 OKs
             DR_LOG(log_debug) << "SipDialogController::clearIIP - setting Timer D to keep transaction around for retransmits on leg " << hex << leg;
             TimerEventHandle t = m_pTQM->addTimer("timerD", boost::bind(&SipDialogController::timerD, this, iip, leg, dlg->getDialogId()), 
                 NULL, TIMER_D_MSECS ) ;
