@@ -830,36 +830,45 @@ namespace drachtio {
                         int expires = 0 ;
 
                         msg_t *msgResponse = nta_incoming_getresponse( irq ) ;    // adds a reference
-                        sip_t *sipResponse = sip_object( msgResponse ) ;
-
-                        if( sip->sip_request->rq_method == sip_method_subscribe ) {
-                            if(  NULL != strstr( sipResponse->sip_subscription_state->ss_substate, "terminated" ) ) {
-                                add = false ;
+                        if (msg) {
+                            sip_t *sipResponse = sip_object( msgResponse ) ;
+                            if (sipResponse) {
+                                if( sip->sip_request->rq_method == sip_method_subscribe ) {
+                                    if(  NULL != strstr( sipResponse->sip_subscription_state->ss_substate, "terminated" ) ) {
+                                        add = false ;
+                                    }
+                                    else {
+                                        expires = ::atoi( sipResponse->sip_subscription_state->ss_expires ) ;
+                                    }                        
+                                }
+                                else {
+                                    if( NULL != sipResponse->sip_contact && NULL != sipResponse->sip_contact->m_expires ) {
+                                        expires = ::atoi( sipResponse->sip_contact->m_expires ) ;
+                                    }        
+                                    else {
+                                        expires = 0 ;
+                                    }
+                                    add = expires > 0 ;
+                                }
+                                
+                                if( add ) {
+                                    theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
+                                }
+                                else {
+                                    theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                                }
                             }
                             else {
-                                expires = ::atoi( sipResponse->sip_subscription_state->ss_expires ) ;
-                            }                        
-                        }
-                        else {
-                            if( NULL != sipResponse->sip_contact && NULL != sipResponse->sip_contact->m_expires ) {
-                                expires = ::atoi( sipResponse->sip_contact->m_expires ) ;
-                            }        
-                            else {
-                                expires = 0 ;
+                                bSentOK = false ;
+                                failMsg = "connection error: remote side may have closed socket";                                
                             }
-                            add = expires > 0 ;
-                        }
-                        
-                        if( add ) {
-                            theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
+                            msg_destroy( msgResponse ) ;    // releases the reference                            
                         }
                         else {
-                            theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                            bSentOK = false ;
+                            failMsg = "connection error: remote side may have closed socket";
                         }
-
-                        msg_destroy( msgResponse ) ;    // releases the reference
                     }
-
                 }
             }
 
@@ -1041,20 +1050,28 @@ namespace drachtio {
         if( bSentOK ) {
             string encodedMessage ;
             msg_t* msg = nta_incoming_getresponse( irq ) ;  // adds a ref
-            EncodeStackMessage( sip_object(msg), encodedMessage ) ;
-            SipMsgData_t meta( msg, irq, "application" ) ;
 
-            string s ;
-            meta.toMessageFormat(s) ;
-            string data = s + "|" + transactionId + "|" + dialogId + "|" + "|Msg sent:|" + DR_CRLF + encodedMessage ;
+            // we can get an rc=0 from nta_incoming_treply above, but have it actually fail
+            // in the case of a websocket that closed immediately after sending us a BYE
+            if (msg) {
+                EncodeStackMessage( sip_object(msg), encodedMessage ) ;
+                SipMsgData_t meta( msg, irq, "application" ) ;
 
-            m_pController->getClientController()->route_api_response( clientMsgId, "OK", data) ;
+                string s ;
+                meta.toMessageFormat(s) ;
+                string data = s + "|" + transactionId + "|" + dialogId + "|" + "|Msg sent:|" + DR_CRLF + encodedMessage ;
 
-            if( iip && code >= 300 ) {
-                Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
+                m_pController->getClientController()->route_api_response( clientMsgId, "OK", data) ;
+
+                if( iip && code >= 300 ) {
+                    Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
+                }
+
+                msg_destroy(msg) ;      // release the ref                          
             }
-
-            msg_destroy(msg) ;      // release the ref          
+            else {
+                m_pController->getClientController()->route_api_response( clientMsgId, "NOK", "failed sending, possibly due to far end closing socket") ;
+            }
         }
         else {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
