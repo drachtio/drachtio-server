@@ -20,7 +20,6 @@
                 <value>sip-cli</value>
                 <value>sipcli</value>
                 <value>friendly-scanner</value>
-                <value>Bria</value>
             </header>
             <header>
                 <value>sipvicious</value>
@@ -37,10 +36,10 @@
         <console/>
         
         <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
-        <sofia-loglevel>3</sofia-loglevel>
+        <sofia-loglevel>9</sofia-loglevel>
         
         <!-- notice, warning, error, info, debug.  Default: info -->
-        <loglevel>info</loglevel>
+        <loglevel>debug</loglevel>
     </logging>
         
 </drachtio>
