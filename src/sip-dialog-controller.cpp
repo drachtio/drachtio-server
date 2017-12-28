@@ -1486,7 +1486,10 @@ namespace drachtio {
         nta_outgoing_t* orq = iip->orq() ;
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
 
-        if (orq && 0 == dlg->getProtocol().compare("udp") && dlg->getSipStatus() == 200) {
+        // NOTE: the last condition below is to prevent us from setting a second timerD when we get a reINVITE
+        // on an existing call leg -- currently we will only set a timerD for the initial INVITE.
+        // This is because we are tracking timers per dialog, not per transaction.  TODO: fix this at some point
+        if (orq && 0 == dlg->getProtocol().compare("udp") && dlg->getSipStatus() == 200 && NULL == dlg->getTimerD()) {
             // for outbound dialogs, sofia handles resends of ACKs for failures, but we need to do so for 200 OKs
             DR_LOG(log_debug) << "SipDialogController::clearIIP - setting Timer D to keep transaction around for retransmits on leg " << hex << leg;
             TimerEventHandle t = m_pTQM->addTimer("timerD", boost::bind(&SipDialogController::timerD, this, iip, leg, dlg->getDialogId()), 
