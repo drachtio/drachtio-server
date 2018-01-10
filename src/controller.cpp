@@ -988,6 +988,7 @@ namespace drachtio {
                     case sip_method_info:
                     case sip_method_notify:
                     case sip_method_subscribe:
+                    case sip_method_publish:
                     {
                         if( m_pPendingRequestController->isRetransmission( sip ) ||
                             m_pProxyController->isRetransmission( sip ) ) {
