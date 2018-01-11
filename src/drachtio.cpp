@@ -481,7 +481,8 @@ namespace drachtio {
 
             DR_LOG(log_debug) << "isLocalSipUri: comparing known local address: " << host << ":" << port ;
 
-            if (0 == host.compare(url->url_host) && 0 == port.compare(url->url_port)) {
+            if (0 == host.compare(url->url_host) && 
+                ((url->url_port && 0 == port.compare(url->url_port)) || 0 == port.compare("5060"))) {
                 return true ;
             }
         }
