@@ -420,6 +420,8 @@ namespace drachtio {
         static bool initialized = false ;
         static vector< pair<string, string> > vecLocalUris ;
 
+        DR_LOG(log_debug) << "isLocalSipUri: checking to see if this is one of mine: " << requestUri ;
+
         if( !initialized ) {
             initialized = true ;
 
@@ -479,10 +481,14 @@ namespace drachtio {
             string host = it->first ;
             string port = it->second ;
 
+            if (port.empty()) port = "5060";
+
             DR_LOG(log_debug) << "isLocalSipUri: comparing known local address: " << host << ":" << port ;
 
-            if (0 == host.compare(url->url_host) && 
-                ((url->url_port && 0 == port.compare(url->url_port)) || 0 == port.compare("5060"))) {
+            if ((0 == host.compare(url->url_host)) && (
+                (!url->url_port && 0 == port.compare("5060")) ||
+                (url->url_port && 0 == port.compare(url->url_port)))
+            ) {
                 return true ;
             }
         }
