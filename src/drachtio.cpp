@@ -453,6 +453,11 @@ namespace drachtio {
             }
        }
 
+       if( 0 == requestUri.find("tel:")) {
+        DR_LOG(log_debug) << "isLocalSipUri: tel: scheme, so we are  assuming it is not local (will cause it to be carried forward in proxy request): " << requestUri ;
+        return false;
+       }
+
         su_home_t* home = theOneAndOnlyController->getHome() ;
         char *s ;
         char buf[255];
