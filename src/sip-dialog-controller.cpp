@@ -1121,6 +1121,45 @@ namespace drachtio {
                 nta_incoming_destroy(irq) ;
                 break ;
             }
+            case sip_method_cancel:
+            {
+                // this should only happen in a race condition, where we've sent the 200 OK but not yet received an ACK 
+                //  in this case, send a 481 to the CANCEL and then generate a BYE
+                boost::shared_ptr<SipDialog> dlg ;
+                if( !this->findDialogByLeg( leg, dlg ) ) {
+                    DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
+                    return 481 ;
+                    assert(0) ;
+                    return -1;
+                }
+                DR_LOG(log_warning) << "SipDialogController::processRequestInsideDialog - received CANCEL after 200 OK; reply 481 and tear down dialog"  ;
+                this->clearSipTimers(dlg);
+
+                // 481 to the CANCEL
+                nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;  
+
+                // BYE to the far end
+                nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
+                                        NULL,
+                                        SIP_METHOD_BYE,
+                                        NULL,
+                                        SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"CANCEL after 200 OK\""),
+                                        TAG_END() ) ;
+
+                msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
+                sip_t* sip = sip_object( m ) ;
+
+                string encodedMessage ;
+                EncodeStackMessage( sip, encodedMessage ) ;
+                SipMsgData_t meta(m, orq) ;
+                string s ;
+                meta.toMessageFormat(s) ;
+
+                m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, "unsolicited", dlg->getDialogId() ) ;
+
+                nta_outgoing_destroy(orq) ;
+                this->clearDialog( leg ) ;
+            }
             default:
             {
                 boost::shared_ptr<SipDialog> dlg ;
@@ -1604,8 +1643,7 @@ namespace drachtio {
 
         clearIIP(leg);
 
-        // XXXXX: we never got the ACK, so now we should tear down the call by sending a BYE
-        // (make sure the dialog actually hasnt been CANCEL'ed)
+        // we never got the ACK, so now we should tear down the call by sending a BYE
         nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
                                 NULL,
                                 SIP_METHOD_BYE,
