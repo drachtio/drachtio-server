@@ -533,20 +533,16 @@ namespace drachtio {
             throw std::runtime_error("ProxyCore::ClientTransaction::forwardRequest: TODO: need to implement support for app providing no destination (proxy to ruri)") ;
         }
 
-        // don't replace request-uri if it is a tel uri
-        if ( 0 != strcmp( sip->sip_request->rq_url->url_scheme, "tel" )) {
-            // check if the original request-uri was a local address -- if so, replace it with the provided destination
-            string originalUri = sip->sip_request->rq_url->url_scheme ;
+        // check if the original request-uri was a local address -- if so, replace it with the provided destination
+        char urlBuf[4096];
+        url_e(urlBuf, 4096, sip->sip_request->rq_url);
 
-            originalUri.append(":");
-            originalUri.append(sip->sip_request->rq_url->url_host) ;
-
-            // only replace request-uri if it is a local address
-            if( isLocalSipUri( originalUri ) ) {
-                DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << originalUri ;
-                sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
-                msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
-            }
+        //only replace request uri if it is a local address and not a tel uri
+        url_type type = sip->sip_request->rq_url->url_type;
+        if(url_sip == type || url_sips == type) && isLocalSipUri( urlBuf ) ) {
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << urlBuf ;
+            sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
+            msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
 
         string record_route, transport ;

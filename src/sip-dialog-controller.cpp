@@ -250,10 +250,7 @@ namespace drachtio {
                     ,TAG_IF(forceTport, NTATAG_TPORT(tp))
                     ,TAG_NEXT(tags) ) ;
 
-                if( !orq ) {
-
-                }
-                else {
+                if( orq ) {
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
                 }
             }
@@ -1003,25 +1000,19 @@ namespace drachtio {
                 // sofia handles retransmits for us for final failures, but not for success
                 // TODO: figure out why this is
                 if( sip_method_invite == nta_incoming_method(irq) && code == 200 ) {
+                    
+                    this->addDialog( dlg ) ;
+
                     // set timer G to retransmit 200 OK if we don't get ack
-                    // 
                     TimerEventHandle t = m_pTQM->addTimer("timerG", 
                         boost::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
                     dlg->setTimerG(t) ;
 
-                    // set timer H, which sets the time to stop retransmissions
-                    // 
+                    // set timer H, which sets the time to stop these retransmissions
                     t = m_pTQM->addTimer("timerH", 
                         boost::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
-                    dlg->setTimerH(t) ;
-                    
+                    dlg->setTimerH(t) ;                    
                 }
-                // commenting this out, because it was causing us to generate a 500 response immediately
-                // after sending a 183.  Not sure why this was here, because we clear the IIP 
-                // when we receive the ACK -- leaving it in though commented out for posterity...
-                //else if (sip_method_invite == nta_incoming_method(irq) ) {
-                //    bClearIIP = true;
-                //}
             }
 
             msg_destroy( msg ); //release the reference
@@ -1116,15 +1107,8 @@ namespace drachtio {
                     transactionId = iip->getTransactionId() ;
 
                     dlg = this->clearIIP( leg ) ;
-                    TimerEventHandle h = dlg->getTimerG() ;
-                    if( h ) {
-                        m_pTQM->removeTimer( h, "timerG");
-                    }
-                    h = dlg->getTimerH() ;
-                    if( h ) {
-                        m_pTQM->removeTimer( h, "timerH");
-                    }
-                    addDialog( dlg ) ;
+                    this->clearSipTimers(dlg);
+                    //addDialog( dlg ) ;  now adding when we send the 200 OK
                 }
                 string encodedMessage ;
                 msg_t* msg = nta_incoming_getrequest( irq ) ; // adds a reference
@@ -1174,7 +1158,7 @@ namespace drachtio {
                 SipMsgData_t meta( msg, irq ) ;
                 msg_destroy( msg ); // release the reference
 
-                bool routed = m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, irq, sip, transactionId, dlg->getDialogId() ) ;
+                bool routed = m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, transactionId, dlg->getDialogId() ) ;
 
                 addIncomingRequestTransaction( irq, transactionId) ;
     
@@ -1321,15 +1305,7 @@ namespace drachtio {
                 return 0 ;
             }
             boost::shared_ptr<SipDialog> dlg = this->clearIIP( iip->leg() ) ;
-
-            TimerEventHandle h = dlg->getTimerG() ;
-            if( h ) {
-                m_pTQM->removeTimer( h, "timerG");
-            }
-            h = dlg->getTimerH() ;
-            if( h ) {
-                m_pTQM->removeTimer( h, "timerH");
-            }
+            this->clearSipTimers(dlg);
 
             string transactionId ;
             generateUuid( transactionId ) ;
@@ -1370,7 +1346,7 @@ namespace drachtio {
             SipMsgData_t meta( msg, prack ) ;
             msg_destroy(msg);                               // releases the reference
 
-            m_pClientController->route_request_inside_dialog( encodedMessage, meta, prack, sip, transactionId, dlg->getDialogId() ) ;
+            m_pClientController->route_request_inside_dialog( encodedMessage, meta, sip, transactionId, dlg->getDialogId() ) ;
 
             iip->destroyReliable() ;
 
@@ -1619,11 +1595,36 @@ namespace drachtio {
         DR_LOG(log_error) << "SipDialogController::endRetransmitFinalResponse - never received ACK for final response to incoming INVITE; irq:" << 
             std::hex << (void*) irq << " source address was " << dlg->getSourceAddress() ;
 
+        nta_leg_t* leg = dlg->getNtaLeg();
         TimerEventHandle h = dlg->getTimerG() ;
-        if( h ) { 
-            m_pTQM->removeTimer(h, "timerG");
+        if( h ) {
+            m_pTQM->removeTimer( h, "timerG");  
+            dlg->clearTimerG();
         }
-        clearIIP(dlg->getNtaLeg());
+
+        clearIIP(leg);
+
+        // XXXXX: we never got the ACK, so now we should tear down the call by sending a BYE
+        // (make sure the dialog actually hasnt been CANCEL'ed)
+        nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
+                                NULL,
+                                SIP_METHOD_BYE,
+                                NULL,
+                                SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"ACK timeout\""),
+                                TAG_END() ) ;
+
+        msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
+        sip_t* sip = sip_object( m ) ;
+
+        string encodedMessage ;
+        EncodeStackMessage( sip, encodedMessage ) ;
+        SipMsgData_t meta(m, orq) ;
+        string s ;
+        meta.toMessageFormat(s) ;
+
+        m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, "unsolicited", dlg->getDialogId() ) ;
+
+        nta_outgoing_destroy(orq) ;
     }
     void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
         DR_LOG(log_error) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
@@ -1652,6 +1653,23 @@ namespace drachtio {
         return irq ;
     }
 
+    void SipDialogController::clearSipTimers(boost::shared_ptr<SipDialog>& dlg) {
+        TimerEventHandle h = dlg->getTimerD() ;
+        if( h ) {
+            m_pTQM->removeTimer( h, "timerD"); 
+            dlg->clearTimerD();
+        }
+        h = dlg->getTimerG() ;
+        if( h ) {
+            m_pTQM->removeTimer( h, "timerG");  
+            dlg->clearTimerG();
+        }
+        h = dlg->getTimerH() ;
+        if( h ) {
+            m_pTQM->removeTimer( h, "timerH"); 
+            dlg->clearTimerH();
+        }
+    }
 
     void SipDialogController::logStorageCount(void)  {
         boost::lock_guard<boost::mutex> lock(m_mutex) ;

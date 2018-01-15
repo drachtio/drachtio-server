@@ -324,6 +324,8 @@ namespace drachtio {
 		void retransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg);
 		void endRetransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg);
 
+		// timers
+		void clearSipTimers(boost::shared_ptr<SipDialog>& dlg);
 
 	protected:
 		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;

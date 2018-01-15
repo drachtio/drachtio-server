@@ -146,6 +146,8 @@ namespace drachtio {
 
 		void setTimerD(TimerEventHandle& handle) { m_timerD = handle; }
 		TimerEventHandle getTimerD(void) { return m_timerD; }
+		void clearTimerD() { m_timerD = NULL;}
+
 		void setTimerG(TimerEventHandle& handle) { 
 			m_timerG = handle; 
 			if( 0 == m_durationTimerG ) {
@@ -157,8 +159,11 @@ namespace drachtio {
 			m_durationTimerG = std::min( m_durationTimerG << 1, (uint32_t) NTA_SIP_T2);
 			return m_durationTimerG;
 		}
+		void clearTimerG() { m_timerG = NULL;}
+
 		void setTimerH(TimerEventHandle& handle) { m_timerH = handle; }
 		TimerEventHandle getTimerH(void) { return m_timerH; }
+		void clearTimerH() { m_timerH = NULL;}
 
 	protected:
 		string 			m_dialogId ;

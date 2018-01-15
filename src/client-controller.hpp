@@ -95,7 +95,7 @@ namespace drachtio {
     bool route_response_inside_transaction( const string& rawSipMsg, const SipMsgData_t& meta, nta_outgoing_t* orq, sip_t const *sip, 
       const string& transactionId, const string& dialogId = "" ) ; 
 
-    bool route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip,  const string& transactionId, const string& dialogId ) ;
+    bool route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, sip_t const *sip, const string& transactionId, const string& dialogId ) ;
 
     bool route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, sip_t const *sip, const string& transactionId, const string& dialogId  = "" ) ;
 

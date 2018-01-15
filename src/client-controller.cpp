@@ -201,7 +201,7 @@ namespace drachtio {
         return true ;
 
     }
-    bool ClientController::route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
+    bool ClientController::route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, sip_t const *sip, 
         const string& transactionId, const string& dialogId  ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
@@ -218,7 +218,7 @@ namespace drachtio {
         return true ;
     }
 
-    bool ClientController::route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
+    bool ClientController::route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, sip_t const *sip, 
         const string& transactionId, const string& dialogId ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
@@ -227,7 +227,7 @@ namespace drachtio {
             //TODO: try to find another client providing the same service
             return false ;
         }
-        this->addNetTransaction( client, transactionId ) ;
+        if (string::npos == transactionId.find("unsolicited")) this->addNetTransaction( client, transactionId ) ;
  
         m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
