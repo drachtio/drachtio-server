@@ -19,10 +19,13 @@
 
             callingNumber - the user part of the From header
             calledNumber - the user part of the To header
-            source_address - the sending address
-            method - the sip method
+            contentType - the Content-Type header (if any)
             domain - the domain in the request uri
+            method - the sip method
             protocol - the transport protocol
+            source_address - the sending address
+            uriUser - the user part of the sip uri
+            uri - the complete sip uri
 
         If additional information is needed, then a POST request can be used, and the full sip message
         will be passed in the body of the post.
@@ -73,16 +76,11 @@
 
     -->
 
+    <!-- comment this in and edit http url to use outbound connections
     <request-handlers>
-        <request-handler sip-method="invite" http-method="GET">http://35.187.89.96:80</request-handler>
-<!--
-        <request-handler sip-method="invite" http-method="GET" verify-peer="true">https://us-central1-voxbone-recording-app.cloudfunctions.net/dractio-outbound-test</request-handler>
--->
-<!--
-        <request-handler sip-method="invite" http-method="GET">http://127.0.0.1:3000</request-handler> 
--->
+        <request-handler sip-method="INVITE" http-method="GET">http://35.187.89.96:80</request-handler>
     </request-handlers>
-  
+    -->
     <!-- sip configuration -->
     <sip>
         <contacts>
