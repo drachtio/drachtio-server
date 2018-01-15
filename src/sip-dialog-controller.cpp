@@ -1208,6 +1208,8 @@ namespace drachtio {
                         NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") ) 
                 ) {
 
+                    this->clearSipTimers(dlg);
+
                     //clear dialog when we send a 200 OK response to BYE
                     this->clearDialog( leg ) ;
                     if( !routed ) {
