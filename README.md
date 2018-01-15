@@ -16,7 +16,7 @@ make
 sudo make install
 ```
 
-> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include boost, the [sofia sip stack](https://github.com/davehorton/sofia-sip) and [redisclient](https://github.com/davehorton/redisclient).  sofia and redisclient are included as git submodules in this project.
+> Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project.
 
 ## Platform support and dependencies
 
