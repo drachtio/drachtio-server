@@ -21,6 +21,7 @@ THE SOFTWARE.
 */
 
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
 #include <arpa/inet.h>
 
 #include "sip-transports.hpp"
@@ -74,7 +75,12 @@ namespace drachtio {
       }
     }
 
+    bool hasNetmask = false;
+    string network, bits;
+    uint32_t netbits;
+
     if( !m_strLocalNet.empty() ) {
+      hasNetmask = true;
       boost::regex e("^([0-9\\.]*)\\/(.*)$", boost::regex::extended) ;
       boost::smatch mr; 
       if (!boost::regex_search(m_strLocalNet, mr, e)) {
@@ -82,13 +88,16 @@ namespace drachtio {
         throw std::runtime_error("SipTransport::init - invalid format for localNet, must be CIDR format");
       }
 
-      string network = mr[1] ; 
+      network = mr[1] ; 
+      bits = mr[2];
+    }
+
+    if (hasNetmask) {
       struct sockaddr_in range;
       inet_pton(AF_INET, network.c_str(), &(range.sin_addr));
       m_range = htonl(range.sin_addr.s_addr) ;
 
-      string tmp = mr[2] ;
-      uint32_t netbits = ::atoi( tmp.c_str() ) ;    
+      uint32_t netbits = ::atoi( bits.c_str() ) ;    
       m_netmask = ~(~uint32_t(0) >> netbits);    
     }
   }
@@ -281,6 +290,38 @@ namespace drachtio {
         p->setTport(tp); 
         p->setTportName(tpn) ;
         m_mapTport2SipTransport.insert(mapTport2SipTransport::value_type(tp, p)) ;
+
+        if (p->getLocalNet().empty()) {
+          string network, bits;
+          string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();
+          if(0 == host.compare("127.0.0.1")) {
+            network = "127.0.0.1";
+            bits = "32";
+          }
+          else if(0 == host.find("192.168.0.")) {
+            network = "192.168.0.0";
+            bits = "24";
+          }
+          else if(0 == host.find("172.16.")) {
+            network = "172.16.0.0";
+            bits = "16";
+          }
+          else if(0 == host.find("10.")) {
+            network = "10.0.0.0";
+            bits = "8";
+          }
+
+          if (!network.empty()) {
+            struct sockaddr_in range;
+            inet_pton(AF_INET, network.c_str(), &(range.sin_addr));
+            p->setRange(htonl(range.sin_addr.s_addr)) ;
+
+            uint32_t netbits = ::atoi( bits.c_str() ) ;    
+            p->setNetmask(~(~uint32_t(0) >> netbits));
+            p->setNetwork(network);
+            p->setLocalNet(network, bits);
+          }
+        }
       }
     }
   }
@@ -301,7 +342,7 @@ namespace drachtio {
     vector< pair<string,string> > vecParam ;
     string host = remoteHost ;
 
-    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: " << proto << "/" << remoteHost ;
+    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: searching for a transport to reach " << proto << "/" << remoteHost ;
 
     if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
       host = hostpart ;
@@ -310,66 +351,66 @@ namespace drachtio {
 
     string desc ;
     bool wantsIpV6 = (NULL != strstr( remoteHost, "[") && NULL != strstr( remoteHost, "]")) ;
-    boost::shared_ptr<SipTransport> pBestMatchSoFar ;
-    for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
-      boost::shared_ptr<SipTransport> p = it->second ;
-      p->getDescription(desc) ;
 
-      if( 0 != strcmp( p->getProtocol(), proto) ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport " << hex << p->getTport() << 
-          " because protocol does not match: " << desc ;
-        continue ;
-      }
-      if( wantsIpV6 && !p->isIpV6() ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport " << hex << p->getTport() << 
-          " because transport is not ipv6: " << desc ;
-        continue ;        
-      }
-      if( !wantsIpV6 && p->isIpV6() ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - skipping transport " << hex << p->getTport() << 
-          " because transport is not ipv4: " << desc ;
-        continue ;        
-      }
+    // create vector of candidates, remove those with wrong transport or protocol
+    // then sort from most to least desirable:
+    // - transports within the subnet of the remote host
+    // - transports that have an external address
+    // - ...all others, and finally..
+    // - transports bound to localhost
+    vector< boost::shared_ptr<SipTransport> > candidates;
+    pair< tport_t*, boost::shared_ptr<SipTransport> > myPair;
+    BOOST_FOREACH(myPair, m_mapTport2SipTransport) { candidates.push_back(myPair.second);}
 
-      // check if remote host is on the local network of the transport, as this will be the optimal match
-      if( p->hasExternalIp() && p->isInNetwork(remoteHost) ) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - selecting transport " << hex << p->getTport() << 
-          " because it is in the local network: " << desc ;
-        return p ;
-      }
+    // filter by transport
+    auto it = std::remove_if(candidates.begin(), candidates.end(), [wantsIpV6](const boost::shared_ptr<SipTransport>& p) {
+      return (wantsIpV6 && !p->isIpV6()) || (!wantsIpV6 && p->isIpV6());
+    });
+    candidates.erase(it, candidates.end());
+    DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for transport we have " << candidates.size() << " candidates";
 
-      if( 0 == strcmp(remoteHost, p->getHost())) {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - selecting transport " << hex << p->getTport() << 
-          " because it matches exactly (probably localhost): " << desc ;
-        return p ;
-      }
+    // filter by protocol
+    it = std::remove_if(candidates.begin(), candidates.end(), [proto](const boost::shared_ptr<SipTransport>& p) {
+      if (!proto) return false;
+      return 0 != strcmp(p->getProtocol(), proto);
+    });
+    candidates.erase(it, candidates.end());
+    DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for protocol we have " << candidates.size() << " candidates";
 
-      if( p->isLocalhost() ) {
-        //only select if we don't have something better
-        if( !pBestMatchSoFar ) {
-          DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - setting transport " << hex << p->getTport() << 
-            " as best match because although its localhost we have no current best match: " << desc ;
-          pBestMatchSoFar = p ;
-        }
-      }
-      else {
-        DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - setting transport " << hex << p->getTport() << 
-          " as best match: " << desc ;
-        pBestMatchSoFar = p ;        
-      }
+
+    sort(candidates.begin(), candidates.end(), [host](const boost::shared_ptr<SipTransport>& pA, const boost::shared_ptr<SipTransport>& pB) {
+      if (pA->isInNetwork(host.c_str())) return true;
+      if (pB->isInNetwork(host.c_str())) return false;
+
+      if (pA->hasExternalIp()) return true;
+      if (pB->hasExternalIp()) return false;
+
+      if (pA->isLocalhost()) return false;
+      if (pB->isLocalhost()) return true;
+
+      return true;
+    });
+
+#ifdef DEBUG 
+    DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - in priority order, here are the candidates for sending to  " << host;
+    BOOST_FOREACH(boost::shared_ptr<SipTransport>& p, candidates) {
+      string desc;
+      p->getDescription(desc);
+      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport -   " << desc;
+    }
+#endif
+
+    if (candidates.empty()) {
+      m_masterTransport->getDescription(desc) ;
+      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() << 
+        " as we found no better matches: " << desc ;
+      return m_masterTransport ;      
     }
 
-    if (pBestMatchSoFar) {
-      pBestMatchSoFar->getDescription(desc) ;
-      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning transport " << hex << pBestMatchSoFar->getTport() << 
-        " as final best match: " << desc ;
-      return pBestMatchSoFar ;
-    }
-
-    m_masterTransport->getDescription(desc) ;
-    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() << 
-      " as we found no better matches: " << desc ;
-    return m_masterTransport ;
+    boost::shared_ptr<SipTransport> p = candidates[0];
+    p->getDescription(desc);
+    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning the best match " << hex << p->getTport() << ": " << desc ;
+    return p ;
   }
 
   void SipTransport::getAllExternalIps( vector<string>& vec ) {

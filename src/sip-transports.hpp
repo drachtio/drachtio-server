@@ -53,6 +53,7 @@ namespace drachtio {
     const string& getExternalIp(void) const { return m_strExternalIp; }
     const vector<string>& getDnsNames(void) const  { return m_dnsNames; }
     const string& getLocalNet(void) const { return m_strLocalNet; }    
+    void setLocalNet(const string& network, const string& bits) { m_strLocalNet = network + "/" + bits; }    
     bool shouldAdvertisePublic(const char* address) const ;
     bool isInNetwork(const char* address) const;
     bool hasTport(void) const { return NULL != m_tp; }
@@ -68,6 +69,10 @@ namespace drachtio {
     bool isIpV6(void) ;
     bool isLocalhost(void) ;
     bool isLocal(const char* szHost) ;
+
+    void setNetwork(const string& network) { m_network = network;}
+    void setNetmask(uint32_t netmask) { m_netmask = netmask;}
+    void setRange(uint32_t range) { m_range = range;}
 
     void getDescription(string& s, bool shortVersion = true) ;
     void getHostport(string& s) ;

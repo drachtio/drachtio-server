@@ -534,28 +534,24 @@ namespace drachtio {
         }
 
         // check if the original request-uri was a local address -- if so, replace it with the provided destination
-        char urlBuf[4096];
-        url_e(urlBuf, 4096, sip->sip_request->rq_url);
+        char urlBuf[URL_MAXLEN];
+        url_e(urlBuf, URL_MAXLEN, sip->sip_request->rq_url);
 
         //only replace request uri if it is a local address and not a tel uri
-        url_type type = sip->sip_request->rq_url->url_type;
-        if(url_sip == type || url_sips == type) && isLocalSipUri( urlBuf ) ) {
+        signed char type = sip->sip_request->rq_url->url_type;
+        if((url_sip == type || url_sips == type) && isLocalSipUri(urlBuf)) {
             DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << urlBuf ;
             sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
 
         string record_route, transport ;
-        tport_t* tp ;
-        int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
-                    URL_STRING_MAKE(m_target.c_str()), (void **) &tp ) ;
-        assert( 0 == rc ) ;
-        if( 0 == rc && pCore->shouldAddRecordRoute() ) {
-
+        boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
+        assert(p) ;
+        p->getDescription(transport);
+        if(pCore->shouldAddRecordRoute() ) {
             //TODO: need also to check that if REGISTER we have a Supported: path header
-            boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
-            assert(p) ;
-
+            
             p->getContactUri(record_route) ;
             record_route = "<" + record_route + ";lr>";
             DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
@@ -563,7 +559,7 @@ namespace drachtio {
 
         tagi_t* tags = makeTags( headers, transport ) ;
 
-        rc = nta_msg_tsend( nta, 
+        int rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
             URL_STRING_MAKE(route.c_str()), 
             TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
@@ -574,6 +570,7 @@ namespace drachtio {
                 SIPTAG_REQUIRE_STR( "path" ) ),
             //TODO: add Required: Path if we are adding a path header to a REGISTER
             NTATAG_BRANCH_KEY(m_branch.c_str()),
+            NTATAG_TPORT(p->getTport()),
             TAG_NEXT(tags) ) ;
 
         deleteTags( tags ) ;

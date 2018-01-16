@@ -966,13 +966,14 @@ namespace drachtio {
 
                 tport_unref( tp_incoming ) ;
 
-                if( hostMatch && portMatch && !SipTransport::isLocalAddress(sip->sip_request->rq_url->url_host)) {
+                if( hostMatch && portMatch /* && !SipTransport::isLocalAddress(sip->sip_request->rq_url->url_host) */) {
                     //request within an established dialog in which we are a stateful proxy
                     if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
                        nta_msg_discard( m_nta, msg ) ;                
                     }          
                     return 0 ;          
                 }
+                DR_LOG(log_warning) << "DrachtioController::processMessageStatelessly: discarding incoming message with Route header as we do not match the first route";
             }
 
             if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
