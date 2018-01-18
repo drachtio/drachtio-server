@@ -22,6 +22,9 @@ THE SOFTWARE.
 
 #include <boost/regex.hpp>
 #include <boost/foreach.hpp>
+#include <boost/regex.hpp>
+#include <boost/algorithm/string.hpp>
+
 #include <arpa/inet.h>
 
 #include "sip-transports.hpp"
@@ -109,6 +112,8 @@ namespace drachtio {
   }
 
   bool SipTransport::isInNetwork(const char* address) const {
+    if (!m_netmask) return false;
+
     struct sockaddr_in addr;
     inet_pton(AF_INET, address, &(addr.sin_addr));
 
@@ -232,6 +237,23 @@ namespace drachtio {
 
     DR_LOG(log_debug) << "SipTransport::getContactUri - created Contact header: " << contact;
   }
+  sip_via_t* SipTransport::makeVia(su_home_t * h, const char* szRemoteHost) {
+    bool isInSubnet = szRemoteHost ? this->isInNetwork(szRemoteHost) : false;
+    string host = this->getHost();
+    if (this->hasExternalIp() && !isInSubnet) {
+      host = this->getExternalIp();
+    }
+
+    string proto = this->getProtocol();
+    if (0 == proto.length()) proto = "UDP";
+    boost::to_upper(proto);
+
+    string transport = string("SIP/2.0/") + proto;
+    DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << this->getPort() << ", transport " << transport ;
+
+    return sip_via_create(h, host.c_str(), this->getPort(), transport.c_str());
+  }
+
 
   bool SipTransport::isIpV6(void) {
     return hasTport() && NULL != strstr( getHost(), "[") && NULL != strstr( getHost(), "]") ;
@@ -257,6 +279,34 @@ namespace drachtio {
       }
     }
     return false ;
+  }
+
+  uint32_t SipTransport::getOctetMatchCount(const string& address) {
+    uint32_t count = 0 ;
+    string them[4], mine[4];
+    boost::regex e("^(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)", boost::regex::extended);
+    boost::smatch mr;
+    if (boost::regex_search(address, mr, e)) {
+        them[0] = mr[1] ;
+        them[1] = mr[2] ;
+        them[2] = mr[3] ;
+        them[3] = mr[4] ;
+
+        string host = this->getHost();
+        if (boost::regex_search(host, mr, e)) {
+          mine[0] = mr[1] ;
+          mine[1] = mr[2] ;
+          mine[2] = mr[3] ;
+          mine[3] = mr[4] ;
+  
+          for(int i = 0; i < 4; i++) {
+            if(0 != them[i].compare(mine[i])) return count;
+            count++;
+          }
+        }
+    }
+
+    return count;
   }
 
   /** static methods */
@@ -379,8 +429,18 @@ namespace drachtio {
 
 
     sort(candidates.begin(), candidates.end(), [host](const boost::shared_ptr<SipTransport>& pA, const boost::shared_ptr<SipTransport>& pB) {
-      if (pA->isInNetwork(host.c_str())) return true;
-      if (pB->isInNetwork(host.c_str())) return false;
+
+      if (pA->isInNetwork(host.c_str())) {
+        return true;
+      }
+      if (pB->isInNetwork(host.c_str())) {
+        return false;
+      }
+
+      uint32_t a = pA->getOctetMatchCount(host);
+      uint32_t b = pB->getOctetMatchCount(host);
+      if (a > b) return true;
+      if (a < b) return false;
 
       if (pA->hasExternalIp()) return true;
       if (pB->hasExternalIp()) return false;

@@ -545,13 +545,12 @@ namespace drachtio {
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
 
-        string record_route, transport ;
+        string record_route, transport;
         boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
         assert(p) ;
         p->getDescription(transport);
-        if(pCore->shouldAddRecordRoute() ) {
-            //TODO: need also to check that if REGISTER we have a Supported: path header
-            
+
+        if(pCore->shouldAddRecordRoute() ) {            
             p->getContactUri(record_route) ;
             record_route = "<" + record_route + ";lr>";
             DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
@@ -562,16 +561,16 @@ namespace drachtio {
         int rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
             URL_STRING_MAKE(route.c_str()), 
-            TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
-                SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
-            TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
-                SIPTAG_PATH_STR( record_route.c_str() ) ),
-            TAG_IF( pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
-                SIPTAG_REQUIRE_STR( "path" ) ),
-            //TODO: add Required: Path if we are adding a path header to a REGISTER
-            NTATAG_BRANCH_KEY(m_branch.c_str()),
             NTATAG_TPORT(p->getTport()),
-            TAG_NEXT(tags) ) ;
+            NTATAG_BRANCH_KEY(m_branch.c_str()),
+            TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
+                SIPTAG_RECORD_ROUTE_STR( record_route.c_str())),
+            TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
+                SIPTAG_PATH_STR( record_route.c_str())),
+            TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
+                SIPTAG_REQUIRE_STR( "path" )),
+            TAG_NEXT(tags)
+        ) ;
 
         deleteTags( tags ) ;
 
@@ -1291,7 +1290,7 @@ namespace drachtio {
         //If the request-uri has the '.invalid' domain, then we need to look up the transport to use
         // on a successful SUBSCRIBE / 202 Accepted transaction, the transport desc should have been stored
         bool forceTport = false ;
-        tport_t* tp = NULL ;
+        const tport_t* tp = NULL ;
         if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
             boost::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
             if( NULL != pData ) {
@@ -1301,9 +1300,27 @@ namespace drachtio {
            }
         }
         
-        int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL, 
+        if (!tp) {
+            string route ;
+            if (sip->sip_route && sip->sip_route->r_url->url_params && url_param(sip->sip_route->r_url->url_params, "lr", NULL, 0)) {
+                route = sip->sip_route->r_url->url_host;
+            }
+            else {
+                route = sip->sip_request->rq_url->url_host;
+            }
+
+            boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(route.c_str());
+            assert(p) ;
+
+            tp = p->getTport();
+            forceTport = true ;
+            DR_LOG(log_debug) << "SipProxyController::processRequestWithRouteHeader forcing tport to reach route " << route ;
+        }
+
+        int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF(forceTport, NTATAG_TPORT(tp)),
             TAG_END() ) ;
+
         if( rc < 0 ) {
             msg_destroy(msg) ;
             DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader failed proxying request " << callId << ": error " << rc ; 

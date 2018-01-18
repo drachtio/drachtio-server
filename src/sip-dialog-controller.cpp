@@ -439,6 +439,7 @@ namespace drachtio {
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
+                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp ;
                 forceTport = true ;
             }
             su_free( m_pController->getHome(), sip_request ) ;

@@ -48,6 +48,8 @@ namespace drachtio {
     void getContactUri(string& contact, bool useExternalIp = true) ;
     void getBindableContactUri(string& contact) ;
 
+    sip_via_t* makeVia(su_home_t * home, const char* szRemoteHost = NULL) ;
+
     const string& getContact(void) { return m_strContact; }
     bool hasExternalIp(void) const { return !m_strExternalIp.empty() ; }
     const string& getExternalIp(void) const { return m_strExternalIp; }
@@ -76,6 +78,8 @@ namespace drachtio {
 
     void getDescription(string& s, bool shortVersion = true) ;
     void getHostport(string& s) ;
+
+    uint32_t getOctetMatchCount(const string& address);
 
     static void addTransports(boost::shared_ptr<SipTransport> config);
     static boost::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
