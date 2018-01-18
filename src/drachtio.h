@@ -78,10 +78,8 @@ namespace keywords = boost::log::keywords;
 
 namespace drachtio {
     
-    class DrachtioController ;
-    
-    //typedef boost::tokenizer<boost::char_separator<char> > tokenizer ;
-    
+  class DrachtioController ;
+        
 	enum severity_levels {
 		log_none,
 		log_notice,
@@ -91,10 +89,10 @@ namespace drachtio {
 	  log_debug
 	};
 
-    typedef boost::unordered_map<string, string> mapSipHeader_t ;
+  typedef boost::unordered_map<string, string> mapSipHeader_t ;
 
 
-BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
+	BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	enum agent_role {
 		uac_role

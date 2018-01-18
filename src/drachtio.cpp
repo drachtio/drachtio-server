@@ -435,7 +435,7 @@ namespace drachtio {
                 string localUri = tpn->tpn_host ;
                 string localPort = NULL != tpn->tpn_port ? tpn->tpn_port : "5060" ;
 
-                DR_LOG(log_debug) << "isLocalSipUri: adding local address: " << localUri << ":" << localPort ;
+                //DR_LOG(log_debug) << "isLocalSipUri: adding local address: " << localUri << ":" << localPort ;
 
 
                 vecLocalUris.push_back(make_pair(localUri, localPort)) ;
@@ -488,7 +488,7 @@ namespace drachtio {
 
             if (port.empty()) port = "5060";
 
-            DR_LOG(log_debug) << "isLocalSipUri: comparing known local address: " << host << ":" << port ;
+            //DR_LOG(log_debug) << "isLocalSipUri: comparing known local address: " << host << ":" << port ;
 
             if ((0 == host.compare(url->url_host)) && (
                 (!url->url_port && 0 == port.compare("5060")) ||
