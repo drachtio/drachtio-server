@@ -49,7 +49,7 @@ endif
 BUILT_SOURCES=${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a
 
 clean-local:
-	cd ${srcdir}/deps/boost_1_63_0 && ./b2 clean
+	cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh && ./b2 clean
 	cd ${srcdir}/deps/sofia-sip && make clean  
 	cd ${srcdir}/deps/jansson-2.10 && make clean  
 
