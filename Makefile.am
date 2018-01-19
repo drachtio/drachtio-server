@@ -6,7 +6,7 @@ LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
 bin_PROGRAMS= drachtio timer ssltest parser uri_test test_https test_asio_curl
 
 drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp src/sip-transports.cpp src/request-handler.cpp src/request-router.cpp
-drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -std=c++11
+drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -std=c++11 -Wno-error=deprecated-declarations
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
@@ -48,8 +48,11 @@ endif
 
 BUILT_SOURCES=${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a
 
-#clean-local:
-#	cd ${srcdir}/deps/boost_1_63_0 && b2 --clean
+clean-local:
+	cd ${srcdir}/deps/boost_1_63_0 && ./b2 clean
+	cd ${srcdir}/deps/sofia-sip && make clean  
+	cd ${srcdir}/deps/jansson-2.10 && make clean  
+
 
 ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a:
 	cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
