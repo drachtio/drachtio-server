@@ -1522,6 +1522,12 @@ namespace drachtio {
     }
     void SipDialogController::timerD(boost::shared_ptr<IIP>  iip, nta_leg_t* leg, const string& dialogId) {
         DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << ", dialog id " << dialogId << leg ;
+        boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
+        TimerEventHandle h = dlg->getTimerD() ;
+        if( h ) {
+            dlg->clearTimerD();
+        }
+
         clearIIPFinal(iip, leg);
     }
     void SipDialogController::clearIIPFinal(boost::shared_ptr<IIP>  iip, nta_leg_t* leg) {
@@ -1531,7 +1537,7 @@ namespace drachtio {
         nta_incoming_t* irq = iip->irq() ;
         nta_outgoing_t* orq = iip->orq() ;
         nta_reliable_t* rel = iip->rel(); 
-        boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
+
         mapIrq2IIP::iterator itIrq = m_mapIrq2IIP.find( iip->irq() ) ;
         mapOrq2IIP::iterator itOrq = m_mapOrq2IIP.find( iip->orq() ) ;
         mapTransactionId2IIP::iterator itTransaction = m_mapTransactionId2IIP.find( iip->getTransactionId() ) ;
@@ -1580,25 +1586,25 @@ namespace drachtio {
         DR_LOG(log_debug) << "SipDialogController::clearDialog - cleared dialog id " << strDialogId ;          
     }
     void SipDialogController::clearDialog( nta_leg_t* leg ) {
-    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        boost::lock_guard<boost::mutex> lock(m_mutex) ;
 
-    mapLeg2Dialog::iterator it = m_mapLeg2Dialog.find( leg ) ;
-    if( m_mapLeg2Dialog.end() == it ) {
-        DR_LOG(log_debug) << "SipDialogController::clearDialog - failed to find/clear dialog for leg " << hex <<  leg ;          
-        return ;
-    }
-    boost::shared_ptr<SipDialog> dlg = it->second ;
-    string strDialogId = dlg->getDialogId() ;
-    m_mapLeg2Dialog.erase( it ) ;
+        mapLeg2Dialog::iterator it = m_mapLeg2Dialog.find( leg ) ;
+        if( m_mapLeg2Dialog.end() == it ) {
+            DR_LOG(log_debug) << "SipDialogController::clearDialog - failed to find/clear dialog for leg " << hex <<  leg ;          
+            return ;
+        }
+        boost::shared_ptr<SipDialog> dlg = it->second ;
+        string strDialogId = dlg->getDialogId() ;
+        m_mapLeg2Dialog.erase( it ) ;
 
-    mapId2Dialog::iterator itId = m_mapId2Dialog.find( strDialogId ) ;
-    if( m_mapId2Dialog.end() == itId ) {
-        assert(0) ;
-        return ;
+        mapId2Dialog::iterator itId = m_mapId2Dialog.find( strDialogId ) ;
+        if( m_mapId2Dialog.end() == itId ) {
+            assert(0) ;
+            return ;
+        }
+        DR_LOG(log_debug) << "SipDialogController::clearDialog - cleared dialog id " << strDialogId << " referenced from leg " << hex << leg ;          
+        m_mapId2Dialog.erase( itId );           
     }
-    DR_LOG(log_debug) << "SipDialogController::clearDialog - cleared dialog id " << strDialogId << " referenced from leg " << hex << leg ;          
-    m_mapId2Dialog.erase( itId );           
-}
 
     void SipDialogController::addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) {
         DR_LOG(log_debug) << "SipDialogController::addRIP adding orq " << std::hex << (void*) orq  ;
@@ -1633,6 +1639,9 @@ namespace drachtio {
         dlg->setTimerG(t) ;
     }
 
+    /**
+     * timer H went off.  Stop timer G (retransmits of 200 OK) and clear it and timer H
+     */
     void SipDialogController::endRetransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg) {
         DR_LOG(log_error) << "SipDialogController::endRetransmitFinalResponse - never received ACK for final response to incoming INVITE; irq:" << 
             std::hex << (void*) irq << " source address was " << dlg->getSourceAddress() ;
@@ -1640,8 +1649,12 @@ namespace drachtio {
         nta_leg_t* leg = dlg->getNtaLeg();
         TimerEventHandle h = dlg->getTimerG() ;
         if( h ) {
-            m_pTQM->removeTimer( h, "timerG");  
+            m_pTQM->removeTimer( h, "timerG");
             dlg->clearTimerG();
+        }
+        h = dlg->getTimerH() ;
+        if (h) {
+            dlg->clearTimerH();
         }
 
         clearIIP(leg);
