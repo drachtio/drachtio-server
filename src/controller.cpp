@@ -667,6 +667,7 @@ namespace drachtio {
                             keywords::rotation_size = rotationSize * 1024 * 1024,
                             keywords::auto_flush = autoFlush,
                             keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
+                            keywords::open_mode = (std::ios::out | std::ios::app),
                             keywords::format = 
                             (
                                 expr::stream
