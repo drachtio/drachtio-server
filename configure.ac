@@ -7,6 +7,8 @@ AM_INIT_AUTOMAKE([subdir-objects -Wno-portability])
 AC_CONFIG_SRCDIR([src/main.cpp])
 AC_CONFIG_HEADER([config.h])
 
+m4_include([libcurl.m4])
+
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)
 
@@ -24,6 +26,8 @@ esac
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
+
+LIBCURL_CHECK_CONFIG
 
 # Checks for libraries.
 

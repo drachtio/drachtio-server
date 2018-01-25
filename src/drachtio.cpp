@@ -201,7 +201,9 @@ namespace drachtio {
     void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) {
         str = sip->sip_call_id->i_id ;
         str.append("|") ;
-        str.append(sip->sip_cseq->cs_method_name) ;
+        str.append((sip->sip_request && sip_method_cancel == sip->sip_request->rq_method) ?
+          "INVITE" :
+          sip->sip_cseq->cs_method_name) ;
         str.append("|") ;
         str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
     }
@@ -247,6 +249,36 @@ namespace drachtio {
         }
         return false ;
     }
+  bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
+    vector< pair<string,string> >& params) {
+
+    boost::regex e("^<?(sip|sips):(?:([^;]+)@)?([^;|^>|^:]+)(?::(\\d+))?(?:;([^>]+))?>?$");
+    boost::smatch mr; 
+    if (!boost::regex_search(uri, mr, e)) {
+
+      boost::regex e2("^<?(sip|sips):(?:([^;]+)@)?(\\[[0-9a-fA-F:]+\\])(?::(\\d+))?(?:;([^>]+))?>?$");
+      if (!boost::regex_search(uri, mr, e2)) {
+        return false ;
+      }
+    }
+
+    scheme = mr[1] ;
+    userpart = mr[2] ;
+    hostpart = mr[3] ;
+    port = mr[4] ;
+
+    string paramString = mr[5] ;
+    if (paramString.length() > 0) {
+      vector<string> strs;
+      boost::split(strs, paramString, boost::is_any_of(";"));
+      for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+        vector<string> kv ;
+        boost::split(kv, *it, boost::is_any_of("="));
+        params.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+      }
+    }
+    return true ;
+  }
 
 	void parseGenericHeader( msg_common_t* p, string& hvalue) {
 		string str((const char*) p->h_data, p->h_len) ;
@@ -386,7 +418,9 @@ namespace drachtio {
     bool isLocalSipUri( const string& requestUri ) {
 
         static bool initialized = false ;
-        static boost::unordered_set<string> setLocalUris ;
+        static vector< pair<string, string> > vecLocalUris ;
+
+        DR_LOG(log_debug) << "isLocalSipUri: checking to see if this is one of mine: " << requestUri ;
 
         if( !initialized ) {
             initialized = true ;
@@ -399,17 +433,29 @@ namespace drachtio {
                     continue ;
 
                 string localUri = tpn->tpn_host ;
-                localUri += ":" ;
-                localUri += (tpn->tpn_port ? tpn->tpn_port : "5060");
+                string localPort = NULL != tpn->tpn_port ? tpn->tpn_port : "5060" ;
 
-                setLocalUris.insert( localUri ) ;
+                //DR_LOG(log_debug) << "isLocalSipUri: adding local address: " << localUri << ":" << localPort ;
+
+
+                vecLocalUris.push_back(make_pair(localUri, localPort)) ;
 
                 if( 0 == strcmp(tpn->tpn_host,"127.0.0.1") ) {
-                    localUri = "localhost:" ;
-                    localUri += (tpn->tpn_port ? tpn->tpn_port : "5060");
-                    setLocalUris.insert( localUri ) ;
+                    vecLocalUris.push_back(make_pair("localhost", localPort)) ;
                 }
             }
+
+            // add public ip addresses and dns names
+            vector< pair<string, string> > vecIps ;
+            SipTransport::getAllExternalContacts(vecIps) ;
+            for(vector< pair<string, string> >::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
+                vecLocalUris.push_back(*it) ;
+            }
+       }
+
+       if( 0 == requestUri.find("tel:")) {
+        DR_LOG(log_debug) << "isLocalSipUri: tel: scheme, so we are  assuming it is not local (will cause it to be carried forward in proxy request): " << requestUri ;
+        return false;
        }
 
         su_home_t* home = theOneAndOnlyController->getHome() ;
@@ -436,12 +482,22 @@ namespace drachtio {
             su_free(home, (void *) params) ;
         }
 
+        for(vector< pair<string, string> >::const_iterator it = vecLocalUris.begin(); it != vecLocalUris.end(); ++it) {
+            string host = it->first ;
+            string port = it->second ;
 
-        string uri = url->url_host ;
-        uri += ":" ;
-        uri += ( url->url_port ? url->url_port : "5060") ;
+            if (port.empty()) port = "5060";
 
-        return setLocalUris.end() != setLocalUris.find( uri ) ;
+            //DR_LOG(log_debug) << "isLocalSipUri: comparing known local address: " << host << ":" << port ;
+
+            if ((0 == host.compare(url->url_host)) && (
+                (!url->url_port && 0 == port.compare("5060")) ||
+                (url->url_port && 0 == port.compare(url->url_port)))
+            ) {
+                return true ;
+            }
+        }
+        return false ;
     }
 
     void* my_json_malloc( size_t bytes ) {
@@ -475,7 +531,9 @@ namespace drachtio {
     }
 
     void splitLines( const string& s, vector<string>& vec ) {
-        split( vec, s, boost::is_any_of("\r\n"), boost::token_compress_on ); 
+        if( s.length() ) {
+            split( vec, s, boost::is_any_of("\r\n"), boost::token_compress_on ); 
+        }
     }
 
     void splitTokens( const string& s, vector<string>& vec ) {
@@ -577,7 +635,6 @@ namespace drachtio {
 
     tagi_t* makeTags( const string&  hdrs, const string& transport ) {
         vector<string> vec ;
-        //theOneAndOnlyController->getMyHostports( vec ) ;
         string proto, host, port, myHostport ;
         
         parseTransportDescription(transport, proto, host, port ) ;
@@ -666,6 +723,30 @@ namespace drachtio {
         return tags ;   //NB: caller responsible to delete after use to free memory      
     }
  
+    string urlencode(const string &s) {
+        static const char lookup[]= "0123456789abcdef";
+        std::stringstream e;
+        for(int i=0, ix=s.length(); i<ix; i++)
+        {
+            const char& c = s[i];
+            if ( (48 <= c && c <= 57) ||//0-9
+                 (65 <= c && c <= 90) ||//abc...xyz
+                 (97 <= c && c <= 122) || //ABC...XYZ
+                 (c=='-' || c=='_' || c=='.' || c=='~') 
+            )
+            {
+                e << c;
+            }
+            else
+            {
+                e << '%';
+                e << lookup[ (c&0xF0)>>4 ];
+                e << lookup[ (c&0x0F) ];
+            }
+        }
+        return e.str();
+    }
+
     SipMsgData_t::SipMsgData_t(const string& str ) {
         boost::char_separator<char> sep(" []//:") ;
         tokenizer tok( str, sep) ;
@@ -697,8 +778,8 @@ namespace drachtio {
  
         m_time.assign( time ) ;
         if( tport_is_udp(tport ) ) m_protocol = "udp" ;
-        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
         else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
 
         tport_unref( tport ) ;
 

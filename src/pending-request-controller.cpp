@@ -25,11 +25,14 @@ namespace drachtio {
 }
 
 #include <boost/bind.hpp>
-
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include "pending-request-controller.hpp"
 #include "controller.hpp"
 #include "cdr.hpp"
+#include "request-router.hpp"
+#include "request-handler.hpp"
 
 #define CLIENT_TIMEOUT (64000)
 
@@ -64,31 +67,109 @@ namespace drachtio {
   PendingRequestController::~PendingRequestController() {
   }
 
-  int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, string& transactionId ) {
+  int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) {
     assert(sip->sip_request->rq_method != sip_method_invite || NULL == sip->sip_to->a_tag ) ; //new INVITEs only
 
-    client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
-    if( !client ) {
-      DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
-      generateUuid( transactionId ) ;
-      return 503 ;
+    client_ptr client ;
+    RequestRouter& router = m_pController->getRequestRouter() ;
+    string httpMethod, httpUrl ;
+    bool verifyPeer ;
+
+    if( !router.getRoute( sip->sip_request->rq_method_name, httpMethod, httpUrl, verifyPeer ) ) {
+
+      //using inbound connections for this call
+      client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
+      if( !client ) {
+        DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
+        generateUuid( transactionId ) ;
+        return 503 ;
+      }
     }
 
     boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
+    transactionId = p->getTransactionId() ;      
 
     msg_destroy( msg ) ;  //our PendingRequest_t is now the holder of the message
 
     string encodedMessage ;
     EncodeStackMessage( sip, encodedMessage ) ;
     SipMsgData_t meta( msg ) ;
+    p->setMeta(meta); 
+    p->setEncodedMsg(encodedMessage);
 
+    if( !httpUrl.empty() ) {
+      // using outbound connection for this call
+      
+      vector< pair<string, string> > v;
+      v.push_back( make_pair("method", sip->sip_request->rq_method_name )) ;
+      v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host )) ;
+      v.push_back( make_pair("protocol", meta.getProtocol() )) ;
+      v.push_back( make_pair("source_address", meta.getAddress() )) ;
+      v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user ? sip->sip_from->a_url->url_user : "" )) ;
+      v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user ? sip->sip_to->a_url->url_user : ""  )) ;
+      v.push_back( make_pair("uriUser", sip->sip_request->rq_url->url_user ? sip->sip_request->rq_url->url_user : ""  )) ;
+
+      // add content-type
+      string ct = "";
+      if (sip->sip_content_type && sip->sip_content_type->c_type) {
+        ct = sip->sip_content_type->c_type;
+      }
+      v.push_back( make_pair("contentType", ct)) ;
+
+      // uri
+      char buf[4096];
+      url_e(buf, 4096, sip->sip_request->rq_url);
+      v.push_back( make_pair("uri", buf)) ;
+
+      // add request uri params to the querystring as well
+      if (sip->sip_request->rq_url->url_params) {
+        string paramString(sip->sip_request->rq_url->url_params);
+        vector<string> strs;
+        boost::split(strs, paramString, boost::is_any_of(";"));
+        for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+          vector<string> kv ;
+          boost::split(kv, *it, boost::is_any_of("="));
+          v.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+        }
+      }
+
+      //tmp!!
+      httpUrl.append("/");
+      int i = 0 ;
+      pair<string,string> p;
+      BOOST_FOREACH(p, v) {
+          if( i++ > 0 ) {
+              httpUrl.append("&") ;
+          }
+          else {
+            httpUrl.append("?");
+          }
+          httpUrl.append(p.first) ;
+          httpUrl.append("=") ;
+          httpUrl.append(urlencode(p.second));
+      }
+
+      boost::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
+      pHandler->makeRequestForRoute(transactionId, httpMethod, httpUrl, encodedMessage) ;
+    }
+    else {
+      m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+
+      m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+          encodedMessage, meta ) ) ;
+    }
+    return 0 ;
+  }
+
+  int PendingRequestController::routeNewRequestToClient( client_ptr client, const string& transactionId) {
+    boost::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
+    if( !p ) {
+      DR_LOG(log_error) << "PendingRequestController::routeNewRequestToClient: transactionId not found: " << transactionId ;
+      return 500 ;
+    }
     m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
-
     m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
-        encodedMessage, meta ) ) ;
-    
-    transactionId = p->getTransactionId() ;
-
+        p->getEncodedMsg(), p->getMeta() ) ) ;
     return 0 ;
   }
 
@@ -131,6 +212,16 @@ namespace drachtio {
       if( !timeout ) {
         m_timerQueue.remove( p->getTimerHandle() ) ;
       }
+    }   
+    return p ;
+  }
+
+  boost::shared_ptr<PendingRequest_t> PendingRequestController::find( const string& transactionId ) {
+    boost::shared_ptr<PendingRequest_t> p ;
+    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+    mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
+    if( it != m_mapTxnId2Invite.end() ) {
+      p = it->second ;
     }   
     return p ;
   }

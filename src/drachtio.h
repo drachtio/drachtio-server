@@ -54,10 +54,17 @@ THE SOFTWARE.
 #include <sofia-sip/msg_types.h>
 #include <sofia-sip/nta.h>
 
+#include "sip-transports.hpp"
+
 using namespace std ;
 
 const string DR_CRLF = "\r\n" ;
 const string DR_CRLF2 = "\r\n\r\n" ;
+
+#define TIMER_C_MSECS (185000)
+#define TIMER_B_MSECS (NTA_SIP_T1 * 64)
+#define TIMER_D_MSECS (32500)
+#define TIMER_H_MSECS (NTA_SIP_T1 * 64)
 
 #define MSG_ID_LEN (128)
 #define URI_LEN (256)
@@ -71,22 +78,21 @@ namespace keywords = boost::log::keywords;
 
 namespace drachtio {
     
-    class DrachtioController ;
-    
-    //typedef boost::tokenizer<boost::char_separator<char> > tokenizer ;
-    
+  class DrachtioController ;
+        
 	enum severity_levels {
+		log_none,
 		log_notice,
 		log_error,
 		log_warning,
-	    log_info,
-	    log_debug
+	  log_info,
+	  log_debug
 	};
 
-    typedef boost::unordered_map<string, string> mapSipHeader_t ;
+  typedef boost::unordered_map<string, string> mapSipHeader_t ;
 
 
-BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
+	BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 
 	enum agent_role {
 		uac_role
@@ -139,6 +145,11 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
 	void deleteTags( tagi_t* tags ) ;
 
 	int ackResponse( msg_t* msg ) ;
+
+  bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
+        vector< pair<string,string> >& params) ;
+
+	string urlencode(const string &s);
 
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 

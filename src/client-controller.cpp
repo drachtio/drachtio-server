@@ -75,6 +75,21 @@ namespace drachtio {
         m_clients.erase( client ) ;
         DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
+    void ClientController::outboundFailed( client_ptr client, const string& transactionId ) {
+      string headers, body;
+      if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 480 Temporarily Unavailable", 
+        headers, body) )) {
+        DR_LOG(log_error) << "ClientController::outboundFailed - error sending 480 for transactionId: " << transactionId ;
+      }
+    }
+    void ClientController::outboundReady( client_ptr client, const string& transactionId ) {
+      int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
+      if( rc ) {
+        DR_LOG(log_error) << "ClientController::outboundFailed - error routing over outbound connection transactionId: " << transactionId ;
+        return outboundFailed( client, transactionId);
+      }
+    }
+
     void ClientController::addNamedService( client_ptr client, string& strAppName ) {
         //TODO: should we be locking here?  need to review entire locking strategy for this class
         client_weak_ptr p( client ) ;
@@ -84,11 +99,16 @@ namespace drachtio {
 	void ClientController::start_accept() {
 		client_ptr new_session( new Client( m_ioservice, *this ) ) ;
 		m_acceptor.async_accept( new_session->socket(), boost::bind(&ClientController::accept_handler, this, new_session, boost::asio::placeholders::error));
-    }
+  }
 	void ClientController::accept_handler( client_ptr session, const boost::system::error_code& ec) {
-        if(!ec) session->start() ;
-        start_accept(); 
-    }
+    if(!ec) session->start() ;
+    start_accept(); 
+  }
+  void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
+    client_ptr new_session( new Client( m_ioservice, transactionId, host, port, *this ) ) ;
+    new_session->async_connect() ;
+  }
+
     bool ClientController::wants_requests( client_ptr client, const string& verb ) {
         RequestSpecifier spec( client ) ;
         boost::lock_guard<boost::mutex> l( m_lock ) ;
@@ -143,19 +163,19 @@ namespace drachtio {
             RequestSpecifier& spec = it->second ;
             client = spec.client() ;
             if( !client ) {
-                DR_LOG(log_debug) << "Removing disconnected client while iterating"  ;
+                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Removing disconnected client while iterating"  ;
                 m_request_types.erase( it ) ;
                 pair = m_request_types.equal_range( method_name ) ;
                 nOffset = 0 ;
                 nPossibles = std::distance( pair.first, pair.second ) ;
             }
             else {
-                DR_LOG(log_debug) << "Selected client at offset " << nOffset  ;                
+                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Selected client at offset " << nOffset  ;                
             }
         } while( !client && nPossibles > 0 ) ;
 
         if( !client ) {
-            DR_LOG(log_info) << "No clients found to handle incoming " << method_name << " request"  ;
+            DR_LOG(log_info) << "ClientController::route_request_outside_dialog - No clients found to handle incoming " << method_name << " request"  ;
             return client ;
         }
  
@@ -163,12 +183,12 @@ namespace drachtio {
     }
     bool ClientController::route_ack_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, 
         sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
+
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             client = this->findClientForNetTransaction( inviteTransactionId );
             if( !client ) {
-               DR_LOG(log_warning) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;            
-                //TODO: try to find another client providing the same service
+               DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - client managing dialog has disconnected, or the call was rejected as part of outbound request handler: " << dialogId  ;            
                 return false ;
             }
         }
@@ -181,7 +201,7 @@ namespace drachtio {
         return true ;
 
     }
-    bool ClientController::route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
+    bool ClientController::route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, sip_t const *sip, 
         const string& transactionId, const string& dialogId  ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
@@ -198,7 +218,7 @@ namespace drachtio {
         return true ;
     }
 
-    bool ClientController::route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* irq, sip_t const *sip, 
+    bool ClientController::route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, sip_t const *sip, 
         const string& transactionId, const string& dialogId ) {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
@@ -207,7 +227,7 @@ namespace drachtio {
             //TODO: try to find another client providing the same service
             return false ;
         }
-        this->addNetTransaction( client, transactionId ) ;
+        if (string::npos == transactionId.find("unsolicited")) this->addNetTransaction( client, transactionId ) ;
  
         m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
@@ -305,7 +325,7 @@ namespace drachtio {
         return rc ;
     }
     bool ClientController::sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, 
-            const string& body, string& transactionId, string& dialogId ) {
+            const string& body, string& transactionId, string& dialogId, string& routeUrl ) {
 
         generateUuid( transactionId ) ;
         if( 0 != startLine.find("ACK") ) {
@@ -313,7 +333,7 @@ namespace drachtio {
         }
 
         addApiRequest( client, clientMsgId )  ;
-        bool rc = m_pController->getDialogController()->sendRequestOutsideDialog( clientMsgId, startLine, headers, body, transactionId, dialogId) ;
+        bool rc = m_pController->getDialogController()->sendRequestOutsideDialog( clientMsgId, startLine, headers, body, transactionId, dialogId, routeUrl) ;
         return rc ;        
     }
     bool ClientController::respondToSipRequest( client_ptr client, const string& clientMsgId, const string& transactionId, const string& startLine, const string& headers, 
@@ -340,6 +360,9 @@ namespace drachtio {
         return true;
     }
     bool ClientController::route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) {
+        if( clientMsgId.empty() ) {
+            return true ;
+        }
        client_ptr client = this->findClientForApiRequest( clientMsgId );
         if( !client ) {
             removeApiRequest( clientMsgId ) ;

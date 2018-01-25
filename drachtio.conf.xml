@@ -1,8 +1,86 @@
 <drachtio>
 
     <!-- udp port to listen on for client connections (default 8022), and shared secret used to authenticate clients -->
-	<admin port="9022" secret="cymru">localhost</admin>
-  
+	<admin port="9022" secret="cymru">127.0.0.1</admin>
+
+    <!-- the server can either accept inbound connections from node apps, or make outbound requests
+        to node apps.  You must globally choose one or the other approach but not both.
+
+        Inbound connections requires no configuration other than the <admin/> tag above, and are useful
+        when a server is hosting a single application, or has one primary function.
+
+        If, on the other hand, you want a server to support multiple applications, then we have the issue
+        of determining how to route an incoming request (INVITE, REGISTER, etc) to the appropriate application.
+        This is what outbound connections are designed for. 
+
+        By uncommenting the <request-handlers/> configuration below, you are placing the server into outbound mode, and 
+        providing an HTTP URL that the server will hit to determine how to route an incoming request.
+        The following parameters will be passed to the http service as query string parameters in an HTTP GET:
+
+            callingNumber - the user part of the From header
+            calledNumber - the user part of the To header
+            contentType - the Content-Type header (if any)
+            domain - the domain in the request uri
+            method - the sip method
+            protocol - the transport protocol
+            source_address - the sending address
+            uriUser - the user part of the sip uri
+            uri - the complete sip uri
+
+        If additional information is needed, then a POST request can be used, and the full sip message
+        will be passed in the body of the post.
+
+        It is the responsibility of the HTTP server that receives the request to return a json response 
+        with a top-level "action" of either "reject", "redirect", "proxy", or "route".
+
+            reject - reject the call with a specified status code
+            redirect = redirect the call to one or more specified sip uris
+            proxy - proxy the call to one or more specified sip uris
+            route - connect to a node application associated with the provided name:port
+
+            example responses:
+
+            {
+                "reject":
+                "data": {
+                    "status": 503,
+                    "reason": "Max Calls Exceeded"
+                }
+            }
+
+            {
+                "redirect":
+                "data": {
+                    "contacts": [
+                        "sip:foo@bar.com"
+                    ]
+                }
+            }
+
+            {
+                "proxy":
+                "data": {
+                    "destination": [
+                        "sip:foo@bar.com"
+                    ],
+                    recordRoute: true
+                }
+            }
+
+            {
+                "route":
+                "data": {
+                    "url": "call-recording.default.svc.cluster.local:4000"
+                }
+            }
+
+    -->
+
+    <!-- comment this in and edit http url to use outbound connections
+    <request-handlers>
+        <request-handler sip-method="INVITE" http-method="GET">http://35.187.89.96:80</request-handler>
+    </request-handlers>
+    -->
     <!-- sip configuration -->
     <sip>
         <contacts>
@@ -15,15 +93,18 @@
             -->
 
 
-            <!-- heres how to listen for every protocol on their default ports -->
+            <!-- here's how to listen for every protocol on their default ports -->
+<!--
             <contact>sip:*;transport=udp,tcp</contact>
             <contact>sip:*:80;transport=ws</contact>
             <contact>sips:*;transport=tls</contact>
             <contact>sips:*:443;transport=wss</contact>
+-->
+            <contact>sip:*:5061;transport=udp,tcp</contact>
 
         </contacts>
 
-        <!-- if you want to change the sip timers
+        <!-- if you want to change the sip stack timers
             <timers>
                 <t1>500</t1>
                 <t2>4000</t2>
@@ -32,7 +113,16 @@
             </timers>
         -->
 
-        <!-- uncommenting this will cause all new requests (i.e. requests outside of a dialog) to go through the specified proxy -->
+        <!-- if you want to terminate SIP over TLS connections (example shows letsencrypt.org typical file locations, but use any CA)
+        <tls>
+                <key-file>/etc/letsencrypt/live/yourdomain/privkey.pem</key-file>
+                <cert-file>/etc/letsencrypt/live/yourdomain/cert.pem</cert-file>
+                <chain-file>/etc/letsencrypt/live/yourdomain/chain.pem</chain-file>
+        </tls>
+        -->
+
+
+        <!-- uncommenting this will cause all outbound new requests (i.e. requests outside of a dialog) to go through the specified proxy -->
         <!--
         <outbound-proxy>sip:10.10.10.1</outbound-proxy>
         -->
@@ -54,15 +144,16 @@
         </spammers>
     </sip>
 
-    <redis>
-        <address>127.0.0.1</address>
-    </redis>
-
-    <cdrs>true</cdrs>
+    <!-- set to true if you want to have an app receive cdr events -->
+    <cdrs>false</cdrs>
             
     <!-- logging configuration -->
     <logging>
 
+        <!-- default: logging dumped to console, remove or comment out if you don't want this -->
+        <console/>
+
+        <!-- uncomment if you want logging sent to syslog (over UDP) -->
         <!--
         <syslog>
             <address>my.syslog.serve</address>
@@ -71,27 +162,22 @@
         </syslog>
         -->
 
+        <!-- uncomment if you want file-based logging -->
+        <!--
         <file>
-            <!-- file name pattern for log file -->
             <name>/tmp/drachtioLogs//drachtio_%Y%m%d_%H%M%S-%N.log</name>
-
-            <!-- location to collect rotated files (collected each night at midnight) -->
             <archive>/tmp/drachtioLogs/archive</archive>
-
-            <!-- limit rotated files collection when total size in the archive dir reaches this size (in MB) -->
             <maxSize>5120</maxSize> 
-
-            <!-- limit rotated files collection when free space at or below this size (in MB) -->
             <minSize>10240</minSize>
-
             <auto-flush>true</auto-flush>
         </file>
+        -->
 
-        <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
-        <sofia-loglevel>9</sofia-loglevel>
+        <!-- sofia (internal sip library) log level, from 0 (minimal) to 9 (verbose) -->
+        <sofia-loglevel>8</sofia-loglevel>
         
-        <!-- notice, warning, error, info, debug.  Default: info -->
-        <loglevel>info</loglevel>
+        <!-- general process log level: notice, warning, error, info, debug.  Default: info -->
+        <loglevel>debug</loglevel>
     </logging>
         
 </drachtio>

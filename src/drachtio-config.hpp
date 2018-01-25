@@ -29,13 +29,18 @@ THE SOFTWARE.
 #include <boost/noncopyable.hpp>
 
 #include "drachtio.h"
+#include "sip-transports.hpp"
+#include "request-router.hpp"
 
 using namespace std ;
 
 namespace drachtio {
+
+
     
     class DrachtioConfig : private boost::noncopyable {
     public:
+
         DrachtioConfig( const char* szFilename, bool isDaemonized = true ) ;
         ~DrachtioConfig() ;
         
@@ -43,31 +48,33 @@ namespace drachtio {
 
         bool isValid() ;
 
-        bool getSipUrls( std::vector<string>& urls ) const ;
-        bool getSipOutboundProxy( std::string& sipOutboundProxy ) const ;
-        bool getSyslogTarget( std::string& address, unsigned int& port ) const ;
+        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const ;
+
+        bool getSipOutboundProxy( string& sipOutboundProxy ) const ;
+        bool getSyslogTarget( string& address, unsigned int& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
-        bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
-            bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
+        bool getFileLogTarget( string& fileName, string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
 
         bool getConsoleLogTarget() ;
 
         bool isSecret( const string& secret ) const ;
         severity_levels getLoglevel() ;
         unsigned int getSofiaLogLevel(void) ;
- 
-         unsigned int getAdminPort( string& address ) ;
 
-         bool getRedisAddress( std::string& address, unsigned int& port ) const ;
+        unsigned int getAdminPort( string& address ) ;
 
-         bool getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const ;
+        bool getRedisAddress( string& address, unsigned int& port ) const ;
 
-         bool generateCdrs(void) const ;
+        bool getTlsFiles( string& keyFile, string& certFile, string& chainFile ) const ;
 
-         void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;
+        bool generateCdrs(void) const ;
+
+        void getTimers( unsigned int& t1, unsigned int& t2, unsigned int& t4, unsigned int& t1x64 ) ;
 
         mapHeader2Values& getSpammers( string& action, string& tcpAction ) ;
+
+        void getRequestRouter( RequestRouter& router ) ;
 
         void Log() const ;
         
