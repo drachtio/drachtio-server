@@ -508,7 +508,7 @@ namespace drachtio {
   bool SipTransport::isLocalAddress(const char* szHost, tport_t* tp) {
     if( tp ) {
      boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
-     return p->isLocalAddress(szHost); 
+     return p->isLocal(szHost); 
     }
 
     // search all
