@@ -149,11 +149,14 @@ namespace drachtio {
 
             string routeUrl ;
             if (dlg->getRole() == SipDialog::we_are_uas) {
+                // removed this...the sofia uas leg has already had the record-route/contact dealt with to determine route
+                /*
                 string sourceAddress = dlg->getSourceAddress() ;
                 unsigned int sourcePort = dlg->getSourcePort() ;
                 routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
                     ";transport=" + dlg->getProtocol() ;
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;                
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;  
+                */              
             }
             string transport ;
             dlg->getTransportDesc(transport) ;
