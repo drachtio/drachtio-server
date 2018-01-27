@@ -5,7 +5,7 @@ compiler:
 dist: trusty
 sudo: required
 # Change this to your needs
-script: ./bootstrap.sh && mkdir build && cd build && ../configure && make
+script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version
 
 # Handle git submodules yourself
 git:
