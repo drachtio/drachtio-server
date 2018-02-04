@@ -210,6 +210,7 @@ namespace drachtio {
     shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
     int m_bDaemonize ;
     int m_bNoConfig ;
+    int m_bConsoleLogging;
 
     severity_levels m_current_severity_threshold ;
     int m_nSofiaLoglevel ;

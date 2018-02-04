@@ -41,7 +41,8 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), m_bConsoleLogger(false) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), 
+        m_bConsoleLogger(false), m_captureHepVersion(3) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -109,6 +110,22 @@ namespace drachtio {
                 }
 
                 m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
+
+                // capture server
+                try {
+                    pt.get_child("drachtio.sip.capture-server") ; // will throw if doesn't exist
+                    m_captureServerPort = pt.get<unsigned int>("drachtio.sip.capture-server.<xmlattr>.port", 9060) ;
+                    m_captureServerAgentId = pt.get<uint32_t>("drachtio.sip.capture-server.<xmlattr>.id", 0) ;
+                    m_captureHepVersion = pt.get<unsigned int>("drachtio.sip.capture-server.<xmlattr>.hep-version", 3) ;
+                    m_captureServerAddress = pt.get<string>("drachtio.sip.capture-server") ;
+
+                    if (0 == m_captureServerAddress.length() || 0 == m_captureServerAgentId) {
+                        cerr << "invalid capture-server config: address or agent id is missing" << endl;
+                        m_captureServerAddress = "";
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                }
+                
 
                 m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
@@ -323,6 +340,17 @@ namespace drachtio {
             router = m_router ;
         }
 
+        bool getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version) {
+            if (0 == m_captureServerAddress.length()) return false;
+            
+            address = m_captureServerAddress;
+            port = m_captureServerPort;
+            agentId = m_captureServerAgentId;
+            version = m_captureHepVersion;
+            return true;
+        }
+
+
  
     private:
         
@@ -367,6 +395,10 @@ namespace drachtio {
         mapHeader2Values m_mapSpammers ;
         vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
         RequestRouter m_router ;
+        string m_captureServerAddress ;
+        unsigned int m_captureServerPort;
+        uint32_t m_captureServerAgentId ;
+        unsigned int m_captureHepVersion ;
 
   } ;
     
@@ -435,7 +467,7 @@ namespace drachtio {
     void DrachtioConfig::getRequestRouter( RequestRouter& router ) {
         return m_pimpl->getRequestRouter(router) ;
     }
-
-
-
+    bool DrachtioConfig::getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version) {
+        return m_pimpl->getCaptureServer(address, port, agentId, version);
+    }
 }

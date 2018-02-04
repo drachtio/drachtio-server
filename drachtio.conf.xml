@@ -113,6 +113,10 @@
             </timers>
         -->
 
+        <!-- if you want to send to homer
+        <capture-server port="9060" hep-version="3" id="101">127.0.0.1</capture-server>
+        -->
+
         <!-- if you want to terminate SIP over TLS connections (example shows letsencrypt.org typical file locations, but use any CA)
         <tls>
                 <key-file>/etc/letsencrypt/live/yourdomain/privkey.pem</key-file>

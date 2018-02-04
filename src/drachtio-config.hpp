@@ -76,6 +76,8 @@ namespace drachtio {
 
         void getRequestRouter( RequestRouter& router ) ;
 
+        bool getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version);
+
         void Log() const ;
         
     private:

@@ -262,7 +262,7 @@ namespace drachtio {
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
-        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false) {
+        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -363,6 +363,7 @@ namespace drachtio {
                 {"http-method",    required_argument, 0, 'm'},
                 {"loglevel",    required_argument, 0, 'l'},
                 {"sofia-loglevel",    required_argument, 0, 's'},
+                {"stdout",    no_argument, 0, 'b'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -389,6 +390,10 @@ namespace drachtio {
                     break;
                 case 'a':
                     httpUrl = optarg ;
+                    break;
+
+                case 'b':
+                    m_bConsoleLogging = true ;
                     break;
 
                 case 'd':
@@ -527,6 +532,7 @@ namespace drachtio {
         cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
         cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
         cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
+        cerr << "    --stdout           Log to standard output as well as any configured log destinations" << endl ;
     }
 
     void DrachtioController::daemonize() {
@@ -598,7 +604,7 @@ namespace drachtio {
     void DrachtioController::initializeLogging() {
         try {
 
-            if( m_bNoConfig || m_Config->getConsoleLogTarget() ) {
+            if( m_bNoConfig || m_Config->getConsoleLogTarget() || m_bConsoleLogging ) {
 
                 m_sinkConsole.reset(
                     new sinks::synchronous_sink< sinks::text_ostream_backend >()
@@ -741,6 +747,25 @@ namespace drachtio {
         string tlsKeyFile, tlsCertFile, tlsChainFile ;
         bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
         
+        string captureServer;
+        string captureString;
+        uint32_t captureId ;
+        unsigned int hepVersion;
+        unsigned int capturePort ;
+        if (m_Config->getCaptureServer(captureServer, capturePort, captureId, hepVersion)) {
+            if (hepVersion < 1 || hepVersion > 3) {
+                DR_LOG(log_error) << "DrachtioController::run invalid hep-version " << hepVersion <<
+                    "; must be between 1 and 3 inclusive";
+            }
+            else {
+                captureString = "udp:" + captureServer + ":" + boost::lexical_cast<std::string>(capturePort) + 
+                    ";hep=" + boost::lexical_cast<std::string>(hepVersion) +
+                    ";capture_id=" + boost::lexical_cast<std::string>(captureId);
+                DR_LOG(log_notice) << "DrachtioController::run - capturing to " << captureString;
+            }
+
+        }
+
         int rv = su_init() ;
         if( rv < 0 ) {
             DR_LOG(log_error) << "Error calling su_init: " << rv ;
@@ -791,6 +816,7 @@ namespace drachtio {
              URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
              stateless_callback,                            /* no callback function */
              this,                                      /* therefore no context */
+             TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
              TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
              TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
              TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
@@ -825,13 +851,14 @@ namespace drachtio {
             (*it)->getBindableContactUri(newUrl) ;
 
             rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(newUrl.c_str()),
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-                                 TAG_IF( tlsTransport &&hasTlsFiles, 
-                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
-                                 TAG_NULL(),
-                                 TAG_END() ) ;
+                 TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                 TAG_IF( tlsTransport &&hasTlsFiles, 
+                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                 TAG_NULL(),
+                 TAG_END() ) ;
 
             if( rv < 0 ) {
                 DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
