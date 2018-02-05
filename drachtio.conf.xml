@@ -1,6 +1,6 @@
 <drachtio>
 
-    <!-- udp port to listen on for client connections (default 8022), and shared secret used to authenticate clients -->
+    <!-- udp port to listen on for client connections (default 9022), and shared secret used to authenticate clients -->
 	<admin port="9022" secret="cymru">127.0.0.1</admin>
 
     <!-- the server can either accept inbound connections from node apps, or make outbound requests
@@ -27,16 +27,13 @@
             uriUser - the user part of the sip uri
             uri - the complete sip uri
 
-        If additional information is needed, then a POST request can be used, and the full sip message
-        will be passed in the body of the post.
-
         It is the responsibility of the HTTP server that receives the request to return a json response 
         with a top-level "action" of either "reject", "redirect", "proxy", or "route".
 
             reject - reject the call with a specified status code
             redirect = redirect the call to one or more specified sip uris
             proxy - proxy the call to one or more specified sip uris
-            route - connect to a node application associated with the provided name:port
+            route - connect to a nodejs application that is listening on the specified host:port
 
             example responses:
 
@@ -77,6 +74,7 @@
     -->
 
     <!-- comment this in and edit http url to use outbound connections
+         Note: currently only HTTP GET is supported as an HTTP METHOD
     <request-handlers>
         <request-handler sip-method="INVITE" http-method="GET">http://35.187.89.96:80</request-handler>
     </request-handlers>
@@ -84,27 +82,26 @@
     <!-- sip configuration -->
     <sip>
         <contacts>
+            <contact>sip:*;transport=udp,tcp</contact>
             <!-- local sip address to bind to.  Default: 'sip:*', which means listens on port 5060 on all interfaces and transports -->
             <!--
                     Other examples:
-                        sip:192.168.1.100       -- listen on a specific address
-                        sip:*;transport=tcp     -- tcp connections only
-                        sip:*:5061              -- listen on port 5061
+                        sip:192.168.1.100        listen on a specific address
+                        sip:*;transport=tcp      tcp connections only
+                        sip:*:5061               listen on port 5061
             -->
 
 
             <!-- here's how to listen for every protocol on their default ports -->
 <!--
-            <contact>sip:*;transport=udp,tcp</contact>
             <contact>sip:*:80;transport=ws</contact>
             <contact>sips:*;transport=tls</contact>
             <contact>sips:*:443;transport=wss</contact>
 -->
-            <contact>sip:*:5061;transport=udp,tcp</contact>
 
         </contacts>
 
-        <!-- if you want to change the sip stack timers
+        <!-- uncomment and modify these if you want to change the sip stack timers (globally)
             <timers>
                 <t1>500</t1>
                 <t2>4000</t2>
@@ -113,7 +110,7 @@
             </timers>
         -->
 
-        <!-- if you want to send to homer
+        <!-- uncomment this if you send encapsulated SIP messages to homer
         <capture-server port="9060" hep-version="3" id="101">127.0.0.1</capture-server>
         -->
 
@@ -148,14 +145,15 @@
         </spammers>
     </sip>
 
-    <!-- set to true if you want to have an app receive cdr events -->
+    <!-- set to true if you want the server to cdr events to a connected client -->
     <cdrs>false</cdrs>
             
     <!-- logging configuration -->
     <logging>
 
-        <!-- default: logging dumped to console, remove or comment out if you don't want this -->
+        <!-- uncomment this if you want logging dumped to console, in addition to any other log destinations
         <console/>
+    -->
 
         <!-- uncomment if you want logging sent to syslog (over UDP) -->
         <!--
@@ -166,22 +164,20 @@
         </syslog>
         -->
 
-        <!-- uncomment if you want file-based logging -->
-        <!--
+        <!-- file-based logging -->
         <file>
-            <name>/tmp/drachtioLogs//drachtio_%Y%m%d_%H%M%S-%N.log</name>
-            <archive>/tmp/drachtioLogs/archive</archive>
+            <name>/var/log/drachtio/drachtio.log</name>
+            <archive>/var/log/drachtio/archive</archive>
             <maxSize>5120</maxSize> 
             <minSize>10240</minSize>
             <auto-flush>true</auto-flush>
         </file>
-        -->
 
         <!-- sofia (internal sip library) log level, from 0 (minimal) to 9 (verbose) -->
-        <sofia-loglevel>8</sofia-loglevel>
+        <sofia-loglevel>3</sofia-loglevel>
         
         <!-- general process log level: notice, warning, error, info, debug.  Default: info -->
-        <loglevel>debug</loglevel>
+        <loglevel>info</loglevel>
     </logging>
         
 </drachtio>

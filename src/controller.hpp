@@ -214,6 +214,9 @@ namespace drachtio {
 
     severity_levels m_current_severity_threshold ;
     int m_nSofiaLoglevel ;
+    string m_strHomerAddress;
+    unsigned int m_nHomerPort;
+    uint32_t m_nHomerId;
 
     shared_ptr<ClientController> m_pClientController ;
     shared_ptr<RequestHandler> m_pRequestHandler ;

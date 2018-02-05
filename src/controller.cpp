@@ -65,6 +65,7 @@ THE SOFTWARE.
 #include <sofia-sip/sip_util.h>
 
 #define DEFAULT_CONFIG_FILENAME "/etc/drachtio.conf.xml"
+#define DEFAULT_HOMER_PORT (9060)
 #define MAXLOGLEN (8192)
 /* from sofia */
 #define MSG_SEPARATOR \
@@ -262,7 +263,8 @@ namespace drachtio {
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
-        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false) {
+        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
+        m_nHomerPort(0), m_nHomerId(0) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -364,13 +366,15 @@ namespace drachtio {
                 {"loglevel",    required_argument, 0, 'l'},
                 {"sofia-loglevel",    required_argument, 0, 's'},
                 {"stdout",    no_argument, 0, 'b'},
+                {"homer",    required_argument, 0, 'y'},
+                {"homer-id",    required_argument, 0, 'z'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "f:i:p:c:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -480,6 +484,33 @@ namespace drachtio {
                     m_adminPort = ::atoi( port.c_str() ) ;
                     break;
 
+                case 'y':
+                    {
+                        m_nHomerPort = DEFAULT_HOMER_PORT;
+                        vector<string>strs;
+                        boost::split(strs, optarg, boost::is_any_of(":"));
+                        if(strs.size() > 2) {
+                            cerr << "invalid homer address: " << optarg << endl ;
+                            return false ;
+                        }
+                        m_strHomerAddress = strs[0];
+                        if( 2 == strs.size()) m_nHomerPort = boost::lexical_cast<uint32_t>(strs[1]);
+                    }
+                    break;
+
+                case 'z':
+                    try {
+                        m_nHomerId = boost::lexical_cast<uint32_t>(optarg);
+                    } catch(boost::bad_lexical_cast& err) {
+                        cerr << "--homer-id must be a positive 32-bit integer" << endl;
+                        return false;
+                    }
+                    if(0 == m_nHomerId) {
+                        cerr << "--homer-id must be a positive 32-bit integer" << endl;
+                        return false;                        
+                    }
+                    break;
+
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -491,6 +522,11 @@ namespace drachtio {
                 default:
                     abort ();
             }
+        }
+
+        if(!m_strHomerAddress.empty() && 0 == m_nHomerId) {
+            cerr << "--homer-id is required to specify an agent id when using --homer" << endl;
+            return false;
         }
 
         if( !contact.empty() ) {
@@ -525,14 +561,17 @@ namespace drachtio {
         cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
         cerr << "    --dns-name         specifies a DNS name that resolves to the local host, if any" << endl ;
         cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
+        cerr << "    --homer            ip:port of homer/sipcapture agent" << endl ;
+        cerr << "    --homer-id         homer agent id to use in HEP messages to identify this server" << endl ;
         cerr << "    --http-handler     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
         cerr << "    --http-method      method to use with http-handler: GET (default) or POST" << endl ;
-        cerr << "    --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "-l  --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
         cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
         cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
         cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
         cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
         cerr << "    --stdout           Log to standard output as well as any configured log destinations" << endl ;
+        cerr << "-v  --version          Print version and exit" << endl ;
     }
 
     void DrachtioController::daemonize() {
@@ -752,7 +791,12 @@ namespace drachtio {
         uint32_t captureId ;
         unsigned int hepVersion;
         unsigned int capturePort ;
-        if (m_Config->getCaptureServer(captureServer, capturePort, captureId, hepVersion)) {
+        if (!m_strHomerAddress.empty()) {
+            captureString = "udp:" + m_strHomerAddress + ":" + boost::lexical_cast<std::string>(m_nHomerPort) + 
+                ";hep=3;capture_id=" + boost::lexical_cast<std::string>(m_nHomerId);
+            DR_LOG(log_notice) << "DrachtioController::run - sipcapture/Homer enabled: " << captureString;            
+        }
+        else if (m_Config->getCaptureServer(captureServer, capturePort, captureId, hepVersion)) {
             if (hepVersion < 1 || hepVersion > 3) {
                 DR_LOG(log_error) << "DrachtioController::run invalid hep-version " << hepVersion <<
                     "; must be between 1 and 3 inclusive";
@@ -761,7 +805,7 @@ namespace drachtio {
                 captureString = "udp:" + captureServer + ":" + boost::lexical_cast<std::string>(capturePort) + 
                     ";hep=" + boost::lexical_cast<std::string>(hepVersion) +
                     ";capture_id=" + boost::lexical_cast<std::string>(captureId);
-                DR_LOG(log_notice) << "DrachtioController::run - capturing to " << captureString;
+                DR_LOG(log_notice) << "DrachtioController::run - sipcapture/Homer enabled: " << captureString;
             }
 
         }
