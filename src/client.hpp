@@ -38,27 +38,32 @@ namespace drachtio {
 
 	class Client : public boost::enable_shared_from_this<Client> {
 	public:
-	    Client( boost::asio::io_service& io_service, ClientController& controller ) ;
-	    ~Client() ;
-	    
-	    boost::asio::ip::tcp::socket& socket() {
-	        return m_sock;
-	    }
-	    const boost::asio::ip::tcp::socket& const_socket() const {
-	        return m_sock;
-	    }
-	    
-	    void start(); 
-	    void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
-	    void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
+    Client( boost::asio::io_service& io_service, ClientController& controller ) ;
+    Client( boost::asio::io_service& io_service, const string& transactionId, const string& host, const string& port, ClientController& controller ) ;
+    ~Client() ;
+    
+    boost::asio::ip::tcp::socket& socket() {
+        return m_sock;
+    }
+    const boost::asio::ip::tcp::socket& const_socket() const {
+        return m_sock;
+    }
+    
+    void start(); 
+    void async_connect() ;
+    void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator);
+    void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
+    void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
 
-			bool processClientMessage( const string& msg, string& msgResponse ) ;
-	    void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
-	    void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
-	    void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
-	    void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
+		bool processClientMessage( const string& msg, string& msgResponse ) ;
+    void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+    void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+    void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
+    void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
 
 		bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
+
+		bool isOutbound(void) const { return !m_transactionId.empty(); }
 
 	protected:
 
@@ -77,11 +82,17 @@ namespace drachtio {
 	private:
 		ClientController& m_controller ;
 		state m_state ;
+
     boost::asio::ip::tcp::socket m_sock;
     boost::array<char, 8192> m_readBuf ;
     boost::circular_buffer<char> m_buffer ;
     unsigned int m_nMessageLength ;
     string m_strAppName ;
+
+    // outbound connections
+    string m_transactionId ;
+    string m_host ;
+    string m_port ;
 	} ;
 
 	typedef boost::shared_ptr<Client> client_ptr;

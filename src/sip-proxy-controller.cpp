@@ -38,10 +38,7 @@ namespace drachtio {
 #include "controller.hpp"
 #include "pending-request-controller.hpp"
 #include "cdr.hpp"
-
-#define TIMER_C_MSECS (185000)
-#define TIMER_B_MSECS (NTA_SIP_T1 * 64)
-#define TIMER_D_MSECS (32500)
+#include "sip-transports.hpp"
 
 static nta_agent_t* nta = NULL ;
 static drachtio::SipProxyController* theProxyController = NULL ;
@@ -230,9 +227,32 @@ namespace drachtio {
                 }
             }
         }
+/*
+        bool bReplaceRR = false ;
+        string newRR ;
+        if( sip->sip_record_route && theOneAndOnlyController->hasPublicAddress() ) {
+            boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+            assert( pCore ) ;
 
+            if( pCore->shouldAddRecordRoute() ) {
+                bReplaceRR = true ;
+                string publicAddress ;
+                theOneAndOnlyController->getPublicAddress( publicAddress ) ;
+                DR_LOG(log_error) << "ServerTransaction::forwardResponse replacing record route with " << publicAddress ; 
+
+                // update record route
+                su_free( msg_home(msg), sip->sip_record_route);
+                sip->sip_record_route = NULL ;
+                newRR = "<sip:" + publicAddress + ";lr>" ;
+                //su_realloc(msg_home(msg), (void *) sip->sip_record_route->r_url[0].url_host, publicAddress.length() + 1 );
+                //memset( (void *) sip->sip_record_route->r_url[0].url_host, 0, publicAddress.length() + 1 ) ;
+                //strcpy( (char *) sip->sip_record_route->r_url[0].url_host, publicAddress.c_str() ) ;
+            }
+        }
+*/
         int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF( reliable, SIPTAG_RSEQ(sip->sip_rseq) ),
+            //TAG_IF( bReplaceRR, SIPTAG_RECORD_ROUTE_STR(newRR.c_str()) ),
             TAG_END() ) ;
         if( rc < 0 ) {
             DR_LOG(log_error) << "ServerTransaction::forwardResponse failed proxying response " << std::dec << 
@@ -451,16 +471,20 @@ namespace drachtio {
                         URL_STRING_MAKE(buf), (void **) &tp ) ;
             assert( 0 == rc ) ;
             if( 0 == rc ) {
-                const tp_name_t* tpn = tport_name( tp );
-                record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
-                    tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
+                boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
+                assert(p) ;
+
+                p->getContactUri(record_route) ;
+                record_route = "<" + record_route + ";lr>";
+                DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardPrack - record route will be " << record_route ;
             }
         }
  
         int rc = nta_msg_tsend( nta, 
             msg, 
             NULL, 
-            TAG_IF( pCore->shouldAddRecordRoute() && hasRoute, SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
+            TAG_IF( pCore->shouldAddRecordRoute() && hasRoute, 
+                SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
             NTATAG_BRANCH_KEY( m_branchPrack.c_str() ),
             SIPTAG_RACK( sip->sip_rack ),
             TAG_END() ) ;
@@ -497,32 +521,56 @@ namespace drachtio {
             sip_add_tl(msg, sip, SIPTAG_MAX_FORWARDS_STR("70"), TAG_END());
         }
 
-        //only replace request uri if it is a local address
-        if( isLocalSipUri( m_target ) ) {
+        string route ;
+        bool useOutboundProxy = theOneAndOnlyController->getConfig()->getSipOutboundProxy( route ) ;
+        if( !useOutboundProxy ) {
+            route = m_target ;
+        }
+        else if( !m_target.empty() ) {
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - proxying request through outbound proxy: " << route ;            
+        }
+        else {
+            throw std::runtime_error("ProxyCore::ClientTransaction::forwardRequest: TODO: need to implement support for app providing no destination (proxy to ruri)") ;
+        }
+
+        // check if the original request-uri was a local address -- if so, replace it with the provided destination
+        char urlBuf[URL_MAXLEN];
+        url_e(urlBuf, URL_MAXLEN, sip->sip_request->rq_url);
+
+        //only replace request uri if it is a local address and not a tel uri
+        signed char type = sip->sip_request->rq_url->url_type;
+        if((url_sip == type || url_sips == type) && isLocalSipUri(urlBuf)) {
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << urlBuf ;
             sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
         }
 
-        string record_route, transport ;
-        tport_t* tp ;
-        int rc = nta_get_outbound_tport_name_for_url( theOneAndOnlyController->getAgent(), theOneAndOnlyController->getHome(), 
-                    URL_STRING_MAKE(m_target.c_str()), (void **) &tp ) ;
-        assert( 0 == rc ) ;
-        if( 0 == rc ) {
-            const tp_name_t* tpn = tport_name( tp );
-            record_route = "<" + (0 == strcmp( tpn->tpn_proto, "tls") ? string("sips:") : string("sip:") ) + 
-                tpn->tpn_host + ":" + tpn->tpn_port + ";lr>" ;
-            transport = string(tpn->tpn_proto) + tpn->tpn_host + ":" + tpn->tpn_port ;
+        string record_route, transport;
+        boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
+        assert(p) ;
+        p->getDescription(transport);
+
+        if(pCore->shouldAddRecordRoute() ) {            
+            p->getContactUri(record_route) ;
+            record_route = "<" + record_route + ";lr>";
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
         }
 
         tagi_t* tags = makeTags( headers, transport ) ;
 
-        rc = nta_msg_tsend( nta, 
+        int rc = nta_msg_tsend( nta, 
             msg_ref_create(msg), 
-            URL_STRING_MAKE(m_target.c_str()), 
-            TAG_IF( pCore->shouldAddRecordRoute(), SIPTAG_RECORD_ROUTE_STR( record_route.c_str() ) ),
+            URL_STRING_MAKE(route.c_str()), 
+            NTATAG_TPORT(p->getTport()),
             NTATAG_BRANCH_KEY(m_branch.c_str()),
-            TAG_NEXT(tags) ) ;
+            TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
+                SIPTAG_RECORD_ROUTE_STR( record_route.c_str())),
+            TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
+                SIPTAG_PATH_STR( record_route.c_str())),
+            TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register == sip->sip_request->rq_method, 
+                SIPTAG_REQUIRE_STR( "path" )),
+            TAG_NEXT(tags)
+        ) ;
 
         deleteTags( tags ) ;
 
@@ -1242,7 +1290,7 @@ namespace drachtio {
         //If the request-uri has the '.invalid' domain, then we need to look up the transport to use
         // on a successful SUBSCRIBE / 202 Accepted transaction, the transport desc should have been stored
         bool forceTport = false ;
-        tport_t* tp = NULL ;
+        const tport_t* tp = NULL ;
         if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
             boost::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
             if( NULL != pData ) {
@@ -1252,9 +1300,27 @@ namespace drachtio {
            }
         }
         
-        int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL, 
+        if (!tp) {
+            string route ;
+            if (sip->sip_route && sip->sip_route->r_url->url_params && url_param(sip->sip_route->r_url->url_params, "lr", NULL, 0)) {
+                route = sip->sip_route->r_url->url_host;
+            }
+            else {
+                route = sip->sip_request->rq_url->url_host;
+            }
+
+            boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(route.c_str());
+            assert(p) ;
+
+            tp = p->getTport();
+            forceTport = true ;
+            DR_LOG(log_debug) << "SipProxyController::processRequestWithRouteHeader forcing tport to reach route " << route ;
+        }
+
+        int rc = nta_msg_tsend( nta, msg_ref_create(msg), NULL,
             TAG_IF(forceTport, NTATAG_TPORT(tp)),
             TAG_END() ) ;
+
         if( rc < 0 ) {
             msg_destroy(msg) ;
             DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader failed proxying request " << callId << ": error " << rc ; 

@@ -2,13 +2,19 @@ language: cpp
 compiler:
   - gcc
   - clang
+dist: trusty
+sudo: required
 # Change this to your needs
-script: ./bootstrap.sh && mkdir build && cd build && ../configure && make
+script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version
 
 # Handle git submodules yourself
 git:
     submodules: false
 # Use sed to replace the SSH URL with the public URL, then initialize submodules
 before_install:
+    - sudo apt-get -qq update
+    - sudo apt-get install -y libcurl4-openssl-dev
+    - curl-config --version
+    - curl-config --libs 
     - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
     - git submodule update --init --recursive

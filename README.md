@@ -1,15 +1,23 @@
-# drachtio-server [![Build Status](https://secure.travis-ci.org/davehorton/drachtio-server.png)](http://travis-ci.org/davehorton/drachtio-server) [![NPM version](https://badge.fury.io/js/drachtio.svg)](http://badge.fury.io/js/drachtio-server)
+# drachtio-server [![Build Status](https://secure.travis-ci.org/davehorton/drachtio-server.png)](http://travis-ci.org/davehorton/drachtio-server)
 
-[![Join the chat at https://gitter.im/davehorton/drachtio-server](https://badges.gitter.im/davehorton/drachtio-server.svg)](https://gitter.im/davehorton/drachtio-server?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+![drachtio logo](http://davehorton.github.io/drachtio-srf/img/definition-only-cropped.png)
 
-[![drachtio logo](http://www.dracht.io/images/definition_only.png)](http://dracht.io/)
+drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt) server that is built on the [sofia SIP stack](https://github.com/davehorton/sofia-sip).  It provides a high-performance SIP engine that can be controlled by client applications written in pure Javascript running on [node.js](https://nodejs.org) .  
 
-drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt)-based application-agnostic user agent that is built on the [sofia SIP stack](https://gitorious.org/sofia-sip).  It is designed to provide a high-performance SIP processing server platform that offers its capabilities to client applications over a TCP and JSON message-passing interface.  The accompanying client framework is provided by [drachtio](https://github.com/davehorton/drachtio).
+The nodejs module used to create drachtio applications [can be found here](https://github.com/davehorton/drachtio-srf).
 
-## Building
+## Docker
+A docker image [can be found here](https://cloud.docker.com/swarm/drachtio/repository/docker/drachtio/drachtio-server/general).
 
+The `drachtio/drachtio-server:latest` tagged image is kept current with the tip of the `develop` branch, which is probably what you want.
+
+## Building from source
+
+> Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project.
+
+After installing libcurl, do as follows:
 ```
-git clone --depth=50 --branch=master git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
 ./bootstrap.sh
 mkdir build && cd $_
@@ -18,17 +26,15 @@ make
 sudo make install
 ```
 
-> Note: All third-party dependencies can be found under $(srcdir)/deps.  These include boost, the [sofia sip stack](https://github.com/davehorton/sofia-sip) and [redisclient](https://github.com/davehorton/redisclient).  sofia and redisclient are included as git submodules in this project.
-
 ## Platform support and dependencies
 
-drachtio-server has undergone at least some level of testing on the following platforms:
-* Debian 8
+drachtio-server has been most heavily deployed on debian jesse (8) but has undergone at least some level of testing on the following platforms:
+* Debian 8, 9
 * Centos 6.x
 * Ubuntu
 * Fedora 20
 * Linux Mint
-* Mac OSX (10.9.2)
+* Mac OSX (10.9.2+)
 
 The following libraries are required to build:
 * gcc and c++ compilers
@@ -43,13 +49,77 @@ The output of the build process is an executable named 'drachtio'.  You can run 
 
 The server can be run as a daemon process by running with the --daemon command line parameter.
 
-The process can be installed as a Linux init script using the example script that can be found in drachtio-init-script
+To see all of the command line options, run `drachtio -h`.
 
-## Configuration
+The process can be installed as a Linux systemd or init script using the example script that can be found in [drachtio.service](drachtio.service) or [drachtio-init-script](drachtio-init-script).
 
-Process configuration is supplied in an xml configuration which, as described above, by default is expected to be /etc/drachtio.conf.xml but can be specified otherwise via a command line parameter.
+## Configuring
 
-The configuration file includes section for the configuring the sip stack, the port to listen on for client connections, and logging.  
+**TL;DR** 
 
-It is all fairly self-explanatory; refer to the [sample configuration file](drachtio.conf.xml) for details.
+Review the [sample configuration file](drachtio.conf.xml), which is heavily commented and mostly self-explanatory
 
+### Overview
+
+drachtio can be configured either through an xml configuration file (installed by defaults into `/etc/drachtio.conf.xml`) or via command-line parameters.
+
+#### SIP
+The most important configuration parameters specify which sip address(es) and protocols to listen on/for.  drachtio can listen on multiple addresses/ports/protocols simultaneously,  Example config file section:
+```xml
+<drachtio>
+  <sip>
+    <contacts>
+      <contact>sip:172.28.0.1:5060;transport=udp,tcp</contact>
+      <contact>sip:172.28.0.1:5080;transport=udp,tcp</contact>
+    </contacts>
+```
+or, via command line:
+```bash
+drachtio --contact "sip:172.28.0.1:5060;transport=udp,tcp" \
+   --contact "sip:172.28.0.1:5080;transport=udp,tcp"
+```
+Optionally, you can also specify an external ip address to associate with a sip contact, if the server is set up to masquerade or is otherwise assigned a public IP address that it does not know about.  You can also specify the local network CIDR associated with a sip address, which is useful in scenarios where a server is connected to both public and private networks.  See the sample configuration file for more details on this.
+
+#### Admin port
+The server listens for TCP connections (e.g. *inbound* connections) from node.js applications on a specified address and port.
+```xml
+<drachtio>
+  <admin port="9022" secret="cymru">127.0.0.1</admin>
+```
+or
+```
+drachtio --port 9022  # address defaults to 0.0.0.0
+```
+
+#### Logging
+Log files can be written to the console, to a file, or to syslog (or any or all of the above simultaneously).  
+
+In a standard installation, log files are written to `/var/log/drachtio` with the current `drachtio.log` found there, and archived logs in the `archive` sub-folder.  drachtio will automically truncate and roll logs based on the parameters specified in the config file.
+
+In a container implementation, console based logging is more useful, and is the default when all arguments are supplied on the command line.  Log levels for both drachtio and the underlying sofia sip stack can be specified:
+```xml
+<drachtio>
+  <logging>
+    <sofia-loglevel>3</sofia-loglevel> <!-- 0-9 -->
+    <loglevel>info</loglevel> <!-- notice, warning, error, info, debug -->
+```
+or
+```bash
+drachtio --loglevel info --sofia-loglevel 3
+```
+
+#### Homer integration
+drachtio can send encapsulated SIP messages to [Homer](http://www.sipcapture.org/) for reporting
+```xml
+<drachtio>
+  <sip>
+    <capture-server port="9060" hep-version="3" id="101">172.28.0.23</capture-server>
+```
+or
+```
+drachtio --homer 172.28.0.23 --homer-id 101  # defaults to HEP3 and UDP
+```
+
+#### Fail2ban integration
+
+To install fail2ban on a drachtio server, refer to this [ansible role](https://github.com/davehorton/ansible-role-fail2ban-drachtio) which installs and configures fail2ban with a filter for drachtio log files.

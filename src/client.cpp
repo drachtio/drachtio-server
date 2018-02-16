@@ -34,41 +34,86 @@ THE SOFTWARE.
 #include "controller.hpp"
 
 namespace drachtio {
-    std::size_t hash_value( Client const &c ) {
-        std::size_t seed = 0 ;
-        boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
-        boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
-        return seed ;
-    }
+  std::size_t hash_value( Client const &c ) {
+    std::size_t seed = 0 ;
+    boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
+    boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
+    return seed ;
+  }
 
 	Client::Client( boost::asio::io_service& io_service, ClientController& controller ) : m_sock(io_service), m_controller( controller ),  
-        m_state(initial), m_buffer(12228), m_nMessageLength(0) {
-            
-        int optval = 1 ;
-        socklen_t optlen = sizeof(optval);
-        if( setsockopt(m_sock.native(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
-            DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
-        }
+    m_state(initial), m_buffer(12228), m_nMessageLength(0) {
+          
+    int optval = 1 ;
+    socklen_t optlen = sizeof(optval);
+    if( setsockopt(m_sock.native(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
+      //DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
+    }
+  }
+    
+  Client::Client( boost::asio::io_service& io_service, const string& transactionId, const string& host, 
+    const string& port, ClientController& controller ) :
+    m_sock(io_service), m_controller(controller), m_transactionId(transactionId), m_host(host), m_port(port),
+    m_state(initial), m_buffer(12228), m_nMessageLength(0)  {
+  }
+
+  Client::~Client() {
+      DR_LOG(log_debug) << "Client::~Client";
+  }
+
+  void Client::async_connect() {
+    boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
+    boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
+    tcp::resolver::iterator endpointIterator = resolver.resolve(query);
+    tcp::endpoint endpoint = *endpointIterator;
+
+    m_sock.async_connect(endpoint,
+      boost::bind(&Client::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+  }
+  void Client::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
+    if( !ec ) {
+      DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
+        this->const_socket().remote_endpoint().address().to_string() << ":" << 
+        this->const_socket().remote_endpoint().port() ;
+
+      m_controller.join( shared_from_this() ) ;
+      m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+        boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+          boost::asio::placeholders::bytes_transferred ) ) ;
+
+      //TODO: set a timeout of 2 secs or so for remote side to authenticate
 
     }
-    Client::~Client() {
-        DR_LOG(log_debug) << "Client::~Client";
+    else if( endpointIterator != tcp::resolver::iterator() ) {
+      DR_LOG(log_debug) << "Client::connect_handler - failed to connected to " <<
+        this->const_socket().remote_endpoint().address().to_string() << ":" << 
+        this->const_socket().remote_endpoint().port() ;
+      m_sock.close() ;
+      tcp::endpoint endpoint = *endpointIterator;
+      m_sock.async_connect(endpoint,
+        boost::bind(&Client::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
     }
-
-
-    boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
-        return m_controller.getDialogController(); 
+    else {
+      // final failure
+      DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
+      m_controller.outboundFailed(shared_from_this(), m_transactionId);
     }
+  }
 
-    void Client::start() {
+  boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
+    return m_controller.getDialogController(); 
+  }
 
-        DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
+  void Client::start() {
 
-        m_controller.join( shared_from_this() ) ;
-        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-                        boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        
-    }
+    DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
+
+    m_controller.join( shared_from_this() ) ;
+    m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+      boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+        boost::asio::placeholders::bytes_transferred ) ) ;
+      
+  }
     bool Client::readMessageLength(unsigned int& len) {
         bool continueOn = true ;
         boost::array<char, 6> ch ;
@@ -131,10 +176,12 @@ namespace drachtio {
         /* while we have at least one full message, process it */
         while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
             string msgResponse ;
+            string in ;
             bool bContinue = true ;
             try {
-                DR_LOG(log_debug) << "Client::read_handler read: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << endl ;
-                bContinue = processClientMessage( string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength), msgResponse ) ;
+                in.assign(m_buffer.begin(), m_buffer.begin() + m_nMessageLength);
+                DR_LOG(log_debug) << "Client::read_handler read: " << in << endl ;
+                bContinue = processClientMessage( in, msgResponse ) ;
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
                 m_controller.leave( shared_from_this() ) ;
@@ -144,14 +191,21 @@ namespace drachtio {
             /* send response if indicated */
             if( !msgResponse.empty() ) {
                 msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
-                //DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
-                boost::asio::write( m_sock, boost::asio::buffer( msgResponse ) ) ;
+                DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
+                boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
+                    boost::bind( &Client::write_handler, shared_from_this(), 
+                        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
             }
             if( !bContinue ) {
                  DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
                 m_controller.leave( shared_from_this() ) ;
                 return ;
             }
+
+            if( this->isOutbound() && string::npos != in.find("|authenticate|")) {
+              m_controller.outboundReady( shared_from_this(), m_transactionId ) ;
+            }
+
 
             /* reload for next message */
             m_buffer.erase_begin( m_nMessageLength ) ;
@@ -178,11 +232,10 @@ namespace drachtio {
 read_again:
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
                         boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-
        
     }
     void Client::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-    	DR_LOG(log_debug) << "Wrote " << bytes_transferred << " bytes: "  ;
+    	DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
     }
 
     bool Client::processClientMessage( const string& msg, string& msgResponse ) {
@@ -225,13 +278,14 @@ read_again:
         }
         else if( 0 == tokens[1].compare("sip") ) {
             bool bOK = false ;
-            string transactionId, dialogId ;
+            string transactionId, dialogId, routeUrl ;
 
             DR_LOG(log_debug) << "Client::processMessage - got request with " << tokens.size() << " tokens"  ;
-            assert( tokens.size() >= 4) ;
+            assert(tokens.size() >= 4) ;
 
             transactionId = tokens[2] ;
             dialogId = tokens[3] ;
+            if (tokens.size() > 4) routeUrl = tokens[4] ;
 
             DR_LOG(log_debug) << "Client::processMessage - request id " << tokens[0] << ", request type: " << tokens[1] 
                 << " transaction id: " << transactionId << ", dialog id: " << dialogId  ;
@@ -272,7 +326,7 @@ read_again:
                     }
                 }
                 DR_LOG(log_debug) << "Client::processMessage - sending a request outside of a dialog"  ;
-                bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId ) ;
+                bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId, routeUrl ) ;
              }
 
              return true ;
@@ -338,7 +392,9 @@ read_again:
     void Client::send( const string& str ) {
         ostringstream o ;
         o << str.length() << "#" << str ;
-        boost::asio::write( m_sock, boost::asio::buffer( o.str() ) ) ;
+       
+        boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
+            boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
         //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
     }
     void Client::createResponseMsg(const string& msgId, string& msg, bool ok, const char* szReason ) {

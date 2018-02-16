@@ -29,9 +29,11 @@ THE SOFTWARE.
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
-
+#include <boost/log/support/date_time.hpp>
 
 #include <boost/log/core.hpp>
 #include <boost/log/attributes.hpp>
@@ -43,6 +45,7 @@ THE SOFTWARE.
 #include <boost/log/attributes/scoped_attribute.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/core/null_deleter.hpp>
+#include <boost/assign/list_of.hpp>
 
 #include <boost/lambda/lambda.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -56,10 +59,13 @@ THE SOFTWARE.
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/regex.hpp>
 
+#include <jansson.h>
+
 #include <sofia-sip/msg_addr.h>
 #include <sofia-sip/sip_util.h>
 
 #define DEFAULT_CONFIG_FILENAME "/etc/drachtio.conf.xml"
+#define DEFAULT_HOMER_PORT (9060)
 #define MAXLOGLEN (8192)
 /* from sofia */
 #define MSG_SEPARATOR \
@@ -78,24 +84,22 @@ namespace drachtio {
 
 /* clone static functions, used to post a message into the main su event loop from the worker client controller thread */
 namespace {
-    void my_formatter(logging::record_view const& rec, logging::formatting_ostream& strm) {
-        strm << std::hex << std::setw(8) << std::setfill('0') << logging::extract< unsigned int >("LineID", rec) << "|";
-        strm << logging::extract<boost::posix_time::ptime>("TimeStamp", rec) << "| ";
-        //strm << logging::extract<unsigned int>("Severity", rec) << "| ";
-
-        strm << rec[expr::smessage];
-    }
-
-    int clone_init( su_root_t* root, drachtio::DrachtioController* pController ) {
-        return 0 ;
-    }
-
-    void clone_destroy( su_root_t* root, drachtio::DrachtioController* pController ) {
-        return ;
-    }
-    void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
-        theOneAndOnlyController->processWatchdogTimer() ;
-    }
+  void my_formatter(logging::record_view const& rec, logging::formatting_ostream& strm) {
+    typedef boost::log::formatter formatter;
+      formatter f = expr::stream << expr::format_date_time<boost::posix_time::ptime>(
+        "TimeStamp", "%Y-%m-%d %H:%M:%S.%f") << " " <<
+        expr::smessage ;
+    f(rec, strm);
+  }
+  int clone_init( su_root_t* root, drachtio::DrachtioController* pController ) {
+    return 0 ;
+  }
+  void clone_destroy( su_root_t* root, drachtio::DrachtioController* pController ) {
+    return ;
+  }
+  void watchdogTimerHandler(su_root_magic_t *p, su_timer_t *timer, su_timer_arg_t *arg) {
+    theOneAndOnlyController->processWatchdogTimer() ;
+  }
 }
 
 
@@ -104,66 +108,136 @@ namespace {
 	/* sofia logging is redirected to this function */
 	static void __sofiasip_logger_func(void *logarg, char const *fmt, va_list ap) {
         
-        static bool loggingSipMsg = false ;
-        static boost::shared_ptr<drachtio::StackMsg> msg ;
+    static bool loggingSipMsg = false ;
+    static boost::shared_ptr<drachtio::StackMsg> msg ;
 
-        char output[MAXLOGLEN+1] ;
-        vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
-        va_end(ap) ;
+    char output[MAXLOGLEN+1] ;
+    vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
+    va_end(ap) ;
 
-        if( loggingSipMsg ) {
-            loggingSipMsg = NULL == ::strstr( fmt, MSG_SEPARATOR) ;
-            msg->appendLine( output, !loggingSipMsg ) ;
+    if( loggingSipMsg ) {
+      loggingSipMsg = NULL == ::strstr( fmt, MSG_SEPARATOR) ;
+      msg->appendLine( output, !loggingSipMsg ) ;
 
-            if( !loggingSipMsg ) {
-                //DR_LOG(drachtio::log_debug) << "Completed logging sip message"  ;
+      if( !loggingSipMsg ) {
+        //DR_LOG(drachtio::log_debug) << "Completed logging sip message"  ;
 
-                DR_LOG( drachtio::log_info ) << msg->getFirstLine()  << msg->getSipMessage() <<  " " ;            
+        DR_LOG( drachtio::log_info ) << msg->getFirstLine()  << msg->getSipMessage() <<  " " ;            
 
-                msg->isIncoming() 
-                    ? theOneAndOnlyController->setLastRecvStackMessage( msg ) 
-                    : theOneAndOnlyController->setLastSentStackMessage( msg ) ;
-            }
-        }
-        else if( ::strstr( output, "recv ") == output || ::strstr( output, "send ") == output ) {
-            //DR_LOG(drachtio::log_debug) << "started logging sip message: " << output  ;
-            loggingSipMsg = true ;
+        msg->isIncoming() 
+          ? theOneAndOnlyController->setLastRecvStackMessage( msg ) 
+          : theOneAndOnlyController->setLastSentStackMessage( msg ) ;
+      }
+    }
+    else if( ::strstr( output, "recv ") == output || ::strstr( output, "send ") == output ) {
+      //DR_LOG(drachtio::log_debug) << "started logging sip message: " << output  ;
+      loggingSipMsg = true ;
 
-            char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
-            if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
+      char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
+      if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
 
-            msg = boost::make_shared<drachtio::StackMsg>( output ) ;
-        }
-        else {
-            //boost::replace_all(output, "\n", " ") ;
-            int len = strlen(output) ;
-            output[len-1] = '\0' ;
-            DR_LOG(drachtio::log_info) << output ;
-        }
+      msg = boost::make_shared<drachtio::StackMsg>( output ) ;
+    }
+    else {
+      int len = strlen(output) ;
+      output[len-1] = '\0' ;
+      DR_LOG(drachtio::log_info) << output ;
+    }
 	} ;
 
-    int defaultLegCallback( nta_leg_magic_t* controller,
-                           nta_leg_t* leg,
-                           nta_incoming_t* irq,
-                           sip_t const *sip) {
-        
-        return controller->processRequestOutsideDialog( leg, irq, sip ) ;
-    }
-    int legCallback( nta_leg_magic_t* controller,
-                           nta_leg_t* leg,
-                           nta_incoming_t* irq,
-                           sip_t const *sip) {
-        
-        return controller->processRequestInsideDialog( leg, irq, sip ) ;
-    }
-    int stateless_callback(nta_agent_magic_t *controller,
-                       nta_agent_t *agent,
-                       msg_t *msg,
-                       sip_t *sip) {
-        return controller->processMessageStatelessly( msg, sip ) ;
-    }
+  int defaultLegCallback( nta_leg_magic_t* controller,
+                       nta_leg_t* leg,
+                       nta_incoming_t* irq,
+                       sip_t const *sip) {
+    
+    return controller->processRequestOutsideDialog( leg, irq, sip ) ;
+  }
+  int legCallback( nta_leg_magic_t* controller,
+                       nta_leg_t* leg,
+                       nta_incoming_t* irq,
+                       sip_t const *sip) {
+    
+    return controller->processRequestInsideDialog( leg, irq, sip ) ;
+  }
+  int stateless_callback(nta_agent_magic_t *controller,
+                   nta_agent_t *agent,
+                   msg_t *msg,
+                   sip_t *sip) {
+    return controller->processMessageStatelessly( msg, sip ) ;
+  }
 
-
+  static boost::unordered_map<unsigned int, std::string> responseReasons = boost::assign::map_list_of
+    (100, "Trying") 
+    (180, "Ringing")
+    (181, "Call is Being Forwarded")
+    (182, "Queued")
+    (183, "Session in Progress")
+    (199, "Early Dialog Terminated")
+    (200, "OK")
+    (202, "Accepted") 
+    (204, "No Notification") 
+    (300, "Multiple Choices") 
+    (301, "Moved Permanently") 
+    (302, "Moved Temporarily") 
+    (305, "Use Proxy") 
+    (380, "Alternative Service") 
+    (400, "Bad Request") 
+    (401, "Unauthorized") 
+    (402, "Payment Required") 
+    (403, "Forbidden") 
+    (404, "Not Found") 
+    (405, "Method Not Allowed") 
+    (406, "Not Acceptable") 
+    (407, "Proxy Authentication Required") 
+    (408, "Request Timeout") 
+    (409, "Conflict") 
+    (410, "Gone") 
+    (411, "Length Required") 
+    (412, "Conditional Request Failed") 
+    (413, "Request Entity Too Large") 
+    (414, "Request-URI Too Long") 
+    (415, "Unsupported Media Type") 
+    (416, "Unsupported URI Scheme") 
+    (417, "Unknown Resource-Priority") 
+    (420, "Bad Extension") 
+    (421, "Extension Required") 
+    (422, "Session Interval Too Small") 
+    (423, "Interval Too Brief") 
+    (424, "Bad Location Information") 
+    (428, "Use Identity Header") 
+    (429, "Provide Referrer Identity") 
+    (430, "Flow Failed") 
+    (433, "Anonymity Disallowed") 
+    (436, "Bad Identity-Info") 
+    (437, "Unsupported Certificate") 
+    (438, "Invalid Identity Header") 
+    (439, "First Hop Lacks Outbound Support") 
+    (470, "Consent Needed") 
+    (480, "Temporarily Unavailable") 
+    (481, "Call Leg/Transaction Does Not Exist") 
+    (482, "Loop Detected") 
+    (483, "Too Many Hops") 
+    (484, "Address Incomplete") 
+    (485, "Ambiguous") 
+    (486, "Busy Here") 
+    (487, "Request Terminated") 
+    (488, "Not Acceptable Here") 
+    (489, "Bad Event") 
+    (491, "Request Pending") 
+    (493, "Undecipherable") 
+    (494, "Security Agreement Required") 
+    (500, "Server Internal Error") 
+    (501, "Not Implemented") 
+    (502, "Bad Gateway") 
+    (503, "Service Unavailable") 
+    (504, "Server Timeout") 
+    (505, "Version Not Supported") 
+    (513, "Message Too Large") 
+    (580, "Precondition Failure") 
+    (600, "Busy Everywhere") 
+    (603, "Decline") 
+    (604, "Does Not Exist Anywhere") 
+    (606, "Not Acceptable");
  }
 
 namespace drachtio {
@@ -188,7 +262,9 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false) {
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
+        m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
+        m_nHomerPort(0), m_nHomerId(0) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -196,34 +272,43 @@ namespace drachtio {
         }
         
         logging::add_common_attributes();
-
         m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
 
         if( !m_Config->isValid() ) {
             exit(-1) ;
         }
         this->installConfig() ;
-
-
     }
 
     DrachtioController::~DrachtioController() {
     }
 
     bool DrachtioController::installConfig() {
-
         if( m_ConfigNew ) {
             m_Config = m_ConfigNew ;
             m_ConfigNew.reset();
         }
         
-        m_current_severity_threshold = m_Config->getLoglevel() ;
+        if( log_none == m_current_severity_threshold ) {
+            m_current_severity_threshold = m_Config->getLoglevel() ;
+        }
+
+        if( 0 == m_requestRouter.getCountOfRoutes() ) {
+          m_Config->getRequestRouter( m_requestRouter ) ;
+        }
         
         return true ;
         
     }
     void DrachtioController::logConfig() {
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
+
+        vector<string> routes ;
+        m_requestRouter.getAllRoutes( routes ) ;
+
+        BOOST_FOREACH(string &r, routes) {
+            DR_LOG(log_notice) << "Route for outbound connection:         " << r;
+        }
     }
 
     void DrachtioController::handleSigTerm( int signal ) {
@@ -245,13 +330,19 @@ namespace drachtio {
         else {
             DR_LOG(log_error) << "Ignoring signal; already have a new configuration file to install"  ;
         }
-        
-    
     }
 
     bool DrachtioController::parseCmdArgs( int argc, char* argv[] ) {        
         int c ;
         string port ;
+        string publicAddress ;
+        string localNet ;
+        string contact ;
+        vector<string> vecDnsNames;
+        string httpMethod = "GET";
+        string httpUrl ;
+        string method;
+
         while (1)
         {
             static struct option long_options[] =
@@ -263,16 +354,27 @@ namespace drachtio {
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
                 {"file",    required_argument, 0, 'f'},
+                {"help",    no_argument, 0, 'h'},
                 {"user",    required_argument, 0, 'u'},
                 {"port",    required_argument, 0, 'p'},
                 {"contact",    required_argument, 0, 'c'},
+                {"external-ip",    required_argument, 0, 'x'},
+                {"local-net",    required_argument, 0, 'n'},
+                {"dns-name",    required_argument, 0, 'd'},
+                {"http-handler",    required_argument, 0, 'a'},
+                {"http-method",    required_argument, 0, 'm'},
+                {"loglevel",    required_argument, 0, 'l'},
+                {"sofia-loglevel",    required_argument, 0, 's'},
+                {"stdout",    no_argument, 0, 'b'},
+                {"homer",    required_argument, 0, 'y'},
+                {"homer-id",    required_argument, 0, 'z'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "f:i:p:c:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -290,9 +392,53 @@ namespace drachtio {
                         cout << " with arg " << optarg;
                     cout << endl ;
                     break;
-                                        
+                case 'a':
+                    httpUrl = optarg ;
+                    break;
+
+                case 'b':
+                    m_bConsoleLogging = true ;
+                    break;
+
+                case 'd':
+                    vecDnsNames.push_back(optarg);
+                    break;
+
                 case 'f':
                     m_configFilename = optarg ;
+                    break;
+
+                case 'h':
+                    usage() ;
+                    exit(0);
+
+                case 'l':
+                    if( 0 == strcmp(optarg, "notice") ) m_current_severity_threshold = log_notice ;
+                    else if( 0 == strcmp(optarg,"error") ) m_current_severity_threshold = log_error ;
+                    else if( 0 == strcmp(optarg,"warning") ) m_current_severity_threshold = log_warning ;
+                    else if( 0 == strcmp(optarg,"info") ) m_current_severity_threshold = log_info ;
+                    else if( 0 == strcmp(optarg,"debug") ) m_current_severity_threshold = log_debug ;
+                    else {
+                        cerr << "Invalid loglevel '" << optarg << "': valid choices are notice, error, warning, info, debug" << endl ; 
+                        return false ;
+                    }
+
+                    break;
+
+                case 'm':
+                    method = optarg ;
+                    if( boost::iequals(method, "POST")) {
+                      httpMethod = "POST";
+                    }
+                    break;
+
+                case 's':
+                    m_nSofiaLoglevel = atoi( optarg ) ;
+                    if( m_nSofiaLoglevel < 0 || m_nSofiaLoglevel > 9 ) {
+                        cerr << "Invalid sofia-loglevel '" << optarg << "': valid choices 0-9 inclusive" << endl ; 
+                        return false ;                        
+                    }
+
                     break;
 
                 case 'u':
@@ -300,12 +446,69 @@ namespace drachtio {
                     break;
 
                 case 'c':
-                    m_sipContact = optarg ;
+                    if( !contact.empty() ) {
+                        m_vecTransports.push_back( boost::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
+                        contact.clear() ;
+                        publicAddress.clear() ;
+                        localNet.clear() ;
+                    }
+                    contact = optarg ;
                     break;
-                                                            
+                                    
+                case 'x': 
+                    if( contact.empty() ) {
+                        cerr << "'public-ip' argument must follow a 'contact'" << endl ;
+                        return false ;
+                    }
+                    if (!publicAddress.empty() ) {
+                        cerr << "multiple 'public-ip' arguments provided for a single contact" << endl ;
+                        return false ;
+                    }
+                    publicAddress = optarg ;
+                    break ;
+
+                case 'n':
+                    if( contact.empty() ) {
+                        cerr << "'local-net' argument must follow a 'contact'" << endl ;
+                        return false ;
+                    }
+                    if (!localNet.empty() ) {
+                        cerr << "multiple 'local-net' arguments provided for a single contact" << endl ;
+                        return false ;
+                    }
+                    localNet = optarg ;
+                    break ;
+
                 case 'p':
                     port = optarg ;
                     m_adminPort = ::atoi( port.c_str() ) ;
+                    break;
+
+                case 'y':
+                    {
+                        m_nHomerPort = DEFAULT_HOMER_PORT;
+                        vector<string>strs;
+                        boost::split(strs, optarg, boost::is_any_of(":"));
+                        if(strs.size() > 2) {
+                            cerr << "invalid homer address: " << optarg << endl ;
+                            return false ;
+                        }
+                        m_strHomerAddress = strs[0];
+                        if( 2 == strs.size()) m_nHomerPort = boost::lexical_cast<uint32_t>(strs[1]);
+                    }
+                    break;
+
+                case 'z':
+                    try {
+                        m_nHomerId = boost::lexical_cast<uint32_t>(optarg);
+                    } catch(boost::bad_lexical_cast& err) {
+                        cerr << "--homer-id must be a positive 32-bit integer" << endl;
+                        return false;
+                    }
+                    if(0 == m_nHomerId) {
+                        cerr << "--homer-id must be a positive 32-bit integer" << endl;
+                        return false;                        
+                    }
                     break;
 
                 case 'v':
@@ -320,6 +523,24 @@ namespace drachtio {
                     abort ();
             }
         }
+
+        if(!m_strHomerAddress.empty() && 0 == m_nHomerId) {
+            cerr << "--homer-id is required to specify an agent id when using --homer" << endl;
+            return false;
+        }
+
+        if( !contact.empty() ) {
+          boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(contact, localNet, publicAddress);
+          for( std::vector<string>::const_iterator it = vecDnsNames.begin(); it != vecDnsNames.end(); ++it) {
+            p->addDnsName(*it);
+          }
+          m_vecTransports.push_back(p) ;
+        }
+
+        if( !httpUrl.empty() ) {
+          m_requestRouter.addRoute("*", httpMethod, httpUrl, true);
+        }
+
         /* Print any remaining command line arguments (not options). */
         if (optind < argc)
         {
@@ -332,7 +553,25 @@ namespace drachtio {
     }
 
     void DrachtioController::usage() {
-        cout << "drachtio -f <path-to-config-file> --user <user-to-run-as> --port <tcp port for admin connections> --daemon --noconfig --version"  ;
+        cerr << endl ;
+        cerr << "Usage: drachtio [OPTIONS]" << endl ;
+        cerr << endl << "Start drachtio sip engine" << endl << endl ;
+        cerr << "Options:" << endl << endl ;
+        cerr << "    --daemon           Run the process as a daemon background process" << endl ;
+        cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
+        cerr << "    --dns-name         specifies a DNS name that resolves to the local host, if any" << endl ;
+        cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
+        cerr << "    --homer            ip:port of homer/sipcapture agent" << endl ;
+        cerr << "    --homer-id         homer agent id to use in HEP messages to identify this server" << endl ;
+        cerr << "    --http-handler     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
+        cerr << "    --http-method      method to use with http-handler: GET (default) or POST" << endl ;
+        cerr << "-l  --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
+        cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
+        cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
+        cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
+        cerr << "    --stdout           Log to standard output as well as any configured log destinations" << endl ;
+        cerr << "-v  --version          Print version and exit" << endl ;
     }
 
     void DrachtioController::daemonize() {
@@ -404,8 +643,8 @@ namespace drachtio {
     void DrachtioController::initializeLogging() {
         try {
 
-            if( m_bNoConfig || m_Config->getConsoleLogTarget() ) {
-                cout << "adding console logger now" << endl;
+            if( m_bNoConfig || m_Config->getConsoleLogTarget() || m_bConsoleLogging ) {
+
                 m_sinkConsole.reset(
                     new sinks::synchronous_sink< sinks::text_ostream_backend >()
                 );        
@@ -473,12 +712,13 @@ namespace drachtio {
                             keywords::rotation_size = rotationSize * 1024 * 1024,
                             keywords::auto_flush = autoFlush,
                             keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
+                            keywords::open_mode = (std::ios::out | std::ios::app),
                             keywords::format = 
                             (
                                 expr::stream
                                     << expr::attr< unsigned int >("RecordID")
                                     << ": "
-                                    << expr::attr< boost::posix_time::ptime >("TimeStamp")
+                                    << expr::format_date_time< boost::posix_time::ptime >("TimeStamp", "%Y-%m-%d %H:%M:%S")
                                     << "> " << expr::smessage
                             )
                         )
@@ -510,13 +750,13 @@ namespace drachtio {
 
     void DrachtioController::run() {
         
-        if( m_bDaemonize ) {
-            daemonize() ;
-        }
+      if( m_bDaemonize ) {
+          daemonize() ;
+      }
 
-		/* now we can initialize logging */
-		m_logger.reset( this->createLogger() );
-		this->logConfig() ;
+      /* now we can initialize logging */
+      m_logger.reset( this->createLogger() );
+      this->logConfig() ;
 
         DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
 
@@ -529,16 +769,14 @@ namespace drachtio {
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
 
-        string url = m_sipContact ;
-        vector<string> urls ;
-        if( 0 == m_sipContact.length() ) {
-            m_Config->getSipUrls( urls ) ;
+        if( 0 == m_vecTransports.size() ) {
+            m_Config->getTransports( m_vecTransports ) ; 
         }
-        else {
-            urls.push_back( m_sipContact ) ;
-        }
+        if( 0 == m_vecTransports.size() ) {
 
-        DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " << urls[0] ;
+            DR_LOG(log_notice) << "DrachtioController::run: no sip contacts provided, will listen on 5060 for udp and tcp " ;
+            m_vecTransports.push_back( boost::make_shared<SipTransport>("sip:*;transport=udp,tcp"));            
+        }
 
         string outboundProxy ;
         if( m_Config->getSipOutboundProxy(outboundProxy) ) {
@@ -548,6 +786,30 @@ namespace drachtio {
         string tlsKeyFile, tlsCertFile, tlsChainFile ;
         bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
         
+        string captureServer;
+        string captureString;
+        uint32_t captureId ;
+        unsigned int hepVersion;
+        unsigned int capturePort ;
+        if (!m_strHomerAddress.empty()) {
+            captureString = "udp:" + m_strHomerAddress + ":" + boost::lexical_cast<std::string>(m_nHomerPort) + 
+                ";hep=3;capture_id=" + boost::lexical_cast<std::string>(m_nHomerId);
+            DR_LOG(log_notice) << "DrachtioController::run - sipcapture/Homer enabled: " << captureString;            
+        }
+        else if (m_Config->getCaptureServer(captureServer, capturePort, captureId, hepVersion)) {
+            if (hepVersion < 1 || hepVersion > 3) {
+                DR_LOG(log_error) << "DrachtioController::run invalid hep-version " << hepVersion <<
+                    "; must be between 1 and 3 inclusive";
+            }
+            else {
+                captureString = "udp:" + captureServer + ":" + boost::lexical_cast<std::string>(capturePort) + 
+                    ";hep=" + boost::lexical_cast<std::string>(hepVersion) +
+                    ";capture_id=" + boost::lexical_cast<std::string>(captureId);
+                DR_LOG(log_notice) << "DrachtioController::run - sipcapture/Homer enabled: " << captureString;
+            }
+
+        }
+
         int rv = su_init() ;
         if( rv < 0 ) {
             DR_LOG(log_error) << "Error calling su_init: " << rv ;
@@ -571,7 +833,7 @@ namespace drachtio {
         su_log_redirect(NULL, __sofiasip_logger_func, NULL);
         
         /* for now set logging to full debug */
-        su_log_set_level(NULL, m_Config->getSofiaLogLevel() ) ;
+        su_log_set_level(NULL, m_nSofiaLoglevel >= 0 ? (unsigned int) m_nSofiaLoglevel : m_Config->getSofiaLogLevel() ) ;
         setenv("TPORT_LOG", "1", 1) ;
         
         /* this causes su_clone_start to start a new thread */
@@ -581,59 +843,76 @@ namespace drachtio {
            DR_LOG(log_error) << "DrachtioController::run: Error calling su_clone_start"  ;
            return  ;
         }
+
+        if( m_vecTransports[0]->hasExternalIp() ) {
+            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on local address " << m_vecTransports[0]->getContact() <<    
+                " (external address: " << m_vecTransports[0]->getExternalIp() << ")";   
+        }
+        else {
+            DR_LOG(log_notice) << "DrachtioController::run: starting sip stack on " <<  m_vecTransports[0]->getContact() ;   
+        }
+        string newUrl; 
+        m_vecTransports[0]->getBindableContactUri(newUrl) ;
          
          /* create our agent */
-        bool tlsTransport = string::npos != urls[0].find("sips") || string::npos != urls[0].find("tls") ;
-		m_nta = nta_agent_create( m_root,
-                                 URL_STRING_MAKE(urls[0].c_str()),               /* our contact address */
-                                 stateless_callback,         /* no callback function */
-                                 this,                  /* therefore no context */
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-                                 TAG_IF( tlsTransport &&hasTlsFiles, 
-                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
-                                 NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
-                                 NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
-                                 TAG_NULL(),
-                                 TAG_END() ) ;
+        bool tlsTransport = string::npos != m_vecTransports[0]->getContact().find("sips") || string::npos != m_vecTransports[0]->getContact().find("tls") ;
+    		m_nta = nta_agent_create( m_root,
+             URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
+             stateless_callback,                            /* no callback function */
+             this,                                      /* therefore no context */
+             TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+             TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+             TAG_IF( tlsTransport &&hasTlsFiles, 
+                TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+             NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
+             NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
+             TAG_NULL(),
+             TAG_END() ) ;
         
         if( NULL == m_nta ) {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
-        m_my_contact = nta_agent_contact( m_nta ) ;
 
-        for( vector<string>::iterator it = urls.begin() + 1; it != urls.end(); it++ ) {
-            string url = *it ;
-            tlsTransport = string::npos != url.find("sips") || string::npos != url.find("tls") ;
+        SipTransport::addTransports(m_vecTransports[0]) ;
 
-            DR_LOG(log_info) << "DrachtioController::run: adding additional contact " << url  ;
+        for( vector< boost::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
+            string contact = (*it)->getContact() ;
+            string externalIp = (*it)->getExternalIp() ;
+            string newUrl ;
 
-            rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(url.c_str()),
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-                                 TAG_IF( tlsTransport &&hasTlsFiles, 
-                                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
-                                 TAG_NULL(),
-                                 TAG_END() ) ;
+            tlsTransport = string::npos != contact.find("sips") || string::npos != contact.find("tls") ;
+
+            if( externalIp.length() ) {
+                DR_LOG(log_info) << "DrachtioController::run: adding additional internal sip address " << contact << " (external address: " << externalIp << ")" ;                
+            }
+            else {
+                DR_LOG(log_info) << "DrachtioController::run: adding additional sip address " << contact  ;                
+            }
+
+            (*it)->getBindableContactUri(newUrl) ;
+
+            rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(newUrl.c_str()),
+                 TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                 TAG_IF( tlsTransport &&hasTlsFiles, 
+                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                 TAG_NULL(),
+                 TAG_END() ) ;
 
             if( rv < 0 ) {
                 DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
                 return ;            
             }
+            SipTransport::addTransports(*it) ;
         }
 
-        tport_t* tp = nta_agent_tports(m_nta);
-        while( NULL != (tp = tport_next(tp) ) ) {
-            const tp_name_t* tpn = tport_name(tp) ;
-            string desc ;
-            m_mapProtocol2Tport.insert(mapProtocol2Tport::value_type(tpn->tpn_proto, tp) ) ;
-            getTransportDescription( tp, desc ); 
-            DR_LOG(log_info) << "Added transport: " << hex << tp << ": " << desc ;
-        }
-       
+        SipTransport::logTransports() ;
+
         m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
         m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
         m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
@@ -649,7 +928,6 @@ namespace drachtio {
             NTATAG_SIP_T1X64(t1x64),
             TAG_END()
         ) ;
-
               
         /* sofia event loop */
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id()  ;
@@ -675,7 +953,7 @@ namespace drachtio {
         int rc = 0 ;
 
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
-            " does not match an existing call leg"  ;
+            " does not match an existing call leg, processed in thread " << boost::this_thread::get_id()  ;
 
         if( sip->sip_request ) {
 
@@ -729,31 +1007,45 @@ namespace drachtio {
                         }
                     }
                 } catch( runtime_error& err ) {
-                    DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: detected spammer due to header value: " << err.what()  ;
+                    nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+
+                    DR_LOG(log_notice) << "DrachtioController::processMessageStatelessly: detected potential spammer from " <<
+                        nta_incoming_remote_host(irq) << ":" << nta_incoming_remote_port(irq)  << 
+                        " due to header value: " << err.what()  ;
+                    nta_incoming_treply( irq, 603, "Decline", TAG_END() ) ;
+                    nta_incoming_destroy(irq) ;   
+
+                    /*
                     if( 0 == action.compare("reject") ) {
                         nta_msg_treply( m_nta, msg, 603, NULL, TAG_END() ) ;
                     }
-                    //TODO: TARPIT
+                    */
                     return -1 ;
                 }
             }
 
             if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
 
-                //check if we are in the first Route header; if so proxy accordingly
-
-                bool match = 0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) &&
-                                0 == strcmp( tpn->tpn_port, sip->sip_route->r_url->url_port ) ;
+                //check if we are in the first Route header, and the request-uri is not us; if so proxy accordingly
+                bool hostMatch = 
+                  (0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) || 
+                  (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host )));
+                bool portMatch = 
+                  (tpn->tpn_port && sip->sip_route->r_url->url_port && 0 == strcmp(tpn->tpn_port,sip->sip_route->r_url->url_port)) ||
+                  (!tpn->tpn_port && !sip->sip_route->r_url->url_port) ||
+                  (!tpn->tpn_port && 0 == strcmp(sip->sip_route->r_url->url_port, "5060")) ||
+                  (!sip->sip_route->r_url->url_port && 0 == strcmp(tpn->tpn_port, "5060")) ;
 
                 tport_unref( tp_incoming ) ;
 
-                if( match ) {
+                if( /*hostMatch && portMatch && */ SipTransport::isLocalAddress(sip->sip_route->r_url->url_host)) {
                     //request within an established dialog in which we are a stateful proxy
                     if( !m_pProxyController->processRequestWithRouteHeader( msg, sip ) ) {
                        nta_msg_discard( m_nta, msg ) ;                
                     }          
                     return 0 ;          
                 }
+                DR_LOG(log_warning) << "DrachtioController::processMessageStatelessly: discarding incoming message with Route header as we do not match the first route";
             }
 
             if( m_pProxyController->isProxyingRequest( msg, sip ) ) {
@@ -769,13 +1061,14 @@ namespace drachtio {
                     case sip_method_info:
                     case sip_method_notify:
                     case sip_method_subscribe:
+                    case sip_method_publish:
                     {
                         if( m_pPendingRequestController->isRetransmission( sip ) ||
                             m_pProxyController->isRetransmission( sip ) ) {
                         
                             DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
                             nta_msg_discard(m_nta, msg) ;  
-                            return -1 ;
+                            return sip_method_invite == sip->sip_request->rq_method ? 100 : -1 ;
                         }
 
                         if( sip_method_invite == sip->sip_request->rq_method ) {
@@ -783,7 +1076,7 @@ namespace drachtio {
                         }
 
                         string transactionId ;
-                        int status = m_pPendingRequestController->processNewRequest( msg, sip, transactionId ) ;
+                        int status = m_pPendingRequestController->processNewRequest( msg, sip, tp_incoming, transactionId ) ;
 
                         //write attempt record
                         if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
@@ -837,6 +1130,11 @@ namespace drachtio {
                     }
                     break ;
 
+                    case sip_method_bye:
+                        nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   
+                        break;                           
+
+
                     default:
                         nta_msg_discard( m_nta, msg ) ;
                     break ;
@@ -857,6 +1155,7 @@ namespace drachtio {
         }
         return rc ;
     }
+
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
         boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
@@ -922,11 +1221,6 @@ namespace drachtio {
         switch (sip->sip_request->rq_method ) {
             case sip_method_invite:
             {
-                /* TODO:  should support optional config to only allow invites from defined addresses */
-                //bool ipv6 = NULL != strstr( sip->sip_request->)
-                //tport_t* tp = getTportForProtocol( const char* proto, bool ipv6 ) ;
-                //tport_t *nta_incoming_transport(m_nta, irq, msg_t *msg);
-
                 nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
 
                /* system-wide minimum session-expires is 90 seconds */
@@ -1054,19 +1348,9 @@ namespace drachtio {
 
     }
 
-    tport_t* DrachtioController::getTportForProtocol( const char* proto, bool ipv6 ) {
-        DR_LOG(log_debug) << "DrachtioController::getTportForProtocol: " << proto << (ipv6 ? " for ipv6" : "for ipv4")  ;
-        tport_t* tp = NULL ;
-        std::pair< mapProtocol2Tport::iterator, mapProtocol2Tport::iterator > itRange = m_mapProtocol2Tport.equal_range( proto ) ;
-        for( mapProtocol2Tport::iterator it = itRange.first; it != itRange.second; ++it ) {
-            tport_t* tp = it->second ;
-            const tp_name_t* tpn = tport_name(tp) ;
-            if( (ipv6 && NULL != strstr( tpn->tpn_host, "[") && NULL != strstr( tpn->tpn_host, "]") ) ||
-                (!ipv6 && NULL == strstr( tpn->tpn_host, "[") && NULL == strstr( tpn->tpn_host, "]")) ) {
-                return tp ;
-            }
-        }
-        return tp ;
+    const tport_t* DrachtioController::getTportForProtocol( const string& remoteHost, const char* proto ) {
+      boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(remoteHost.c_str(), proto) ;
+      return p->getTport() ;
     }
 
     int DrachtioController::validateSipMessage( sip_t const *sip ) {
@@ -1089,15 +1373,11 @@ namespace drachtio {
         return 0 ;
     }
     void DrachtioController::getMyHostports( vector<string>& vec ) {
-        for( mapProtocol2Tport::iterator it = m_mapProtocol2Tport.begin(); it != m_mapProtocol2Tport.end(); it++ ) {
-            string desc ;
-            getTransportDescription( it->second, desc ) ;
-            vec.push_back( desc ) ;
-        }
+      return SipTransport::getAllHostports( vec ) ;
     }
     bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port, bool ipv6 ) {
         string desc, p ;
-        tport_t* tp = getTportForProtocol( proto, ipv6 ) ;
+        const tport_t* tp = getTportForProtocol(host, proto) ;
         if( !tp ) {            
             DR_LOG(log_error) << "DrachtioController::getMySipAddress - invalid or non-configured protocol: " << proto  ;
             assert( 0 ) ;
@@ -1138,11 +1418,15 @@ namespace drachtio {
         DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
     }
     boost::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+        boost::shared_ptr<UaInvalidData> p ;
         string uri = "" ;
+
+        if( !user ) {
+            return p ;
+        }
         uri.append(user) ;
         uri.append("@") ;
         uri.append(host) ;
-        boost::shared_ptr<UaInvalidData> p ;
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
         if( m_mapUri2InvalidData.end() != it ) {
             p = it->second ;
@@ -1154,7 +1438,224 @@ namespace drachtio {
         return p ;
     }
 
+  void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
+    string host ;
+    string port = "9021";
+    vector<string> strs;
 
+    boost::split(strs, uri, boost::is_any_of(":"));
+    if( strs.size() > 2 ) {
+      DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
+      //TODO: send 480, remove pending connection
+      return ;              
+    }
+    host = strs.at(0) ;
+    if( 2 == strs.size() ) {
+      port = strs.at(1);
+    }
+
+    DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
+      host << ":" << port ;
+    m_pClientController->makeOutboundConnection( transactionId, host, port ) ;
+  }
+
+  // handling responses from http route lookups
+  // N.B.: these execute in the http thread, not the main thread
+  void DrachtioController::httpCallRoutingComplete(const string& transactionId, long response_code, 
+    const string& body) {
+
+    std::ostringstream msg ;
+    json_t *root;
+    json_error_t error;
+    root = json_loads(body.c_str(), 0, &error);
+
+    DR_LOG(log_debug) << "DrachtioController::httpCallRoutingComplete thread id " << boost::this_thread::get_id() << 
+      " transaction id " << transactionId << " response: (" << response_code << ") " << body ; 
+
+    try {
+      if( !root ) {
+        msg << "error parsing body as JSON on line " << error.line  << ": " << error.text ;
+        return throw std::runtime_error(msg.str()) ;  
+      }
+
+      if(!json_is_object(root)) {
+        throw std::runtime_error("expected JSON object but got something else") ;  
+      }
+
+      json_t* action = json_object_get( root, "action") ;
+      json_t* data = json_object_get(root, "data") ;
+      if( !json_is_string(action) ) {
+        throw std::runtime_error("missing or invalid 'action' attribute") ;  
+      }
+      if( !json_is_object(data) ) {
+        throw std::runtime_error("missing 'data' object") ;  
+      }
+      const char* actionText = json_string_value(action) ;
+      if( 0 == strcmp("reject", actionText)) {
+        json_t* status = json_object_get(data, "status") ;
+        json_t* reason = json_object_get(data, "reason") ;
+
+        if( !status || !json_is_number(status) ) {
+          throw std::runtime_error("'status' is missing or is not a number") ;  
+        }
+        processRejectInstruction(transactionId, json_integer_value(status), json_string_value(reason));
+      }
+      else if( 0 == strcmp("proxy", actionText)) {
+        bool recordRoute = false ;
+        bool followRedirects = true ;
+        bool simultaneous = false ;
+        string provisionalTimeout = "5s";
+        string finalTimeout = "60s";
+        vector<string> vecDestination ;
+
+        json_t* rr = json_object_get(data, "recordRoute") ;
+        if( rr && json_is_boolean(rr) ) {
+          recordRoute = json_boolean_value(rr) ;
+        }
+
+        json_t* follow = json_object_get(data, "followRedirects") ;
+        if( follow && json_is_boolean(follow) ) {
+          followRedirects = json_boolean_value(follow) ;
+        }
+
+        json_t* sim = json_object_get(data, "simultaneous") ;
+        if( sim && json_is_boolean(sim) ) {
+          simultaneous = json_boolean_value(sim) ;
+        }
+
+        json_t* pTimeout = json_object_get(data, "provisionalTimeout") ;
+        if( pTimeout && json_is_string(pTimeout) ) {
+          provisionalTimeout = json_string_value(pTimeout) ;
+        }
+
+        json_t* fTimeout = json_object_get(data, "finalTimeout") ;
+        if( fTimeout && json_is_string(fTimeout) ) {
+          finalTimeout = json_string_value(fTimeout) ;
+        }
+
+        json_t* destination = json_object_get(data, "destination") ;
+        if( json_is_string(destination) ) {
+          vecDestination.push_back( json_string_value(destination) ) ;
+        }
+        else if( json_is_array(destination) ) {
+          size_t size = json_array_size(destination);
+          for( unsigned int i = 0; i < size; i++ ) {
+            json_t* aDest = json_array_get(destination, i);
+            if( !json_is_string(aDest) ) {
+              throw std::runtime_error("DrachtioController::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
+            }
+            vecDestination.push_back( json_string_value(aDest) );
+          }
+        }
+
+        processProxyInstruction(transactionId, recordRoute, followRedirects, 
+            simultaneous, provisionalTimeout, finalTimeout, vecDestination) ;
+      }
+      else if( 0 == strcmp("redirect", actionText)) {
+        json_t* contact = json_object_get(data, "contact") ;
+        vector<string> vecContact ;
+
+        if( json_is_string(contact) ) {
+          vecContact.push_back( json_string_value(contact) ) ;
+        }
+        else if( json_is_array(contact) ) {
+          size_t size = json_array_size(contact);
+          for( unsigned int i = 0; i < size; i++ ) {
+            json_t* aContact = json_array_get(contact, i);
+            if( !json_is_string(aContact) ) {
+              throw std::runtime_error("DrachtioController::processRoutingInstructions - invalid 'contact' array: must contain strings") ;  
+            }
+            vecContact.push_back( json_string_value(aContact) );
+          }
+        }
+        else {
+          throw std::runtime_error("DrachtioController::processRoutingInstructions - invalid 'contact' attribute in redirect action: must be string or array") ;  
+        }
+        processRedirectInstruction(transactionId, vecContact);
+
+      }
+      else if( 0 == strcmp("route", actionText)) {
+        json_t* uri = json_object_get(data, "uri") ;
+
+        if( !uri || !json_is_string(uri) ) {
+          throw std::runtime_error("'uri' is missing or is not a string") ;  
+        }
+        processOutboundConnectionInstruction(transactionId, json_string_value(uri));
+      }
+      else {
+        msg << "DrachtioController::processRoutingInstructions - invalid 'action' attribute value '" << actionText << 
+            "': valid values are 'reject', 'proxy', 'redirect', and 'route'" ;
+        return throw std::runtime_error(msg.str()) ;  
+      }
+
+      json_decref(root) ; 
+    } catch( std::runtime_error& err ) {
+      DR_LOG(log_error) << "DrachtioController::processRoutingInstructions " << err.what();
+      DR_LOG(log_error) << body ;
+      processRejectInstruction(transactionId, 500) ;
+      if( root ) { 
+        json_decref(root) ; 
+      }
+    }
+      // clean up needed?  not in reject scenarios, nor redirect nor route (proxy?)
+      //m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
+  }
+
+  void DrachtioController::processRejectInstruction(const string& transactionId, unsigned int status, 
+    const char* reason) {
+      string headers;
+      string body ;
+      std::ostringstream statusLine ;
+
+      statusLine << "SIP/2.0 " << status << " " ;
+      if( reason ) {
+          statusLine << reason ;
+      }
+      else {
+          boost::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
+          if( it != responseReasons.end() ) {
+              statusLine << it->second ;
+          }
+      }
+      if(( !this->getDialogController()->respondToSipRequest("", transactionId, statusLine.str(), headers, body) )) {
+          DR_LOG(log_error) << "DrachtioController::processRejectInstruction - error sending rejection with status " << status ;
+      }
+  }
+  void DrachtioController::processRedirectInstruction(const string& transactionId, vector<string>& vecContact) {
+      string headers;
+      string body ;
+
+      int i = 0 ;
+      BOOST_FOREACH(string& c, vecContact) {
+          if( i++ > 0 ) {
+              headers.append("\n");
+          }
+          headers.append("Contact: ") ;
+          headers.append(c) ;
+      }
+
+      if(( !this->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 302 Moved", headers, body) )) {
+          DR_LOG(log_error) << "DrachtioController::processRedirectInstruction - error sending redirect" ;
+      }
+  }
+
+  void DrachtioController::processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
+    bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) {
+    string headers;
+    string body ;
+
+    this->getProxyController()->proxyRequest( "", transactionId, recordRoute, false, followRedirects, 
+      simultaneous, provisionalTimeout, finalTimeout, vecDestination, headers ) ;
+  }
+
+  void DrachtioController::processOutboundConnectionInstruction(const string& transactionId, const char* uri) {
+    string routeUri = uri ;
+    makeOutboundConnection(transactionId, routeUri);
+  }
+
+
+    // logging / stats 
+    
     void DrachtioController::printStats() {
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
        usize_t irq_used = -1, orq_used = -1, leg_used = -1 ;

@@ -26,6 +26,8 @@ THE SOFTWARE.
 #include <boost/foreach.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/algorithm/string.hpp>    
+#include <boost/algorithm/string/split.hpp>
 
 #include "drachtio-config.hpp"
 
@@ -39,7 +41,8 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), m_bConsoleLogger(false) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), 
+        m_bConsoleLogger(false), m_captureHepVersion(3) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -61,7 +64,7 @@ namespace drachtio {
                 /* admin configuration */
                 try {
                     pt.get_child("drachtio.admin") ; // will throw if doesn't exist
-                    m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 8022) ;
+                    m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
                 } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -75,7 +78,7 @@ namespace drachtio {
                 // old way: a single contact
                 try {
                     string strUrl = pt.get<string>("drachtio.sip.contact") ;
-                    m_vecSipUrl.push_back( strUrl ) ;
+                    m_vecTransports.push_back( boost::make_shared<SipTransport>(strUrl) );
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
 
@@ -84,27 +87,74 @@ namespace drachtio {
                          BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.sip.contacts")) {
                             // v.first is the name of the child.
                             // v.second is the child tree.
-                            if( 0 != v.first.compare("contact") ) {
-                                cerr << "Invalid child element of 'contacts':  " << v.first << endl ;
-                                return ;
+                            if( 0 == v.first.compare("contact") ) {
+                                string external = v.second.get<string>("<xmlattr>.external-ip","") ;            
+                                string localNet = v.second.get<string>("<xmlattr>.local-net","") ;   
+                                string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");      
+
+                                boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(v.second.data(), localNet, external) ;
+                                vector<string> names;
+                                boost::split(names, dnsNames, boost::is_any_of(",; "));
+                                for (vector<string>::iterator it = names.begin(); it != names.end(); ++it) {
+                                    if( !(*it).empty() ) {
+                                        p->addDnsName((*it)) ;
+                                    }
+                                }
+
+                                m_vecTransports.push_back(p);
                             }
-
-                            m_vecSipUrl.push_back( v.second.data() );
                         }
-
                     } catch( boost::property_tree::ptree_bad_path& e ) {
-                        //neither <contact> nor <contacts> found: default to sip:*
-                        m_vecSipUrl.push_back("sip:*") ;
+                        //neither <contact> nor <contacts> found: presumably will be provided on command line
                     }
                 }
 
                 m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
 
+                // capture server
+                try {
+                    pt.get_child("drachtio.sip.capture-server") ; // will throw if doesn't exist
+                    m_captureServerPort = pt.get<unsigned int>("drachtio.sip.capture-server.<xmlattr>.port", 9060) ;
+                    m_captureServerAgentId = pt.get<uint32_t>("drachtio.sip.capture-server.<xmlattr>.id", 0) ;
+                    m_captureHepVersion = pt.get<unsigned int>("drachtio.sip.capture-server.<xmlattr>.hep-version", 3) ;
+                    m_captureServerAddress = pt.get<string>("drachtio.sip.capture-server") ;
+
+                    if (0 == m_captureServerAddress.length() || 0 == m_captureServerAgentId) {
+                        cerr << "invalid capture-server config: address or agent id is missing" << endl;
+                        m_captureServerAddress = "";
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                }
+                
+
                 m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
                 m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
 
-                
+                try {
+                     BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.request-handlers")) {
+                        if( 0 == v.first.compare("request-handler") ) {
+                            string sipMethod = v.second.get<string>("<xmlattr>.sip-method","*") ;    
+                            boost::algorithm::to_upper(sipMethod);
+
+                            string httpMethod = v.second.get<string>("<xmlattr>.http-method","GET") ;  
+                            string verifyPeer = v.second.get<string>("<xmlattr>.verify-peer","false") ;  
+                            string httpUrl = v.second.data() ;
+
+                            bool wantsVerifyPeer = (
+                                0 == verifyPeer.compare("true") || 
+                                0 == verifyPeer.compare("1") || 
+                                0 == verifyPeer.compare("yes") ) ;
+
+                            m_router.addRoute(sipMethod, httpMethod, httpUrl, wantsVerifyPeer) ;          
+                        }
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    // optional
+                }
+
+
+
                 /* logging configuration  */
  
                 m_nSofiaLogLevel = pt.get<unsigned int>("drachtio.logging.sofia-loglevel", 1) ;
@@ -241,7 +291,6 @@ namespace drachtio {
             
             return true ;
         }
-        void getSipUrls( vector<string>& urls) const { urls = m_vecSipUrl; }
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const {
             sipOutboundProxy = m_sipOutboundProxy ;
@@ -283,6 +332,25 @@ namespace drachtio {
             return m_mapSpammers ;
         }
 
+        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+            transports = m_vecTransports ;
+        }
+
+        void getRequestRouter( RequestRouter& router ) {
+            router = m_router ;
+        }
+
+        bool getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version) {
+            if (0 == m_captureServerAddress.length()) return false;
+            
+            address = m_captureServerAddress;
+            port = m_captureServerPort;
+            agentId = m_captureServerAgentId;
+            version = m_captureHepVersion;
+            return true;
+        }
+
+
  
     private:
         
@@ -299,7 +367,7 @@ namespace drachtio {
         }
     
         bool m_bIsValid ;
-        vector<string> m_vecSipUrl ;
+        vector< pair<string,string> > m_vecSipUrl ;
         string m_sipOutboundProxy ;
         string m_syslogAddress ;
         string m_logFileName ;
@@ -325,6 +393,12 @@ namespace drachtio {
         string m_actionSpammer ;
         string m_tcpActionSpammer ;
         mapHeader2Values m_mapSpammers ;
+        vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
+        RequestRouter m_router ;
+        string m_captureServerAddress ;
+        unsigned int m_captureServerPort;
+        uint32_t m_captureServerAgentId ;
+        unsigned int m_captureHepVersion ;
 
   } ;
     
@@ -359,10 +433,6 @@ namespace drachtio {
         return m_pimpl->getConsoleLogTarget() ;
     }
 
-    bool DrachtioConfig::getSipUrls( std::vector<string>& urls ) const {
-        m_pimpl->getSipUrls(urls) ;
-        return true ;
-    }
     bool DrachtioConfig::getSipOutboundProxy( std::string& sipOutboundProxy ) const {
         return m_pimpl->getSipOutboundProxy( sipOutboundProxy ) ;
     }
@@ -391,6 +461,13 @@ namespace drachtio {
     DrachtioConfig::mapHeader2Values& DrachtioConfig::getSpammers( string& action, string& tcpAction ) {
         return m_pimpl->getSpammers( action, tcpAction ) ;
     }
-
-
+    void DrachtioConfig::getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+        return m_pimpl->getTransports(transports) ;
+    }
+    void DrachtioConfig::getRequestRouter( RequestRouter& router ) {
+        return m_pimpl->getRequestRouter(router) ;
+    }
+    bool DrachtioConfig::getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version) {
+        return m_pimpl->getCaptureServer(address, port, agentId, version);
+    }
 }
