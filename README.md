@@ -120,6 +120,6 @@ or
 drachtio --homer 172.28.0.23 --homer-id 101  # defaults to HEP3 and UDP
 ```
 
-### Fail2ban integration
+#### Fail2ban integration
 
 To install fail2ban on a drachtio server, refer to this [ansible role](https://github.com/davehorton/ansible-role-fail2ban-drachtio) which installs and configures fail2ban with a filter for drachtio log files.
