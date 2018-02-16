@@ -91,17 +91,6 @@ or
 drachtio --port 9022  # address defaults to 0.0.0.0
 ```
 
-#### Homer integration
-drachtio can send encapsulated SIP messages to [Homer](http://www.sipcapture.org/) for reporting
-```xml
-<drachtio>
-  <sip>
-    <capture-server port="9060" hep-version="3" id="101">172.28.0.23</capture-server>
-```
-or
-```
-drachtio --homer 172.28.0.23 --homer-id 101  # defaults to HEP3 and UDP
-```
 #### Logging
 Log files can be written to the console, to a file, or to syslog (or any or all of the above simultaneously).  
 
@@ -119,3 +108,18 @@ or
 drachtio --loglevel info --sofia-loglevel 3
 ```
 
+#### Homer integration
+drachtio can send encapsulated SIP messages to [Homer](http://www.sipcapture.org/) for reporting
+```xml
+<drachtio>
+  <sip>
+    <capture-server port="9060" hep-version="3" id="101">172.28.0.23</capture-server>
+```
+or
+```
+drachtio --homer 172.28.0.23 --homer-id 101  # defaults to HEP3 and UDP
+```
+
+### Fail2ban integration
+
+To install fail2ban on a drachtio server, refer to this [ansible role](https://github.com/davehorton/ansible-role-fail2ban-drachtio) which installs and configures fail2ban with a filter for drachtio log files.
