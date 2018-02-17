@@ -34,7 +34,7 @@ tests
 *.a
 
 *.tar.gz
-build/
+/build/
 
 
 AUTHORS
