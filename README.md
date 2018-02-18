@@ -11,6 +11,9 @@ A docker image [can be found here](https://cloud.docker.com/swarm/drachtio/repos
 
 The `drachtio/drachtio-server:latest` tagged image is kept current with the tip of the `develop` branch, which is probably what you want.
 
+## Ansible
+An ansible role can be found [here](https://github.com/davehorton/ansible-role-drachtio) for building drachtio using ansible.
+
 ## Building from source
 
 > Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project.
