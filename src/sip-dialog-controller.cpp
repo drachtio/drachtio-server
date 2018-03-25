@@ -1531,7 +1531,7 @@ namespace drachtio {
         return dlg ;            
     }
     void SipDialogController::timerD(boost::shared_ptr<IIP>  iip, nta_leg_t* leg, const string& dialogId) {
-        DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << ", dialog id " << dialogId << leg ;
+        DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << leg << ", dialog id " << dialogId << leg ;
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
         TimerEventHandle h = dlg->getTimerD() ;
         if( h ) {
