@@ -390,8 +390,10 @@ read_again:
         send(msg) ;
     }
     void Client::send( const string& str ) {
+        int len = utf8_strlen(str);
         ostringstream o ;
-        o << str.length() << "#" << str ;
+
+        o << len << "#" << str ;
        
         boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
             boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;

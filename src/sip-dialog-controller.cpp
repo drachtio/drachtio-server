@@ -1000,7 +1000,7 @@ namespace drachtio {
                     if( sip_method_subscribe == nta_incoming_method(irq) ) {
                         bClearIIP = true ;
 
-                        // add dialog for SUBSCRIBE dialogs (for INVITE we add when we receive the ACK)
+                        // add dialog for SUBSCRIBE dialogs
                         if( 202 == code || 200 == code ) {
                           DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
                           this->addDialog( dlg ) ;
@@ -1541,7 +1541,8 @@ namespace drachtio {
         return dlg ;            
     }
     void SipDialogController::timerD(boost::shared_ptr<IIP>  iip, nta_leg_t* leg, const string& dialogId) {
-        DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << leg << ", dialog id " << dialogId << leg ;
+        DR_LOG(log_warning) << "SipDialogController::timerD - wait timer for responses expired on leg " << hex << leg << 
+        ", dialog id " << dialogId;
         boost::shared_ptr<SipDialog>  dlg = iip->dlg() ;
         TimerEventHandle h = dlg->getTimerD() ;
         if( h ) {
@@ -1728,6 +1729,7 @@ namespace drachtio {
     }
 
     void SipDialogController::clearSipTimers(boost::shared_ptr<SipDialog>& dlg) {
+        DR_LOG(log_debug) << "SipDialogController::clearSipTimers for " << dlg->getCallId()  ;
         TimerEventHandle h = dlg->getTimerD() ;
         if( h ) {
             m_pTQM->removeTimer( h, "timerD"); 

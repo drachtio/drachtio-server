@@ -151,6 +151,8 @@ namespace drachtio {
 
 	string urlencode(const string &s);
 
+  int utf8_strlen(const string& str);
+
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 
 	class SipMsgData_t {
