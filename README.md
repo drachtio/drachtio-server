@@ -16,7 +16,7 @@ An ansible role can be found [here](https://github.com/davehorton/ansible-role-d
 
 ## Building from source
 
-> Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project.
+> Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project. On OSX you need to run ``` brew install openssl ``` .
 
 After installing libcurl, do as follows:
 ```
