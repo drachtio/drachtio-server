@@ -41,10 +41,10 @@ parser_LDADD += -lrt
 test_https_LDADD += -lrt -lpthread ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
 endif
 if OSX
-drachtio_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost* -lpthread -lssl -lcrypto -lz 
-drachtio_CPPFLAGS += -DBOOST_LOG_DYN_LINK
-test_https_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
-test_https_CPPFLAGS += -DBOOST_LOG_DYN_LINK
+drachtio_LDADD += -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_63_0/stage/lib/libboost* -lpthread -lssl -lcrypto -lz 
+drachtio_CPPFLAGS += -DBOOST_LOG_DYN_LINK -I/usr/local/opt/openssl/include
+test_https_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a -L/usr/local/opt/openssl/lib
+test_https_CPPFLAGS += -DBOOST_LOG_DYN_LINK -I/usr/local/opt/openssl/include
 endif
 
 BUILT_SOURCES=${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a
