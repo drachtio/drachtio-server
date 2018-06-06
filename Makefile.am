@@ -33,6 +33,7 @@ test_asio_curl_SOURCES= src/test_asio_curl.cpp
 ttest_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
 test_asio_curl_LDADD= ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a -lpthread -lcurl -lssl -lcrypto -lz
 
+
 if LINUX
 drachtio_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
 timer_LDADD += -lrt
@@ -40,9 +41,9 @@ parser_LDADD += -lrt
 test_https_LDADD += -lrt -lpthread ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
 endif
 if OSX
-drachtio_LDADD += -lboost_thread -lboost_filesystem -lboost_system -lboost_regex -lboost_log
+drachtio_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost* -lpthread -lssl -lcrypto -lz 
 drachtio_CPPFLAGS += -DBOOST_LOG_DYN_LINK
-test_https_LDADD += -lboost_system
+test_https_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
 test_https_CPPFLAGS += -DBOOST_LOG_DYN_LINK
 endif
 
