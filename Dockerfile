@@ -18,13 +18,12 @@ RUN apt-get update \
   && rm -Rf /var/lib/apt/lists/* \
   && cd /usr/local/src \
   && cp drachtio-server/docker.drachtio.conf.xml /etc/drachtio.conf.xml \
+  && cp drachtio-server/entrypoint.sh / \
   && rm -Rf drachtio-server \
   && cd /usr/local/bin \
   && rm -f timer ssltest parser uri_test test_https test_asio_curl
 
 VOLUME ["/config"]
-
-COPY ./entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
 
