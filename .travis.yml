@@ -1,20 +1,39 @@
 language: cpp
-compiler:
-  - gcc
-  - clang
-dist: trusty
-sudo: required
+
+matrix:
+  include:
+    - os: linux
+      compiler:
+        - gcc
+      dist: trusty
+      sudo: required
+    - os: linux
+      compiler:
+        - clang
+      dist: trusty
+      sudo: required
+    - os: osx
+      osx_image: xcode9.1
+
 # Change this to your needs
 script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version
 
 # Handle git submodules yourself
 git:
     submodules: false
+
 # Use sed to replace the SSH URL with the public URL, then initialize submodules
 before_install:
-    - sudo apt-get -qq update
-    - sudo apt-get install -y libcurl4-openssl-dev
-    - curl-config --version
-    - curl-config --libs 
-    - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
-    - git submodule update --init --recursive
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libcurl4-openssl-dev; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --version; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --libs; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install openssl; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gnu-sed; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then gsed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export LDFLAGS="-L/usr/local/opt/openssl/lib $LDFLAGS"; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CXXFLAGS="-I/usr/local/opt/openssl/include $CXXFLAGS"; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CFLAGS="-I/usr/local/opt/openssl/include $CFLAGS"; fi
+    - git submodule update --init --recursive;
