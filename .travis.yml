@@ -34,4 +34,3 @@ before_install:
     - make
     - ./drachtio --version 
     - node --version
-    - sipp -v
