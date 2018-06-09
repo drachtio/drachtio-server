@@ -12,7 +12,6 @@ git:
 
 before_install:
     - echo `pwd`
-    - cwd=$(pwd)
     - sudo apt-get -qq update
     - sudo apt-get install gcc g++ build-essential make git autoconf curl libz-dev ncurses-dev libpcap-dev
     - sudo chmod 0777 /usr/local/src 
@@ -25,8 +24,7 @@ before_install:
     - sudo apt-get install -y nodejs
     - curl-config --version
     - curl-config --libs 
-    - echo `pwd`
-    - cd $(pwd)
+    - cd $TRAVIS_BUILD_DIR
     - echo `pwd`
     - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
     - git submodule update --init --recursive
