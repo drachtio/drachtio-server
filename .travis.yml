@@ -11,7 +11,6 @@ git:
     submodules: false
 
 before_install:
-    - echo `pwd`
     - sudo apt-get -qq update
     - sudo apt-get install gcc g++ build-essential make git autoconf curl libz-dev ncurses-dev libpcap-dev
     - sudo chmod 0777 /usr/local/src 
@@ -25,7 +24,6 @@ before_install:
     - curl-config --version
     - curl-config --libs 
     - cd $TRAVIS_BUILD_DIR
-    - echo `pwd`
     - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
     - git submodule update --init --recursive
     - ./bootstrap.sh
@@ -34,3 +32,4 @@ before_install:
     - make
     - ./drachtio --version 
     - node --version
+    - cd $TRAVIS_BUILD_DIR
