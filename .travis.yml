@@ -6,7 +6,7 @@ dist: trusty
 sudo: required
 
 script: 
-    - cd  $TRAVIS_BUILD_DIR/test
+    - cd  ${TRAVIS_BUILD_DIR}/test
     - npm install
     - npm test
 
@@ -35,3 +35,4 @@ before_install:
     - make
     - ./drachtio --version 
     - node --version
+    - sudo npm install -g npm
