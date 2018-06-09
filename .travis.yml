@@ -5,7 +5,10 @@ compiler:
 dist: trusty
 sudo: required
 
-script: cd test && npm test
+script: 
+    - cd  $TRAVIS_BUILD_DIR/test
+    - npm install
+    - npm test
 
 git:
     submodules: false
@@ -32,4 +35,3 @@ before_install:
     - make
     - ./drachtio --version 
     - node --version
-    - cd $TRAVIS_BUILD_DIR
