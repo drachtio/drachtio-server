@@ -24,7 +24,7 @@ before_install:
     - ./build.sh  --with-rtpstream --with-pcap 
     - sudo make install
     - sudo apt-get install -y libcurl4-openssl-dev
-    - sudo curl -sL https://deb.nodesource.com/setup_8.x | bash -
+    - sudo curl -sL https://deb.nodesource.com/setup_8.x | sudo bash -
     - sudo apt-get install -y nodejs
     - curl-config --version
     - curl-config --libs 
