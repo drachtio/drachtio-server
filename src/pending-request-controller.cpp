@@ -67,6 +67,14 @@ namespace drachtio {
   PendingRequestController::~PendingRequestController() {
   }
 
+  bool PendingRequestController::getMethodForRequest(const string& transactionId, string& method) {
+    boost::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
+    if (!p) return false;
+
+    method = p->getMethodName();
+    return true;
+  }
+
   int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) {
     assert(sip->sip_request->rq_method != sip_method_invite || NULL == sip->sip_to->a_tag ) ; //new INVITEs only
 

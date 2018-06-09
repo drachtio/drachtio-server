@@ -28,6 +28,7 @@ THE SOFTWARE.
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 
 
 namespace drachtio {
@@ -61,9 +62,11 @@ namespace drachtio {
     void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
     void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
 
-		bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
+	bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
 
-		bool isOutbound(void) const { return !m_transactionId.empty(); }
+	bool isOutbound(void) const { return !m_transactionId.empty(); }
+
+    bool hasTag(const char* tag) const { return m_tags.find(tag) != m_tags.end(); }
 
 	protected:
 
@@ -83,21 +86,24 @@ namespace drachtio {
 		ClientController& m_controller ;
 		state m_state ;
 
-    boost::asio::ip::tcp::socket m_sock;
-    boost::array<char, 8192> m_readBuf ;
-    boost::circular_buffer<char> m_buffer ;
-    unsigned int m_nMessageLength ;
-    string m_strAppName ;
+        boost::asio::ip::tcp::socket m_sock;
+        boost::array<char, 8192> m_readBuf ;
+        boost::circular_buffer<char> m_buffer ;
+        unsigned int m_nMessageLength ;
+        string m_strAppName ;
 
-    // outbound connections
-    string m_transactionId ;
-    string m_host ;
-    string m_port ;
-	} ;
+        typedef boost::unordered_set<string> set_of_tags ;
+        set_of_tags m_tags;
 
-	typedef boost::shared_ptr<Client> client_ptr;
-	typedef boost::weak_ptr<Client> client_weak_ptr;
- 	  
+        // outbound connections
+        string m_transactionId ;
+        string m_host ;
+        string m_port ;
+    	} ;
+
+    	typedef boost::shared_ptr<Client> client_ptr;
+    	typedef boost::weak_ptr<Client> client_weak_ptr;
+
 }
 
 

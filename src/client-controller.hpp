@@ -52,7 +52,7 @@ namespace drachtio {
 
     void join( client_ptr client ) ;
     void leave( client_ptr client ) ;
-    void outboundFailed( client_ptr client, const string& transactionId ) ;
+    void outboundFailed( const string& transactionId ) ;
     void outboundReady( client_ptr client, const string& transactionId ) ;
 
     void addNamedService( client_ptr client, string& strAppName ) ;
@@ -68,13 +68,14 @@ namespace drachtio {
     void removeNetTransaction( const string& transactionId ) ;
     void removeApiRequest( const string& clientMsgId ) ;
 
-    client_ptr selectClientForRequestOutsideDialog( const char* keyword ) ;
+    client_ptr selectClientForRequestOutsideDialog( const char* keyword, const char* tag = NULL ) ;
     client_ptr findClientForDialog( const string& dialogId ) ;
     client_ptr findClientForAppTransaction( const string& transactionId ) ;
     client_ptr findClientForNetTransaction( const string& transactionId ) ;
     client_ptr findClientForApiRequest( const string& clientMsgId ) ;
 
     void makeOutboundConnection( const string& transactionId, const string& host, const string& port ) ;
+    void selectClientForTag(const string& transactionId, const string& tag);
 
     bool sendRequestInsideDialog( client_ptr client, const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) ;
     bool sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId, string& routeUrl ) ;

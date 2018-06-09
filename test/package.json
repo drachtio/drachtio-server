@@ -1,0 +1,23 @@
+{
+  "name": "drachtio-server-tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node ./index.js | ./node_modules/.bin/tap-spec"
+  },
+  "author": "Dave Horton",
+  "license": "MIT",
+  "dependencies": {
+    "async": "^2.6.0",
+    "debug": "^3.1.0",
+    "express": "4.16.3",
+    "drachtio-srf": "davehorton/drachtio-srf#tags"
+  },
+  "devDependencies": {
+    "blue-tape": "^1.0.0",
+    "tap-dot": "^1.0.5",
+    "tap-spec": "^5.0.0",
+    "tape": "^4.9.1"
+  }
+}

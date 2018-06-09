@@ -120,7 +120,8 @@ namespace drachtio {
       return p ;
    }
 
-    void timeout(const string& transactionId) ;
+  bool getMethodForRequest(const string& transactionId, string& method);
+  void timeout(const string& transactionId) ;
 
   protected:
 

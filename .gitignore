@@ -34,8 +34,12 @@ tests
 *.a
 
 *.tar.gz
+*.old
 /build/
 
+test/.eslintignore
+test/.eslintrc.json
+node_modules
 
 AUTHORS
 COPYING

@@ -4,16 +4,19 @@ compiler:
   - clang
 dist: trusty
 sudo: required
-# Change this to your needs
-script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version
 
-# Handle git submodules yourself
+script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version && npm test
+
 git:
     submodules: false
-# Use sed to replace the SSH URL with the public URL, then initialize submodules
+
 before_install:
     - sudo apt-get -qq update
+    - sudo apt-get install gcc g++ build-essential make git autoconf curl libz-dev ncurses-dev libpcap-dev
+    - sudo chmod 0777 /usr/local/src && cd /usr/local/src && git clone https://github.com/SIPp/sipp.git && cd sipp && git checkout v3.5.1 && ./build.sh  --with-rtpstream --with-pcap && make install
     - sudo apt-get install -y libcurl4-openssl-dev
+    - curl -sL https://deb.nodesource.com/setup_8.x | bash -
+    - sudo apt-get install -y nodejs
     - curl-config --version
     - curl-config --libs 
     - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules

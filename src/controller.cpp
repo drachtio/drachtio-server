@@ -1456,7 +1456,11 @@ namespace drachtio {
 
     DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
       host << ":" << port ;
-    m_pClientController->makeOutboundConnection( transactionId, host, port ) ;
+    m_pClientController->makeOutboundConnection(transactionId, host, port) ;
+  }
+
+  void DrachtioController::selectInboundConnectionForTag(const string& transactionId, const string& tag) {
+    m_pClientController->selectClientForTag(transactionId, tag);
   }
 
   // handling responses from http route lookups
@@ -1576,11 +1580,17 @@ namespace drachtio {
       }
       else if( 0 == strcmp("route", actionText)) {
         json_t* uri = json_object_get(data, "uri") ;
+        json_t* tag = json_object_get(data, "tag") ;
 
-        if( !uri || !json_is_string(uri) ) {
+        if(uri && json_is_string(uri)) {
+            processOutboundConnectionInstruction(transactionId, json_string_value(uri));
+        }
+        else if(tag && json_is_string(tag)) {
+            processTaggedConnectionInstruction(transactionId, json_string_value(tag));
+        }
+        else {
           throw std::runtime_error("'uri' is missing or is not a string") ;  
         }
-        processOutboundConnectionInstruction(transactionId, json_string_value(uri));
       }
       else {
         msg << "DrachtioController::processRoutingInstructions - invalid 'action' attribute value '" << actionText << 
@@ -1649,8 +1659,13 @@ namespace drachtio {
   }
 
   void DrachtioController::processOutboundConnectionInstruction(const string& transactionId, const char* uri) {
-    string routeUri = uri ;
-    makeOutboundConnection(transactionId, routeUri);
+    string val = uri ;
+    makeOutboundConnection(transactionId, val);
+  }
+
+  void DrachtioController::processTaggedConnectionInstruction(const string& transactionId, const char* tag) {
+    string val = tag ;
+    selectInboundConnectionForTag(transactionId, val);
   }
 
 

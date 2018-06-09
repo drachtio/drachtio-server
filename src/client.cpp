@@ -85,7 +85,7 @@ namespace drachtio {
 
     }
     else if( endpointIterator != tcp::resolver::iterator() ) {
-      DR_LOG(log_debug) << "Client::connect_handler - failed to connected to " <<
+      DR_LOG(log_debug) << "Client::connect_handler - failed to connecte to " <<
         this->const_socket().remote_endpoint().address().to_string() << ":" << 
         this->const_socket().remote_endpoint().port() ;
       m_sock.close() ;
@@ -96,7 +96,7 @@ namespace drachtio {
     else {
       // final failure
       DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
-      m_controller.outboundFailed(shared_from_this(), m_transactionId);
+      m_controller.outboundFailed(m_transactionId);
     }
   }
 
@@ -261,6 +261,15 @@ read_again:
         }
         else if( 0 == tokens[1].compare("authenticate") ) {
             string secret = tokens[2] ;
+            if (tokens.size() > 3) {
+                string tags = tokens[3];
+                vector<string> strs;
+                boost::split(strs, tags, boost::is_any_of(","));
+                for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+                    m_tags.insert(*it);
+                }
+                DR_LOG(log_info) << "Client::processAuthentication - added tags " << tags ;
+            }
             DR_LOG(log_info) << "Client::processAuthentication - validating secret " << secret  ;
             if( !theOneAndOnlyController->isSecret( secret ) ) {
                 DR_LOG(log_info) << "Client::processAuthentication - secret validation failed: " << secret  ;
