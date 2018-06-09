@@ -5,13 +5,7 @@ compiler:
 dist: trusty
 sudo: required
 
-script: 
-        - ./bootstrap.sh
-        - mkdir build && cd build
-        - ../configure
-        - make
-        - ./drachtio --version 
-        -   npm test
+script: cd test && npm test
 
 git:
     submodules: false
@@ -19,7 +13,8 @@ git:
 before_install:
     - sudo apt-get -qq update
     - sudo apt-get install gcc g++ build-essential make git autoconf curl libz-dev ncurses-dev libpcap-dev
-    - sudo chmod 0777 /usr/local/src && cd /usr/local/src
+    - sudo chmod 0777 /usr/local/src 
+    - cd /usr/local/src
     - git clone https://github.com/SIPp/sipp.git && cd sipp && git checkout v3.5.1 
     - ./build.sh  --with-rtpstream --with-pcap 
     - sudo make install
@@ -28,5 +23,13 @@ before_install:
     - sudo apt-get install -y nodejs
     - curl-config --version
     - curl-config --libs 
+    - cd -
     - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
     - git submodule update --init --recursive
+    - ./bootstrap.sh
+    - mkdir build && cd build
+    - ../configure
+    - make
+    - ./drachtio --version 
+    - node --version
+    - sipp -v
