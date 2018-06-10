@@ -20,5 +20,16 @@ app.get('/', (req, res) => {
     });
   }
 
+  let arr = /outbound-(\d+)/.exec(req.query.uriUser);
+  if (arr) {
+    return   res.json({
+      action: 'route',
+      data: {
+        uri: `127.0.0.1:${parseInt(arr[1])}`
+      }
+    });
+  }
+  
+
   res.json({action: 'reject', data: {status: 500}});
 });

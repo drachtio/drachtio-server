@@ -54,11 +54,15 @@ obj.stop = () => {
   assert(router);
 
   return new Promise((resolve, reject) => {
+    debug('killing drachtio');
     drachtio.kill();
+    debug('killing router');
     router.kill();
     drachtio = null;
     router = null;
+    debug('waiting 200ms to end');
     setTimeout(() => {
+      debug('resolving promise');
       resolve();
     }, 200);
   });

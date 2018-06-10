@@ -24,6 +24,13 @@ class App extends Emitter {
     });
   }
 
+  listen(port) {
+    debug(`listening on port ${port}`);
+    return new Promise((resolve, reject) => {
+      this.srf.listen({port, secret: 'cymru'}, () => resolve());
+    });
+  }
+
   reject(code, headers) {
     this.srf.invite((req, res) => {
       res.send(code, {headers});
@@ -57,7 +64,10 @@ class App extends Emitter {
               .on('modify', () => { debug('dialog modify');})
               .on('hold', () => { debug('dialog hold');})
               .on('unhold', () => { debug('dialog unhold');})
-              .on('destroy', () => { debug('received BYE from uac');});
+              .on('destroy', () => {
+                this.srf.endSession(req);
+                debug('received BYE from uac');
+              });
           })
           .catch((err) => {
             console.error(`Uas: failed to connect: ${err}`);
