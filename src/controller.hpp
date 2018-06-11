@@ -166,6 +166,8 @@ namespace drachtio {
     RequestRouter& getRequestRouter(void) { return m_requestRouter; }
 
     void makeOutboundConnection(const string& transactionId, const string& uri);
+    void makeConnectionForTag(const string& transactionId, const string& tag);
+    void selectInboundConnectionForTag(const string& transactionId, const string& tag);
 
 	private:
 
@@ -186,6 +188,7 @@ namespace drachtio {
     void processProxyInstruction(const string& transactionId, bool recordRoute, bool followRedirects, 
         bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string>& vecDestination) ;
     void processOutboundConnectionInstruction(const string& transactionId, const char* uri) ;
+    void processTaggedConnectionInstruction(const string& transactionId, const char* tag) ;
 
     void finishRequest( const string& transactionId, const boost::system::error_code& err, 
         unsigned int status_code, const string& body) ;

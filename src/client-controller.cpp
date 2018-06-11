@@ -75,9 +75,9 @@ namespace drachtio {
         m_clients.erase( client ) ;
         DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
-    void ClientController::outboundFailed( client_ptr client, const string& transactionId ) {
+    void ClientController::outboundFailed( const string& transactionId ) {
       string headers, body;
-      if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 480 Temporarily Unavailable", 
+      if((!m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 480 Temporarily Unavailable", 
         headers, body) )) {
         DR_LOG(log_error) << "ClientController::outboundFailed - error sending 480 for transactionId: " << transactionId ;
       }
@@ -85,8 +85,8 @@ namespace drachtio {
     void ClientController::outboundReady( client_ptr client, const string& transactionId ) {
       int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
       if( rc ) {
-        DR_LOG(log_error) << "ClientController::outboundFailed - error routing over outbound connection transactionId: " << transactionId ;
-        return outboundFailed( client, transactionId);
+        DR_LOG(log_error) << "ClientController::outboundReady - error routing over outbound connection transactionId: " << transactionId ;
+        return outboundFailed( transactionId);
       }
     }
 
@@ -104,10 +104,32 @@ namespace drachtio {
     if(!ec) session->start() ;
     start_accept(); 
   }
+
   void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
     client_ptr new_session( new Client( m_ioservice, transactionId, host, port, *this ) ) ;
     new_session->async_connect() ;
   }
+
+  void ClientController::selectClientForTag(const string& transactionId, const string& tag) {
+    string method;
+    if (!m_pController->getPendingRequestController()->getMethodForRequest(transactionId, method)) {
+        DR_LOG(log_error) << "ClientController::selectClientForTag - unable to find transactionId: " << transactionId ;
+        return outboundFailed(transactionId);        
+    }
+
+    DR_LOG(log_debug) << "ClientController::selectClientForTag - searching for client to handle " << method << " with tag " << tag;
+    client_ptr client = selectClientForRequestOutsideDialog(method.c_str(), tag.c_str());
+    if (!client) {
+        DR_LOG(log_error) << "ClientController::selectClientForTag - no clients registered for tag: " << tag ;
+        return outboundFailed(transactionId);                
+    }
+    int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
+    if (rc) {
+        DR_LOG(log_error) << "ClientController::selectClientForTag - error routing request to client: " << transactionId ;
+        return outboundFailed(transactionId);
+    }
+  }
+
 
     bool ClientController::wants_requests( client_ptr client, const string& verb ) {
         RequestSpecifier spec( client ) ;
@@ -123,16 +145,16 @@ namespace drachtio {
         return true ;  
     }
 
-    client_ptr ClientController::selectClientForRequestOutsideDialog( const char* keyword ) {
+    client_ptr ClientController::selectClientForRequestOutsideDialog(const char* keyword, const char* tag) {
         string method_name = keyword ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
 
-        /* round robin select a client that has registered for this request type */
+        /* round robin select a client that has registered for this request type (and, optionally, tag)*/
         boost::lock_guard<boost::mutex> l( m_lock ) ;
         client_ptr client ;
         string matchId ;
-        pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range( method_name ) ;
-        unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
+        pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range(method_name) ;
+        unsigned int nPossibles = std::distance(pair.first, pair.second) ;
         if( 0 == nPossibles ) {
             if( 0 == method_name.find("cdr") ) {
                 DR_LOG(log_debug) << "No connected clients found to handle incoming " << method_name << " request"  ;
@@ -144,34 +166,42 @@ namespace drachtio {
         }
 
         unsigned int nOffset = 0 ;
-        map_of_request_type_offsets::const_iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
+        map_of_request_type_offsets::const_iterator itOffset = m_map_of_request_type_offsets.find(method_name) ;
         if( m_map_of_request_type_offsets.end() != itOffset ) {
             unsigned int i = itOffset->second;
             if( i < nPossibles ) nOffset = i ;
             else nOffset = 0;
         }
-        DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - there are " << nPossibles << 
+        DR_LOG(log_debug) << "ClientController::selectClientForRequestOutsideDialog - there are " << nPossibles << 
             " possible clients, we are starting with offset " << nOffset  ;
 
-        m_map_of_request_type_offsets.erase( itOffset ) ;
+        m_map_of_request_type_offsets.erase(itOffset) ;
         m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(method_name, nOffset + 1)) ;
 
         unsigned int nTries = 0 ;
+        map_of_request_types::iterator it = pair.first ;
+        std::advance(it, nOffset) ;
         do {
-            map_of_request_types::iterator it = pair.first ;
-            std::advance( it, nOffset) ;
+            if (it == pair.second) it = pair.first;
+    
             RequestSpecifier& spec = it->second ;
             client = spec.client() ;
-            if( !client ) {
+            if (!client) {
                 DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Removing disconnected client while iterating"  ;
-                m_request_types.erase( it ) ;
-                pair = m_request_types.equal_range( method_name ) ;
-                nOffset = 0 ;
-                nPossibles = std::distance( pair.first, pair.second ) ;
+                it = m_request_types.erase( it ) ;
+                //pair = m_request_types.equal_range(method_name) ;
+                //nOffset = 0 ;
+                //nPossibles = std::distance( pair.first, pair.second ) ;
+            }
+            else if (tag && !client->hasTag(tag)) {
+                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - client at offset " << nOffset << " does not support tag " << tag;
+                client = NULL;
+                it++;
             }
             else {
                 DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Selected client at offset " << nOffset  ;                
             }
+            nPossibles--;
         } while( !client && nPossibles > 0 ) ;
 
         if( !client ) {

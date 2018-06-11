@@ -1633,7 +1633,7 @@ namespace drachtio {
         m_mapOrq2RIP.insert( mapOrq2RIP::value_type(orq,rip)) ;
     }
     bool SipDialogController::findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) {
-        DR_LOG(log_debug) << "SipDialogController::findRIPByOrq adding orq " << std::hex << (void*) orq  ;
+        DR_LOG(log_debug) << "SipDialogController::findRIPByOrq orq " << std::hex << (void*) orq  ;
         boost::lock_guard<boost::mutex> lock(m_mutex) ;
         mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
         if( m_mapOrq2RIP.end() == it ) return false ;
