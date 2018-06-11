@@ -12,7 +12,7 @@
     "async": "^2.6.0",
     "debug": "^3.1.0",
     "express": "4.16.3",
-    "drachtio-srf": "davehorton/drachtio-srf#tags"
+    "drachtio-srf": "^4.3.0"
   },
   "devDependencies": {
     "blue-tape": "^1.0.0",
