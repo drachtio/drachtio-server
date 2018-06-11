@@ -36,6 +36,7 @@ depcomp
 
 test/.eslintignore
 test/.eslintrc.json
+test/package-lock.json
 node_modules
 
 AUTHORS
