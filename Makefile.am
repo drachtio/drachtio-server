@@ -39,12 +39,14 @@ drachtio_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcd
 timer_LDADD += -lrt
 parser_LDADD += -lrt
 test_https_LDADD += -lrt -lpthread ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
+make_BOOST_CMD = cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage 
 endif
-if OSX
-drachtio_LDADD += -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_63_0/stage/lib/libboost* -lpthread -lssl -lcrypto -lz 
-drachtio_CPPFLAGS += -DBOOST_LOG_DYN_LINK -I/usr/local/opt/openssl/include
-test_https_LDADD += ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a -L/usr/local/opt/openssl/lib
-test_https_CPPFLAGS += -DBOOST_LOG_DYN_LINK -I/usr/local/opt/openssl/include
+if OSX 
+drachtio_LDADD += -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz 
+drachtio_CPPFLAGS += -I/usr/local/opt/openssl/include
+test_https_LDADD += -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a
+test_https_CPPFLAGS += -I/usr/local/opt/openssl/include
+make_BOOST_CMD = cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-toolset=darwin --with-libraries=thread,system,log,regex,filesystem && ./b2 stage && rm -f ./stage/lib/*.dylib
 endif
 
 BUILT_SOURCES=${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a
@@ -54,9 +56,8 @@ clean-local:
 	cd ${srcdir}/deps/sofia-sip && make clean  
 	cd ${srcdir}/deps/jansson-2.10 && make clean  
 
-
 ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a:
-	cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
+	$(make_BOOST_CMD)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure --with-glib=no && $(MAKE)
