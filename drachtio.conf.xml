@@ -38,7 +38,7 @@
             example responses:
 
             {
-                "reject":
+                "action": "reject":
                 "data": {
                     "status": 503,
                     "reason": "Max Calls Exceeded"
@@ -46,7 +46,7 @@
             }
 
             {
-                "redirect":
+                "action": "redirect":
                 "data": {
                     "contacts": [
                         "sip:foo@bar.com"
@@ -55,7 +55,7 @@
             }
 
             {
-                "proxy":
+                "action": "proxy":
                 "data": {
                     "destination": [
                         "sip:foo@bar.com"
@@ -65,9 +65,16 @@
             }
 
             {
-                "route":
+                "action": "route":
                 "data": {
                     "url": "call-recording.default.svc.cluster.local:4000"
+                }
+            }
+
+            {
+                "action": "route":
+                "data": {
+                    "tag": "my-conferencing-app"
                 }
             }
 
