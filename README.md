@@ -16,6 +16,8 @@ An ansible role can be found [here](https://github.com/davehorton/ansible-role-d
 
 ## Building from source
 
+*Please use the develop branch when building from source, as it is most up to date*
+
 > Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project. 
 
 > Note for OSX: Install and tell the compiler to use homebrew's openssl
@@ -28,7 +30,7 @@ export CFLAGS="-I/usr/local/opt/openssl/include $CFLAGS"
 
 After installing libcurl, do as follows:
 ```
-git clone --depth=50 --branch=master git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
 ./bootstrap.sh
 mkdir build && cd $_
