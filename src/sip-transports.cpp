@@ -320,17 +320,22 @@ namespace drachtio {
    * 
    * @param config - SipTransport that was used to create the currently unassigned tport_t* 
    */
-  void SipTransport::addTransports(boost::shared_ptr<SipTransport> config) {
+  void SipTransport::addTransports(boost::shared_ptr<SipTransport> config, unsigned int mtu) {
 
 
     tport_t* tp = nta_agent_tports(theOneAndOnlyController->getAgent());
     m_masterTransport = boost::make_shared<SipTransport>( config ) ;
     m_masterTransport->setTport(tp) ;
 
+
     while (NULL != (tp = tport_next(tp) )) {
       const tp_name_t* tpn = tport_name(tp) ;
       string desc ;
       getTransportDescription( tp, desc ); 
+
+      if (0 == strcmp(tpn->tpn_proto, "udp") && mtu > 0) {
+        tport_set_params(tp, TPTAG_MTU(mtu), TAG_END());   
+      }
 
       mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
       if (it == m_mapTport2SipTransport.end()) {
@@ -533,8 +538,18 @@ namespace drachtio {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       boost::shared_ptr<SipTransport> p = it->second ;
       string desc ;
+
       p->getDescription(desc, false) ;
+
+      if (0 == strcmp(p->getProtocol(), "udp")) {
+        unsigned int mtuSize = 0;
+        const tport_t* tp = p->getTport();
+        tport_get_params(tp, TPTAG_MTU_REF(mtuSize), TAG_END());
+        DR_LOG(log_info) << "SipTransport::logTransports - " << desc << ", mtu size: " << mtuSize;
+      }
+      else {
         DR_LOG(log_info) << "SipTransport::logTransports - " << desc ;
+      }
     }
   }
 

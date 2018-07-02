@@ -129,6 +129,9 @@
         </tls>
         -->
 
+        <!-- if you want to increase the default mtu size for udp packets; stack will force tcp when sending larger packets
+        <mtu-size>4096</mtu-size>
+        -->
 
         <!-- uncommenting this will cause all outbound new requests (i.e. requests outside of a dialog) to go through the specified proxy -->
         <!--

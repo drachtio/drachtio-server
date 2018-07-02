@@ -81,7 +81,7 @@ namespace drachtio {
 
     uint32_t getOctetMatchCount(const string& address);
 
-    static void addTransports(boost::shared_ptr<SipTransport> config);
+    static void addTransports(boost::shared_ptr<SipTransport> config, unsigned int mtu);
     static boost::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
     static boost::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp") ;
     static void logTransports() ;

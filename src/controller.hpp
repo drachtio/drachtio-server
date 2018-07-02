@@ -199,10 +199,13 @@ namespace drachtio {
   	boost::shared_mutex m_mutexConfig ; 
   	bool m_bLoggingInitialized ;
   	string m_configFilename ;
-          
+
+    // command-line option overrides
     string  m_user ;    //system user to run as
-    unsigned int m_adminPort; //if provided on command-line overrides config file setting
-    string m_sipContact; //if provided on command line overrides config file setting
+    unsigned int m_adminPort; 
+    string m_sipContact; 
+    string m_tlsKeyFile, m_tlsCertFile, m_tlsChainFile;
+    unsigned int m_mtu;
 
     string m_publicAddress ;
 

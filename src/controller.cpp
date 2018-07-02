@@ -264,7 +264,7 @@ namespace drachtio {
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
-        m_nHomerPort(0), m_nHomerId(0) {
+        m_nHomerPort(0), m_nHomerId(0), m_mtu(0) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -301,6 +301,7 @@ namespace drachtio {
         
     }
     void DrachtioController::logConfig() {
+        DR_LOG(log_notice) << "Starting drachtio version " << DRACHTIO_VERSION;
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
 
         vector<string> routes ;
@@ -368,13 +369,17 @@ namespace drachtio {
                 {"stdout",    no_argument, 0, 'b'},
                 {"homer",    required_argument, 0, 'y'},
                 {"homer-id",    required_argument, 0, 'z'},
+                {"key-file", required_argument, 0, 'A'},
+                {"cert-file", required_argument, 0, 'B'},
+                {"chain-file", required_argument, 0, 'C'},
+                {"mtu", required_argument, 0, 'D'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -391,6 +396,18 @@ namespace drachtio {
                     if (optarg)
                         cout << " with arg " << optarg;
                     cout << endl ;
+                    break;
+                case 'A':
+                    m_tlsKeyFile = optarg;
+                    break;
+                case 'B':
+                    m_tlsCertFile = optarg;
+                    break;
+                case 'C':
+                    m_tlsChainFile = optarg;
+                    break;
+                case 'D':
+                    m_mtu = ::atoi(optarg);
                     break;
                 case 'a':
                     httpUrl = optarg ;
@@ -558,6 +575,8 @@ namespace drachtio {
         cerr << endl << "Start drachtio sip engine" << endl << endl ;
         cerr << "Options:" << endl << endl ;
         cerr << "    --daemon           Run the process as a daemon background process" << endl ;
+        cerr << "    --cert-file        TLS certificate file" << endl ;
+        cerr << "    --chain-file       TLS certificate chain file" << endl ;
         cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
         cerr << "    --dns-name         specifies a DNS name that resolves to the local host, if any" << endl ;
         cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
@@ -565,8 +584,10 @@ namespace drachtio {
         cerr << "    --homer-id         homer agent id to use in HEP messages to identify this server" << endl ;
         cerr << "    --http-handler     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
         cerr << "    --http-method      method to use with http-handler: GET (default) or POST" << endl ;
+        cerr << "    --key-file         TLS key file" << endl ;
         cerr << "-l  --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
         cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
+        cerr << "    --mtu              max packet size for UDP (default: system-defined mtu)" << endl ;
         cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
         cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
         cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
@@ -783,8 +804,29 @@ namespace drachtio {
             DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
         }
 
+        // tls files
         string tlsKeyFile, tlsCertFile, tlsChainFile ;
         bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
+        if (!m_tlsKeyFile.empty()) tlsKeyFile = m_tlsKeyFile;
+        if (!m_tlsCertFile.empty()) tlsCertFile = m_tlsCertFile;
+        if (!m_tlsChainFile.empty()) tlsChainFile = m_tlsChainFile;
+        if (!hasTlsFiles && !tlsKeyFile.empty() && !tlsCertFile.empty()) hasTlsFiles = true;
+
+        if (hasTlsFiles) {
+            DR_LOG(log_notice) << "DrachtioController::run tls key file:         " << tlsKeyFile;
+            DR_LOG(log_notice) << "DrachtioController::run tls certificate file: " << tlsCertFile;
+            if (!tlsChainFile.empty()) DR_LOG(log_notice) << "DrachtioController::run tls chain file:       " << tlsChainFile;
+        }
+
+        // mtu
+        if (!m_mtu) m_mtu = m_Config->getMtu();
+        if (m_mtu > 0 && m_mtu < 1000) {
+            DR_LOG(log_notice) << "DrachtioController::run invalid mtu size provided, must be > 1000: " << m_mtu;
+            throw runtime_error("invalid mtu setting");
+        }
+        else if (m_mtu > 0) {
+            DR_LOG(log_notice) << "DrachtioController::run mtu size for udp packets: " << m_mtu;            
+        }
         
         string captureServer;
         string captureString;
@@ -856,27 +898,27 @@ namespace drachtio {
          
          /* create our agent */
         bool tlsTransport = string::npos != m_vecTransports[0]->getContact().find("sips") || string::npos != m_vecTransports[0]->getContact().find("tls") ;
-    		m_nta = nta_agent_create( m_root,
-             URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
-             stateless_callback,                            /* no callback function */
-             this,                                      /* therefore no context */
-             TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
-             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-             TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-             TAG_IF( tlsTransport &&hasTlsFiles, 
-                TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
-             NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
-             NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
-             TAG_NULL(),
-             TAG_END() ) ;
+		m_nta = nta_agent_create( m_root,
+         URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
+         stateless_callback,                            /* no callback function */
+         this,                                      /* therefore no context */
+         TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+         TAG_IF( tlsTransport &&hasTlsFiles, 
+            TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+         NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
+         NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
+         TAG_NULL(),
+         TAG_END() ) ;
         
         if( NULL == m_nta ) {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
 
-        SipTransport::addTransports(m_vecTransports[0]) ;
+        SipTransport::addTransports(m_vecTransports[0], m_mtu) ;
 
         for( vector< boost::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
             string contact = (*it)->getContact() ;
@@ -898,7 +940,7 @@ namespace drachtio {
                  TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles && !tlsChainFile.empty(), TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                  TAG_IF( tlsTransport &&hasTlsFiles, 
                     TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
                  TAG_NULL(),
@@ -908,7 +950,7 @@ namespace drachtio {
                 DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
                 return ;            
             }
-            SipTransport::addTransports(*it) ;
+            SipTransport::addTransports(*it, m_mtu) ;
         }
 
         SipTransport::logTransports() ;

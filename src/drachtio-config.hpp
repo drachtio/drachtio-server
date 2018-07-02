@@ -62,6 +62,8 @@ namespace drachtio {
         severity_levels getLoglevel() ;
         unsigned int getSofiaLogLevel(void) ;
 
+        unsigned int getMtu(void);
+
         unsigned int getAdminPort( string& address ) ;
 
         bool getRedisAddress( string& address, unsigned int& port ) const ;

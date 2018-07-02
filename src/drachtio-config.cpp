@@ -42,7 +42,7 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3) {
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -233,6 +233,8 @@ namespace drachtio {
                 string cdrs = pt.get<string>("drachtio.cdrs", "") ;
                 transform(cdrs.begin(), cdrs.end(), cdrs.begin(), ::tolower);
                 m_bGenerateCdrs = ( 0 == cdrs.compare("true") || 0 == cdrs.compare("yes") ) ;
+
+                m_mtu = pt.get<unsigned int>("drachtio.sip.udp-mtu", 0);
                 
                 fb.close() ;
                                                
@@ -350,7 +352,9 @@ namespace drachtio {
             return true;
         }
 
-
+        unsigned int getMtu() {
+            return m_mtu;
+        }
  
     private:
         
@@ -399,6 +403,7 @@ namespace drachtio {
         unsigned int m_captureServerPort;
         uint32_t m_captureServerAgentId ;
         unsigned int m_captureHepVersion ;
+        unsigned int m_mtu;
 
   } ;
     
@@ -469,5 +474,8 @@ namespace drachtio {
     }
     bool DrachtioConfig::getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version) {
         return m_pimpl->getCaptureServer(address, port, agentId, version);
+    }
+    unsigned int DrachtioConfig::getMtu() {
+        return m_pimpl->getMtu();
     }
 }
