@@ -52,7 +52,7 @@
         optional="true">
   </recv>
 
-  <recv response="480" optional="true">
+  <recv response="480">
   </recv>
 
 
