@@ -9,6 +9,7 @@ script:
     - cat package.json
     - npm install
     - npm test
+    - cat /tmp/drachtio.log
 
 git:
     submodules: false

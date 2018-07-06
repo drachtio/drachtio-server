@@ -12,7 +12,7 @@ app.get('/', (req, res) => {
   debug(`call-router: ${JSON.stringify(req.query)}`);
 
   if (['orange', 'red', 'blue', 'green', 'black'].includes(req.query.uriUser)) {
-    return   res.json({
+    return res.json({
       action: 'route',
       data: {
         tag: req.query.uriUser
@@ -22,7 +22,7 @@ app.get('/', (req, res) => {
 
   let arr = /outbound-(\d+)/.exec(req.query.uriUser);
   if (arr) {
-    return   res.json({
+    return res.json({
       action: 'route',
       data: {
         uri: `127.0.0.1:${parseInt(arr[1])}`
