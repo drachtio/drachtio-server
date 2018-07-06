@@ -38,6 +38,12 @@ class App extends Emitter {
     return this;
   }
 
+  proxy(dest) {
+    this.srf.invite((req, res) => {
+      this.srf.proxyRequest(req, dest, {recordRoute: true});
+    });
+  }
+
   accept(sdp, delay) {
     this.srf.invite((req, res) => {
 

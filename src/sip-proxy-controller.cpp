@@ -1209,6 +1209,9 @@ namespace drachtio {
                 return ;
             }
  
+            // some clients (e.g. Tandberg) "preload" a Route header on the initial request
+            sip_route_remove( msg, sip) ;
+
             int clients = pCore->startRequests() ;
 
             //check to make sure we got at least one request out

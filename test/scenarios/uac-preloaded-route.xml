@@ -32,6 +32,7 @@
       Call-ID: [call_id]
       CSeq: 1 INVITE
       Contact: sip:sipp@[local_ip]:[local_port]
+      Route: <sip:[service]@[remote_ip]:[remote_port];lr>
       Max-Forwards: 70
       Subject: Performance Test
       Content-Type: application/sdp
