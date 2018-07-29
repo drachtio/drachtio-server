@@ -35,19 +35,24 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = drachtio$(EXEEXT) timer$(EXEEXT) ssltest$(EXEEXT) \
-	parser$(EXEEXT)
-@LINUX_TRUE@am__append_1 = ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
+	parser$(EXEEXT) uri_test$(EXEEXT) test_https$(EXEEXT) \
+	test_asio_curl$(EXEEXT)
+@LINUX_TRUE@am__append_1 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
 @LINUX_TRUE@am__append_2 = -lrt
 @LINUX_TRUE@am__append_3 = -lrt
-@OSX_TRUE@am__append_4 = -lboost_thread -lboost_filesystem -lboost_system -lboost_regex -lboost_log
-@OSX_TRUE@am__append_5 = -DBOOST_LOG_DYN_LINK
+@LINUX_TRUE@am__append_4 = -lrt -lpthread ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
+@OSX_TRUE@am__append_5 = -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz 
+@OSX_TRUE@am__append_6 = -I/usr/local/opt/openssl/include
+@OSX_TRUE@am__append_7 = -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
+@OSX_TRUE@am__append_8 = -I/usr/local/opt/openssl/include
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(srcdir)/config.h.in \
 	$(top_srcdir)/configure AUTHORS COPYING ChangeLog INSTALL NEWS \
 	config.guess config.sub depcomp install-sh missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/libcurl.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
@@ -68,37 +73,62 @@ am_drachtio_OBJECTS = src/drachtio-main.$(OBJEXT) \
 	src/drachtio-sip-dialog-controller.$(OBJEXT) \
 	src/drachtio-sip-proxy-controller.$(OBJEXT) \
 	src/drachtio-pending-request-controller.$(OBJEXT) \
-	src/drachtio-redis-service.$(OBJEXT) \
 	src/drachtio-timer-queue.$(OBJEXT) src/drachtio-cdr.$(OBJEXT) \
-	src/drachtio-timer-queue-manager.$(OBJEXT)
+	src/drachtio-timer-queue-manager.$(OBJEXT) \
+	src/drachtio-sip-transports.$(OBJEXT) \
+	src/drachtio-request-handler.$(OBJEXT) \
+	src/drachtio-request-router.$(OBJEXT)
 drachtio_OBJECTS = $(am_drachtio_OBJECTS)
-@LINUX_TRUE@am__DEPENDENCIES_1 = ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a \
-@LINUX_TRUE@	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a \
-@LINUX_TRUE@	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a \
-@LINUX_TRUE@	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a \
-@LINUX_TRUE@	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a
-am__DEPENDENCIES_2 =
+@LINUX_TRUE@am__DEPENDENCIES_1 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+@LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
+@LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
+@LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
+@LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a
+@OSX_TRUE@am__DEPENDENCIES_2 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+@OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
+@OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
+@OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
+@OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a
 drachtio_DEPENDENCIES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
+	${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 am_parser_OBJECTS = src/parser-test_parser.$(OBJEXT)
 parser_OBJECTS = $(am_parser_OBJECTS)
+am__DEPENDENCIES_3 =
 parser_DEPENDENCIES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a \
-	$(am__DEPENDENCIES_2)
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a \
+	$(am__DEPENDENCIES_3)
 am_ssltest_OBJECTS = src/ssltest-ssltest.$(OBJEXT)
 ssltest_OBJECTS = $(am_ssltest_OBJECTS)
 ssltest_DEPENDENCIES =
+am_test_asio_curl_OBJECTS = src/test_asio_curl.$(OBJEXT)
+test_asio_curl_OBJECTS = $(am_test_asio_curl_OBJECTS)
+test_asio_curl_DEPENDENCIES =  \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
+am_test_https_OBJECTS = src/test_https-test_https.$(OBJEXT)
+test_https_OBJECTS = $(am_test_https_OBJECTS)
+@LINUX_TRUE@am__DEPENDENCIES_4 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
+@OSX_TRUE@am__DEPENDENCIES_5 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
+test_https_DEPENDENCIES = $(am__DEPENDENCIES_4) $(am__DEPENDENCIES_5)
 am_timer_OBJECTS = src/timer-test_timer.$(OBJEXT) \
 	src/timer-timer-queue.$(OBJEXT)
 timer_OBJECTS = $(am_timer_OBJECTS)
 timer_DEPENDENCIES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a \
-	$(am__DEPENDENCIES_2)
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
+	$(am__DEPENDENCIES_3)
+am_uri_test_OBJECTS = src/uri_test-test_uri_parser.$(OBJEXT)
+uri_test_OBJECTS = $(am_uri_test_OBJECTS)
+uri_test_DEPENDENCIES =  \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -109,9 +139,11 @@ CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
 SOURCES = $(drachtio_SOURCES) $(parser_SOURCES) $(ssltest_SOURCES) \
-	$(timer_SOURCES)
+	$(test_asio_curl_SOURCES) $(test_https_SOURCES) \
+	$(timer_SOURCES) $(uri_test_SOURCES)
 DIST_SOURCES = $(drachtio_SOURCES) $(parser_SOURCES) \
-	$(ssltest_SOURCES) $(timer_SOURCES)
+	$(ssltest_SOURCES) $(test_asio_curl_SOURCES) \
+	$(test_https_SOURCES) $(timer_SOURCES) $(uri_test_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -151,6 +183,8 @@ INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
+LIBCURL = @LIBCURL@
+LIBCURL_CPPFLAGS = @LIBCURL_CPPFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LTLIBOBJS = @LTLIBOBJS@
@@ -169,6 +203,7 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
+_libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -221,33 +256,45 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 MYVERSION = $(shell git describe)
-INCLUDES = -I/usr/local/include -I${srcdir}/deps/boost_1_63_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I$(srcdir)/deps/redisclient/src/redisclient
+INCLUDES = -I/usr/local/include -I${srcdir}/deps/boost_1_67_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson-2.10/src
 AM_LDFLAGS = -L/usr/local/lib 
 LDADD = -lboost_thread -lpthread -lssl -lcrypto -lz
-drachtio_SOURCES = src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/redis-service.cpp src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp
+drachtio_SOURCES = src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp src/sip-transports.cpp src/request-handler.cpp src/request-router.cpp
 drachtio_CPPFLAGS = -D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" \
-	$(am__append_5)
+	-std=c++11 -Wno-error=deprecated-declarations $(am__append_6)
 drachtio_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
-	-lpthread -lssl -lcrypto -lz $(am__append_1) $(am__append_4)
+	${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl \
+	-lpthread -lssl -lcrypto -lz $(am__append_1) $(am__append_5)
 timer_SOURCES = src/test_timer.cpp src/timer-queue.cpp
 timer_CPPFLAGS = -D_REENTRANT -DTEST
 timer_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
 	-lpthread $(am__append_2)
 parser_SOURCES = src/test_parser.cpp
 parser_CPPFLAGS = -D_REENTRANT -DTEST
 parser_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a \
-	${srcdir}/deps/boost_1_63_0/stage/lib/libboost_filesystem.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
+	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a \
 	-lpthread -lssl -lcrypto -lz $(am__append_3)
+uri_test_SOURCES = src/test_uri_parser.cpp
+uri_test_CPPFLAGS = -D_REENTRANT -DTEST
+uri_test_LDADD = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lz
 ssltest_SOURCES = src/ssltest.cpp
 ssltest_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0
 ssltest_LDADD = -lssl -lcrypto -lz
-BUILT_SOURCES = ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a 
+test_https_SOURCES = src/test_https.cpp
+test_https_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0 $(am__append_8)
+test_https_LDADD = -lssl -lcrypto -lz $(am__append_4) $(am__append_7)
+test_asio_curl_SOURCES = src/test_asio_curl.cpp
+ttest_asio_curl_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0
+test_asio_curl_LDADD = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a -lpthread -lcurl -lssl -lcrypto -lz
+@LINUX_TRUE@make_BOOST_CMD = cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
+@OSX_TRUE@make_BOOST_CMD = cd ${srcdir}/deps/boost_1_67_0 && ./bootstrap.sh --with-toolset=darwin --with-libraries=thread,system,log,regex,filesystem && ./b2 stage && rm -f ./stage/lib/*.dylib
+BUILT_SOURCES = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a
 all: $(BUILT_SOURCES) config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -367,13 +414,17 @@ src/drachtio-sip-proxy-controller.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/drachtio-pending-request-controller.$(OBJEXT):  \
 	src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
-src/drachtio-redis-service.$(OBJEXT): src/$(am__dirstamp) \
-	src/$(DEPDIR)/$(am__dirstamp)
 src/drachtio-timer-queue.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/drachtio-cdr.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/drachtio-timer-queue-manager.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/drachtio-sip-transports.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/drachtio-request-handler.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/drachtio-request-router.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 drachtio$(EXEEXT): $(drachtio_OBJECTS) $(drachtio_DEPENDENCIES) 
 	@rm -f drachtio$(EXEEXT)
@@ -388,6 +439,16 @@ src/ssltest-ssltest.$(OBJEXT): src/$(am__dirstamp) \
 ssltest$(EXEEXT): $(ssltest_OBJECTS) $(ssltest_DEPENDENCIES) 
 	@rm -f ssltest$(EXEEXT)
 	$(CXXLINK) $(ssltest_OBJECTS) $(ssltest_LDADD) $(LIBS)
+src/test_asio_curl.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+test_asio_curl$(EXEEXT): $(test_asio_curl_OBJECTS) $(test_asio_curl_DEPENDENCIES) 
+	@rm -f test_asio_curl$(EXEEXT)
+	$(CXXLINK) $(test_asio_curl_OBJECTS) $(test_asio_curl_LDADD) $(LIBS)
+src/test_https-test_https.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+test_https$(EXEEXT): $(test_https_OBJECTS) $(test_https_DEPENDENCIES) 
+	@rm -f test_https$(EXEEXT)
+	$(CXXLINK) $(test_https_OBJECTS) $(test_https_LDADD) $(LIBS)
 src/timer-test_timer.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/timer-timer-queue.$(OBJEXT): src/$(am__dirstamp) \
@@ -395,6 +456,11 @@ src/timer-timer-queue.$(OBJEXT): src/$(am__dirstamp) \
 timer$(EXEEXT): $(timer_OBJECTS) $(timer_DEPENDENCIES) 
 	@rm -f timer$(EXEEXT)
 	$(CXXLINK) $(timer_OBJECTS) $(timer_LDADD) $(LIBS)
+src/uri_test-test_uri_parser.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+uri_test$(EXEEXT): $(uri_test_OBJECTS) $(uri_test_DEPENDENCIES) 
+	@rm -f uri_test$(EXEEXT)
+	$(CXXLINK) $(uri_test_OBJECTS) $(uri_test_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -406,16 +472,21 @@ mostlyclean-compile:
 	-rm -f src/drachtio-drachtio.$(OBJEXT)
 	-rm -f src/drachtio-main.$(OBJEXT)
 	-rm -f src/drachtio-pending-request-controller.$(OBJEXT)
-	-rm -f src/drachtio-redis-service.$(OBJEXT)
+	-rm -f src/drachtio-request-handler.$(OBJEXT)
+	-rm -f src/drachtio-request-router.$(OBJEXT)
 	-rm -f src/drachtio-sip-dialog-controller.$(OBJEXT)
 	-rm -f src/drachtio-sip-dialog.$(OBJEXT)
 	-rm -f src/drachtio-sip-proxy-controller.$(OBJEXT)
+	-rm -f src/drachtio-sip-transports.$(OBJEXT)
 	-rm -f src/drachtio-timer-queue-manager.$(OBJEXT)
 	-rm -f src/drachtio-timer-queue.$(OBJEXT)
 	-rm -f src/parser-test_parser.$(OBJEXT)
 	-rm -f src/ssltest-ssltest.$(OBJEXT)
+	-rm -f src/test_asio_curl.$(OBJEXT)
+	-rm -f src/test_https-test_https.$(OBJEXT)
 	-rm -f src/timer-test_timer.$(OBJEXT)
 	-rm -f src/timer-timer-queue.$(OBJEXT)
+	-rm -f src/uri_test-test_uri_parser.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
@@ -428,16 +499,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-drachtio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-pending-request-controller.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-redis-service.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-request-handler.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-request-router.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-sip-dialog-controller.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-sip-dialog.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-sip-proxy-controller.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-sip-transports.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-timer-queue-manager.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-timer-queue.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/parser-test_parser.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ssltest-ssltest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/test_asio_curl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/test_https-test_https.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/timer-test_timer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/timer-timer-queue.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/uri_test-test_uri_parser.Po@am__quote@
 
 .cpp.o:
 @am__fastdepCXX_TRUE@	depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -595,20 +671,6 @@ src/drachtio-pending-request-controller.obj: src/pending-request-controller.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-pending-request-controller.obj `if test -f 'src/pending-request-controller.cpp'; then $(CYGPATH_W) 'src/pending-request-controller.cpp'; else $(CYGPATH_W) '$(srcdir)/src/pending-request-controller.cpp'; fi`
 
-src/drachtio-redis-service.o: src/redis-service.cpp
-@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-redis-service.o -MD -MP -MF src/$(DEPDIR)/drachtio-redis-service.Tpo -c -o src/drachtio-redis-service.o `test -f 'src/redis-service.cpp' || echo '$(srcdir)/'`src/redis-service.cpp
-@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-redis-service.Tpo src/$(DEPDIR)/drachtio-redis-service.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/redis-service.cpp' object='src/drachtio-redis-service.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-redis-service.o `test -f 'src/redis-service.cpp' || echo '$(srcdir)/'`src/redis-service.cpp
-
-src/drachtio-redis-service.obj: src/redis-service.cpp
-@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-redis-service.obj -MD -MP -MF src/$(DEPDIR)/drachtio-redis-service.Tpo -c -o src/drachtio-redis-service.obj `if test -f 'src/redis-service.cpp'; then $(CYGPATH_W) 'src/redis-service.cpp'; else $(CYGPATH_W) '$(srcdir)/src/redis-service.cpp'; fi`
-@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-redis-service.Tpo src/$(DEPDIR)/drachtio-redis-service.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/redis-service.cpp' object='src/drachtio-redis-service.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-redis-service.obj `if test -f 'src/redis-service.cpp'; then $(CYGPATH_W) 'src/redis-service.cpp'; else $(CYGPATH_W) '$(srcdir)/src/redis-service.cpp'; fi`
-
 src/drachtio-timer-queue.o: src/timer-queue.cpp
 @am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-timer-queue.o -MD -MP -MF src/$(DEPDIR)/drachtio-timer-queue.Tpo -c -o src/drachtio-timer-queue.o `test -f 'src/timer-queue.cpp' || echo '$(srcdir)/'`src/timer-queue.cpp
 @am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-timer-queue.Tpo src/$(DEPDIR)/drachtio-timer-queue.Po
@@ -651,6 +713,48 @@ src/drachtio-timer-queue-manager.obj: src/timer-queue-manager.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-timer-queue-manager.obj `if test -f 'src/timer-queue-manager.cpp'; then $(CYGPATH_W) 'src/timer-queue-manager.cpp'; else $(CYGPATH_W) '$(srcdir)/src/timer-queue-manager.cpp'; fi`
 
+src/drachtio-sip-transports.o: src/sip-transports.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-sip-transports.o -MD -MP -MF src/$(DEPDIR)/drachtio-sip-transports.Tpo -c -o src/drachtio-sip-transports.o `test -f 'src/sip-transports.cpp' || echo '$(srcdir)/'`src/sip-transports.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-sip-transports.Tpo src/$(DEPDIR)/drachtio-sip-transports.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/sip-transports.cpp' object='src/drachtio-sip-transports.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-sip-transports.o `test -f 'src/sip-transports.cpp' || echo '$(srcdir)/'`src/sip-transports.cpp
+
+src/drachtio-sip-transports.obj: src/sip-transports.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-sip-transports.obj -MD -MP -MF src/$(DEPDIR)/drachtio-sip-transports.Tpo -c -o src/drachtio-sip-transports.obj `if test -f 'src/sip-transports.cpp'; then $(CYGPATH_W) 'src/sip-transports.cpp'; else $(CYGPATH_W) '$(srcdir)/src/sip-transports.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-sip-transports.Tpo src/$(DEPDIR)/drachtio-sip-transports.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/sip-transports.cpp' object='src/drachtio-sip-transports.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-sip-transports.obj `if test -f 'src/sip-transports.cpp'; then $(CYGPATH_W) 'src/sip-transports.cpp'; else $(CYGPATH_W) '$(srcdir)/src/sip-transports.cpp'; fi`
+
+src/drachtio-request-handler.o: src/request-handler.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-request-handler.o -MD -MP -MF src/$(DEPDIR)/drachtio-request-handler.Tpo -c -o src/drachtio-request-handler.o `test -f 'src/request-handler.cpp' || echo '$(srcdir)/'`src/request-handler.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-request-handler.Tpo src/$(DEPDIR)/drachtio-request-handler.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/request-handler.cpp' object='src/drachtio-request-handler.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-request-handler.o `test -f 'src/request-handler.cpp' || echo '$(srcdir)/'`src/request-handler.cpp
+
+src/drachtio-request-handler.obj: src/request-handler.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-request-handler.obj -MD -MP -MF src/$(DEPDIR)/drachtio-request-handler.Tpo -c -o src/drachtio-request-handler.obj `if test -f 'src/request-handler.cpp'; then $(CYGPATH_W) 'src/request-handler.cpp'; else $(CYGPATH_W) '$(srcdir)/src/request-handler.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-request-handler.Tpo src/$(DEPDIR)/drachtio-request-handler.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/request-handler.cpp' object='src/drachtio-request-handler.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-request-handler.obj `if test -f 'src/request-handler.cpp'; then $(CYGPATH_W) 'src/request-handler.cpp'; else $(CYGPATH_W) '$(srcdir)/src/request-handler.cpp'; fi`
+
+src/drachtio-request-router.o: src/request-router.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-request-router.o -MD -MP -MF src/$(DEPDIR)/drachtio-request-router.Tpo -c -o src/drachtio-request-router.o `test -f 'src/request-router.cpp' || echo '$(srcdir)/'`src/request-router.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-request-router.Tpo src/$(DEPDIR)/drachtio-request-router.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/request-router.cpp' object='src/drachtio-request-router.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-request-router.o `test -f 'src/request-router.cpp' || echo '$(srcdir)/'`src/request-router.cpp
+
+src/drachtio-request-router.obj: src/request-router.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/drachtio-request-router.obj -MD -MP -MF src/$(DEPDIR)/drachtio-request-router.Tpo -c -o src/drachtio-request-router.obj `if test -f 'src/request-router.cpp'; then $(CYGPATH_W) 'src/request-router.cpp'; else $(CYGPATH_W) '$(srcdir)/src/request-router.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/drachtio-request-router.Tpo src/$(DEPDIR)/drachtio-request-router.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/request-router.cpp' object='src/drachtio-request-router.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(drachtio_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/drachtio-request-router.obj `if test -f 'src/request-router.cpp'; then $(CYGPATH_W) 'src/request-router.cpp'; else $(CYGPATH_W) '$(srcdir)/src/request-router.cpp'; fi`
+
 src/parser-test_parser.o: src/test_parser.cpp
 @am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(parser_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/parser-test_parser.o -MD -MP -MF src/$(DEPDIR)/parser-test_parser.Tpo -c -o src/parser-test_parser.o `test -f 'src/test_parser.cpp' || echo '$(srcdir)/'`src/test_parser.cpp
 @am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/parser-test_parser.Tpo src/$(DEPDIR)/parser-test_parser.Po
@@ -679,6 +783,20 @@ src/ssltest-ssltest.obj: src/ssltest.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ssltest_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/ssltest-ssltest.obj `if test -f 'src/ssltest.cpp'; then $(CYGPATH_W) 'src/ssltest.cpp'; else $(CYGPATH_W) '$(srcdir)/src/ssltest.cpp'; fi`
 
+src/test_https-test_https.o: src/test_https.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_https_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/test_https-test_https.o -MD -MP -MF src/$(DEPDIR)/test_https-test_https.Tpo -c -o src/test_https-test_https.o `test -f 'src/test_https.cpp' || echo '$(srcdir)/'`src/test_https.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/test_https-test_https.Tpo src/$(DEPDIR)/test_https-test_https.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/test_https.cpp' object='src/test_https-test_https.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_https_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/test_https-test_https.o `test -f 'src/test_https.cpp' || echo '$(srcdir)/'`src/test_https.cpp
+
+src/test_https-test_https.obj: src/test_https.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_https_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/test_https-test_https.obj -MD -MP -MF src/$(DEPDIR)/test_https-test_https.Tpo -c -o src/test_https-test_https.obj `if test -f 'src/test_https.cpp'; then $(CYGPATH_W) 'src/test_https.cpp'; else $(CYGPATH_W) '$(srcdir)/src/test_https.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/test_https-test_https.Tpo src/$(DEPDIR)/test_https-test_https.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/test_https.cpp' object='src/test_https-test_https.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_https_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/test_https-test_https.obj `if test -f 'src/test_https.cpp'; then $(CYGPATH_W) 'src/test_https.cpp'; else $(CYGPATH_W) '$(srcdir)/src/test_https.cpp'; fi`
+
 src/timer-test_timer.o: src/test_timer.cpp
 @am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(timer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/timer-test_timer.o -MD -MP -MF src/$(DEPDIR)/timer-test_timer.Tpo -c -o src/timer-test_timer.o `test -f 'src/test_timer.cpp' || echo '$(srcdir)/'`src/test_timer.cpp
 @am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/timer-test_timer.Tpo src/$(DEPDIR)/timer-test_timer.Po
@@ -706,6 +824,20 @@ src/timer-timer-queue.obj: src/timer-queue.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/timer-queue.cpp' object='src/timer-timer-queue.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(timer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/timer-timer-queue.obj `if test -f 'src/timer-queue.cpp'; then $(CYGPATH_W) 'src/timer-queue.cpp'; else $(CYGPATH_W) '$(srcdir)/src/timer-queue.cpp'; fi`
+
+src/uri_test-test_uri_parser.o: src/test_uri_parser.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(uri_test_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/uri_test-test_uri_parser.o -MD -MP -MF src/$(DEPDIR)/uri_test-test_uri_parser.Tpo -c -o src/uri_test-test_uri_parser.o `test -f 'src/test_uri_parser.cpp' || echo '$(srcdir)/'`src/test_uri_parser.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/uri_test-test_uri_parser.Tpo src/$(DEPDIR)/uri_test-test_uri_parser.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/test_uri_parser.cpp' object='src/uri_test-test_uri_parser.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(uri_test_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/uri_test-test_uri_parser.o `test -f 'src/test_uri_parser.cpp' || echo '$(srcdir)/'`src/test_uri_parser.cpp
+
+src/uri_test-test_uri_parser.obj: src/test_uri_parser.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(uri_test_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/uri_test-test_uri_parser.obj -MD -MP -MF src/$(DEPDIR)/uri_test-test_uri_parser.Tpo -c -o src/uri_test-test_uri_parser.obj `if test -f 'src/test_uri_parser.cpp'; then $(CYGPATH_W) 'src/test_uri_parser.cpp'; else $(CYGPATH_W) '$(srcdir)/src/test_uri_parser.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/uri_test-test_uri_parser.Tpo src/$(DEPDIR)/uri_test-test_uri_parser.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/test_uri_parser.cpp' object='src/uri_test-test_uri_parser.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(uri_test_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/uri_test-test_uri_parser.obj `if test -f 'src/test_uri_parser.cpp'; then $(CYGPATH_W) 'src/test_uri_parser.cpp'; else $(CYGPATH_W) '$(srcdir)/src/test_uri_parser.cpp'; fi`
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -944,7 +1076,7 @@ maintainer-clean-generic:
 	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
+clean-am: clean-binPROGRAMS clean-generic clean-local mostlyclean-am
 
 distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
@@ -1017,12 +1149,12 @@ uninstall-am: uninstall-binPROGRAMS
 .MAKE: all check install install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am am--refresh check check-am clean \
-	clean-binPROGRAMS clean-generic ctags dist dist-all dist-bzip2 \
-	dist-gzip dist-lzma dist-shar dist-tarZ dist-xz dist-zip \
-	distcheck distclean distclean-compile distclean-generic \
-	distclean-hdr distclean-tags distcleancheck distdir \
-	distuninstallcheck dvi dvi-am html html-am info info-am \
-	install install-am install-binPROGRAMS install-data \
+	clean-binPROGRAMS clean-generic clean-local ctags dist \
+	dist-all dist-bzip2 dist-gzip dist-lzma dist-shar dist-tarZ \
+	dist-xz dist-zip distcheck distclean distclean-compile \
+	distclean-generic distclean-hdr distclean-tags distcleancheck \
+	distdir distuninstallcheck dvi dvi-am html html-am info \
+	info-am install install-am install-binPROGRAMS install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
 	install-exec-am install-html install-html-am install-info \
 	install-info-am install-man install-pdf install-pdf-am \
@@ -1033,14 +1165,19 @@ uninstall-am: uninstall-binPROGRAMS
 	uninstall-am uninstall-binPROGRAMS
 
 
-#clean-local:
-#	cd ${srcdir}/deps/boost_1_63_0 && b2 --clean
+clean-local:
+	cd ${srcdir}/deps/boost_1_67_0 && ./bootstrap.sh && ./b2 clean
+	cd ${srcdir}/deps/sofia-sip && make clean  
+	cd ${srcdir}/deps/jansson-2.10 && make clean  
 
-${srcdir}/deps/boost_1_63_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_63_0/stage/lib/libboost_regex.a:
-	cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
+${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a:
+	$(make_BOOST_CMD)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure --with-glib=no && $(MAKE)
+
+${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a:
+	cd ${srcdir}/deps/jansson-2.10 && autoreconf -fi && ./configure && $(MAKE)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
