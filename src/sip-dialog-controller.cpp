@@ -1723,7 +1723,8 @@ namespace drachtio {
             m_mapTransactionId2Irq.erase( it ) ;
         }
         else {
-            DR_LOG(log_info) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId ;
+            DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId << 
+                ", most likely this is a response to an invite we sent";
         }
         return irq ;
     }
