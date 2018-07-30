@@ -38,7 +38,7 @@ drachtio_LDADD += ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcd
 timer_LDADD += -lrt
 parser_LDADD += -lrt
 test_https_LDADD += -lrt -lpthread ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
-make_BOOST_CMD = cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
+make_BOOST_CMD = cd ${srcdir}/deps/boost_1_67_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
 endif
 if OSX
 drachtio_LDADD += -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz 
