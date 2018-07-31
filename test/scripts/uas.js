@@ -44,6 +44,24 @@ class App extends Emitter {
     });
   }
 
+  b2b(dest) {
+    this.srf.invite((req, res) => {
+      function end(srf, dlg) {
+        dlg.destroy();
+        srf.endSession(req);
+      }
+      this.srf.createB2BUA(req, res, dest)
+        .then(({uas, uac}) => {
+          this.emit('connected');
+          uac.on('destroy', () => end(this.srf, uas));
+          uas.on('destroy', () => end(this.srf, uac));
+        })
+        .catch((err) => {
+          if (487 !== err.status) console.error(`Uas: failed to connect: ${err}`);
+        });
+    });
+  }
+
   accept(sdp, delay) {
     this.srf.invite((req, res) => {
 

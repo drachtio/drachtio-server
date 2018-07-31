@@ -1311,8 +1311,17 @@ namespace drachtio {
 
     int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
         if( !sip ) {
-            DR_LOG(log_debug) << "SipDialogController::processCancel called with null sip pointer; irq " << hex << (void*) irq  ;
-            nta_incoming_destroy(irq);
+            DR_LOG(log_debug) << "SipDialogController::processCancel with null sip pointer; irq " << 
+                hex << (void*) irq << ", most probably timerH indicating end of final response retransmissions" ;
+            //nta_incoming_destroy(irq);
+            boost::shared_ptr<IIP> iip ;
+            if( !findIIPByIrq( irq, iip ) ) {
+                DR_LOG(log_error) << "Unable to find invite-in-progress for irq " << hex << (void*) irq;
+            }
+            else {
+                DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP for leg " << hex << (void*) iip->leg();   ;
+                this->clearIIP( iip->leg() ) ;
+            }
             return -1 ;
         }
         DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name  ;
@@ -1343,7 +1352,7 @@ namespace drachtio {
             m_pClientController->route_request_inside_invite( encodedMessage, meta, irq, sip, iip->getTransactionId(), dlg->getDialogId() ) ;
             
             //TODO: sofia has already sent 200 OK to cancel and 487 to INVITE.  Do we need to keep this irq around?
-            addIncomingRequestTransaction( irq, transactionId) ;
+            //addIncomingRequestTransaction( irq, transactionId) ;
 
             DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP "   ;
             this->clearIIP( iip->leg() ) ;
@@ -1493,7 +1502,7 @@ namespace drachtio {
 
         this->bindIrq( irq ) ;
         DR_LOG(log_debug) << "SipDialogController::addIncomingInviteTransaction:  added iip: " << hex << p << " with leg " 
-            << leg << ", irq: " << irq << ", transactionId " << transactionId;
+            << leg << ", irq: " << irq << ", transactionId " << transactionId << ", iip size: " << m_mapIrq2IIP.size();
     }
     void SipDialogController::addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) {
         DR_LOG(log_debug) << "SipDialogController::addOutgoingInviteTransaction:  adding leg " << std::hex << leg  ;

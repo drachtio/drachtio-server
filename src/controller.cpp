@@ -313,7 +313,13 @@ namespace drachtio {
     }
 
     void DrachtioController::handleSigTerm( int signal ) {
-        DR_LOG(log_notice) << "Received SIGTERM; exiting.."  ;
+        DR_LOG(log_notice) << "Received SIGTERM; exiting after dumping stats.."  ;
+        this->printStats() ;
+        m_pDialogController->logStorageCount() ;
+        m_pClientController->logStorageCount() ;
+        m_pPendingRequestController->logStorageCount() ;
+        m_pProxyController->logStorageCount() ;
+
         nta_agent_destroy(m_nta);
         exit(0);
     }
@@ -1210,27 +1216,25 @@ namespace drachtio {
 
         if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ) {
 
-            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating an incoming transaction"  ;
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
                 return false ;
             }
 
-            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating leg"  ;
             nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
                                            SIPTAG_CALL_ID(sip->sip_call_id),
                                            SIPTAG_CSEQ(sip->sip_cseq),
                                            SIPTAG_TO(sip->sip_from),
                                            SIPTAG_FROM(sip->sip_to),
                                            TAG_END());
-
             if( NULL == leg ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a leg for new incoming invite"  ;
                 return false ;
             }
 
-            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << ", for transactionId: " << transactionId; 
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << 
+                ", for transactionId: " << transactionId;
 
 
             boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;

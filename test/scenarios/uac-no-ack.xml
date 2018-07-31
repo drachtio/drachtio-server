@@ -46,62 +46,25 @@
       a=rtpmap:0 PCMU/8000
 
     ]]>
-    <action>
-      <ereg regexp=".*" search_in="hdr" header="Via:" assign_to="1" />
-      <log message="Via is [last_Via]. read it as [$1]"/>
-    </action>
   </send>
 
-
-  <recv response="100"/>
-
-  <recv response="183">
+  <recv response="100"
+        optional="true">
   </recv>
 
-  <pause milliseconds="1000"/>
-
-  <send>
-  <![CDATA[
-
-    CANCEL sip:[service]@[remote_ip]:[remote_port] SIP/2.0
-    Via: [$1]
-    From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
-    To: [service] <sip:[service]@[remote_ip]:[remote_port]>
-    Call-ID: [call_id]
-    CSeq: 1 CANCEL
-    Content-Length: 0
-
-  ]]>
-  </send>
-
-  <recv response="200" optional="true">
+  <recv response="180" optional="true">
   </recv>
 
-  <recv response="487">
+  <recv response="183" optional="true">
   </recv>
 
-  <send>
-    <![CDATA[
+  <!-- By adding rrs="true" (Record Route Sets), the route sets         -->
+  <!-- are saved and used for following messages sent. Useful to test   -->
+  <!-- against stateful SIP proxies/B2BUAs.                             -->
+  <recv response="480" rtd="true" rrs="true">
+  </recv>
 
-      ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
-      Via: [$1]
-      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
-      To: [service] <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
-      Call-ID: [call_id]
-      CSeq: 1 ACK
-      Contact: sip:sipp@[local_ip]:[local_port]
-      Max-Forwards: 70
-      Subject: Performance Test
-      Content-Length: 0
-
-    ]]>
-  </send>
-
-  <!-- definition of the response time repartition table (unit is ms)   -->
-  <ResponseTimeRepartition value="10, 20, 30, 40, 50, 100, 150, 200"/>
-
-  <!-- definition of the call length repartition table (unit is ms)     -->
-  <CallLengthRepartition value="10, 50, 100, 500, 1000, 5000, 10000"/>
-
+  <pause milliseconds="34000">
+  
 </scenario>
 

@@ -1,0 +1,64 @@
+{
+  "admin": {
+    "host": "localhost",
+    "port": 9022,
+    "secret": "cymru"
+  },
+  "_request-handlers_": {
+    "INVITE": "http://35.187.89.96:80" 
+  },
+  "sip": {
+    "contacts": [
+      {
+        "uri": "sip:*;transport=udp,tcp",
+        "_external-ip_": "35.187.22.33",
+        "_dns-names_": "server01.mydomain.com"
+      }
+    ],
+    "timers": {
+      "t1": 500,
+      "t2": 4000,
+      "t4": 5000,
+      "t1x64": 32000
+    },
+    "_capture-server_": {
+      "host": "127.0.0.1",
+      "port": 9060,
+      "hep-version": 3,
+      "id": 101
+    },
+    "_tls_": {
+      "key-file": "/etc/letsencrypt/live/yourdomain/privkey.pem",
+      "cert-file": "/etc/letsencrypt/live/yourdomain/cert.pem",
+      "chain-file": "/etc/letsencrypt/live/yourdomain/chain.pem"
+    },
+    "_mtu-size_": 4096,
+    "_outbound-proxy_": "sip:10.10.10.1:5088",
+    "spammers": {
+      "action": "reject",
+      "tcp-action": "discard",
+      "headers": {
+        "User-Agent": ["sip-cli", "sipcli", "friendly-scanner"],
+        "To": ["sipvicious"]
+      }
+    },
+    "cdrs": false
+  },
+  "logging": {
+    "console": false,
+    "_syslog_": {
+      "host": "my.syslog.server",
+      "port": 514,
+      "facility": "local6"
+    },
+    "file": {
+      "name": "/var/log/drachtio/drachtio.log",
+      "archive": "/var/log/drachtio/archive",
+      "max-size": 5120,
+      "min-size": 10240,
+      "auto-flush": true
+    },
+    "level": "info",
+    "sofia-level": 3
+  }
+}
