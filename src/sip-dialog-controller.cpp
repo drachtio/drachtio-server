@@ -1213,7 +1213,7 @@ namespace drachtio {
                 addIncomingRequestTransaction( irq, transactionId) ;
     
                 if( sip_method_bye == sip->sip_request->rq_method || 
-                    (sip_method_notify == sip->sip_request->rq_method && 
+                    (sip_method_notify == sip->sip_request->rq_method && !dlg->isInviteDialog() &&
                         NULL != sip->sip_subscription_state && 
                         NULL != sip->sip_subscription_state->ss_substate &&
                         NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") ) 

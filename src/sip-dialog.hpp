@@ -75,6 +75,8 @@ namespace drachtio {
 			,they_are_refresher 
 		} ;
 
+		bool isInviteDialog(void) { return m_bInviteDialog; }
+
 		const string& getCallId(void) const { return m_strCallId; }
 		const Endpoint_t& getLocalEndpoint(void) const { return m_localEndpoint; }
 		const Endpoint_t& getRemoteEndpoint(void) const { return m_remoteEndpoint; }
@@ -166,6 +168,8 @@ namespace drachtio {
 		void clearTimerH() { m_timerH = NULL;}
 
 	protected:
+		bool 				m_bInviteDialog;
+
 		string 			m_dialogId ;
 		string 			m_transactionId ;
 		DialogType_t	m_type ;
