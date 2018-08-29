@@ -25,6 +25,8 @@ THE SOFTWARE.
 #include <boost/algorithm/string/find.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
+#include <sofia-sip/su_alloc.h>
+
 namespace drachtio {
     class SipDialogController ;
 }
@@ -125,6 +127,7 @@ namespace drachtio {
         string myHostport ;
         string requestUri ;
         string name ;
+        string routeUri;
 
         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog dialog id: " << pData->getDialogId()  ;
 
@@ -147,15 +150,14 @@ namespace drachtio {
                 throw std::runtime_error("unable to find dialog for dialog id provided") ;
             }
 
-            string routeUrl ;
             if (dlg->getRole() == SipDialog::we_are_uas) {
                 // removed this...the sofia uas leg has already had the record-route/contact dealt with to determine route
                 /*
                 string sourceAddress = dlg->getSourceAddress() ;
                 unsigned int sourcePort = dlg->getSourcePort() ;
-                routeUrl = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
+                routeUri = string("sip:") + sourceAddress + ":" + boost::lexical_cast<std::string>(sourcePort) + 
                     ";transport=" + dlg->getProtocol() ;
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUrl ;  
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to " << routeUri ;  
                 */              
             }
             string transport ;
@@ -164,6 +166,19 @@ namespace drachtio {
 
             tport_t* tp = dlg->getTport() ; 
             bool forceTport = NULL != tp ;  
+
+            //if user supplied all or part of the Contact in a REFER request use it
+            string contact ;
+            if( sip_method_refer == method && forceTport && searchForHeader( tags, siptag_contact_str, contact ) ) {
+                if( string::npos != contact.find("localhost") ) {
+            	    const tp_name_t* tpn = tport_name( tport_parent( tp ) );
+                    string host = tpn->tpn_host ;
+                    string port = tpn->tpn_port ;
+                    if( !replaceHostInUri( contact, host.c_str(), port.c_str() ) ) {
+                        throw std::runtime_error(string("invalid contact value provided by client: ") + contact ) ;
+                    }                    
+                }
+            } 
 
             //nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             nta_leg_t *leg = dlg->getNtaLeg();
@@ -201,10 +216,22 @@ namespace drachtio {
                 dlg->setLocalSdp( body.c_str() ) ;
             }
 
+            if (dlg->getRouteUri(routeUri)) {
+                su_home_t* home = theOneAndOnlyController->getHome();
+                url_t *url = url_make(home, requestUri.c_str());
+                if (url) {
+                    if (isRfc1918(url->url_host)) {
+                        DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to natt'ed address using route " << routeUri ;
+                    }
+                    else routeUri.clear();
+                    su_free(home, (void *) url);
+                }
+            }
+
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
                     orq = nta_outgoing_tcreate(leg, NULL, NULL, 
-                        NULL,
+                        routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
                         method, name.c_str(),
                         URL_STRING_MAKE(requestUri.c_str()),
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
@@ -224,7 +251,7 @@ namespace drachtio {
                 }
                 orq = nta_outgoing_prack(leg, iip->orq(), response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     //NULL, 
-                    URL_STRING_MAKE( routeUrl.c_str() ),
+                    routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                     NULL, TAG_NEXT(tags) ) ;
             }
             else {
@@ -244,7 +271,7 @@ namespace drachtio {
 
                 }
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
-                    routeUrl.empty() ? NULL : URL_STRING_MAKE(routeUrl.c_str()),                     
+                    routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
                     method, name.c_str()
                     ,URL_STRING_MAKE(requestUri.c_str())
                     ,TAG_IF( addContact, SIPTAG_CONTACT_STR( contact.c_str() ) )
@@ -443,11 +470,13 @@ namespace drachtio {
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
                 DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp ;
+                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selected transport " << desc ;
                 forceTport = true ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
-            tagi_t* tags = makeTags( pData->getHeaders(), desc ) ;
+            tagi_t* tags = makeTags( pData->getHeaders(), desc, 
+                pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL ) ;
            
             //if user supplied all or part of the From use it
             string from, to, callid ;

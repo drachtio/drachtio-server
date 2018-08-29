@@ -633,11 +633,16 @@ namespace drachtio {
         delete [] tags ; 
     }
 
-    tagi_t* makeTags( const string&  hdrs, const string& transport ) {
+    tagi_t* makeTags( const string&  hdrs, const string& transport, const char* szExternalIP ) {
         vector<string> vec ;
         string proto, host, port, myHostport ;
         
         parseTransportDescription(transport, proto, host, port ) ;
+
+        if (szExternalIP) {
+            host = szExternalIP;
+            DR_LOG(log_debug) << "makeTags - using external IP as replacement for 'localhost': " << szExternalIP  ;
+        }
 
         splitLines( hdrs, vec ) ;
         int nHdrs = vec.size() ;
@@ -693,6 +698,7 @@ namespace drachtio {
                     0 == hdr.compare("to") ||
                     0 == hdr.compare("p_asserted_identity") ) ) {
 
+                    DR_LOG(log_debug) << "makeTags - hdr '" << hdrName << "' replacing host with " << host;
                     replaceHostInUri( hdrValue, host.c_str(), port.c_str() ) ;
                 }
                 int len = hdrValue.length() ;
@@ -722,7 +728,28 @@ namespace drachtio {
 
         return tags ;   //NB: caller responsible to delete after use to free memory      
     }
- 
+ 	bool isRfc1918(const char* szHost) {
+        string str = szHost;
+        boost::char_separator<char> sep(".") ;
+        tokenizer tok(str, sep) ;
+        vector<int> vec;
+        for (tokenizer::iterator it = tok.begin(); it != tok.end(); it++) {
+            vec.push_back(boost::lexical_cast<int>(*it));
+        }
+        if (vec.size() == 4) {
+
+            // class A
+            if (vec[0] == 10) return true;
+
+            // class B
+            if (vec[0] == 172 && (vec[1] > 15 || vec[1] < 32)) return true;
+
+            // class C
+            if (vec[0] == 192 && vec[1] == 168) return true;
+        }
+        return false;
+     }
+
     string urlencode(const string &s) {
         static const char lookup[]= "0123456789abcdef";
         std::stringstream e;

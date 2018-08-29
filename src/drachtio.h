@@ -141,7 +141,7 @@ namespace drachtio {
 
 	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
 
-	tagi_t* makeTags( const string& hdrs, const string& transport ) ;
+	tagi_t* makeTags( const string& hdrs, const string& transport, const char* szExternalIP = NULL ) ;
 	void deleteTags( tagi_t* tags ) ;
 
 	int ackResponse( msg_t* msg ) ;
@@ -152,6 +152,8 @@ namespace drachtio {
 	string urlencode(const string &s);
 
   int utf8_strlen(const string& str);
+
+	bool isRfc1918(const char* szHost);
 
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 
