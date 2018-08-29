@@ -137,7 +137,7 @@ namespace drachtio {
     void httpCallRoutingComplete(const string& transactionId, long response_code, const string& response) ;
 
     bool isSecret( const string& secret ) {
-    	return m_Config->isSecret( secret ) ;
+    	return m_secret.empty() ? m_Config->isSecret( secret ) : 0 == m_secret.compare(secret);
     }
 
     nta_agent_t* getAgent(void) { return m_nta; }
@@ -223,6 +223,8 @@ namespace drachtio {
     string m_strHomerAddress;
     unsigned int m_nHomerPort;
     uint32_t m_nHomerId;
+    string m_secret;
+    string m_adminAddress;
 
     shared_ptr<ClientController> m_pClientController ;
     shared_ptr<RequestHandler> m_pRequestHandler ;

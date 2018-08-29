@@ -167,6 +167,14 @@ namespace drachtio {
 		TimerEventHandle getTimerH(void) { return m_timerH; }
 		void clearTimerH() { m_timerH = NULL;}
 
+		bool getRouteUri(string& routeUri) {
+			if (!m_routeUri.empty()) {
+				routeUri = m_routeUri;
+				return true;
+			}
+			return false;
+		}
+
 	protected:
 		bool 				m_bInviteDialog;
 
@@ -203,6 +211,8 @@ namespace drachtio {
 		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp ;
 		nta_outgoing_t*  m_ackOrq;
+
+		string 		m_routeUri;
 
 		// sip timers
     TimerEventHandle  m_timerD ;

@@ -131,6 +131,14 @@ namespace drachtio {
 
     this->setSourcePort( port ) ;
 
+		const url_t* urlRoute = nta_outgoing_route_uri(orq);
+		if (urlRoute) {
+			su_home_t* home = msg_home(msg);
+			const char * route_uri = url_as_string(home, urlRoute);
+			m_routeUri = route_uri;
+			su_free(home, (void *) route_uri);
+		}
+
 		DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for outbound INVITE sent from " << m_protocol << "/" << m_transportAddress << ":" << m_transportPort << " to " << name << ":" << std::dec << port ;
 
 	}	

@@ -379,6 +379,8 @@ namespace drachtio {
                 {"cert-file", required_argument, 0, 'B'},
                 {"chain-file", required_argument, 0, 'C'},
                 {"mtu", required_argument, 0, 'D'},
+                {"address", required_argument, 0, 'E'},
+                {"secret", required_argument, 0, 'F'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -414,6 +416,12 @@ namespace drachtio {
                     break;
                 case 'D':
                     m_mtu = ::atoi(optarg);
+                    break;
+                case 'E':
+                    m_adminAddress = optarg;
+                    break;
+                case 'F':
+                    m_secret = optarg;
                     break;
                 case 'a':
                     httpUrl = optarg ;
@@ -580,6 +588,7 @@ namespace drachtio {
         cerr << "Usage: drachtio [OPTIONS]" << endl ;
         cerr << endl << "Start drachtio sip engine" << endl << endl ;
         cerr << "Options:" << endl << endl ;
+        cerr << "    --address          Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
         cerr << "    --daemon           Run the process as a daemon background process" << endl ;
         cerr << "    --cert-file        TLS certificate file" << endl ;
         cerr << "    --chain-file       TLS certificate chain file" << endl ;
@@ -595,6 +604,7 @@ namespace drachtio {
         cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
         cerr << "    --mtu              max packet size for UDP (default: system-defined mtu)" << endl ;
         cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
+        cerr << "    --secret           The shared secret to use for authenticating application connections" << endl ;
         cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
         cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
         cerr << "    --stdout           Log to standard output as well as any configured log destinations" << endl ;
@@ -790,6 +800,7 @@ namespace drachtio {
        /* open admin connection */
         string adminAddress ;
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
+        if (!m_adminAddress.empty()) adminAddress = m_adminAddress;
         if( 0 != m_adminPort ) adminPort = m_adminPort ;
         if( 0 != adminPort ) {
             DR_LOG(log_notice) << "DrachtioController::run: listening for client connections on " << adminAddress << ":" << adminPort ;
