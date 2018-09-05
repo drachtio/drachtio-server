@@ -55,6 +55,7 @@ The following libraries are required to build:
 * libtool
 * autoconf
 * automake
+* zlib1g-dev
 
 ## Installing
 
