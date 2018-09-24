@@ -475,8 +475,13 @@ namespace drachtio {
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
-            tagi_t* tags = makeTags( pData->getHeaders(), desc, 
-                pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL ) ;
+            tagi_t* tags; 
+            if (pSelectedTransport && pSelectedTransport->hasExternalIp()) {
+                tags = makeTags( pData->getHeaders(), desc, pSelectedTransport->getExternalIp().c_str()) ;
+            }
+            else {
+                tags = makeTags( pData->getHeaders(), desc, NULL) ;
+            }
            
             //if user supplied all or part of the From use it
             string from, to, callid ;
