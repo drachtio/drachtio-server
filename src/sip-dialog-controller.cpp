@@ -219,13 +219,13 @@ namespace drachtio {
             if (dlg->getRouteUri(routeUri)) {
                 su_home_t* home = theOneAndOnlyController->getHome();
                 url_t *url = url_make(home, requestUri.c_str());
-                if (url) {
-                    if (isRfc1918(url->url_host)) {
-                        DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to natt'ed address using route " << routeUri ;
-                    }
-                    else routeUri.clear();
-                    su_free(home, (void *) url);
+                if (dlg->getRole() == SipDialog::we_are_uas || (url && isRfc1918(url->url_host))) {
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to nat'ed address using route " << routeUri ;
                 }
+                else {
+                    routeUri.clear();
+                }
+                su_free(home, (void *) url);
             }
 
             if( sip_method_ack == method ) {
