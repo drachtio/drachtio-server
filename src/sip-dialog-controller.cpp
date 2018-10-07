@@ -1047,15 +1047,17 @@ namespace drachtio {
                         
                         this->addDialog( dlg ) ;
 
-                        // set timer G to retransmit 200 OK if we don't get ack
-                        TimerEventHandle t = m_pTQM->addTimer("timerG", 
-                            boost::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
-                        dlg->setTimerG(t) ;
+                        if (tport_is_dgram(tp)) {
+                            // set timer G to retransmit 200 OK if we don't get ack
+                            TimerEventHandle t = m_pTQM->addTimer("timerG",
+                                boost::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
+                            dlg->setTimerG(t) ;
 
-                        // set timer H, which sets the time to stop these retransmissions
-                        t = m_pTQM->addTimer("timerH", 
-                            boost::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
-                        dlg->setTimerH(t) ;                    
+                            // set timer H, which sets the time to stop these retransmissions
+                            t = m_pTQM->addTimer("timerH",
+                                boost::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
+                            dlg->setTimerH(t) ;
+                        }
                     }
                 }
 
