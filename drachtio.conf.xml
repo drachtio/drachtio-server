@@ -126,6 +126,7 @@
                 <key-file>/etc/letsencrypt/live/yourdomain/privkey.pem</key-file>
                 <cert-file>/etc/letsencrypt/live/yourdomain/cert.pem</cert-file>
                 <chain-file>/etc/letsencrypt/live/yourdomain/chain.pem</chain-file>
+                <dh-param>/var/local/dh4096.pem</dh-param>
         </tls>
         -->
 

@@ -19,7 +19,6 @@ const execCmd = (cmd, opts) => {
   });
 };
 
-/*
 test('b2bua success', (t) => {
   let uas;
   return start()
@@ -91,7 +90,7 @@ test('b2bua multiple provisional responses', (t) => {
       stop();
     });
 });
-*/
+
 test('b2bua timer H', (t) => {
   let uas;
   return start()
