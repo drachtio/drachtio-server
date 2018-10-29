@@ -34,32 +34,67 @@ THE SOFTWARE.
 #include "controller.hpp"
 
 namespace drachtio {
-  std::size_t hash_value( Client const &c ) {
-    std::size_t seed = 0 ;
-    boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
-    boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
-    return seed ;
-  }
-
-	Client::Client( boost::asio::io_service& io_service, ClientController& controller ) : m_sock(io_service), m_controller( controller ),  
-    m_state(initial), m_buffer(12228), m_nMessageLength(0) {
-          
-    int optval = 1 ;
-    socklen_t optlen = sizeof(optval);
-    if( setsockopt(m_sock.native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
-      //DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
+    std::size_t hash_value( Client const &c ) {
+        std::size_t seed = 0 ;
+        boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
+        boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
+        return seed ;
     }
-  }
-    
-  Client::Client( boost::asio::io_service& io_service, const string& transactionId, const string& host, 
-    const string& port, ClientController& controller ) :
-    m_sock(io_service), m_controller(controller), m_transactionId(transactionId), m_host(host), m_port(port),
-    m_state(initial), m_buffer(12228), m_nMessageLength(0)  {
-  }
 
-  Client::~Client() {
+	Client::Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, 
+        ClientController& controller, bool useTls ) : 
+        m_sock(io_service), 
+        m_ssl_socket(io_service, context),
+        m_controller( controller ),  
+        m_state(initial), m_buffer(12228), m_nMessageLength(0), m_useTls(useTls) {
+          
+        int optval = 1 ;
+        socklen_t optlen = sizeof(optval);
+        if( setsockopt(m_sock.native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
+        //DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
+        }
+    }
+    
+    Client::Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, 
+        const string& transactionId, const string& host, 
+        const string& port, ClientController& controller ) :
+        m_sock(io_service), 
+        m_ssl_socket(io_service, context),
+        m_controller(controller), m_transactionId(transactionId), m_host(host), m_port(port),
+        m_state(initial), m_buffer(12228), m_nMessageLength(0),m_useTls(false) {
+    }
+
+    Client::~Client() {
       DR_LOG(log_debug) << "Client::~Client";
-  }
+    }
+
+    void Client::handle_handshake(const boost::system::error_code& ec) {
+        if (!ec) {
+            m_controller.join( shared_from_this() ) ;
+            m_ssl_socket.async_read_some(boost::asio::buffer(m_readBuf),
+                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }
+        else {
+            DR_LOG(log_error) << "Client::handle_handshake - TLS handshake failed: " << ec ;
+        }
+    }
+
+    // called when we as a server have received a new connection
+    void Client::start() {
+
+        DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
+
+        if (m_useTls) {
+            m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
+                boost::bind(&Client::handle_handshake, shared_from_this(),
+                boost::asio::placeholders::error));
+        }
+        else {
+            m_controller.join( shared_from_this() ) ;
+            m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }      
+    }
 
   void Client::async_connect() {
     boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
@@ -77,9 +112,16 @@ namespace drachtio {
         this->const_socket().remote_endpoint().port() ;
 
       m_controller.join( shared_from_this() ) ;
-      m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-        boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
-          boost::asio::placeholders::bytes_transferred ) ) ;
+      if (m_useTls) {
+          m_ssl_socket.async_read_some(boost::asio::buffer(m_readBuf),
+            boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+              boost::asio::placeholders::bytes_transferred ) ) ;
+      }
+      else {
+          m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+            boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+              boost::asio::placeholders::bytes_transferred ) ) ;
+      }
 
       //TODO: set a timeout of 2 secs or so for remote side to authenticate
 
@@ -104,16 +146,6 @@ namespace drachtio {
     return m_controller.getDialogController(); 
   }
 
-  void Client::start() {
-
-    DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
-
-    m_controller.join( shared_from_this() ) ;
-    m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-      boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
-        boost::asio::placeholders::bytes_transferred ) ) ;
-      
-  }
     bool Client::readMessageLength(unsigned int& len) {
         bool continueOn = true ;
         boost::array<char, 6> ch ;
@@ -192,9 +224,16 @@ namespace drachtio {
             if( !msgResponse.empty() ) {
                 msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
                 DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
-                boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
-                    boost::bind( &Client::write_handler, shared_from_this(), 
-                        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+                if (m_useTls) {
+                    boost::asio::async_write( m_ssl_socket, boost::asio::buffer( msgResponse ), 
+                        boost::bind( &Client::write_handler, shared_from_this(), 
+                            boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+                }
+                else {
+                    boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
+                        boost::bind( &Client::write_handler, shared_from_this(), 
+                            boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+                }
             }
             if( !bContinue ) {
                  DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
@@ -230,8 +269,14 @@ namespace drachtio {
         }
 
 read_again:
-        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-                        boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        if (m_useTls) {
+            m_ssl_socket.async_read_some(boost::asio::buffer(m_readBuf),
+                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }
+        else {
+            m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }
        
     }
     void Client::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
@@ -404,8 +449,14 @@ read_again:
 
         o << len << "#" << str ;
        
-        boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
-            boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        if (m_useTls) {
+            boost::asio::async_write( m_ssl_socket, boost::asio::buffer( o.str() ), 
+                boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }
+        else {
+            boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
+                boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }
         //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
     }
     void Client::createResponseMsg(const string& msgId, string& msg, bool ok, const char* szReason ) {
