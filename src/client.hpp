@@ -23,6 +23,7 @@ THE SOFTWARE.
 #define __CLIENT_H__
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
@@ -30,6 +31,7 @@ THE SOFTWARE.
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 
+typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> ssl_socket_t;
 
 namespace drachtio {
 
@@ -39,8 +41,8 @@ namespace drachtio {
 
 	class Client : public boost::enable_shared_from_this<Client> {
 	public:
-    Client( boost::asio::io_service& io_service, ClientController& controller ) ;
-    Client( boost::asio::io_service& io_service, const string& transactionId, const string& host, const string& port, ClientController& controller ) ;
+    Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, ClientController& controller, bool useTls ) ;
+    Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, const string& transactionId, const string& host, const string& port, ClientController& controller ) ;
     ~Client() ;
     
     boost::asio::ip::tcp::socket& socket() {
@@ -50,13 +52,22 @@ namespace drachtio {
         return m_sock;
     }
     
+    ssl_socket_t::lowest_layer_type& ssl_socket() {
+        return m_ssl_socket.lowest_layer();
+    }
+
+    const ssl_socket_t::lowest_layer_type& const_ssl_socket() const {
+        return m_ssl_socket.lowest_layer();
+    }
+
     void start(); 
+    void handle_handshake(const boost::system::error_code& ec);
     void async_connect() ;
     void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator);
     void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
     void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
 
-		bool processClientMessage( const string& msg, string& msgResponse ) ;
+	bool processClientMessage( const string& msg, string& msgResponse ) ;
     void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
     void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
     void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
@@ -86,7 +97,11 @@ namespace drachtio {
 		ClientController& m_controller ;
 		state m_state ;
 
+        bool m_useTls;
+
         boost::asio::ip::tcp::socket m_sock;
+        ssl_socket_t m_ssl_socket;
+
         boost::array<char, 8192> m_readBuf ;
         boost::circular_buffer<char> m_buffer ;
         unsigned int m_nMessageLength ;

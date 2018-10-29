@@ -31,11 +31,14 @@ THE SOFTWARE.
 #include "controller.hpp"
 
 namespace drachtio {
-     
+    
+    // simple tcp server
     ClientController::ClientController( DrachtioController* pController, string& address, unsigned int port ) :
         m_pController( pController ),
         m_endpoint(  boost::asio::ip::tcp::v4(), port ),
-        m_acceptor( m_ioservice, m_endpoint ) {
+        m_acceptor( m_ioservice, m_endpoint ), 
+        m_context(boost::asio::ssl::context::sslv23), 
+        m_useTls(false) {
             
         srand (time(NULL));    
         boost::thread t(&ClientController::threadFunc, this) ;
@@ -43,6 +46,33 @@ namespace drachtio {
             
         this->start_accept() ;
     }
+
+    // tls server
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int port, 
+        const string& chainFile, const string& keyFile, const string& dhFile ) :
+        m_pController( pController ),
+        m_endpoint(  boost::asio::ip::tcp::v4(), port ),
+        m_acceptor( m_ioservice, m_endpoint ), 
+        m_context(boost::asio::ssl::context::sslv23), 
+        m_useTls(true) {
+
+        m_context.set_options(
+            boost::asio::ssl::context::default_workarounds | 
+            boost::asio::ssl::context::no_sslv2 | 
+            boost::asio::ssl::context::single_dh_use
+        );
+        m_context.use_certificate_chain_file(chainFile.c_str());
+        m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
+        m_context.use_tmp_dh_file(dhFile.c_str());
+
+        srand (time(NULL));    
+        boost::thread t(&ClientController::threadFunc, this) ;
+        m_thread.swap( t ) ;
+            
+        this->start_accept() ;
+    }
+
+
     ClientController::~ClientController() {
         this->stop() ;
     }
@@ -97,38 +127,38 @@ namespace drachtio {
     }
 
 	void ClientController::start_accept() {
-		client_ptr new_session( new Client( m_ioservice, *this ) ) ;
+		client_ptr new_session( new Client( m_ioservice, m_context, *this, m_useTls ) ) ;
 		m_acceptor.async_accept( new_session->socket(), boost::bind(&ClientController::accept_handler, this, new_session, boost::asio::placeholders::error));
-  }
+    }
 	void ClientController::accept_handler( client_ptr session, const boost::system::error_code& ec) {
-    if(!ec) session->start() ;
-    start_accept(); 
-  }
-
-  void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
-    client_ptr new_session( new Client( m_ioservice, transactionId, host, port, *this ) ) ;
-    new_session->async_connect() ;
-  }
-
-  void ClientController::selectClientForTag(const string& transactionId, const string& tag) {
-    string method;
-    if (!m_pController->getPendingRequestController()->getMethodForRequest(transactionId, method)) {
-        DR_LOG(log_error) << "ClientController::selectClientForTag - unable to find transactionId: " << transactionId ;
-        return outboundFailed(transactionId);        
+        if(!ec) session->start() ;
+        start_accept(); 
     }
 
-    DR_LOG(log_debug) << "ClientController::selectClientForTag - searching for client to handle " << method << " with tag " << tag;
-    client_ptr client = selectClientForRequestOutsideDialog(method.c_str(), tag.c_str());
-    if (!client) {
-        DR_LOG(log_error) << "ClientController::selectClientForTag - no clients registered for tag: " << tag ;
-        return outboundFailed(transactionId);                
+    void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
+        client_ptr new_session( new Client( m_ioservice, m_context, transactionId, host, port, *this ) ) ;
+        new_session->async_connect() ;
     }
-    int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
-    if (rc) {
-        DR_LOG(log_error) << "ClientController::selectClientForTag - error routing request to client: " << transactionId ;
-        return outboundFailed(transactionId);
+
+    void ClientController::selectClientForTag(const string& transactionId, const string& tag) {
+        string method;
+        if (!m_pController->getPendingRequestController()->getMethodForRequest(transactionId, method)) {
+            DR_LOG(log_error) << "ClientController::selectClientForTag - unable to find transactionId: " << transactionId ;
+            return outboundFailed(transactionId);        
+        }
+
+        DR_LOG(log_debug) << "ClientController::selectClientForTag - searching for client to handle " << method << " with tag " << tag;
+        client_ptr client = selectClientForRequestOutsideDialog(method.c_str(), tag.c_str());
+        if (!client) {
+            DR_LOG(log_error) << "ClientController::selectClientForTag - no clients registered for tag: " << tag ;
+            return outboundFailed(transactionId);                
+        }
+        int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
+        if (rc) {
+            DR_LOG(log_error) << "ClientController::selectClientForTag - error routing request to client: " << transactionId ;
+            return outboundFailed(transactionId);
+        }
     }
-  }
 
 
     bool ClientController::wants_requests( client_ptr client, const string& verb ) {

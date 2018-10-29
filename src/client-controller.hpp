@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/thread.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/unordered_set.hpp>
@@ -44,7 +45,13 @@ namespace drachtio {
     
   class ClientController : public boost::enable_shared_from_this<ClientController>  {
   public:
-    ClientController( DrachtioController* pController, string& address, unsigned int port = 8022 ) ;
+    // simple tcp version
+    ClientController( DrachtioController* pController, string& address, unsigned int port ) ;
+    
+    // tls version
+    ClientController( DrachtioController* pController, string& address, unsigned int port, 
+      const string& chainFile, const string& keyFile, const string& dhFile ) ;
+  
     ~ClientController() ;
       
   	void start_accept() ;
@@ -138,6 +145,7 @@ namespace drachtio {
     boost::asio::io_service m_ioservice;
     boost::asio::ip::tcp::endpoint  m_endpoint;
     boost::asio::ip::tcp::acceptor  m_acceptor ;
+    boost::asio::ssl::context m_context;
 
     typedef boost::unordered_set<client_ptr> set_of_clients ;
     set_of_clients m_clients ;
@@ -157,8 +165,10 @@ namespace drachtio {
     mapId2Client m_mapNetTransactions ;
     mapId2Client m_mapApiRequests ;
 
-   typedef boost::unordered_map<string,string> mapDialogId2Appname ;
+    typedef boost::unordered_map<string,string> mapDialogId2Appname ;
     mapDialogId2Appname m_mapDialogId2Appname ;
+
+    bool m_useTls;
       
   } ;
 
