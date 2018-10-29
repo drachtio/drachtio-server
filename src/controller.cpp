@@ -264,7 +264,7 @@ namespace drachtio {
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
-        m_nHomerPort(0), m_nHomerId(0), m_mtu(0) {
+        m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_useTlsOnAdminConnections(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -357,6 +357,7 @@ namespace drachtio {
                 /* These options set a flag. */
                 {"daemon", no_argument,       &m_bDaemonize, true},
                 {"noconfig", no_argument,       &m_bNoConfig, true},
+                {"encrypt-inbound-connections", no_argument, &m_useTlsOnAdminConnections, true},
                 
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
@@ -381,13 +382,14 @@ namespace drachtio {
                 {"mtu", required_argument, 0, 'D'},
                 {"address", required_argument, 0, 'E'},
                 {"secret", required_argument, 0, 'F'},
+                {"dh-param", required_argument, 0, 'G'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:E:F:G:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -422,6 +424,9 @@ namespace drachtio {
                     break;
                 case 'F':
                     m_secret = optarg;
+                    break;
+                case 'G':
+                    m_dhParam = optarg;
                     break;
                 case 'a':
                     httpUrl = optarg ;
@@ -799,6 +804,7 @@ namespace drachtio {
 
        /* open admin connection */
         string adminAddress ;
+        bool useTlsOnAdminConnections = m_Config->useTlsOnAdminConnections();
         unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
         if (!m_adminAddress.empty()) adminAddress = m_adminAddress;
         if( 0 != m_adminPort ) adminPort = m_adminPort ;
@@ -806,6 +812,7 @@ namespace drachtio {
             DR_LOG(log_notice) << "DrachtioController::run: listening for client connections on " << adminAddress << ":" << adminPort ;
             m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
         }
+        if (m_useTlsOnAdminConnections) useTlsOnAdminConnections = true;
 
         if( 0 == m_vecTransports.size() ) {
             m_Config->getTransports( m_vecTransports ) ; 
@@ -822,17 +829,26 @@ namespace drachtio {
         }
 
         // tls files
-        string tlsKeyFile, tlsCertFile, tlsChainFile ;
-        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
+        string tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ;
+        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ) ;
         if (!m_tlsKeyFile.empty()) tlsKeyFile = m_tlsKeyFile;
         if (!m_tlsCertFile.empty()) tlsCertFile = m_tlsCertFile;
         if (!m_tlsChainFile.empty()) tlsChainFile = m_tlsChainFile;
+        if (!m_dhParam.empty()) dhParam = m_dhParam;
         if (!hasTlsFiles && !tlsKeyFile.empty() && !tlsCertFile.empty()) hasTlsFiles = true;
 
         if (hasTlsFiles) {
             DR_LOG(log_notice) << "DrachtioController::run tls key file:         " << tlsKeyFile;
             DR_LOG(log_notice) << "DrachtioController::run tls certificate file: " << tlsCertFile;
             if (!tlsChainFile.empty()) DR_LOG(log_notice) << "DrachtioController::run tls chain file:       " << tlsChainFile;
+        }
+
+        if (useTlsOnAdminConnections) {
+            if (tlsChainFile.empty() || tlsKeyFile.empty() || dhParam.empty()) {
+                DR_LOG(log_notice) << "DrachtioController::run tls was requested on admin connection but either chain file, private key, or dhParams were not provided";
+                throw runtime_error("missing tls settings");
+            }
+            DR_LOG(log_notice) << "DrachtioController::run  TLS will be used to encrypt inbound connections from applications";
         }
 
         // mtu

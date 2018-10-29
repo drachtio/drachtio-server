@@ -42,7 +42,7 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0) {
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_useTlsOnAdminConnections(false) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -67,6 +67,10 @@ namespace drachtio {
                     m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
+                    string tlsValue =  pt.get<string>("drachtio.admin.<xmlattr>.tls", "false") ;
+                    if (0 == tlsValue.compare("true") || 0 == tlsValue.compare("yes") || 0 == tlsValue.compare("on")) {
+                        m_useTlsOnAdminConnections = true;
+                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                     cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
                     return ;
@@ -130,6 +134,7 @@ namespace drachtio {
                 m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
                 m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
+                m_dhParam = pt.get<string>("drachtio.sip.tls.dh-param", "") ;
 
                 try {
                      BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.request-handlers")) {
@@ -299,10 +304,11 @@ namespace drachtio {
             return sipOutboundProxy.length() > 0 ;
         }
 
-        bool getTlsFiles( string& tlsKeyFile, string& tlsCertFile, string& tlsChainFile ) {
+        bool getTlsFiles( string& tlsKeyFile, string& tlsCertFile, string& tlsChainFile, string& dhParam ) {
             tlsKeyFile = m_tlsKeyFile ;
             tlsCertFile = m_tlsCertFile ;
             tlsChainFile = m_tlsChainFile ;
+            dhParam = m_dhParam;
 
             // both key and cert are minimally required
             return tlsKeyFile.length() > 0 && tlsCertFile.length() > 0 ;
@@ -311,6 +317,9 @@ namespace drachtio {
         unsigned int getAdminPort( string& address ) {
             address = m_adminAddress ;
             return m_adminPort ;
+        }
+        bool useTlsOnAdminConnections(void) {
+            return m_useTlsOnAdminConnections;
         }
         bool isSecret( const string& secret ) {
             return 0 == secret.compare( m_secret ) ;
@@ -379,6 +388,7 @@ namespace drachtio {
         string m_tlsKeyFile ;
         string m_tlsCertFile ;
         string m_tlsChainFile ;
+        string m_dhParam;
         bool m_bAutoFlush ;
         unsigned int m_rotationSize ;
         unsigned int m_maxSize ;
@@ -389,6 +399,7 @@ namespace drachtio {
         unsigned int m_nSofiaLogLevel ;
         string m_adminAddress ;
         unsigned int m_adminPort ;
+        bool m_useTlsOnAdminConnections;
         string m_secret ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
@@ -451,11 +462,14 @@ namespace drachtio {
     unsigned int DrachtioConfig::getAdminPort( string& address ) {
         return m_pimpl->getAdminPort( address ) ;
     }
+    bool DrachtioConfig::useTlsOnAdminConnections(void) {
+        return m_pimpl->useTlsOnAdminConnections() ;
+    }
     bool DrachtioConfig::isSecret( const string& secret ) const {
         return m_pimpl->isSecret( secret ) ;
     }
-    bool DrachtioConfig::getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const {
-        return m_pimpl->getTlsFiles( keyFile, certFile, chainFile ) ;
+    bool DrachtioConfig::getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile, std::string& dhParam ) const {
+        return m_pimpl->getTlsFiles( keyFile, certFile, chainFile, dhParam ) ;
     }
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;
