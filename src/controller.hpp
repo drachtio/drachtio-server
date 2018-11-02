@@ -202,9 +202,8 @@ namespace drachtio {
 
     // command-line option overrides
     string  m_user ;    //system user to run as
-    unsigned int m_adminPort; 
-    int m_useTlsOnAdminConnections;
-    string m_sipContact; 
+    unsigned int m_adminTcpPort; 
+    unsigned int m_adminTlsPort; 
     string m_tlsKeyFile, m_tlsCertFile, m_tlsChainFile, m_dhParam;
     unsigned int m_mtu;
 

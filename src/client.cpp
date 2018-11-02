@@ -34,256 +34,38 @@ THE SOFTWARE.
 #include "controller.hpp"
 
 namespace drachtio {
-    std::size_t hash_value( Client const &c ) {
+    std::size_t hash_value( BaseClient const &c ) {
         std::size_t seed = 0 ;
-        boost::hash_combine( seed, c.const_socket().local_endpoint().address().to_string()  ) ;
-        boost::hash_combine( seed, c.const_socket().local_endpoint().port() ) ;
+        boost::hash_combine(seed, c.endpoint_address()) ;
+        boost::hash_combine(seed, c.endpoint_port()) ;
         return seed ;
     }
 
-	Client::Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, 
-        ClientController& controller, bool useTls ) : 
-        m_sock(io_service), 
-        m_ssl_socket(io_service, context),
+    // BaseClient
+    BaseClient::BaseClient(ClientController& controller) :
         m_controller( controller ),  
-        m_state(initial), m_buffer(12228), m_nMessageLength(0), m_useTls(useTls) {
-          
-        int optval = 1 ;
-        socklen_t optlen = sizeof(optval);
-        if( setsockopt(m_sock.native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0 ) {
-        //DR_LOG(log_error) << "Client::Client - error enabling tcp keepalive"; 
-        }
-    }
-    
-    Client::Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, 
-        const string& transactionId, const string& host, 
-        const string& port, ClientController& controller ) :
-        m_sock(io_service), 
-        m_ssl_socket(io_service, context),
-        m_controller(controller), m_transactionId(transactionId), m_host(host), m_port(port),
-        m_state(initial), m_buffer(12228), m_nMessageLength(0),m_useTls(false) {
-    }
-
-    Client::~Client() {
-      DR_LOG(log_debug) << "Client::~Client";
-    }
-
-    void Client::handle_handshake(const boost::system::error_code& ec) {
-        if (!ec) {
-            m_controller.join( shared_from_this() ) ;
-            m_ssl_socket.async_read_some(boost::asio::buffer(m_readBuf),
-                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        }
-        else {
-            DR_LOG(log_error) << "Client::handle_handshake - TLS handshake failed: " << ec ;
-        }
-    }
-
-    // called when we as a server have received a new connection
-    void Client::start() {
-
-        DR_LOG(log_info) << "Received connection from client at " << m_sock.remote_endpoint().address().to_string() << ":" << m_sock.remote_endpoint().port()  ;
-
-        if (m_useTls) {
-            m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                boost::bind(&Client::handle_handshake, shared_from_this(),
-                boost::asio::placeholders::error));
-        }
-        else {
-            m_controller.join( shared_from_this() ) ;
-            m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        }      
-    }
-
-  void Client::async_connect() {
-    boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
-    boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
-    tcp::resolver::iterator endpointIterator = resolver.resolve(query);
-    tcp::endpoint endpoint = *endpointIterator;
-
-    m_sock.async_connect(endpoint,
-      boost::bind(&Client::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
-  }
-  void Client::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
-    if( !ec ) {
-      DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
-        this->const_socket().remote_endpoint().address().to_string() << ":" << 
-        this->const_socket().remote_endpoint().port() ;
-
-      m_controller.join( shared_from_this() ) ;
-      if (m_useTls) {
-          m_ssl_socket.async_read_some(boost::asio::buffer(m_readBuf),
-            boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
-              boost::asio::placeholders::bytes_transferred ) ) ;
-      }
-      else {
-          m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-            boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, 
-              boost::asio::placeholders::bytes_transferred ) ) ;
-      }
-
-      //TODO: set a timeout of 2 secs or so for remote side to authenticate
+        m_state(initial), m_buffer(12228), m_nMessageLength(0) {
 
     }
-    else if( endpointIterator != tcp::resolver::iterator() ) {
-      DR_LOG(log_debug) << "Client::connect_handler - failed to connecte to " <<
-        this->const_socket().remote_endpoint().address().to_string() << ":" << 
-        this->const_socket().remote_endpoint().port() ;
-      m_sock.close() ;
-      tcp::endpoint endpoint = *endpointIterator;
-      m_sock.async_connect(endpoint,
-        boost::bind(&Client::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
-    }
-    else {
-      // final failure
-      DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
-      m_controller.outboundFailed(m_transactionId);
-    }
-  }
+    BaseClient::BaseClient(ClientController& controller, 
+        const string& transactionId, 
+        const string& host, const string& port) :
+        m_controller( controller ), 
+        m_transactionId(transactionId), m_host(host), m_port(port),
+        m_state(initial), m_buffer(12228), m_nMessageLength(0) {
 
-  boost::shared_ptr<SipDialogController> Client::getDialogController(void) { 
-    return m_controller.getDialogController(); 
-  }
 
-    bool Client::readMessageLength(unsigned int& len) {
-        bool continueOn = true ;
-        boost::array<char, 6> ch ;
-        memset( ch.data(), 0, sizeof(ch)) ;
-        unsigned int i = 0 ;
-        char c ;
-        do {
-            c = m_buffer.front() ;
-            m_buffer.pop_front() ;
-            if( '#' == c ) break ;
-            if( !isdigit( c ) ) throw std::runtime_error("Client::readMessageLength - invalid message length specifier") ;
-            ch[i++] = c ;
-        } while( m_buffer.size() && i < 6 ) ;
-
-        if( 6 == i ) throw std::runtime_error("Client::readMessageLength - invalid message length specifier") ;
-
-        if( 0 == m_buffer.size() ) {
-            if( '#' != c ) {
-                /* the message was split in the middle of the length specifier - put them back for next time to be read in full once remainder come in */
-                for( unsigned int n = 0; n < i; n++ ) m_buffer.push_back( ch[n] ) ;
-                len = 0 ;
-                return false ;
-            }
-            continueOn = false ;
-        }
-
-        len = boost::lexical_cast<unsigned int>(ch.data()); 
-        return continueOn ;
     }
 
-    void Client::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-
-        if( ec ) {
-            DR_LOG(log_error) << "Client::read_handler - bouncing client due to error reading: " << ec ;
-            m_controller.leave( shared_from_this() ) ;
-            return ;
-        }
-
-        //DR_LOG(log_debug) << "Client::read_handler read raw message of " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
-
-        /* append the data to our in-process buffer */
-        m_buffer.insert( m_buffer.end(), m_readBuf.begin(),  m_readBuf.begin() + bytes_transferred ) ;
-
-        /* if we're starting a new message, parse the message length */
-        if( 0 == m_nMessageLength ) {
-
-            try {
-                if( !readMessageLength( m_nMessageLength ) ) {
-                    DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength  ;                     
-                    goto read_again ;
-                }
-            }
-            catch( std::runtime_error& err ) {
-                DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly"  ;                     
-                m_controller.leave( shared_from_this() ) ;               
-                return ;
-            }
-        }
-
-        /* while we have at least one full message, process it */
-        while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
-            string msgResponse ;
-            string in ;
-            bool bContinue = true ;
-            try {
-                in.assign(m_buffer.begin(), m_buffer.begin() + m_nMessageLength);
-                DR_LOG(log_debug) << "Client::read_handler read: " << in << endl ;
-                bContinue = processClientMessage( in, msgResponse ) ;
-            } catch( std::runtime_error& err ) {
-                DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
-                m_controller.leave( shared_from_this() ) ;
-                return ;
-            }
-
-            /* send response if indicated */
-            if( !msgResponse.empty() ) {
-                msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
-                DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
-                if (m_useTls) {
-                    boost::asio::async_write( m_ssl_socket, boost::asio::buffer( msgResponse ), 
-                        boost::bind( &Client::write_handler, shared_from_this(), 
-                            boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-                }
-                else {
-                    boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
-                        boost::bind( &Client::write_handler, shared_from_this(), 
-                            boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-                }
-            }
-            if( !bContinue ) {
-                 DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
-                m_controller.leave( shared_from_this() ) ;
-                return ;
-            }
-
-            if( this->isOutbound() && string::npos != in.find("|authenticate|")) {
-              m_controller.outboundReady( shared_from_this(), m_transactionId ) ;
-            }
-
-
-            /* reload for next message */
-            m_buffer.erase_begin( m_nMessageLength ) ;
-            if( m_buffer.size() ) {
-                DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer, remaining bytes to process: " << m_buffer.size()  ;
-                try {
-                    if( !readMessageLength( m_nMessageLength ) ) {
-                        DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength  ;                     
-                        break ;
-                    }
-                }
-                catch( std::runtime_error& err ) {
-                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- message length not specified properly"  ;                     
-                    m_controller.leave( shared_from_this() ) ;               
-                    return ;
-                }
-                DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << m_nMessageLength << " bytes "  ; 
-            }
-            else {
-                m_nMessageLength = 0 ;
-            }
-        }
-
-read_again:
-        if (m_useTls) {
-            m_ssl_socket.async_read_some(boost::asio::buffer(m_readBuf),
-                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        }
-        else {
-            m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-                boost::bind( &Client::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        }
-       
-    }
-    void Client::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-    	DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
+    BaseClient::~BaseClient() {
+      DR_LOG(log_debug) << "BaseClient::~BaseClient";
     }
 
-    bool Client::processClientMessage( const string& msg, string& msgResponse ) {
+    boost::shared_ptr<SipDialogController> BaseClient::getDialogController() {
+        return m_controller.getDialogController(); 
+    }
+
+    bool BaseClient::processClientMessage( const string& msg, string& msgResponse ) {
         string meta, startLine, headers, body ;
        
         splitMsg( msg, meta, startLine, headers, body ) ;
@@ -412,27 +194,62 @@ read_again:
         createResponseMsg( tokens[0], msgResponse ) ;
         return true ;
     }
-    void Client::sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) {
+
+    bool BaseClient::readMessageLength(unsigned int& len) {
+        bool continueOn = true ;
+        boost::array<char, 6> ch ;
+        memset( ch.data(), 0, sizeof(ch)) ;
+        unsigned int i = 0 ;
+        char c ;
+        do {
+            c = m_buffer.front() ;
+            m_buffer.pop_front() ;
+            if ('#' == c) break ;
+            if (!isdigit(c)) throw std::runtime_error("Client::readMessageLength - invalid message length specifier") ;
+            ch[i++] = c ;
+        } while(m_buffer.size() && i < 6) ;
+
+        if (6 == i) throw std::runtime_error("Client::readMessageLength - invalid message length specifier") ;
+
+        if (0 == m_buffer.size()) {
+            if('#' != c) {
+                /* the message was split in the middle of the length specifier - put them back for next time to be read in full once remainder come in */
+                for( unsigned int n = 0; n < i; n++ ) m_buffer.push_back( ch[n] ) ;
+                len = 0 ;
+                return false ;
+            }
+            continueOn = false ;
+        }
+
+        len = boost::lexical_cast<unsigned int>(ch.data()); 
+        return continueOn ;
+    }
+
+
+    void BaseClient::sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) {
         string strUuid, s ;
         generateUuid( strUuid ) ;
         meta.toMessageFormat(s) ;
 
         send(strUuid + "|sip|" + s + "|" + transactionId + "|" + dialogId + "|" + DR_CRLF + rawSipMsg) ;
     }
-    void Client::sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) {
+
+    void BaseClient::sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) {
         string strUuid, s ;
         generateUuid( strUuid ) ;
         meta.toMessageFormat(s) ;
 
         send(strUuid + "|sip|" + s + "|" + transactionId + "|" + DR_CRLF + rawSipMsg) ;
     }
-    void Client::sendCdrToClient( const string& rawSipMsg, const string& meta ) {
+
+    void BaseClient::sendCdrToClient( const string& rawSipMsg, const string& meta ) {
         string strUuid, s ;
         generateUuid( strUuid ) ;
 
         send(strUuid + "|" + meta + DR_CRLF + rawSipMsg) ;
     }
-    void Client::sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) {
+
+    void BaseClient::sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) {
         string strUuid ;
         generateUuid( strUuid ) ;
         string msg = strUuid + "|response|" + clientMsgId + "|" ;
@@ -443,23 +260,8 @@ read_again:
         }
         send(msg) ;
     }
-    void Client::send( const string& str ) {
-        int len = utf8_strlen(str);
-        ostringstream o ;
 
-        o << len << "#" << str ;
-       
-        if (m_useTls) {
-            boost::asio::async_write( m_ssl_socket, boost::asio::buffer( o.str() ), 
-                boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        }
-        else {
-            boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
-                boost::bind( &Client::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
-        }
-        //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
-    }
-    void Client::createResponseMsg(const string& msgId, string& msg, bool ok, const char* szReason ) {
+    void BaseClient::createResponseMsg(const string& msgId, string& msg, bool ok, const char* szReason ) {
         string strUuid ;
         generateUuid( strUuid ) ;
         msg = strUuid + "|response|" + msgId + "|" ;
@@ -468,5 +270,275 @@ read_again:
             msg.append("|") ;
             msg.append( szReason ) ;
         }
+    }
+
+    // Client (member functions)
+
+    template<typename T, typename S>
+    void Client<T,S>::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
+
+        if( ec ) {
+            DR_LOG(log_error) << "Client::read_handler - bouncing client due to error reading: " << ec ;
+            m_controller.leave( shared_from_this() ) ;
+            return ;
+        }
+
+        //DR_LOG(log_debug) << "Client::read_handler read raw message of " << bytes_transferred << " bytes: " << std::string(m_readBuf.begin(), m_readBuf.begin() + bytes_transferred) << endl ;
+
+        /* append the data to our in-process buffer */
+        m_buffer.insert( m_buffer.end(), m_readBuf.begin(),  m_readBuf.begin() + bytes_transferred ) ;
+
+        /* if we're starting a new message, parse the message length */
+        if( 0 == m_nMessageLength ) {
+
+            try {
+                if( !readMessageLength( m_nMessageLength ) ) {
+                    DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength  ;                     
+                    goto read_again ;
+                }
+            }
+            catch( std::runtime_error& err ) {
+                DR_LOG(log_error) << "Client::read_handler client sent invalid message -- JSON message length not specified properly"  ;                     
+                m_controller.leave( shared_from_this() ) ;               
+                return ;
+            }
+        }
+
+        /* while we have at least one full message, process it */
+        while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
+            string msgResponse ;
+            string in ;
+            bool bContinue = true ;
+            try {
+                in.assign(m_buffer.begin(), m_buffer.begin() + m_nMessageLength);
+                DR_LOG(log_debug) << "Client::read_handler read: " << in << endl ;
+                bContinue = processClientMessage( in, msgResponse ) ;
+            } catch( std::runtime_error& err ) {
+                DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
+                m_controller.leave( shared_from_this() ) ;
+                return ;
+            }
+
+            /* send response if indicated */
+            if( !msgResponse.empty() ) {
+                msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
+                DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
+                boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
+                    boost::bind( &BaseClient::write_handler, shared_from_this(), 
+                        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+            }
+            if( !bContinue ) {
+                 DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
+                m_controller.leave( shared_from_this() ) ;
+                return ;
+            }
+
+            if( this->isOutbound() && string::npos != in.find("|authenticate|")) {
+              m_controller.outboundReady( shared_from_this(), m_transactionId ) ;
+            }
+
+
+            /* reload for next message */
+            m_buffer.erase_begin( m_nMessageLength ) ;
+            if( m_buffer.size() ) {
+                DR_LOG(log_debug) << "Client::read_handler processing follow-on message in read buffer, remaining bytes to process: " << m_buffer.size()  ;
+                try {
+                    if( !readMessageLength( m_nMessageLength ) ) {
+                        DR_LOG(log_debug) << "Client::read_handler - message was split after message length of " << m_nMessageLength  ;                     
+                        break ;
+                    }
+                }
+                catch( std::runtime_error& err ) {
+                    DR_LOG(log_error) << "Client::read_handler client sent invalid message -- message length not specified properly"  ;                     
+                    m_controller.leave( shared_from_this() ) ;               
+                    return ;
+                }
+                DR_LOG(log_debug) << "Client::read_handler follow-on message length of " << m_nMessageLength << " bytes "  ; 
+            }
+            else {
+                m_nMessageLength = 0 ;
+            }
+        }
+
+read_again:
+        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+       
+    }
+
+    template<typename T, typename S>
+    void Client<T,S>::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
+    	DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
+    }
+
+
+    template<typename T, typename S>
+    void Client<T,S>::send( const string& str ) {
+        int len = utf8_strlen(str);
+        ostringstream o ;
+
+        o << len << "#" << str ;
+       
+        boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
+            boost::bind( &BaseClient::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
+    }
+
+    // Client (member function specializations for plain tcp connections)
+    
+    template<>
+    Client<socket_t>::Client(boost::asio::io_context& io_context, ClientController& controller) :
+        BaseClient(controller),
+        m_sock(io_context) {
+        int optval = 1 ;
+        socklen_t optlen = sizeof(optval);
+        setsockopt(m_sock.native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen);
+    }
+
+    template<>
+    Client<socket_t>::Client( boost::asio::io_context& io_context, ClientController& controller,
+        const string& transactionId, const string& host, 
+        const string& port ) :
+        BaseClient(controller, transactionId, host, port),
+        m_sock(io_context) {
+
+    }
+
+    template<>
+    void Client<socket_t>::start() {
+
+        m_strRemoteAddress = m_sock.remote_endpoint().address().to_string();
+        m_nRemotePort = m_sock.remote_endpoint().port();
+
+        DR_LOG(log_info) << "Client::start - Received connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
+
+        m_controller.join( shared_from_this() ) ;
+        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+    }
+
+    template<>
+    void Client<socket_t>::async_connect() {
+        boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
+        boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
+        tcp::resolver::iterator endpointIterator = resolver.resolve(query);
+        tcp::endpoint endpoint = *endpointIterator;
+
+        m_sock.async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+    }
+
+    template<>
+    void Client<socket_t>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
+        if( !ec ) {
+            DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
+            endpoint_address() << ":" << endpoint_port() ;
+
+        m_controller.join( shared_from_this() ) ;
+        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+            boost::asio::placeholders::bytes_transferred ) ) ;
+
+        //TODO: set a timeout of 2 secs or so for remote side to authenticate
+
+        }
+        else if( endpointIterator != tcp::resolver::iterator() ) {
+            DR_LOG(log_debug) << "Client::connect_handler - failed to connecte to " <<
+            endpoint_address() << ":" << endpoint_port() ;
+            m_sock.close() ;
+            tcp::endpoint endpoint = *endpointIterator;
+            m_sock.async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+        }
+        else {
+            // final failure
+            DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
+            m_controller.outboundFailed(m_transactionId);
+        }
+    }
+
+    // Client (member function specializations for tls connections)
+    
+    template<>
+    Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client(boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller) :
+        BaseClient(controller),
+        m_sock(io_context, context) {
+        int optval = 1 ;
+        socklen_t optlen = sizeof(optval);
+        setsockopt(m_sock.lowest_layer().native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen);
+    }
+
+    template<>
+    Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client( boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller,
+        const string& transactionId, const string& host, const string& port ) :
+        BaseClient(controller, transactionId, host, port),
+        m_sock(io_context, context) {
+
+    }
+
+    template<>
+    void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::start() {
+
+        m_strRemoteAddress = m_sock.lowest_layer().remote_endpoint().address().to_string();
+        m_nRemotePort = m_sock.lowest_layer().remote_endpoint().port();
+
+        DR_LOG(log_info) << "Client::start - Received tls connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
+
+        m_sock.async_handshake(boost::asio::ssl::stream_base::server,
+            boost::bind(&BaseClient::handle_handshake, shared_from_this(),
+            boost::asio::placeholders::error));
+    }
+
+    template<>
+    void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::async_connect() {
+        boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
+        boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
+        tcp::resolver::iterator endpointIterator = resolver.resolve(query);
+        tcp::endpoint endpoint = *endpointIterator;
+
+        m_sock.lowest_layer().async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+    }
+
+    template<>
+    void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
+        if( !ec ) {
+            DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
+            endpoint_address() << ":" << endpoint_port() ;
+
+        m_controller.join( shared_from_this() ) ;
+        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, 
+            boost::asio::placeholders::bytes_transferred ) ) ;
+
+        //TODO: set a timeout of 2 secs or so for remote side to authenticate
+
+        }
+        else if( endpointIterator != tcp::resolver::iterator() ) {
+            DR_LOG(log_debug) << "Client::connect_handler - failed to connecte to " <<
+            endpoint_address() << ":" << endpoint_port() ;
+            m_sock.lowest_layer().close() ;
+            tcp::endpoint endpoint = *endpointIterator;
+            m_sock.lowest_layer().async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+        }
+        else {
+            // final failure
+            DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
+            m_controller.outboundFailed(m_transactionId);
+        }
+    }
+
+    template<>
+    void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::handle_handshake(const boost::system::error_code& ec) {
+        if (!ec) {
+            DR_LOG(log_debug) << "Client::handle_handshake - TLS handshake succeeded ";
+            m_controller.join( shared_from_this() ) ;
+            m_sock.async_read_some(boost::asio::buffer(m_readBuf),
+                boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+        }
+        else {
+            DR_LOG(log_error) << "Client::handle_handshake - TLS handshake failed: " << ec.message() << " (" << ec << ")" ;
+        }
+    }
+    template<>
+    void Client<socket_t>::handle_handshake(const boost::system::error_code& ec) {
+        assert(0);
     }
 }

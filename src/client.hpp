@@ -31,76 +31,60 @@ THE SOFTWARE.
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 
-typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> ssl_socket_t;
 
 namespace drachtio {
+
+    typedef boost::asio::ip::tcp::socket socket_t;
+    typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> ssl_socket_t;
 
 	class ClientController ;
 
 	class SipDialogController ;
 
-	class Client : public boost::enable_shared_from_this<Client> {
-	public:
-    Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, ClientController& controller, bool useTls ) ;
-    Client( boost::asio::io_service& io_service, boost::asio::ssl::context& context, const string& transactionId, const string& host, const string& port, ClientController& controller ) ;
-    ~Client() ;
+    class BaseClient : public boost::enable_shared_from_this<BaseClient> {
+    public:
+        BaseClient(ClientController& controller);
+        BaseClient(ClientController& controller, 
+            const string& transactionId, const string& host, const string& port);
+        ~BaseClient();
+
+        const string& endpoint_address() const { return m_strRemoteAddress;}
+        const unsigned short endpoint_port() const { return m_nRemotePort;}
+        
+        virtual void start() = 0;
+
+        virtual void async_connect() = 0;
+        virtual void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator) = 0;
+        virtual void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) = 0;
+        virtual void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) = 0;
+
+        virtual void handle_handshake(const boost::system::error_code& ec) = 0;
+
+
+        bool processClientMessage( const string& msg, string& msgResponse ) ;
+        void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+        void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
+        void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
+        void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
+
+        bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
+        bool isOutbound(void) const { return !m_transactionId.empty(); }
+        bool hasTag(const char* tag) const { return m_tags.find(tag) != m_tags.end(); }
+
+    protected:
+        virtual void send( const string& str ) = 0 ;  
+
+        enum state {
+            initial = 0,
+            authenticated,
+        } ;
     
-    boost::asio::ip::tcp::socket& socket() {
-        return m_sock;
-    }
-    const boost::asio::ip::tcp::socket& const_socket() const {
-        return m_sock;
-    }
-    
-    ssl_socket_t::lowest_layer_type& ssl_socket() {
-        return m_ssl_socket.lowest_layer();
-    }
+        bool readMessageLength( unsigned int& len ) ;
+        void createResponseMsg( const string& msgId, string& msg, bool ok = true, const char* szReason = NULL ) ;
+        boost::shared_ptr<SipDialogController> getDialogController(void);
 
-    const ssl_socket_t::lowest_layer_type& const_ssl_socket() const {
-        return m_ssl_socket.lowest_layer();
-    }
-
-    void start(); 
-    void handle_handshake(const boost::system::error_code& ec);
-    void async_connect() ;
-    void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator);
-    void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) ;
-    void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
-
-	bool processClientMessage( const string& msg, string& msgResponse ) ;
-    void sendSipMessageToClient( const string& transactionId, const string& dialogId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
-    void sendSipMessageToClient( const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta ) ;
-    void sendCdrToClient( const string& rawSipMsg, const string& meta ) ;
-    void sendApiResponseToClient( const string& clientMsgId, const string& responseText, const string& additionalResponseText ) ;
-
-	bool getAppName( string& strAppName ) { strAppName = m_strAppName; return !strAppName.empty(); }
-
-	bool isOutbound(void) const { return !m_transactionId.empty(); }
-
-    bool hasTag(const char* tag) const { return m_tags.find(tag) != m_tags.end(); }
-
-	protected:
-
-		enum state {
-			initial = 0,
-			authenticated,
-		} ;
-	  
-
-		bool readMessageLength( unsigned int& len ) ;
-		void createResponseMsg( const string& msgId, string& msg, bool ok = true, const char* szReason = NULL ) ;
-		void send( const string& str ) ;  
-		boost::shared_ptr<SipDialogController> getDialogController(void) ;
-
-
-	private:
-		ClientController& m_controller ;
-		state m_state ;
-
-        bool m_useTls;
-
-        boost::asio::ip::tcp::socket m_sock;
-        ssl_socket_t m_ssl_socket;
+        ClientController& m_controller ;
+        state m_state ;
 
         boost::array<char, 8192> m_readBuf ;
         boost::circular_buffer<char> m_buffer ;
@@ -114,11 +98,48 @@ namespace drachtio {
         string m_transactionId ;
         string m_host ;
         string m_port ;
-    	} ;
 
-    	typedef boost::shared_ptr<Client> client_ptr;
-    	typedef boost::weak_ptr<Client> client_weak_ptr;
+        string m_strRemoteAddress;
+        unsigned int m_nRemotePort;
+    };
 
+	template <typename T, typename S = T> 
+    class Client : public BaseClient {
+	public:
+
+        Client(boost::asio::io_context& io_context, ClientController& controller);
+        Client(boost::asio::io_context& io_context, ClientController& controller, 
+            const string& transactionId, const string& host, const string& port);
+
+        Client(boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller) ;
+        Client(boost::asio::io_context& io_context, boost::asio::ssl::context& context,  ClientController& controller, 
+            const string& transactionId, const string& host, const string& port);
+       
+        ~Client() {}
+
+        void async_connect();
+        void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator);
+        void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
+        void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
+
+        void handle_handshake(const boost::system::error_code& ec);
+
+        void start(); 
+
+        T& socket() { return m_sock; }
+
+    protected:
+        void send( const string& str );  
+
+        T m_sock;
+
+    private:
+        Client();  // prohibited
+
+    } ;
+
+    typedef boost::shared_ptr<BaseClient> client_ptr;
+    typedef boost::weak_ptr<BaseClient> client_weak_ptr;
 }
 
 

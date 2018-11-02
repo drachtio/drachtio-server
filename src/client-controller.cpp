@@ -30,65 +30,89 @@ THE SOFTWARE.
 #include "client-controller.hpp"
 #include "controller.hpp"
 
+static string emptyString;
+
 namespace drachtio {
     
     // simple tcp server
-    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int port ) :
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tcpPort ) :
+        ClientController(pController, address, tcpPort, 0, emptyString, emptyString, emptyString, emptyString) {
+
+        DR_LOG(log_debug) << "Client controller initializing with tcp only" ;
+    }
+
+    // simple tls server
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tlsPort,
+        const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) :
+        ClientController(pController, address, 0, tlsPort, chainFile, certFile, keyFile, dhFile) {
+
+        DR_LOG(log_debug) << "Client controller initializing with tcp only" ;
+    }
+
+    // both tcp and tls
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tcpPort, unsigned int tlsPort, 
+        const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) :
         m_pController( pController ),
-        m_endpoint(  boost::asio::ip::tcp::v4(), port ),
-        m_acceptor( m_ioservice, m_endpoint ), 
-        m_context(boost::asio::ssl::context::sslv23), 
-        m_useTls(false) {
+        m_endpoint_tcp(boost::asio::ip::tcp::v4(), tcpPort),
+        m_acceptor_tcp(m_ioservice, m_endpoint_tcp), 
+        m_endpoint_tls(boost::asio::ip::tcp::v4(), tlsPort),
+        m_acceptor_tls(m_ioservice, m_endpoint_tls), 
+        m_context(boost::asio::ssl::context::sslv23),
+        m_tcpPort(tcpPort), m_tlsPort(tlsPort) {
+
+        if (0 != tlsPort) {
+            m_context.set_options(
+                boost::asio::ssl::context::default_workarounds | 
+                boost::asio::ssl::context::no_sslv2 | 
+                boost::asio::ssl::context::single_dh_use
+            );
             
+            if (!chainFile.empty()) {
+                DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << chainFile  ;
+                m_context.use_certificate_chain_file(chainFile.c_str());
+                if (!certFile.empty()) {
+                    DR_LOG(log_debug) << "ClientController::ClientController setting tls cert file: " << certFile  ;
+                    m_context.use_certificate_file(certFile.c_str(), boost::asio::ssl::context::pem);
+                }
+            }
+            else {
+                DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << certFile  ;
+                m_context.use_certificate_chain_file(certFile.c_str());
+            }
+            DR_LOG(log_debug) << "ClientController::ClientController setting tls private key file: " << keyFile  ;
+            m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
+            DR_LOG(log_debug) << "ClientController::ClientController setting tls dh file: " << dhFile  ;
+            m_context.use_tmp_dh_file(dhFile.c_str());
+
+            //m_context.set_verify_mode(boost::asio::ssl::verify_none);
+        }
+    }
+
+    void ClientController::start() {
         srand (time(NULL));    
         boost::thread t(&ClientController::threadFunc, this) ;
         m_thread.swap( t ) ;
             
-        this->start_accept() ;
+        if (m_tcpPort) start_accept_tcp() ;
+        if (m_tlsPort) start_accept_tls() ;
     }
-
-    // tls server
-    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int port, 
-        const string& chainFile, const string& keyFile, const string& dhFile ) :
-        m_pController( pController ),
-        m_endpoint(  boost::asio::ip::tcp::v4(), port ),
-        m_acceptor( m_ioservice, m_endpoint ), 
-        m_context(boost::asio::ssl::context::sslv23), 
-        m_useTls(true) {
-
-        m_context.set_options(
-            boost::asio::ssl::context::default_workarounds | 
-            boost::asio::ssl::context::no_sslv2 | 
-            boost::asio::ssl::context::single_dh_use
-        );
-        m_context.use_certificate_chain_file(chainFile.c_str());
-        m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
-        m_context.use_tmp_dh_file(dhFile.c_str());
-
-        srand (time(NULL));    
-        boost::thread t(&ClientController::threadFunc, this) ;
-        m_thread.swap( t ) ;
-            
-        this->start_accept() ;
-    }
-
 
     ClientController::~ClientController() {
-        this->stop() ;
+        stop() ;
     }
     void ClientController::threadFunc() {
         
         DR_LOG(log_debug) << "Client controller thread id: " << boost::this_thread::get_id()  ;
          
         /* to make sure the event loop doesn't terminate when there is no work to do */
-        boost::asio::io_service::work work(m_ioservice);
+        boost::asio::io_context::work work(m_ioservice);
         
         for(;;) {
             
             try {
-                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop started (or restarted)"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_context run loop started (or restarted)"  ;
                 m_ioservice.run() ;
-                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop ended normally"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_context run loop ended normally"  ;
                 break ;
             }
             catch( std::exception& e) {
@@ -126,18 +150,33 @@ namespace drachtio {
         m_services.insert( map_of_services::value_type(strAppName,p)) ;       
     }
 
-	void ClientController::start_accept() {
-		client_ptr new_session( new Client( m_ioservice, m_context, *this, m_useTls ) ) ;
-		m_acceptor.async_accept( new_session->socket(), boost::bind(&ClientController::accept_handler, this, new_session, boost::asio::placeholders::error));
+	void ClientController::start_accept_tcp() {
+        Client<socket_t>* p = new Client<socket_t>(m_ioservice, *this);
+		client_ptr new_session(p) ;
+		m_acceptor_tcp.async_accept( p->socket(), boost::bind(&ClientController::accept_handler_tcp, this, new_session, boost::asio::placeholders::error));
     }
-	void ClientController::accept_handler( client_ptr session, const boost::system::error_code& ec) {
+	void ClientController::accept_handler_tcp( client_ptr session, const boost::system::error_code& ec) {
+        DR_LOG(log_debug) << "ClientController::accept_handler_tcp - got connection" ;       
+
         if(!ec) session->start() ;
-        start_accept(); 
+        start_accept_tcp(); 
+    }
+
+	void ClientController::start_accept_tls() {
+        Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p = new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>(m_ioservice, m_context, *this);
+		client_ptr new_session(p) ;
+		m_acceptor_tls.async_accept( p->socket().lowest_layer(), boost::bind(&ClientController::accept_handler_tls, this, new_session, boost::asio::placeholders::error));
+    }
+	void ClientController::accept_handler_tls( client_ptr session, const boost::system::error_code& ec) {
+        DR_LOG(log_debug) << "ClientController::accept_handler_tls - got connection" ;       
+        if(!ec) session->start() ;
+        start_accept_tls(); 
     }
 
     void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
-        client_ptr new_session( new Client( m_ioservice, m_context, transactionId, host, port, *this ) ) ;
-        new_session->async_connect() ;
+        Client<socket_t>* p =  new Client<socket_t>( m_ioservice, *this, transactionId, host, port ) ;
+        client_ptr new_session(p) ;
+        p->async_connect() ;
     }
 
     void ClientController::selectClientForTag(const string& transactionId, const string& tag) {
@@ -253,7 +292,7 @@ namespace drachtio {
             }
         }
 
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        m_ioservice.post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         this->removeNetTransaction( inviteTransactionId ) ;
         DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - removed incoming invite transaction, map size is now: " << m_mapNetTransactions.size() << " request"  ;
@@ -273,7 +312,7 @@ namespace drachtio {
         }
  
         DR_LOG(log_debug) << "ClientController::route_response_inside_invite - sending response to client"  ;
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        m_ioservice.post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         return true ;
     }
@@ -289,7 +328,7 @@ namespace drachtio {
         }
         if (string::npos == transactionId.find("unsolicited")) this->addNetTransaction( client, transactionId ) ;
  
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        m_ioservice.post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         // if this is a BYE from the network, it ends the dialog 
         string method_name = sip->sip_request->rq_method_name ;
@@ -314,7 +353,7 @@ namespace drachtio {
             return false ;
         }
 
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        m_ioservice.post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         string method_name = sip->sip_cseq->cs_method_name ;
 
@@ -432,7 +471,7 @@ namespace drachtio {
         if( string::npos == additionalResponseData.find("|continue") ) {
             removeApiRequest( clientMsgId ) ;
         }
-        m_ioservice.post( boost::bind(&Client::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
+        m_ioservice.post( boost::bind(&BaseClient::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
         return true ;                
     }
     
@@ -562,7 +601,8 @@ namespace drachtio {
     }
 
     void ClientController::stop() {
-        m_acceptor.cancel() ;
+        m_acceptor_tcp.cancel() ;
+        m_acceptor_tls.cancel() ;
         m_ioservice.stop() ;
         m_thread.join() ;
     }

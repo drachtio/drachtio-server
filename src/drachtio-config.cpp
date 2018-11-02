@@ -41,8 +41,8 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_useTlsOnAdminConnections(false) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -64,13 +64,11 @@ namespace drachtio {
                 /* admin configuration */
                 try {
                     pt.get_child("drachtio.admin") ; // will throw if doesn't exist
-                    m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
+                    m_adminTcpPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
+                    m_adminTlsPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.tls-port", 0) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
                     string tlsValue =  pt.get<string>("drachtio.admin.<xmlattr>.tls", "false") ;
-                    if (0 == tlsValue.compare("true") || 0 == tlsValue.compare("yes") || 0 == tlsValue.compare("on")) {
-                        m_useTlsOnAdminConnections = true;
-                    }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                     cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
                     return ;
@@ -314,12 +312,15 @@ namespace drachtio {
             return tlsKeyFile.length() > 0 && tlsCertFile.length() > 0 ;
         }
         
-        unsigned int getAdminPort( string& address ) {
+        bool getAdminAddress( string& address ) {
             address = m_adminAddress ;
-            return m_adminPort ;
+            return !address.empty() ;
         }
-        bool useTlsOnAdminConnections(void) {
-            return m_useTlsOnAdminConnections;
+        unsigned int getAdminTcpPort() {
+            return m_adminTcpPort ;
+        }
+        unsigned int getAdminTlsPort() {
+            return m_adminTlsPort ;
         }
         bool isSecret( const string& secret ) {
             return 0 == secret.compare( m_secret ) ;
@@ -398,8 +399,8 @@ namespace drachtio {
         severity_levels m_loglevel ;
         unsigned int m_nSofiaLogLevel ;
         string m_adminAddress ;
-        unsigned int m_adminPort ;
-        bool m_useTlsOnAdminConnections;
+        unsigned int m_adminTcpPort ;
+        unsigned int m_adminTlsPort ;
         string m_secret ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
@@ -459,11 +460,14 @@ namespace drachtio {
     severity_levels DrachtioConfig::getLoglevel() {
         return m_pimpl->getLoglevel() ;
     }
-    unsigned int DrachtioConfig::getAdminPort( string& address ) {
-        return m_pimpl->getAdminPort( address ) ;
+    unsigned int DrachtioConfig::getAdminTcpPort() {
+        return m_pimpl->getAdminTcpPort() ;
     }
-    bool DrachtioConfig::useTlsOnAdminConnections(void) {
-        return m_pimpl->useTlsOnAdminConnections() ;
+    unsigned int DrachtioConfig::getAdminTlsPort() {
+        return m_pimpl->getAdminTlsPort() ;
+    }
+    bool DrachtioConfig::getAdminAddress( string& address ) {
+        return m_pimpl->getAdminAddress( address ) ;
     }
     bool DrachtioConfig::isSecret( const string& secret ) const {
         return m_pimpl->isSecret( secret ) ;
