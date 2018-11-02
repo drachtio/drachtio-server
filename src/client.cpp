@@ -472,6 +472,7 @@ read_again:
         BaseClient(controller, transactionId, host, port),
         m_sock(io_context, context) {
 
+        m_sock.set_verify_mode(boost::asio::ssl::verify_none);
     }
 
     template<>
@@ -500,20 +501,14 @@ read_again:
     template<>
     void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
         if( !ec ) {
-            DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
-            endpoint_address() << ":" << endpoint_port() ;
+            DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
+                ":" << m_sock.lowest_layer().remote_endpoint().port() ;
 
-        m_controller.join( shared_from_this() ) ;
-        m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, 
-            boost::asio::placeholders::bytes_transferred ) ) ;
-
-        //TODO: set a timeout of 2 secs or so for remote side to authenticate
-
+            m_sock.async_handshake(boost::asio::ssl::stream_base::client, boost::bind(&BaseClient::handle_handshake, this, boost::asio::placeholders::error));
         }
         else if( endpointIterator != tcp::resolver::iterator() ) {
-            DR_LOG(log_debug) << "Client::connect_handler - failed to connecte to " <<
-            endpoint_address() << ":" << endpoint_port() ;
+            DR_LOG(log_debug) << "Client::connect_handler - failed to connect to "  << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
+                ":" << m_sock.lowest_layer().remote_endpoint().port() ;
             m_sock.lowest_layer().close() ;
             tcp::endpoint endpoint = *endpointIterator;
             m_sock.lowest_layer().async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));

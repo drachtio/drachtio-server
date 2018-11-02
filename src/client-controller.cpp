@@ -157,7 +157,6 @@ namespace drachtio {
     }
 	void ClientController::accept_handler_tcp( client_ptr session, const boost::system::error_code& ec) {
         DR_LOG(log_debug) << "ClientController::accept_handler_tcp - got connection" ;       
-
         if(!ec) session->start() ;
         start_accept_tcp(); 
     }
@@ -173,10 +172,17 @@ namespace drachtio {
         start_accept_tls(); 
     }
 
-    void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
-        Client<socket_t>* p =  new Client<socket_t>( m_ioservice, *this, transactionId, host, port ) ;
-        client_ptr new_session(p) ;
-        p->async_connect() ;
+    void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port, const string& transport ) {
+        if (0 == transport.compare("tls")) {
+            Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p =  new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>( m_ioservice, m_context, *this, transactionId, host, port ) ;
+            client_ptr new_session(p) ;
+            p->async_connect() ;
+        }
+        else {
+            Client<socket_t>* p =  new Client<socket_t>( m_ioservice, *this, transactionId, host, port ) ;
+            client_ptr new_session(p) ;
+            p->async_connect() ;
+        }
     }
 
     void ClientController::selectClientForTag(const string& transactionId, const string& tag) {
