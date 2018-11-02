@@ -64,9 +64,9 @@ namespace drachtio {
 
         unsigned int getMtu(void);
 
-        unsigned int getAdminPort( string& address ) ;
-
-        bool useTlsOnAdminConnections(void) ;
+        bool getAdminAddress( string& address ) ;
+        unsigned int getAdminTcpPort( void ) ;
+        unsigned int getAdminTlsPort( void ) ;
 
         bool getRedisAddress( string& address, unsigned int& port ) const ;
 

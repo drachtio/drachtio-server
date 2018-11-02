@@ -163,7 +163,7 @@ namespace drachtio {
     else {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
-      m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+      m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, p->getTransactionId(), 
           encodedMessage, meta ) ) ;
     }
     return 0 ;
@@ -176,7 +176,7 @@ namespace drachtio {
       return 500 ;
     }
     m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
-    m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
+    m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, p->getTransactionId(), 
         p->getEncodedMsg(), p->getMeta() ) ) ;
     return 0 ;
   }
