@@ -87,7 +87,7 @@ namespace drachtio {
     client_ptr findClientForNetTransaction( const string& transactionId ) ;
     client_ptr findClientForApiRequest( const string& clientMsgId ) ;
 
-    void makeOutboundConnection( const string& transactionId, const string& host, const string& port ) ;
+    void makeOutboundConnection( const string& transactionId, const string& host, const string& port, const string& transport ) ;
     void selectClientForTag(const string& transactionId, const string& tag);
 
     bool sendRequestInsideDialog( client_ptr client, const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) ;

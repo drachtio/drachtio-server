@@ -1527,22 +1527,35 @@ namespace drachtio {
   void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
     string host ;
     string port = "9021";
-    vector<string> strs;
+    string transport = "tcp";
+    //vector<string> strs;
 
-    boost::split(strs, uri, boost::is_any_of(":"));
-    if( strs.size() > 2 ) {
+    boost::regex e("^(.*):(\\d+)(;transport=([tcp|tls]))?", boost::regex::extended);
+    boost::smatch mr; ;
+    if( boost::regex_search( uri, mr, e ) ) {
+        host = mr[1] ;
+        port = mr[2] ;
+        if (mr.size() > 4) {
+            transport = mr[4];
+        }
+    }
+    else {
       DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
       //TODO: send 480, remove pending connection
       return ;              
+    }
+    /*
+    boost::split(strs, uri, boost::is_any_of(":"));
+    if( strs.size() > 2 ) {
     }
     host = strs.at(0) ;
     if( 2 == strs.size() ) {
       port = strs.at(1);
     }
-
+    */
     DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
-      host << ":" << port ;
-    m_pClientController->makeOutboundConnection(transactionId, host, port) ;
+      host << ":" << port << " with transport " << transport;
+    m_pClientController->makeOutboundConnection(transactionId, host, port, transport) ;
   }
 
   void DrachtioController::selectInboundConnectionForTag(const string& transactionId, const string& tag) {
