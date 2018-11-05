@@ -4,13 +4,11 @@ compiler:
 dist: trusty
 sudo: required
 
-addons:
-  apt:
-    packages:
-      - libssl1.0.0
-
 script: 
     - cd  ${TRAVIS_BUILD_DIR}/test
+    - rm ./tls/dh1024.pem
+    - openssl dhparam -out ./tls/dh1024.pem 1024
+    - cd ..
     - cat package.json
     - npm install
     - npm test
