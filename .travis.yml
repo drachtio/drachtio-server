@@ -4,6 +4,11 @@ compiler:
 dist: trusty
 sudo: required
 
+addons:
+  apt:
+    packages:
+      - libssl1.0.0
+
 script: 
     - cd  ${TRAVIS_BUILD_DIR}/test
     - cat package.json
