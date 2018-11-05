@@ -33,13 +33,17 @@ void handleSigHup( int signal ) {
 void handleSigTerm( int signal ) {
   theOneAndOnlyController->handleSigTerm( signal ) ;  
 }
+void handleSigPipe( int signal ) {
+  theOneAndOnlyController->handleSigPipe( signal ) ;  
+}
 
 int main( int argc, char *argv[] ) {
 
 	try {
 		theOneAndOnlyController = new DrachtioController( argc, argv ) ;
 		signal( SIGHUP, handleSigHup ) ;
-    signal( SIGTERM, handleSigTerm ) ;
+    	signal( SIGTERM, handleSigTerm ) ;
+    	signal( SIGPIPE, handleSigPipe ) ;
 		theOneAndOnlyController->run() ;
 	} catch( std::runtime_error& err ) {
 		cerr << "Uncaught exception: " << err.what() << endl ;

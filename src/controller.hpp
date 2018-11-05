@@ -110,6 +110,7 @@ namespace drachtio {
 
     void handleSigHup( int signal ) ;
     void handleSigTerm( int signal ) ;
+    void handleSigPipe( int signal ) ;
   	void run() ;
   	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
     src::severity_logger_mt< severity_levels >* createLogger() ;
