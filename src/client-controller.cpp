@@ -86,6 +86,7 @@ namespace drachtio {
 
             //m_context.set_verify_mode(boost::asio::ssl::verify_none);
         }
+        DR_LOG(log_debug) << "ClientController::ClientController done setting tls options: ";
     }
 
     void ClientController::start() {
