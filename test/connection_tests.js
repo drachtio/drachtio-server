@@ -242,7 +242,7 @@ test('outbound connections', (t) => {
 
 test('tls inbound connections', (t) => {
   let uas1, uas2, uas3;
-  return start('./drachtio.conf3.xml', ['--dh-param', './tls/dh4096.pem', '--cert-file', './tls/server.crt', '--key-file', './tls/server.key'])
+  return start('./drachtio.conf3.xml', ['--dh-param', './tls/dh4096.pem', '--cert-file', './tls/server.crt', '--key-file', './tls/server.key'], false, 20000)
     .then(() => {
       uas1 = new Uas();
       uas2 = new Uas();

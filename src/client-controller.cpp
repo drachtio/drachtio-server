@@ -79,10 +79,10 @@ namespace drachtio {
                 DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << certFile  ;
                 m_context.use_certificate_chain_file(certFile.c_str());
             }
-            DR_LOG(log_debug) << "ClientController::ClientController setting tls private key file: " << keyFile  ;
-            m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
             DR_LOG(log_debug) << "ClientController::ClientController setting tls dh file: " << dhFile  ;
             m_context.use_tmp_dh_file(dhFile.c_str());
+            DR_LOG(log_debug) << "ClientController::ClientController setting tls private key file: " << keyFile  ;
+            m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
 
             //m_context.set_verify_mode(boost::asio::ssl::verify_none);
         }
