@@ -430,7 +430,7 @@ read_again:
     template<>
     void Client<socket_t>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
         if( !ec ) {
-            DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " <<
+            DR_LOG(log_debug) << "Client::connect_handler tcp - successfully connected to " <<
             endpoint_address() << ":" << endpoint_port() ;
 
         m_controller.join( shared_from_this() ) ;
@@ -442,7 +442,7 @@ read_again:
 
         }
         else if( endpointIterator != tcp::resolver::iterator() ) {
-            DR_LOG(log_debug) << "Client::connect_handler - failed to connecte to " <<
+            DR_LOG(log_debug) << "Client::connect_handler tcp - failed to connecte to " <<
             endpoint_address() << ":" << endpoint_port() ;
             m_sock.close() ;
             tcp::endpoint endpoint = *endpointIterator;
@@ -450,7 +450,7 @@ read_again:
         }
         else {
             // final failure
-            DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
+            DR_LOG(log_warning) << "Client::connect_handler tcp - unable to connect to " << m_host << ":" << m_port ;
             m_controller.outboundFailed(m_transactionId);
         }
     }
@@ -501,13 +501,14 @@ read_again:
     template<>
     void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
         if( !ec ) {
-            DR_LOG(log_debug) << "Client::connect_handler - successfully connected to " << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
+            DR_LOG(log_debug) << "Client::connect_handler tls - successfully connected to " << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
                 ":" << m_sock.lowest_layer().remote_endpoint().port() ;
 
+            m_controller.join( shared_from_this() ) ;
             m_sock.async_handshake(boost::asio::ssl::stream_base::client, boost::bind(&BaseClient::handle_handshake, this, boost::asio::placeholders::error));
         }
         else if( endpointIterator != tcp::resolver::iterator() ) {
-            DR_LOG(log_debug) << "Client::connect_handler - failed to connect to "  << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
+            DR_LOG(log_debug) << "Client::connect_handler tls - failed to connect to "  << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
                 ":" << m_sock.lowest_layer().remote_endpoint().port() ;
             m_sock.lowest_layer().close() ;
             tcp::endpoint endpoint = *endpointIterator;
@@ -515,7 +516,7 @@ read_again:
         }
         else {
             // final failure
-            DR_LOG(log_warning) << "Client::connect_handler - unable to connect to " << m_host << ":" << m_port ;
+            DR_LOG(log_warning) << "Client::connect_handler tls - unable to connect to " << m_host << ":" << m_port ;
             m_controller.outboundFailed(m_transactionId);
         }
     }
@@ -524,11 +525,11 @@ read_again:
     void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::handle_handshake(const boost::system::error_code& ec) {
         if (!ec) {
             DR_LOG(log_debug) << "Client::handle_handshake - TLS handshake succeeded ";
-            m_controller.join( shared_from_this() ) ;
             m_sock.async_read_some(boost::asio::buffer(m_readBuf),
                 boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
         }
         else {
+            m_controller.leave( shared_from_this() ) ;
             DR_LOG(log_error) << "Client::handle_handshake - TLS handshake failed: " << ec.message() << " (" << ec << ")" ;
         }
     }
