@@ -312,6 +312,9 @@ namespace drachtio {
         }
     }
 
+    void DrachtioController::handleSigPipe( int signal ) {
+        DR_LOG(log_notice) << "Received SIGPIPE; ignoring.."  ;
+    }
     void DrachtioController::handleSigTerm( int signal ) {
         DR_LOG(log_notice) << "Received SIGTERM; exiting after dumping stats.."  ;
         this->printStats() ;
@@ -863,7 +866,7 @@ namespace drachtio {
             m_pClientController.reset(new ClientController(this, adminAddress, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
         else {
-             DR_LOG(log_notice) << "DrachtioController::run  listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort << " only";
+             DR_LOG(log_notice) << "DrachtioController::run  listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort ;
            m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
         m_pClientController->start();
@@ -1528,9 +1531,8 @@ namespace drachtio {
     string host ;
     string port = "9021";
     string transport = "tcp";
-    //vector<string> strs;
 
-    boost::regex e("^(.*):(\\d+)(;transport=([tcp|tls]))?", boost::regex::extended);
+    boost::regex e("^(.*):(\\d+)(;transport=(tcp|tls))?", boost::regex::extended);
     boost::smatch mr; ;
     if( boost::regex_search( uri, mr, e ) ) {
         host = mr[1] ;
@@ -1544,15 +1546,6 @@ namespace drachtio {
       //TODO: send 480, remove pending connection
       return ;              
     }
-    /*
-    boost::split(strs, uri, boost::is_any_of(":"));
-    if( strs.size() > 2 ) {
-    }
-    host = strs.at(0) ;
-    if( 2 == strs.size() ) {
-      port = strs.at(1);
-    }
-    */
     DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
       host << ":" << port << " with transport " << transport;
     m_pClientController->makeOutboundConnection(transactionId, host, port, transport) ;
