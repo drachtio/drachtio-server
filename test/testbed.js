@@ -49,7 +49,7 @@ obj.start = (confPath, extraArgs, tls = false) => {
 
     setTimeout(() => {
       resolve(drachtio);
-    }, 200);
+    }, 500);
   });
 };
 
