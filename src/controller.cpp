@@ -858,15 +858,15 @@ namespace drachtio {
         }
 
         if (m_adminTcpPort && !m_adminTlsPort) {
-            DR_LOG(log_notice) << "DrachtioController::run  listening for applications on tcp port " << adminTcpPort << " only";
+            DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " only";
             m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort));
         }
         else if (!m_adminTcpPort && m_adminTlsPort) {
-            DR_LOG(log_notice) << "DrachtioController::run  listening for applications on tls port " << adminTlsPort << " only";
+            DR_LOG(log_notice) << "DrachtioController::run listening for applications on tls port " << adminTlsPort << " only";
             m_pClientController.reset(new ClientController(this, adminAddress, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
         else {
-             DR_LOG(log_notice) << "DrachtioController::run  listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort ;
+             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort ;
            m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
         m_pClientController->start();

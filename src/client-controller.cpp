@@ -89,6 +89,7 @@ namespace drachtio {
     }
 
     void ClientController::start() {
+        DR_LOG(log_debug) << "Client controller thread id: " << boost::this_thread::get_id()  ;
         srand (time(NULL));    
         boost::thread t(&ClientController::threadFunc, this) ;
         m_thread.swap( t ) ;
@@ -151,6 +152,7 @@ namespace drachtio {
     }
 
 	void ClientController::start_accept_tcp() {
+        DR_LOG(log_debug) << "ClientController::start_accept_tcp"   ;
         Client<socket_t>* p = new Client<socket_t>(m_ioservice, *this);
 		client_ptr new_session(p) ;
 		m_acceptor_tcp.async_accept( p->socket(), boost::bind(&ClientController::accept_handler_tcp, this, new_session, boost::asio::placeholders::error));
@@ -162,6 +164,7 @@ namespace drachtio {
     }
 
 	void ClientController::start_accept_tls() {
+        DR_LOG(log_debug) << "ClientController::start_accept_tls"   ;
         Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p = new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>(m_ioservice, m_context, *this);
 		client_ptr new_session(p) ;
 		m_acceptor_tls.async_accept( p->socket().lowest_layer(), boost::bind(&ClientController::accept_handler_tls, this, new_session, boost::asio::placeholders::error));
