@@ -6,7 +6,7 @@ const obj = module.exports = {} ;
 let drachtio = null;
 let router = null;
 
-obj.start = (confPath, extraArgs, tls = false) => {
+obj.start = (confPath, extraArgs, tls = false, waitDelay = 500) => {
   confPath = confPath || './drachtio.conf.xml';
   debug(`starting drachtio with config file: ${confPath}`);
   assert(!drachtio);
@@ -49,7 +49,7 @@ obj.start = (confPath, extraArgs, tls = false) => {
 
     setTimeout(() => {
       resolve(drachtio);
-    }, 500);
+    }, waitDelay);
   });
 };
 
