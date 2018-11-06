@@ -32,13 +32,3 @@ test('verify dependencies', (t) => {
       t.fail('node is not installed');
     });
 });
-
-test('generate dhparams', (t) => {
-  return execCmd('openssl dhparam -out ./tls/dh1024.pem 1024')
-  .catch((err) => {
-    t.fail('error generating dhparam file');
-  })
-  .then(() => {
-    return t.pass('succesfully generated dhparam file');
-  })
-});
