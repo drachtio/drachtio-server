@@ -262,7 +262,7 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0) {
         
@@ -312,6 +312,9 @@ namespace drachtio {
         }
     }
 
+    void DrachtioController::handleSigPipe( int signal ) {
+        DR_LOG(log_notice) << "Received SIGPIPE; ignoring.."  ;
+    }
     void DrachtioController::handleSigTerm( int signal ) {
         DR_LOG(log_notice) << "Received SIGTERM; exiting after dumping stats.."  ;
         this->printStats() ;
@@ -381,13 +384,15 @@ namespace drachtio {
                 {"mtu", required_argument, 0, 'D'},
                 {"address", required_argument, 0, 'E'},
                 {"secret", required_argument, 0, 'F'},
+                {"dh-param", required_argument, 0, 'G'},
+                {"tls-port",    required_argument, 0, 'H'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:E:F:G:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -422,6 +427,9 @@ namespace drachtio {
                     break;
                 case 'F':
                     m_secret = optarg;
+                    break;
+                case 'G':
+                    m_dhParam = optarg;
                     break;
                 case 'a':
                     httpUrl = optarg ;
@@ -512,7 +520,12 @@ namespace drachtio {
 
                 case 'p':
                     port = optarg ;
-                    m_adminPort = ::atoi( port.c_str() ) ;
+                    m_adminTcpPort = ::atoi( port.c_str() ) ;
+                    break;
+
+                case 'H':
+                    port = optarg ;
+                    m_adminTlsPort = ::atoi( port.c_str() ) ;
                     break;
 
                 case 'y':
@@ -588,27 +601,29 @@ namespace drachtio {
         cerr << "Usage: drachtio [OPTIONS]" << endl ;
         cerr << endl << "Start drachtio sip engine" << endl << endl ;
         cerr << "Options:" << endl << endl ;
-        cerr << "    --address          Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
-        cerr << "    --daemon           Run the process as a daemon background process" << endl ;
-        cerr << "    --cert-file        TLS certificate file" << endl ;
-        cerr << "    --chain-file       TLS certificate chain file" << endl ;
-        cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
-        cerr << "    --dns-name         specifies a DNS name that resolves to the local host, if any" << endl ;
-        cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
-        cerr << "    --homer            ip:port of homer/sipcapture agent" << endl ;
-        cerr << "    --homer-id         homer agent id to use in HEP messages to identify this server" << endl ;
-        cerr << "    --http-handler     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
-        cerr << "    --http-method      method to use with http-handler: GET (default) or POST" << endl ;
-        cerr << "    --key-file         TLS key file" << endl ;
-        cerr << "-l  --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
-        cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
-        cerr << "    --mtu              max packet size for UDP (default: system-defined mtu)" << endl ;
-        cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
-        cerr << "    --secret           The shared secret to use for authenticating application connections" << endl ;
-        cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
-        cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
-        cerr << "    --stdout           Log to standard output as well as any configured log destinations" << endl ;
-        cerr << "-v  --version          Print version and exit" << endl ;
+        cerr << "    --address                      Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
+        cerr << "    --daemon                       Run the process as a daemon background process" << endl ;
+        cerr << "    --encrypt-inbound-connections  Run the process as a daemon background process" << endl ;
+        cerr << "    --cert-file                    TLS certificate file" << endl ;
+        cerr << "    --chain-file                   TLS certificate chain file" << endl ;
+        cerr << "-c, --contact                      Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
+        cerr << "    --dh-param                     file containing Diffie-Helman parameters, required when using --encrypt-inbound-connections" << endl ;
+        cerr << "    --dns-name                     specifies a DNS name that resolves to the local host, if any" << endl ;
+        cerr << "-f, --file                         Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
+        cerr << "    --homer                        ip:port of homer/sipcapture agent" << endl ;
+        cerr << "    --homer-id                     homer agent id to use in HEP messages to identify this server" << endl ;
+        cerr << "    --http-handler                 http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
+        cerr << "    --http-method                  method to use with http-handler: GET (default) or POST" << endl ;
+        cerr << "    --key-file                     TLS key file" << endl ;
+        cerr << "-l  --loglevel                     Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "    --local-net                    CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
+        cerr << "    --mtu                          max packet size for UDP (default: system-defined mtu)" << endl ;
+        cerr << "-p, --port                         TCP port to listen on for application connections (default 9022)" << endl ;
+        cerr << "    --secret                       The shared secret to use for authenticating application connections" << endl ;
+        cerr << "    --sofia-loglevel               Log level of internal sip stack (choices: 0-9)" << endl ;
+        cerr << "    --external-ip                  External IP address to use in SIP messaging" << endl ;
+        cerr << "    --stdout                       Log to standard output as well as any configured log destinations" << endl ;
+        cerr << "-v  --version                      Print version and exit" << endl ;
     }
 
     void DrachtioController::daemonize() {
@@ -799,13 +814,12 @@ namespace drachtio {
 
        /* open admin connection */
         string adminAddress ;
-        unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
+        m_Config->getAdminAddress(adminAddress);
+        unsigned int adminTcpPort = m_Config->getAdminTcpPort() ;
+        unsigned int adminTlsPort = m_Config->getAdminTlsPort() ;
         if (!m_adminAddress.empty()) adminAddress = m_adminAddress;
-        if( 0 != m_adminPort ) adminPort = m_adminPort ;
-        if( 0 != adminPort ) {
-            DR_LOG(log_notice) << "DrachtioController::run: listening for client connections on " << adminAddress << ":" << adminPort ;
-            m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
-        }
+        if( 0 != m_adminTcpPort ) adminTcpPort = m_adminTcpPort ;
+        if( 0 != m_adminTlsPort ) adminTlsPort = m_adminTlsPort ;
 
         if( 0 == m_vecTransports.size() ) {
             m_Config->getTransports( m_vecTransports ) ; 
@@ -822,11 +836,12 @@ namespace drachtio {
         }
 
         // tls files
-        string tlsKeyFile, tlsCertFile, tlsChainFile ;
-        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
+        string tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ;
+        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ) ;
         if (!m_tlsKeyFile.empty()) tlsKeyFile = m_tlsKeyFile;
         if (!m_tlsCertFile.empty()) tlsCertFile = m_tlsCertFile;
         if (!m_tlsChainFile.empty()) tlsChainFile = m_tlsChainFile;
+        if (!m_dhParam.empty()) dhParam = m_dhParam;
         if (!hasTlsFiles && !tlsKeyFile.empty() && !tlsCertFile.empty()) hasTlsFiles = true;
 
         if (hasTlsFiles) {
@@ -835,6 +850,27 @@ namespace drachtio {
             if (!tlsChainFile.empty()) DR_LOG(log_notice) << "DrachtioController::run tls chain file:       " << tlsChainFile;
         }
 
+        if (adminTlsPort) {
+            if ((tlsChainFile.empty() && tlsCertFile.empty()) || tlsKeyFile.empty() || dhParam.empty()) {
+                DR_LOG(log_notice) << "DrachtioController::run tls was requested on admin connection but either chain file/cert file, private key, or dhParams were not provided";
+                throw runtime_error("missing tls settings");
+            }
+        }
+
+        if (m_adminTcpPort && !m_adminTlsPort) {
+            DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " only";
+            m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort));
+        }
+        else if (!m_adminTcpPort && m_adminTlsPort) {
+            DR_LOG(log_notice) << "DrachtioController::run listening for applications on tls port " << adminTlsPort << " only";
+            m_pClientController.reset(new ClientController(this, adminAddress, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
+        }
+        else {
+             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort ;
+           m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
+        }
+        m_pClientController->start();
+        
         // mtu
         if (!m_mtu) m_mtu = m_Config->getMtu();
         if (m_mtu > 0 && m_mtu < 1000) {
@@ -1172,11 +1208,9 @@ namespace drachtio {
                             EncodeStackMessage( sip, encodedMessage ) ;
                             SipMsgData_t meta( msg ) ;
 
-                            client_ptr client = m_pClientController->findClientForNetTransaction( p->getTransactionId() ); 
-
-                            if( client ) {
-                                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
-                                    encodedMessage, meta ) ) ;                                
+                            client_ptr client = m_pClientController->findClientForNetTransaction(p->getTransactionId()); 
+                            if(client) {
+                                m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, p->getTransactionId(), encodedMessage, meta)) ;
                             }
 
                             nta_msg_treply( m_nta, msg, 200, NULL, TAG_END() ) ;  
@@ -1301,8 +1335,7 @@ namespace drachtio {
                 msg_t* msg = nta_incoming_getrequest( irq ) ;
                 SipMsgData_t meta( msg, irq ) ;
 
-                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, 
-                    encodedMessage, meta ) ) ;
+                m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, encodedMessage, meta)) ;
                 
                 m_pClientController->addNetTransaction( client, transactionId ) ;
 
@@ -1351,8 +1384,7 @@ namespace drachtio {
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq ) ;
 
-                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, 
-                    encodedMessage, meta ) ) ;
+                m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, encodedMessage, meta)) ;
                 m_pClientController->addNetTransaction( client, transactionId ) ;
                 m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
                 return 0 ;
@@ -1498,22 +1530,25 @@ namespace drachtio {
   void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
     string host ;
     string port = "9021";
-    vector<string> strs;
+    string transport = "tcp";
 
-    boost::split(strs, uri, boost::is_any_of(":"));
-    if( strs.size() > 2 ) {
+    boost::regex e("^(.*):(\\d+)(;transport=(tcp|tls))?", boost::regex::extended);
+    boost::smatch mr; ;
+    if( boost::regex_search( uri, mr, e ) ) {
+        host = mr[1] ;
+        port = mr[2] ;
+        if (mr.size() > 4) {
+            transport = mr[4];
+        }
+    }
+    else {
       DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
       //TODO: send 480, remove pending connection
       return ;              
     }
-    host = strs.at(0) ;
-    if( 2 == strs.size() ) {
-      port = strs.at(1);
-    }
-
     DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
-      host << ":" << port ;
-    m_pClientController->makeOutboundConnection(transactionId, host, port) ;
+      host << ":" << port << " with transport " << transport;
+    m_pClientController->makeOutboundConnection(transactionId, host, port, transport) ;
   }
 
   void DrachtioController::selectInboundConnectionForTag(const string& transactionId, const string& tag) {

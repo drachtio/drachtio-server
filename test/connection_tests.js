@@ -2,6 +2,7 @@ const test = require('blue-tape');
 const {start, stop } = require('./testbed');
 const { exec } = require('child_process');
 const Uas = require('./scripts/uas');
+const fs = require('fs');
 //const Uac = require('./scripts/uac');
 const debug = require('debug')('drachtio:server-test');
 
@@ -146,40 +147,33 @@ test('handles disconnected clients', (t) => {
 
 test('tagged inbound connections', (t) => {
   let uas1, uas2, uas3;
-  return start('./drachtio.conf2.xml')
+  return start()
     .then(() => {
-      uas1 = new Uas('orange');
-      uas2 = new Uas('red');
-      uas3 = new Uas(['blue', 'green']);
+      uas1 = new Uas();
+      uas2 = new Uas();
+      uas3 = new Uas();
       return Promise.all([uas1.connect(), uas2.connect(), uas3.connect()]);
     })
     .then(() => {
       return Promise.all([uas1.accept(), uas2.accept(), uas3.accept()]);
     })
     .then(() => {
-      return execCmd('sipp -sf ./uac_blue.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      t.pass('sending 4 calls to 3 apps (all with inbound connections)');
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.pass('blue call went to blue app');
-      return execCmd('sipp -sf ./uac_green.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.pass('green call went to green app');
-      return execCmd('sipp -sf ./uac_red.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.pass('red call went to red app');
-      return execCmd('sipp -sf ./uac_orange.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.pass('orange call went to orange app');
-      return execCmd('sipp -sf ./uac_black.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
-    })
-    .then(() => {
-      t.pass('480 returned if there is no app to support a given tag');
-      t.ok(uas1.calls === 1, 'uas1 got 1 call');
+      t.ok(uas1.calls === 2, 'uas1 got 2 calls');
       t.ok(uas2.calls === 1, 'uas2 got 1 call');
-      t.ok(uas3.calls === 2, 'uas3 got 2 call');
+      t.ok(uas3.calls === 1, 'uas3 got 1 call');
       return;
     })
     .then(() => {
@@ -192,7 +186,6 @@ test('tagged inbound connections', (t) => {
         }, 1000);
       });
     })
-
     .then(() => {
       return stop();
     })
@@ -237,6 +230,107 @@ test('outbound connections', (t) => {
       return t.ok(uas1.calls === 2 && uas2.calls == 1, 'third call routed correctly');
     })
     .then(() => {
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas1) uas1.disconnect();
+      if (uas2) uas2.disconnect();
+      stop();
+    });
+});
+
+test('tls inbound connections', (t) => {
+  let uas1, uas2, uas3;
+  return start('./drachtio.conf3.xml', ['--dh-param', './tls/dh1024.pem', '--cert-file', './tls/server.crt', '--key-file', './tls/server.key'], false, 20000)
+    .then(() => {
+      uas1 = new Uas();
+      uas2 = new Uas();
+      uas3 = new Uas();
+      return Promise.all([uas1.connectTls('./tls/server.crt'), uas2.connectTls('./tls/server.crt'), uas3.connectTls('./tls/server.crt')]);
+    })
+    .then(() => {
+      return Promise.all([uas1.accept(), uas2.accept(), uas3.accept()]);
+    })
+    .then(() => {
+      t.pass('sending 4 calls to 3 apps (all with inbound connections)');
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.ok(uas1.calls === 2, 'uas1 got 2 calls');
+      t.ok(uas2.calls === 1, 'uas2 got 1 call');
+      t.ok(uas3.calls === 1, 'uas3 got 1 call');
+      return;
+    })
+    .then(() => {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          uas1.disconnect();
+          uas2.disconnect();
+          uas3.disconnect();
+          resolve();
+        }, 1000);
+      });
+    })
+    .then(() => {
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas1) uas1.disconnect();
+      if (uas2) uas2.disconnect();
+      if (uas3) uas3.disconnect();
+      stop();
+    });
+});
+
+test('tls outbound connections', (t) => {
+  let uas1, uas2, uas3;
+  const tlsOpts = {
+    key: fs.readFileSync('./tls/server.key'),
+    cert: fs.readFileSync('./tls/server.crt'),
+    rejectUnauthorized: false
+  };
+  return start('./drachtio.conf2.xml', [], true)
+
+    .then(() => {
+      return execCmd('sipp -sf ./uac-outbound-3033-expect-480.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return t.pass('sends 480 when no app found at specified uri');
+    })
+    .then(() => {
+      uas1 = new Uas();
+      uas2 = new Uas();
+      return Promise.all([uas1.listenTls(3034, tlsOpts), uas2.listenTls(3035, tlsOpts)]);
+    })
+    .then(() => {
+      uas1.accept();
+      uas2.accept();
+      return execCmd('sipp -sf ./uac-outbound-3034.xml 127.0.0.1:5090 -m 1 -sleep 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.ok(uas1.calls === 1 && uas2.calls == 0, 'first call routed correctly');
+      return execCmd('sipp -sf ./uac-outbound-3034.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.ok(uas1.calls === 2 && uas2.calls == 0, 'second call routed correctly');
+      return execCmd('sipp -sf ./uac-outbound-3035.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return t.ok(uas1.calls === 2 && uas2.calls == 1, 'third call routed correctly');
+    })
+    .then(() => {
+      debug('stopping testbed');
       return stop();
     })
     .catch((err) => {

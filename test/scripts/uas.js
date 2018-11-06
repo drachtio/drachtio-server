@@ -3,6 +3,7 @@ const Srf = require('drachtio-srf');
 const parseUri = Srf.parseUri;
 const config = require('./config');
 const debug = require('debug')('drachtio:server-test');
+const fs = require('fs');
 
 class App extends Emitter {
   constructor(tags) {
@@ -23,11 +24,33 @@ class App extends Emitter {
       });
     });
   }
+  
+  connectTls(serverCert) {
+    debug('connecting to drachtio server via tls');
+    const ca = fs.readFileSync(serverCert);
+    const opts = config.drachtioTls.connectOpts;
+    opts.tls = { ca, rejectUnauthorized: false };
+
+    this.srf.connect(opts);
+    return new Promise((resolve, reject) => {
+      this.srf.on('connect', (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+  }
 
   listen(port) {
-    debug(`listening on port ${port}`);
+    debug(`listening for tcp connections on port ${port}`);
     return new Promise((resolve, reject) => {
       this.srf.listen({port, secret: 'cymru'}, () => resolve());
+    });
+  }
+
+  listenTls(port, opts) {
+    debug(`listening for tls connections on port ${port}`);
+    return new Promise((resolve, reject) => {
+      this.srf.listen({port, secret: 'cymru', tls: opts}, () => resolve());
     });
   }
 

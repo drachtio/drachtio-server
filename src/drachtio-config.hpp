@@ -64,11 +64,13 @@ namespace drachtio {
 
         unsigned int getMtu(void);
 
-        unsigned int getAdminPort( string& address ) ;
+        bool getAdminAddress( string& address ) ;
+        unsigned int getAdminTcpPort( void ) ;
+        unsigned int getAdminTlsPort( void ) ;
 
         bool getRedisAddress( string& address, unsigned int& port ) const ;
 
-        bool getTlsFiles( string& keyFile, string& certFile, string& chainFile ) const ;
+        bool getTlsFiles( string& keyFile, string& certFile, string& chainFile, string& dhParam ) const ;
 
         bool generateCdrs(void) const ;
 

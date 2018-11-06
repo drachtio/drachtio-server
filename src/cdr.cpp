@@ -18,7 +18,7 @@ namespace drachtio {
         pCdr->encodeMessage( encodedMessage ) ;
         pCdr->encodeMetaData( meta ) ;
 
-        pClientController->getIOService().post( boost::bind(&Client::sendCdrToClient, client, encodedMessage, meta ) ) ;
+        pClientController->getIOService().post( boost::bind(&BaseClient::sendCdrToClient, client, encodedMessage, meta ) ) ;
       }
     }
     return pCdr ;

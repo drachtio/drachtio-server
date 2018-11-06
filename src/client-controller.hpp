@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/thread.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/unordered_set.hpp>
@@ -44,10 +45,22 @@ namespace drachtio {
     
   class ClientController : public boost::enable_shared_from_this<ClientController>  {
   public:
-    ClientController( DrachtioController* pController, string& address, unsigned int port = 8022 ) ;
+    // tcp only
+    ClientController( DrachtioController* pController, string& address, unsigned int port ) ;
+    
+    // tls only
+    ClientController( DrachtioController* pController, string& address, unsigned int port, 
+      const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) ;
+  
+    // both tcp and tls
+    ClientController( DrachtioController* pController, string& address, unsigned int tcpPort, unsigned int tlsPort, 
+      const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) ;
+    
     ~ClientController() ;
-      
-  	void start_accept() ;
+    
+    void start();
+  	void start_accept_tcp() ;
+  	void start_accept_tls() ;
   	void threadFunc(void) ;
 
     void join( client_ptr client ) ;
@@ -74,7 +87,7 @@ namespace drachtio {
     client_ptr findClientForNetTransaction( const string& transactionId ) ;
     client_ptr findClientForApiRequest( const string& clientMsgId ) ;
 
-    void makeOutboundConnection( const string& transactionId, const string& host, const string& port ) ;
+    void makeOutboundConnection( const string& transactionId, const string& host, const string& port, const string& transport ) ;
     void selectClientForTag(const string& transactionId, const string& tag);
 
     bool sendRequestInsideDialog( client_ptr client, const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) ;
@@ -104,9 +117,11 @@ namespace drachtio {
 
     void logStorageCount(void) ;
 
-    boost::asio::io_service& getIOService(void) { return m_ioservice ;}
+    boost::asio::io_context& getIOService(void) { return m_ioservice ;}
 
     boost::shared_ptr<SipDialogController> getDialogController(void) ;
+
+    //void sendSipMessageToClient( client_ptr client, const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta );
 
   protected:
 
@@ -126,7 +141,8 @@ namespace drachtio {
 
 
   private:
-    void accept_handler( client_ptr session, const boost::system::error_code& ec) ;
+    void accept_handler_tcp( client_ptr session, const boost::system::error_code& ec) ;
+    void accept_handler_tls( client_ptr session, const boost::system::error_code& ec) ;
     void stop() ;
 
     client_ptr findClientForDialog_nolock( const string& dialogId ) ;
@@ -135,9 +151,13 @@ namespace drachtio {
     boost::thread               m_thread ;
     boost::mutex                m_lock ;
 
-    boost::asio::io_service m_ioservice;
-    boost::asio::ip::tcp::endpoint  m_endpoint;
-    boost::asio::ip::tcp::acceptor  m_acceptor ;
+    boost::asio::io_context m_ioservice;
+    boost::asio::ip::tcp::endpoint  m_endpoint_tcp;
+    boost::asio::ip::tcp::acceptor  m_acceptor_tcp ;
+    boost::asio::ip::tcp::endpoint  m_endpoint_tls;
+    boost::asio::ip::tcp::acceptor  m_acceptor_tls ;
+    boost::asio::ssl::context m_context;
+    unsigned int m_tcpPort, m_tlsPort;
 
     typedef boost::unordered_set<client_ptr> set_of_clients ;
     set_of_clients m_clients ;
@@ -157,12 +177,12 @@ namespace drachtio {
     mapId2Client m_mapNetTransactions ;
     mapId2Client m_mapApiRequests ;
 
-   typedef boost::unordered_map<string,string> mapDialogId2Appname ;
+    typedef boost::unordered_map<string,string> mapDialogId2Appname ;
     mapDialogId2Appname m_mapDialogId2Appname ;
       
   } ;
 
-}  
+}
 
 
 

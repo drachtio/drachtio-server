@@ -110,6 +110,7 @@ namespace drachtio {
 
     void handleSigHup( int signal ) ;
     void handleSigTerm( int signal ) ;
+    void handleSigPipe( int signal ) ;
   	void run() ;
   	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
     src::severity_logger_mt< severity_levels >* createLogger() ;
@@ -202,9 +203,9 @@ namespace drachtio {
 
     // command-line option overrides
     string  m_user ;    //system user to run as
-    unsigned int m_adminPort; 
-    string m_sipContact; 
-    string m_tlsKeyFile, m_tlsCertFile, m_tlsChainFile;
+    unsigned int m_adminTcpPort; 
+    unsigned int m_adminTlsPort; 
+    string m_tlsKeyFile, m_tlsCertFile, m_tlsChainFile, m_dhParam;
     unsigned int m_mtu;
 
     string m_publicAddress ;
