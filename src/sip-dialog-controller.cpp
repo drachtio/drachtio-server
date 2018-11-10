@@ -193,6 +193,17 @@ namespace drachtio {
                 url_e( buffer, 255, target->m_url ) ;
                 requestUri = buffer ;
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - defaulting request uri to " << requestUri  ;
+
+                // we need to check if there was a mid-call network handoff, where this client jumped networks
+                boost::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
+                if( NULL != pData ) {
+                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
+                    if (pData->getTport() != tp) {
+                        DR_LOG(log_info) << "SipProxyController::doSendRequestOutsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
+                        tp = pData->getTport();
+                        forceTport = true ;
+                    }
+               }
             }
 
             if( method == sip_method_invalid || method == sip_method_unknown ) {
