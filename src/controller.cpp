@@ -1485,10 +1485,12 @@ namespace drachtio {
         std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
         if( ret.second == false ) {
             mapUri2InvalidData::iterator it = ret.first ;
-            *(it->second) = *pUa ;
+            pUa = it->second;
+            //*(it->second) = *pUa ;
             pUa->extendExpires(expires);
             pUa->setTport(tp);
-            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << 
+                " tport: " << (void*) tp << ", count is now: " << m_mapUri2InvalidData.size();
         }
         else {
             boost::shared_ptr<UaInvalidData> p = (ret.first)->second ;
