@@ -1486,11 +1486,12 @@ namespace drachtio {
         if( ret.second == false ) {
             mapUri2InvalidData::iterator it = ret.first ;
             *(it->second) = *pUa ;
+            pUa->extendExpires(expires);
+            pUa->setTport(tp);
             DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
         else {
             boost::shared_ptr<UaInvalidData> p = (ret.first)->second ;
-            p->extendExpires( expires ) ;
             DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
