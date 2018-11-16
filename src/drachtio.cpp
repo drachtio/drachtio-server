@@ -898,6 +898,7 @@ namespace drachtio {
         sip_request_t *rq;
         sip_route_t *route = NULL, *r, r0[1];
         su_home_t *home = msg_home(amsg);
+        tport_t* tp_incoming = nta_incoming_transport(nta, NULL, msg);
 
         if (asip == NULL)
         return -1;
@@ -932,8 +933,11 @@ namespace drachtio {
         else
             msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)rq);
 
+        DR_LOG(log_debug) << "ackResponse - sending ack via tport " << std::hex << (void *) tp_incoming ;
+
         if( nta_msg_tsend( nta, amsg, NULL, 
             NTATAG_BRANCH_KEY(sip->sip_via->v_branch),
+            NTATAG_TPORT(tp_incoming),
             TAG_END() ) < 0 )
  
             goto err ;
