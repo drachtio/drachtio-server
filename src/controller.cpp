@@ -719,7 +719,7 @@ namespace drachtio {
                 // Create a syslog sink
                 sinks::syslog::facility facility  ;
                 string syslogAddress ;
-                unsigned int syslogPort;
+                unsigned short syslogPort;
                 
                 // initalize syslog sink, if configuredd
                 if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
@@ -743,7 +743,7 @@ namespace drachtio {
                     m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
 
                     // Set the remote address to sent syslog messages to
-                    m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
+                    m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str(), syslogPort );
 
                     logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
 

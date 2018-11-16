@@ -51,7 +51,7 @@ namespace drachtio {
         void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const ;
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const ;
-        bool getSyslogTarget( string& address, unsigned int& port ) const ;
+        bool getSyslogTarget( string& address, unsigned short& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
         bool getFileLogTarget( string& fileName, string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;

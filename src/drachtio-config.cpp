@@ -165,7 +165,7 @@ namespace drachtio {
                 // syslog
                 try {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
-                    m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
+                    m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 514) ;
                     m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
@@ -250,9 +250,7 @@ namespace drachtio {
         }
                    
         bool isValid() const { return m_bIsValid; }
-        const string& getSyslogAddress() const { return m_syslogAddress; }
-        unsigned int getSyslogPort() const { return m_sysLogPort ; }        
-        bool getSyslogTarget( std::string& address, unsigned int& port ) const {
+        bool getSyslogTarget( std::string& address, unsigned short& port ) const {
             if( m_syslogAddress.length() > 0 ) {
                 address = m_syslogAddress ;
                 port = m_sysLogPort  ;
@@ -394,7 +392,7 @@ namespace drachtio {
         unsigned int m_rotationSize ;
         unsigned int m_maxSize ;
         unsigned int m_minSize ;
-        unsigned int m_sysLogPort ;
+        unsigned short m_sysLogPort ;
         string m_syslogFacility ;
         severity_levels m_loglevel ;
         unsigned int m_nSofiaLogLevel ;
@@ -436,7 +434,7 @@ namespace drachtio {
         return m_pimpl->getSofiaLogLevel() ;
     }
    
-    bool DrachtioConfig::getSyslogTarget( std::string& address, unsigned int& port ) const {
+    bool DrachtioConfig::getSyslogTarget( std::string& address, unsigned short& port ) const {
         return m_pimpl->getSyslogTarget( address, port ) ;
     }
     bool DrachtioConfig::getSyslogFacility( sinks::syslog::facility& facility ) const {
