@@ -5,11 +5,11 @@
 
 namespace drachtio {
   
-  boost::shared_ptr<Cdr> Cdr::postCdr( boost::shared_ptr<Cdr> pCdr, const string& encodedMessage ) {
+  std::shared_ptr<Cdr> Cdr::postCdr( std::shared_ptr<Cdr> pCdr, const string& encodedMessage ) {
     if( theOneAndOnlyController->getConfig()->generateCdrs() ) {
       pCdr->stamp() ;
       pCdr->setEncodedMessage( encodedMessage ) ;
-      boost::shared_ptr<ClientController> pClientController = theOneAndOnlyController->getClientController() ;
+      shared_ptr<ClientController> pClientController = theOneAndOnlyController->getClientController() ;
       client_ptr client = pClientController->selectClientForRequestOutsideDialog(pCdr->getRecordType()) ;
       if( client ) {
         string encodedMessage ;
@@ -18,7 +18,7 @@ namespace drachtio {
         pCdr->encodeMessage( encodedMessage ) ;
         pCdr->encodeMetaData( meta ) ;
 
-        pClientController->getIOService().post( boost::bind(&Client::sendCdrToClient, client, encodedMessage, meta ) ) ;
+        pClientController->getIOService().post( std:: bind(&BaseClient::sendCdrToClient, client, encodedMessage, meta ) ) ;
       }
     }
     return pCdr ;

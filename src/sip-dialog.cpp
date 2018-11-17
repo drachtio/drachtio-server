@@ -41,8 +41,8 @@ namespace {
     }
 
     void session_timer_handler( su_root_magic_t* magic, su_timer_t* timer, su_timer_arg_t* args) {
-    	boost::weak_ptr<drachtio::SipDialog> *p = reinterpret_cast< boost::weak_ptr<drachtio::SipDialog> *>( args ) ;
-    	boost::shared_ptr<drachtio::SipDialog> pDialog = p->lock() ;
+    	std::weak_ptr<drachtio::SipDialog> *p = reinterpret_cast< std::weak_ptr<drachtio::SipDialog> *>( args ) ;
+    	std::shared_ptr<drachtio::SipDialog> pDialog = p->lock() ;
     	if( pDialog ) pDialog->doSessionTimerHandling() ;
     	else assert(0) ;
     }
@@ -54,7 +54,7 @@ namespace drachtio {
 	SipDialog::SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t* msg ) : m_type(we_are_uas), m_recentSipStatus(100), 
 		m_startTime(time(NULL)), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ), 
-    m_leg( leg ), m_ackOrq(NULL), m_timerD(NULL), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL)
+    m_leg( leg ), m_ackOrq(NULL), m_timerD(NULL), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL),m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite)
 	{
     const tp_name_t* tpn = tport_name( m_tp );
 		//generateUuid( m_dialogId ) ;
@@ -78,6 +78,21 @@ namespace drachtio {
 			if( !hvalue.empty() ) this->setRemoteContentType( hvalue ) ;			
 		}
 
+		// UDP nat check: if no Record-Route and Contact != source address:port, then set a RouteUri to the source address:port
+		if (tport_is_dgram(m_tp) && NULL == sip->sip_record_route && sip->sip_contact) {// && isRfc1918(sip->sip_contact->m_url->url_host)) {
+			const url_t* url = sip->sip_contact->m_url;
+			if (0 != m_sourceAddress.compare(url->url_host) || (url->url_port && atoi(url->url_port) != m_sourcePort)) {
+				DR_LOG(log_debug) << "SipDialog::SipDialog - Contact header " << sip->sip_contact->m_url->url_host << 
+					" suggests uac is behind a nat, using  " << m_sourceAddress << ":" << m_sourcePort << " as route for requests within this dialog";
+				url_t const * url = nta_incoming_url(irq);
+				m_routeUri = url->url_scheme;
+				m_routeUri.append(":");
+				m_routeUri.append(m_sourceAddress); 
+				m_routeUri.append(":");
+				m_routeUri.append(boost::lexical_cast<string>(m_sourcePort));
+			}
+		}
+
     DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for inbound INVITE sent from " << m_protocol << "/" << m_transportAddress << ":" << m_transportPort ;
 
 	}
@@ -87,7 +102,7 @@ namespace drachtio {
 		nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport) : m_type(we_are_uac), m_recentSipStatus(0), 
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_bAckSent(false), m_tp(NULL), m_leg(leg), m_ackOrq(NULL), m_timerD(NULL), 
-    m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL)
+    m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL),m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite)
 	{
 		m_dialogId = dialogId ;
 		m_transactionId = transactionId ;
@@ -130,6 +145,14 @@ namespace drachtio {
     }
 
     this->setSourcePort( port ) ;
+
+		const url_t* urlRoute = nta_outgoing_route_uri(orq);
+		if (urlRoute) {
+			su_home_t* home = msg_home(msg);
+			const char * route_uri = url_as_string(home, urlRoute);
+			m_routeUri = route_uri;
+			su_free(home, (void *) route_uri);
+		}
 
 		DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for outbound INVITE sent from " << m_protocol << "/" << m_transportAddress << ":" << m_transportPort << " to " << name << ":" << std::dec << port ;
 
@@ -186,7 +209,7 @@ namespace drachtio {
 		if( areWeRefresher() ) nMilliseconds /= 2 ;
 		m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), nMilliseconds ) ;
 
-		m_ppSelf = new boost::weak_ptr<SipDialog>( shared_from_this() ) ;
+		m_ppSelf = new std::weak_ptr<SipDialog>( shared_from_this() ) ;
 		su_timer_set(m_timerSessionRefresh, session_timer_handler, (su_timer_arg_t *) m_ppSelf );
 	}
 	void SipDialog::cancelSessionTimer() {

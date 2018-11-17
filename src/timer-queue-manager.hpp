@@ -22,6 +22,8 @@ THE SOFTWARE.
 #ifndef __TIMER_QUEUE_MANAGER_H__
 #define __TIMER_QUEUE_MANAGER_H__
 
+#include <cstring> 
+
 #include "timer-queue.hpp"
 
 namespace drachtio {

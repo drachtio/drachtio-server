@@ -4,7 +4,7 @@
 
 drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt) server that is built on the [sofia SIP stack](https://github.com/davehorton/sofia-sip).  It provides a high-performance SIP engine that can be controlled by client applications written in pure Javascript running on [node.js](https://nodejs.org) .  
 
-The nodejs module used to create drachtio applications [can be found here](https://github.com/davehorton/drachtio-srf).
+The nodejs module that you can use to create applications controlling the server is called [drachtio-srf](https://github.com/davehorton/drachtio-srf).
 
 ## Docker
 A docker image [can be found here](https://hub.docker.com/r/drachtio/drachtio-server).

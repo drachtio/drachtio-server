@@ -24,10 +24,10 @@ THE SOFTWARE.
 
 #include <time.h>
 
-#include <boost/shared_ptr.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/enable_shared_from_this.hpp>
+#include <unordered_map>
+#include <unordered_set>
+#include <mutex>
+
 #include <boost/foreach.hpp>
 
 #include <sofia-sip/nta.h>
@@ -47,13 +47,13 @@ namespace drachtio {
 
   class DrachtioController ;
 
-  class ProxyCore : public boost::enable_shared_from_this<ProxyCore> {
+  class ProxyCore : public std::enable_shared_from_this<ProxyCore> {
   public:
 
     class ServerTransaction {
     public:
 
-      ServerTransaction(boost::shared_ptr<ProxyCore> pCore, msg_t* msg) ;
+      ServerTransaction(std::shared_ptr<ProxyCore> pCore, msg_t* msg) ;
       ~ServerTransaction() ;
 
       msg_t* msgDup(void) ;
@@ -77,15 +77,15 @@ namespace drachtio {
     protected:
       void writeCdr( msg_t* msg, sip_t* sip ) ;
 
-      boost::weak_ptr<ProxyCore>  m_pCore ;
+      std::weak_ptr<ProxyCore>  m_pCore ;
       msg_t*  m_msg ;
       bool    m_canceled ;
       int     m_sipStatus ;
       uint32_t m_rseq ;
-      boost::unordered_map<uint32_t,uint32_t> m_mapAleg2BlegRseq ;
+      std::unordered_map<uint32_t,uint32_t> m_mapAleg2BlegRseq ;
     } ;
 
-    class ClientTransaction : public boost::enable_shared_from_this<ClientTransaction>  {
+    class ClientTransaction : public std::enable_shared_from_this<ClientTransaction>  {
     public:
 
       enum State_t {
@@ -97,7 +97,7 @@ namespace drachtio {
         terminated
       } ;
 
-      ClientTransaction(boost::shared_ptr<ProxyCore> pCore, boost::shared_ptr<TimerQueueManager> pTQM, const string& target) ;
+      ClientTransaction(std::shared_ptr<ProxyCore> pCore, std::shared_ptr<TimerQueueManager> pTQM, const string& target) ;
       ~ClientTransaction() ;
 
       int getSipStatus(void) const { return m_sipStatus ;}
@@ -151,7 +151,7 @@ namespace drachtio {
       const char* getStateName( State_t state) ;
       void removeTimer( TimerEventHandle& handle, const char *szTimer = NULL ) ;
 
-      boost::weak_ptr<ProxyCore>  m_pCore ;
+      std::weak_ptr<ProxyCore>  m_pCore ;
       msg_t*  m_msgFinal ;
       sip_method_t m_method ;
       string  m_target ;
@@ -163,7 +163,7 @@ namespace drachtio {
       int     m_transmitCount ;
       int     m_durationTimerA ;
       uint32_t m_rseq ;
-      boost::shared_ptr<TimerQueueManager> m_pTQM ;
+      std::shared_ptr<TimerQueueManager> m_pTQM ;
 
       //timers
       TimerEventHandle  m_timerA ;
@@ -202,16 +202,16 @@ namespace drachtio {
     bool forwardRequest( msg_t* msg, sip_t* sip) ;
     int startRequests(void) ;
     void removeTerminated(bool alsoRemoveNotStarted = false) ;
-    void notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void notifyForwarded200OK( std::shared_ptr<ClientTransaction> pClient ) ;
 
-    void timerA( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerB( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerC( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerD( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerE( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerF( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerK( boost::shared_ptr<ClientTransaction> pClient ) ;
-    void timerProvisional( boost::shared_ptr<ClientTransaction> pClient ) ;
+    void timerA( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerB( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerC( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerD( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerE( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerF( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerK( std::shared_ptr<ClientTransaction> pClient ) ;
+    void timerProvisional( std::shared_ptr<ClientTransaction> pClient ) ;
 
     const char* getCallId(void) { return sip_object( m_pServerTransaction->msg() )->sip_call_id->i_id; }
     void getUniqueSipTransactionIdentifier(string& str) { 
@@ -241,7 +241,7 @@ namespace drachtio {
     bool shouldAddRecordRoute(void) { return m_bRecordRoute;}
     bool getLaunchType(void) { return m_launchType; }
     bool allClientsAreTerminated(void) ;
-    void addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, boost::shared_ptr<ClientTransaction> pClient ) ;
+    void addClientTransactions( const vector< std::shared_ptr<ClientTransaction> >& vecClientTransactions, std::shared_ptr<ClientTransaction> pClient ) ;
 
     unsigned int getProvisionalTimeout(void) { return m_nProvisionalTimeout; }
     void setProvisionalTimeout(const string& t ) ;
@@ -261,8 +261,8 @@ namespace drachtio {
 
     uint32_t m_nProvisionalTimeout ;
     
-    boost::shared_ptr<ServerTransaction> m_pServerTransaction ;
-    vector< boost::shared_ptr<ClientTransaction> > m_vecClientTransactions ;
+    std::shared_ptr<ServerTransaction> m_pServerTransaction ;
+    vector< std::shared_ptr<ClientTransaction> > m_vecClientTransactions ;
     LaunchType_t m_launchType ;
 
     string  m_transactionId ;
@@ -271,12 +271,12 @@ namespace drachtio {
   } ;
 
 
-  class SipProxyController : public boost::enable_shared_from_this<SipProxyController> {
+  class SipProxyController : public std::enable_shared_from_this<SipProxyController> {
   public:
     SipProxyController(DrachtioController* pController, su_clone_r* pClone );
     ~SipProxyController() ;
 
-  class ChallengedRequest : public boost::enable_shared_from_this<ChallengedRequest>{
+  class ChallengedRequest : public std::enable_shared_from_this<ChallengedRequest>{
     public:
       ChallengedRequest(const char *realm, const char* nonce, const string& remoteAddress) : m_realm(realm), 
         m_nonce(nonce), m_remoteAddress(remoteAddress) {}
@@ -380,51 +380,51 @@ namespace drachtio {
     bool processRequestWithRouteHeader( msg_t* msg, sip_t* sip ) ;
     bool processRequestWithoutRouteHeader( msg_t* msg, sip_t* sip ) ;
 
-    void removeProxy( boost::shared_ptr<ProxyCore> pCore ) ;
+    void removeProxy( std::shared_ptr<ProxyCore> pCore ) ;
 
     bool isProxyingRequest( msg_t* msg, sip_t* sip )  ;
 
     void logStorageCount(void) ;
 
     bool isRetransmission( sip_t* sip ) {
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       string id ;
       makeUniqueSipTransactionIdentifier(sip, id) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;   
       return it != m_mapCallId2Proxy.end() ;
     }
 
-    boost::shared_ptr<TimerQueueManager> getTimerQueueManager(void) { return m_pTQM; }
+    std::shared_ptr<TimerQueueManager> getTimerQueueManager(void) { return m_pTQM; }
 
-    void timerProvisional( boost::shared_ptr<ProxyCore> p ) ;
-    void timerFinal( boost::shared_ptr<ProxyCore> p ) ;
+    void timerProvisional( std::shared_ptr<ProxyCore> p ) ;
+    void timerFinal( std::shared_ptr<ProxyCore> p ) ;
 
     bool addChallenge( sip_t* sip, const string& target ) ;
     void timeoutChallenge(const char* nonce) ;
 
   protected:
 
-    void clearTimerProvisional( boost::shared_ptr<ProxyCore> p );
-    void clearTimerFinal( boost::shared_ptr<ProxyCore> p ) ;
+    void clearTimerProvisional( std::shared_ptr<ProxyCore> p );
+    void clearTimerFinal( std::shared_ptr<ProxyCore> p ) ;
 
-    boost::shared_ptr<ProxyCore> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
+    std::shared_ptr<ProxyCore> addProxy( const string& clientMsgId, const string& transactionId, msg_t* msg, sip_t* sip, tport_t* tp, 
       bool recordRoute, bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, 
       const string& finalTimeout, vector<string> vecDestination, const string& headers ) ;
 
-    boost::shared_ptr<ProxyCore> getProxy( sip_t* sip ) {
+    std::shared_ptr<ProxyCore> getProxy( sip_t* sip ) {
       string id ;
       makeUniqueSipTransactionIdentifier(sip, id) ;
-      boost::shared_ptr<ProxyCore> p ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::shared_ptr<ProxyCore> p ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       if( it != m_mapCallId2Proxy.end() ) {
         p = it->second ;
       }
       return p ;
     }
-    boost::shared_ptr<ProxyCore> getProxyByCallId( sip_t* sip ) {
-      boost::shared_ptr<ProxyCore> p ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+    std::shared_ptr<ProxyCore> getProxyByCallId( sip_t* sip ) {
+      std::shared_ptr<ProxyCore> p ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       for( mapCallId2Proxy::iterator it = m_mapCallId2Proxy.begin(); it != m_mapCallId2Proxy.end(); ++it ) {
         if( string::npos != it->first.find( sip->sip_call_id->i_id ) ) {
           return it->second ;
@@ -434,7 +434,7 @@ namespace drachtio {
     }
 
 
-    boost::shared_ptr<ProxyCore> removeProxy( sip_t* sip );
+    std::shared_ptr<ProxyCore> removeProxy( sip_t* sip );
 
     bool isTerminatingResponse( int status ) ;
 
@@ -445,14 +445,14 @@ namespace drachtio {
     su_clone_r*     m_pClone ;
     nta_agent_t*    m_agent ;
 
-    boost::mutex    m_mutex ;
+    std::mutex    m_mutex ;
 
-    boost::shared_ptr<TimerQueueManager> m_pTQM ;
+    std::shared_ptr<TimerQueueManager> m_pTQM ;
 
-    typedef boost::unordered_map<string, boost::shared_ptr<ProxyCore> > mapCallId2Proxy ;
+    typedef std::unordered_map<string, std::shared_ptr<ProxyCore> > mapCallId2Proxy ;
     mapCallId2Proxy m_mapCallId2Proxy ;
 
-    typedef boost::unordered_map<string, boost::shared_ptr<ChallengedRequest> > mapNonce2Challenge ;
+    typedef std::unordered_map<string, std::shared_ptr<ChallengedRequest> > mapNonce2Challenge ;
     mapNonce2Challenge m_mapNonce2Challenge ;
 
     TimerQueue      m_timerQueue ;

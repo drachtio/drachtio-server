@@ -20,9 +20,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#include <boost/regex.hpp>
-#include <boost/foreach.hpp>
-#include <boost/regex.hpp>
+#include <algorithm>
+#include <regex>
+
 #include <boost/algorithm/string.hpp>
 
 #include <arpa/inet.h>
@@ -53,7 +53,7 @@ namespace drachtio {
   SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL) {
     init() ;
   }
-  SipTransport::SipTransport(const boost::shared_ptr<drachtio::SipTransport> other) :
+  SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport> other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
     m_dnsNames(other->m_dnsNames), m_tp(NULL) {
     init() ;
@@ -70,11 +70,15 @@ namespace drachtio {
     }
 
     if( !m_strExternalIp.empty() ) {
-      boost::regex e("^([0-9\\.]*)$", boost::regex::extended) ;
-      boost::smatch mr; 
-      if (!boost::regex_search(m_strExternalIp, mr, e)) {
-        cerr << "SipTransport::init - invalid format for externalIp, must be ipv4 dot decimal address: " << m_strExternalIp << endl ;
-        throw std::runtime_error("SipTransport::init - invalid format for externalIp, must be ipv4 dot decimal address");
+      try {
+        std::regex re("^([0-9\\.]*)$");
+        std::smatch mr;
+        if (!std::regex_search(m_strExternalIp, mr, re)) {
+          cerr << "SipTransport::init - invalid format for externalIp, must be ipv4 dot decimal address: " << m_strExternalIp << endl ;
+          throw std::runtime_error("SipTransport::init - invalid format for externalIp, must be ipv4 dot decimal address");
+        }
+      } catch( std::regex_error& e) {
+        DR_LOG(log_error) << "SipTransport::init - regex error " << e.what();
       }
     }
 
@@ -84,15 +88,19 @@ namespace drachtio {
 
     if( !m_strLocalNet.empty() ) {
       hasNetmask = true;
-      boost::regex e("^([0-9\\.]*)\\/(.*)$", boost::regex::extended) ;
-      boost::smatch mr; 
-      if (!boost::regex_search(m_strLocalNet, mr, e)) {
-        cerr << "SipTransport::init - invalid format for localNet, must be CIDR format: " << m_strLocalNet << endl ;
-        throw std::runtime_error("SipTransport::init - invalid format for localNet, must be CIDR format");
-      }
 
-      network = mr[1] ; 
-      bits = mr[2];
+      try {
+        std::regex re("^([0-9\\.]*)\\/(.*)$");
+        std::smatch mr;
+        if (!std::regex_search(m_strLocalNet, mr, re)) {
+          cerr << "SipTransport::init - invalid format for localNet, must be CIDR format: " << m_strLocalNet << endl ;
+          throw std::runtime_error("SipTransport::init - invalid format for localNet, must be CIDR format");          
+        }
+        network = mr[1] ; 
+        bits = mr[2];
+      } catch (std::regex_error& e) {
+        DR_LOG(log_error) << "SipTransport::init - regex error 2 " << e.what();        
+      }
     }
 
     if (hasNetmask) {
@@ -284,16 +292,17 @@ namespace drachtio {
   uint32_t SipTransport::getOctetMatchCount(const string& address) {
     uint32_t count = 0 ;
     string them[4], mine[4];
-    boost::regex e("^(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)", boost::regex::extended);
-    boost::smatch mr;
-    if (boost::regex_search(address, mr, e)) {
+    try {
+      std::regex re("^(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)");
+      std::smatch mr;
+      if (std::regex_search(address, mr, re) && mr.size() > 1) {
         them[0] = mr[1] ;
         them[1] = mr[2] ;
         them[2] = mr[3] ;
         them[3] = mr[4] ;
 
         string host = this->getHost();
-        if (boost::regex_search(host, mr, e)) {
+        if (std::regex_search(host, mr, re) && mr.size() > 1) {
           mine[0] = mr[1] ;
           mine[1] = mr[2] ;
           mine[2] = mr[3] ;
@@ -302,8 +311,11 @@ namespace drachtio {
           for(int i = 0; i < 4; i++) {
             if(0 != them[i].compare(mine[i])) return count;
             count++;
-          }
-        }
+          }          
+        }        
+      }
+    } catch (std::regex_error& e) {
+      DR_LOG(log_error) << "SipTransport::getOctetMatchCount - regex error " << e.what();
     }
 
     return count;
@@ -312,7 +324,7 @@ namespace drachtio {
   /** static methods */
 
   SipTransport::mapTport2SipTransport SipTransport::m_mapTport2SipTransport  ;
-  boost::shared_ptr<SipTransport> SipTransport::m_masterTransport ;
+  std::shared_ptr<SipTransport> SipTransport::m_masterTransport ;
 
   /**
    * iterate all tport_t* that have been created, and any that are "unassigned" associate
@@ -320,23 +332,28 @@ namespace drachtio {
    * 
    * @param config - SipTransport that was used to create the currently unassigned tport_t* 
    */
-  void SipTransport::addTransports(boost::shared_ptr<SipTransport> config) {
+  void SipTransport::addTransports(std::shared_ptr<SipTransport> config, unsigned int mtu) {
 
 
     tport_t* tp = nta_agent_tports(theOneAndOnlyController->getAgent());
-    m_masterTransport = boost::make_shared<SipTransport>( config ) ;
+    m_masterTransport = std::make_shared<SipTransport>( config ) ;
     m_masterTransport->setTport(tp) ;
+
 
     while (NULL != (tp = tport_next(tp) )) {
       const tp_name_t* tpn = tport_name(tp) ;
       string desc ;
       getTransportDescription( tp, desc ); 
 
+      if (0 == strcmp(tpn->tpn_proto, "udp") && mtu > 0) {
+        tport_set_params(tp, TPTAG_MTU(mtu), TAG_END());   
+      }
+
       mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
       if (it == m_mapTport2SipTransport.end()) {
         DR_LOG(log_info) << "SipTransport::addTransports - creating transport: " << hex << tp << ": " << desc ;
 
-        boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>( config ) ;
+        std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>( config ) ;
         p->setTport(tp); 
         p->setTportName(tpn) ;
         m_mapTport2SipTransport.insert(mapTport2SipTransport::value_type(tp, p)) ;
@@ -376,7 +393,7 @@ namespace drachtio {
     }
   }
 
-  boost::shared_ptr<SipTransport> SipTransport::findTransport(tport_t* tp) {
+  std::shared_ptr<SipTransport> SipTransport::findTransport(tport_t* tp) {
     mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
     if( it == m_mapTport2SipTransport.end() ) {
       tport_t* tpp = tport_parent(tp);
@@ -387,7 +404,7 @@ namespace drachtio {
     return it->second ;
   }
 
-  boost::shared_ptr<SipTransport> SipTransport::findAppropriateTransport(const char* remoteHost, const char* proto) {
+  std::shared_ptr<SipTransport> SipTransport::findAppropriateTransport(const char* remoteHost, const char* proto) {
     string scheme, userpart, hostpart, port ;
     vector< pair<string,string> > vecParam ;
     string host = remoteHost ;
@@ -408,19 +425,22 @@ namespace drachtio {
     // - transports that have an external address
     // - ...all others, and finally..
     // - transports bound to localhost
-    vector< boost::shared_ptr<SipTransport> > candidates;
-    pair< tport_t*, boost::shared_ptr<SipTransport> > myPair;
-    BOOST_FOREACH(myPair, m_mapTport2SipTransport) { candidates.push_back(myPair.second);}
+    std::vector< std::shared_ptr<SipTransport> > candidates;
+    std::pair< tport_t*, boost::shared_ptr<SipTransport> > myPair;
+
+    for (auto pair : m_mapTport2SipTransport) {
+      candidates.push_back(pair.second);
+    }
 
     // filter by transport
-    auto it = std::remove_if(candidates.begin(), candidates.end(), [wantsIpV6](const boost::shared_ptr<SipTransport>& p) {
+    auto it = std::remove_if(candidates.begin(), candidates.end(), [wantsIpV6](const std::shared_ptr<SipTransport>& p) {
       return (wantsIpV6 && !p->isIpV6()) || (!wantsIpV6 && p->isIpV6());
     });
     candidates.erase(it, candidates.end());
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for transport we have " << candidates.size() << " candidates";
 
     // filter by protocol
-    it = std::remove_if(candidates.begin(), candidates.end(), [proto](const boost::shared_ptr<SipTransport>& p) {
+    it = std::remove_if(candidates.begin(), candidates.end(), [proto](const std::shared_ptr<SipTransport>& p) {
       if (!proto) return false;
       return 0 != strcmp(p->getProtocol(), proto);
     });
@@ -428,7 +448,7 @@ namespace drachtio {
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for protocol we have " << candidates.size() << " candidates";
 
 
-    sort(candidates.begin(), candidates.end(), [host](const boost::shared_ptr<SipTransport>& pA, const boost::shared_ptr<SipTransport>& pB) {
+    sort(candidates.begin(), candidates.end(), [host](const std::shared_ptr<SipTransport>& pA, const std::shared_ptr<SipTransport>& pB) {
 
       if (pA->isInNetwork(host.c_str())) {
         return true;
@@ -453,7 +473,7 @@ namespace drachtio {
 
 #ifdef DEBUG 
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - in priority order, here are the candidates for sending to  " << host;
-    BOOST_FOREACH(boost::shared_ptr<SipTransport>& p, candidates) {
+    BOOST_FOREACH(std::shared_ptr<SipTransport>& p, candidates) {
       string desc;
       p->getDescription(desc);
       DR_LOG(log_debug) << "SipTransport::findAppropriateTransport -   " << desc;
@@ -467,7 +487,7 @@ namespace drachtio {
       return m_masterTransport ;      
     }
 
-    boost::shared_ptr<SipTransport> p = candidates[0];
+    std::shared_ptr<SipTransport> p = candidates[0];
     p->getDescription(desc);
     DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning the best match " << hex << p->getTport() << ": " << desc ;
     return p ;
@@ -475,7 +495,7 @@ namespace drachtio {
 
   void SipTransport::getAllExternalIps( vector<string>& vec ) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
-      boost::shared_ptr<SipTransport> p = it->second ;
+      std::shared_ptr<SipTransport> p = it->second ;
       if( p->hasExternalIp() ) {
         vec.push_back(p->getExternalIp()) ;
       }
@@ -486,7 +506,7 @@ namespace drachtio {
   }
   void SipTransport::getAllExternalContacts( vector< pair<string, string> >& vec ) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
-      boost::shared_ptr<SipTransport> p = it->second ;
+      std::shared_ptr<SipTransport> p = it->second ;
       string port = p->getPort() != NULL ? p->getPort() : "5060";
       if( p->hasExternalIp() ) {
         vec.push_back( make_pair(p->getExternalIp(), port)) ;
@@ -498,7 +518,7 @@ namespace drachtio {
   }
   void SipTransport::getAllHostports( vector<string>& vec ) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
-      boost::shared_ptr<SipTransport> p = it->second ;
+      std::shared_ptr<SipTransport> p = it->second ;
       string desc ;
       p->getHostport(desc);
       vec.push_back(desc) ;
@@ -507,13 +527,13 @@ namespace drachtio {
 
   bool SipTransport::isLocalAddress(const char* szHost, tport_t* tp) {
     if( tp ) {
-     boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
+     std::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
      return p->isLocal(szHost); 
     }
 
     // search all
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
-      boost::shared_ptr<SipTransport> p = it->second ;
+      std::shared_ptr<SipTransport> p = it->second ;
       if( p->isLocal(szHost) ) {
         return true ;
       }
@@ -531,10 +551,20 @@ namespace drachtio {
     DR_LOG(log_info) << "SipTransport::logTransports - there are : " << dec <<  m_mapTport2SipTransport.size() << " transports";
 
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
-      boost::shared_ptr<SipTransport> p = it->second ;
+      std::shared_ptr<SipTransport> p = it->second ;
       string desc ;
+
       p->getDescription(desc, false) ;
+
+      if (0 == strcmp(p->getProtocol(), "udp")) {
+        unsigned int mtuSize = 0;
+        const tport_t* tp = p->getTport();
+        tport_get_params(tp, TPTAG_MTU_REF(mtuSize), TAG_END());
+        DR_LOG(log_info) << "SipTransport::logTransports - " << desc << ", mtu size: " << mtuSize;
+      }
+      else {
         DR_LOG(log_info) << "SipTransport::logTransports - " << desc ;
+      }
     }
   }
 

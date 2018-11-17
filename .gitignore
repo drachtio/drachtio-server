@@ -13,9 +13,6 @@ config.h.in
 config.h.in~
 depcomp
 
-# until we add a makefile target
-tests
-
 
 # Compiled Object files
 *.slo
@@ -34,8 +31,13 @@ tests
 *.a
 
 *.tar.gz
-build/
+*.old
+/build/
 
+test/.eslintignore
+test/.eslintrc.json
+test/package-lock.json
+node_modules
 
 AUTHORS
 COPYING

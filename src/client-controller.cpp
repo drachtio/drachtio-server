@@ -21,44 +21,101 @@ THE SOFTWARE.
 */
 #include <iostream>
 
-#include <boost/bind.hpp>
+#include <functional>
+#include <algorithm>
+
 #include <boost/tokenizer.hpp>
-#include <boost/foreach.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/asio.hpp>
 
 #include "client-controller.hpp"
 #include "controller.hpp"
 
+static string emptyString;
+
 namespace drachtio {
-     
-    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int port ) :
+    
+    // simple tcp server
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tcpPort ) :
+        ClientController(pController, address, tcpPort, 0, emptyString, emptyString, emptyString, emptyString) {
+
+        DR_LOG(log_debug) << "Client controller initializing with tcp only" ;
+    }
+
+    // simple tls server
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tlsPort,
+        const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) :
+        ClientController(pController, address, 0, tlsPort, chainFile, certFile, keyFile, dhFile) {
+
+        DR_LOG(log_debug) << "Client controller initializing with tcp only" ;
+    }
+
+    // both tcp and tls
+    ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tcpPort, unsigned int tlsPort, 
+        const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) :
         m_pController( pController ),
-        m_endpoint(  boost::asio::ip::tcp::v4(), port ),
-        m_acceptor( m_ioservice, m_endpoint ) {
+        m_endpoint_tcp(boost::asio::ip::tcp::v4(), tcpPort),
+        m_acceptor_tcp(m_ioservice, m_endpoint_tcp), 
+        m_endpoint_tls(boost::asio::ip::tcp::v4(), tlsPort),
+        m_acceptor_tls(m_ioservice, m_endpoint_tls), 
+        m_context(boost::asio::ssl::context::sslv23),
+        m_tcpPort(tcpPort), m_tlsPort(tlsPort) {
+
+        if (0 != tlsPort) {
+            m_context.set_options(
+                boost::asio::ssl::context::default_workarounds | 
+                boost::asio::ssl::context::no_sslv2 | 
+                boost::asio::ssl::context::single_dh_use
+            );
             
+            if (!chainFile.empty()) {
+                DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << chainFile  ;
+                m_context.use_certificate_chain_file(chainFile.c_str());
+                if (!certFile.empty()) {
+                    DR_LOG(log_debug) << "ClientController::ClientController setting tls cert file: " << certFile  ;
+                    m_context.use_certificate_file(certFile.c_str(), boost::asio::ssl::context::pem);
+                }
+            }
+            else {
+                DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << certFile  ;
+                m_context.use_certificate_chain_file(certFile.c_str());
+            }
+            DR_LOG(log_debug) << "ClientController::ClientController setting tls dh file: " << dhFile  ;
+            m_context.use_tmp_dh_file(dhFile.c_str());
+            DR_LOG(log_debug) << "ClientController::ClientController setting tls private key file: " << keyFile  ;
+            m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
+
+            //m_context.set_verify_mode(boost::asio::ssl::verify_none);
+        }
+        DR_LOG(log_debug) << "ClientController::ClientController done setting tls options: ";
+    }
+
+    void ClientController::start() {
+        DR_LOG(log_debug) << "Client controller thread id: " << std::this_thread::get_id()  ;
         srand (time(NULL));    
-        boost::thread t(&ClientController::threadFunc, this) ;
+        std::thread t(&ClientController::threadFunc, this) ;
         m_thread.swap( t ) ;
             
-        this->start_accept() ;
+        if (m_tcpPort) start_accept_tcp() ;
+        if (m_tlsPort) start_accept_tls() ;
     }
+
     ClientController::~ClientController() {
-        this->stop() ;
+        stop() ;
     }
     void ClientController::threadFunc() {
         
-        DR_LOG(log_debug) << "Client controller thread id: " << boost::this_thread::get_id()  ;
+        DR_LOG(log_debug) << "Client controller thread id: " << std::this_thread::get_id()  ;
          
         /* to make sure the event loop doesn't terminate when there is no work to do */
-        boost::asio::io_service::work work(m_ioservice);
+        boost::asio::io_context::work work(m_ioservice);
         
         for(;;) {
             
             try {
-                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop started (or restarted)"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_context run loop started (or restarted)"  ;
                 m_ioservice.run() ;
-                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_service run loop ended normally"  ;
+                DR_LOG(log_notice) << "ClientController::threadFunc - ClientController: io_context run loop ended normally"  ;
                 break ;
             }
             catch( std::exception& e) {
@@ -75,9 +132,9 @@ namespace drachtio {
         m_clients.erase( client ) ;
         DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
-    void ClientController::outboundFailed( client_ptr client, const string& transactionId ) {
+    void ClientController::outboundFailed( const string& transactionId ) {
       string headers, body;
-      if(( !m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 480 Temporarily Unavailable", 
+      if((!m_pController->getDialogController()->respondToSipRequest( "", transactionId, "SIP/2.0 480 Temporarily Unavailable", 
         headers, body) )) {
         DR_LOG(log_error) << "ClientController::outboundFailed - error sending 480 for transactionId: " << transactionId ;
       }
@@ -85,8 +142,8 @@ namespace drachtio {
     void ClientController::outboundReady( client_ptr client, const string& transactionId ) {
       int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
       if( rc ) {
-        DR_LOG(log_error) << "ClientController::outboundFailed - error routing over outbound connection transactionId: " << transactionId ;
-        return outboundFailed( client, transactionId);
+        DR_LOG(log_error) << "ClientController::outboundReady - error routing over outbound connection transactionId: " << transactionId ;
+        return outboundFailed( transactionId);
       }
     }
 
@@ -96,22 +153,67 @@ namespace drachtio {
         m_services.insert( map_of_services::value_type(strAppName,p)) ;       
     }
 
-	void ClientController::start_accept() {
-		client_ptr new_session( new Client( m_ioservice, *this ) ) ;
-		m_acceptor.async_accept( new_session->socket(), boost::bind(&ClientController::accept_handler, this, new_session, boost::asio::placeholders::error));
-  }
-	void ClientController::accept_handler( client_ptr session, const boost::system::error_code& ec) {
-    if(!ec) session->start() ;
-    start_accept(); 
-  }
-  void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port ) {
-    client_ptr new_session( new Client( m_ioservice, transactionId, host, port, *this ) ) ;
-    new_session->async_connect() ;
-  }
+	void ClientController::start_accept_tcp() {
+        DR_LOG(log_debug) << "ClientController::start_accept_tcp"   ;
+        Client<socket_t>* p = new Client<socket_t>(m_ioservice, *this);
+		client_ptr new_session(p) ;
+		m_acceptor_tcp.async_accept( p->socket(), std::bind(&ClientController::accept_handler_tcp, shared_from_this(), new_session, std::placeholders::_1));
+    }
+	void ClientController::accept_handler_tcp( client_ptr session, const boost::system::error_code& ec) {
+        DR_LOG(log_debug) << "ClientController::accept_handler_tcp - got connection" ;       
+        if(!ec) session->start() ;
+        start_accept_tcp(); 
+    }
+
+	void ClientController::start_accept_tls() {
+        DR_LOG(log_debug) << "ClientController::start_accept_tls"   ;
+        Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p = new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>(m_ioservice, m_context, *this);
+		client_ptr new_session(p) ;
+		m_acceptor_tls.async_accept( p->socket().lowest_layer(), std::bind(&ClientController::accept_handler_tls, shared_from_this(), new_session, std::placeholders::_1));
+    }
+	void ClientController::accept_handler_tls( client_ptr session, const boost::system::error_code& ec) {
+        DR_LOG(log_debug) << "ClientController::accept_handler_tls - got connection" ;       
+        if(!ec) session->start() ;
+        start_accept_tls(); 
+    }
+
+    void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port, const string& transport ) {
+        if (0 == transport.compare("tls")) {
+            Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p =  new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>( m_ioservice, m_context, *this, transactionId, host, port ) ;
+            client_ptr new_session(p) ;
+            p->async_connect() ;
+        }
+        else {
+            Client<socket_t>* p =  new Client<socket_t>( m_ioservice, *this, transactionId, host, port ) ;
+            client_ptr new_session(p) ;
+            p->async_connect() ;
+        }
+    }
+
+    void ClientController::selectClientForTag(const string& transactionId, const string& tag) {
+        string method;
+        if (!m_pController->getPendingRequestController()->getMethodForRequest(transactionId, method)) {
+            DR_LOG(log_error) << "ClientController::selectClientForTag - unable to find transactionId: " << transactionId ;
+            return outboundFailed(transactionId);        
+        }
+
+        DR_LOG(log_debug) << "ClientController::selectClientForTag - searching for client to handle " << method << " with tag " << tag;
+        client_ptr client = selectClientForRequestOutsideDialog(method.c_str(), tag.c_str());
+        if (!client) {
+            DR_LOG(log_error) << "ClientController::selectClientForTag - no clients registered for tag: " << tag ;
+            return outboundFailed(transactionId);                
+        }
+        int rc = m_pController->getPendingRequestController()->routeNewRequestToClient(client, transactionId) ;
+        if (rc) {
+            DR_LOG(log_error) << "ClientController::selectClientForTag - error routing request to client: " << transactionId ;
+            return outboundFailed(transactionId);
+        }
+    }
+
 
     bool ClientController::wants_requests( client_ptr client, const string& verb ) {
         RequestSpecifier spec( client ) ;
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_request_types.insert( map_of_request_types::value_type(verb, spec)) ;  
         DR_LOG(log_debug) << "Added client for " << verb << " requests"  ;
 
@@ -123,16 +225,16 @@ namespace drachtio {
         return true ;  
     }
 
-    client_ptr ClientController::selectClientForRequestOutsideDialog( const char* keyword ) {
+    client_ptr ClientController::selectClientForRequestOutsideDialog(const char* keyword, const char* tag) {
         string method_name = keyword ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);
 
-        /* round robin select a client that has registered for this request type */
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        /* round robin select a client that has registered for this request type (and, optionally, tag)*/
+        std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
         string matchId ;
-        pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range( method_name ) ;
-        unsigned int nPossibles = std::distance( pair.first, pair.second ) ;
+        pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range(method_name) ;
+        unsigned int nPossibles = std::distance(pair.first, pair.second) ;
         if( 0 == nPossibles ) {
             if( 0 == method_name.find("cdr") ) {
                 DR_LOG(log_debug) << "No connected clients found to handle incoming " << method_name << " request"  ;
@@ -144,34 +246,42 @@ namespace drachtio {
         }
 
         unsigned int nOffset = 0 ;
-        map_of_request_type_offsets::const_iterator itOffset = m_map_of_request_type_offsets.find( method_name ) ;
+        map_of_request_type_offsets::const_iterator itOffset = m_map_of_request_type_offsets.find(method_name) ;
         if( m_map_of_request_type_offsets.end() != itOffset ) {
             unsigned int i = itOffset->second;
             if( i < nPossibles ) nOffset = i ;
             else nOffset = 0;
         }
-        DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - there are " << nPossibles << 
+        DR_LOG(log_debug) << "ClientController::selectClientForRequestOutsideDialog - there are " << nPossibles << 
             " possible clients, we are starting with offset " << nOffset  ;
 
-        m_map_of_request_type_offsets.erase( itOffset ) ;
+        m_map_of_request_type_offsets.erase(itOffset) ;
         m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(method_name, nOffset + 1)) ;
 
         unsigned int nTries = 0 ;
+        map_of_request_types::iterator it = pair.first ;
+        std::advance(it, nOffset) ;
         do {
-            map_of_request_types::iterator it = pair.first ;
-            std::advance( it, nOffset) ;
+            if (it == pair.second) it = pair.first;
+    
             RequestSpecifier& spec = it->second ;
             client = spec.client() ;
-            if( !client ) {
+            if (!client) {
                 DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Removing disconnected client while iterating"  ;
-                m_request_types.erase( it ) ;
-                pair = m_request_types.equal_range( method_name ) ;
-                nOffset = 0 ;
-                nPossibles = std::distance( pair.first, pair.second ) ;
+                it = m_request_types.erase( it ) ;
+                //pair = m_request_types.equal_range(method_name) ;
+                //nOffset = 0 ;
+                //nPossibles = std::distance( pair.first, pair.second ) ;
+            }
+            else if (tag && !client->hasTag(tag)) {
+                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - client at offset " << nOffset << " does not support tag " << tag;
+                client = NULL;
+                it++;
             }
             else {
                 DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Selected client at offset " << nOffset  ;                
             }
+            nPossibles--;
         } while( !client && nPossibles > 0 ) ;
 
         if( !client ) {
@@ -193,7 +303,8 @@ namespace drachtio {
             }
         }
 
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        void (BaseClient::*fn)(const string&, const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+        m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         this->removeNetTransaction( inviteTransactionId ) ;
         DR_LOG(log_debug) << "ClientController::route_ack_request_inside_dialog - removed incoming invite transaction, map size is now: " << m_mapNetTransactions.size() << " request"  ;
@@ -213,7 +324,8 @@ namespace drachtio {
         }
  
         DR_LOG(log_debug) << "ClientController::route_response_inside_invite - sending response to client"  ;
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        void (BaseClient::*fn)(const string&, const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+        m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         return true ;
     }
@@ -229,7 +341,8 @@ namespace drachtio {
         }
         if (string::npos == transactionId.find("unsolicited")) this->addNetTransaction( client, transactionId ) ;
  
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        void (BaseClient::*fn)(const string&, const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+        m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         // if this is a BYE from the network, it ends the dialog 
         string method_name = sip->sip_request->rq_method_name ;
@@ -254,7 +367,8 @@ namespace drachtio {
             return false ;
         }
 
-        m_ioservice.post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, dialogId, rawSipMsg, meta) ) ;
+        void (BaseClient::*fn)(const string&, const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+        m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         string method_name = sip->sip_cseq->cs_method_name ;
 
@@ -270,7 +384,7 @@ namespace drachtio {
     }
     
     void ClientController::addDialogForTransaction( const string& transactionId, const string& dialogId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         mapId2Client::iterator it = m_mapNetTransactions.find( transactionId ) ;
         if( m_mapNetTransactions.end() != it ) {
             m_mapDialogs.insert( mapId2Client::value_type(dialogId, it->second ) ) ;
@@ -372,12 +486,12 @@ namespace drachtio {
         if( string::npos == additionalResponseData.find("|continue") ) {
             removeApiRequest( clientMsgId ) ;
         }
-        m_ioservice.post( boost::bind(&Client::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
+        m_ioservice.post( std::bind(&BaseClient::sendApiResponseToClient, client, clientMsgId, responseText, additionalResponseData) ) ;
         return true ;                
     }
     
     void ClientController::removeDialog( const string& dialogId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         mapId2Client::iterator it = m_mapDialogs.find( dialogId ) ;
         if( m_mapDialogs.end() == it ) {
             DR_LOG(log_warning) << "ClientController::removeDialog - dialog not found: " << dialogId  ;
@@ -387,7 +501,7 @@ namespace drachtio {
         DR_LOG(log_info) << "ClientController::removeDialog - after removing dialogs count is now: " << m_mapDialogs.size()  ;
     }
     client_ptr ClientController::findClientForDialog( const string& dialogId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         return findClientForDialog_nolock( dialogId ) ;
     }
 
@@ -429,59 +543,59 @@ namespace drachtio {
     }
 
     client_ptr ClientController::findClientForAppTransaction( const string& transactionId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
         mapId2Client::iterator it = m_mapAppTransactions.find( transactionId ) ;
         if( m_mapAppTransactions.end() != it ) client = it->second.lock() ;
         return client ;
     }
     client_ptr ClientController::findClientForNetTransaction( const string& transactionId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
         mapId2Client::iterator it = m_mapNetTransactions.find( transactionId ) ;
         if( m_mapNetTransactions.end() != it ) client = it->second.lock() ;
         return client ;
     }
     client_ptr ClientController::findClientForApiRequest( const string& clientMsgId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
         mapId2Client::iterator it = m_mapApiRequests.find( clientMsgId ) ;
         if( m_mapApiRequests.end() != it ) client = it->second.lock() ;
         return client ;
     }
     void ClientController::removeAppTransaction( const string& transactionId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapAppTransactions.erase( transactionId ) ;        
         DR_LOG(log_debug) << "ClientController::removeAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size()  ;
     }
     void ClientController::removeNetTransaction( const string& transactionId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapNetTransactions.erase( transactionId ) ;        
         DR_LOG(log_debug) << "ClientController::removeNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
     void ClientController::removeApiRequest( const string& clientMsgId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapApiRequests.erase( clientMsgId ) ;   
         DR_LOG(log_debug) << "ClientController::removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
     void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapAppTransactions.insert( make_pair( transactionId, client ) ) ;        
         DR_LOG(log_debug) << "ClientController::addAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size()  ;
     }
     void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;        
         DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
     void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
-        boost::lock_guard<boost::mutex> l( m_lock ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapApiRequests.insert( make_pair( clientMsgId, client ) ) ;        
         DR_LOG(log_debug) << "ClientController::addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
 
     void ClientController::logStorageCount() {
-        boost::lock_guard<boost::mutex> lock(m_lock) ;
+        std::lock_guard<std::mutex> lock(m_lock) ;
 
         DR_LOG(log_debug) << "ClientController storage counts"  ;
         DR_LOG(log_debug) << "----------------------------------"  ;
@@ -497,12 +611,13 @@ namespace drachtio {
 
 
     }
-    boost::shared_ptr<SipDialogController> ClientController::getDialogController(void) {
+    std::shared_ptr<SipDialogController> ClientController::getDialogController(void) {
         return m_pController->getDialogController();
     }
 
     void ClientController::stop() {
-        m_acceptor.cancel() ;
+        m_acceptor_tcp.cancel() ;
+        m_acceptor_tls.cancel() ;
         m_ioservice.stop() ;
         m_thread.join() ;
     }

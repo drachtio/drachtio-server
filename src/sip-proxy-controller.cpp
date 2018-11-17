@@ -26,8 +26,7 @@ namespace drachtio {
 
 #include <algorithm> // for remove_if
 #include <functional> // for unary_function
-#include <boost/regex.hpp>
-#include <boost/bind.hpp>
+#include <regex>
 
 #include <sofia-sip/sip_util.h>
 #include <sofia-sip/msg_header.h>
@@ -57,7 +56,7 @@ namespace drachtio {
     {
         without_nonce(const string& nonce) : m_nonce(nonce) {}
         string m_nonce;
-        bool operator()(boost::shared_ptr<ProxyCore::ClientTransaction> pClient)
+        bool operator()(std::shared_ptr<ProxyCore::ClientTransaction> pClient)
         {
             msg_t* msg = pClient->getFinalResponse() ;
             if( msg ) {
@@ -74,7 +73,7 @@ namespace drachtio {
     {
         has_rseq(uint32_t rseq) : m_rseq(rseq) {}
         uint32_t m_rseq;
-        bool operator()(boost::shared_ptr<ProxyCore::ClientTransaction> pClient)
+        bool operator()(std::shared_ptr<ProxyCore::ClientTransaction> pClient)
         {
             return m_rseq == pClient->getRSeq(); 
         }
@@ -83,24 +82,24 @@ namespace drachtio {
     {
         has_target(const string& target) : m_target(target) {}
         string m_target;
-        bool operator()(boost::shared_ptr<ProxyCore::ClientTransaction> pClient)
+        bool operator()(std::shared_ptr<ProxyCore::ClientTransaction> pClient)
         {
             return 0 == m_target.compare( pClient->getTarget() ); 
         }
     };
 
-    bool ClientTransactionIsTerminatedOrNotStarted( const boost::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
+    bool ClientTransactionIsTerminatedOrNotStarted( const std::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
         return pClient->getTransactionState() == ProxyCore::ClientTransaction::terminated ||
                pClient->getTransactionState() == ProxyCore::ClientTransaction::not_started ; 
     }
-    bool ClientTransactionIsTerminated( const boost::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
+    bool ClientTransactionIsTerminated( const std::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
         return pClient->getTransactionState() == ProxyCore::ClientTransaction::terminated ;
     }
-    bool ClientTransactionIsCallingOrProceeding( const boost::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
+    bool ClientTransactionIsCallingOrProceeding( const std::shared_ptr<ProxyCore::ClientTransaction> pClient ) {
         return pClient->getTransactionState() == ProxyCore::ClientTransaction::calling ||
             pClient->getTransactionState() == ProxyCore::ClientTransaction::proceeding;
     }
-    bool bestResponseOrder( boost::shared_ptr<ProxyCore::ClientTransaction> c1, boost::shared_ptr<ProxyCore::ClientTransaction> c2 ) {
+    bool bestResponseOrder( std::shared_ptr<ProxyCore::ClientTransaction> c1, std::shared_ptr<ProxyCore::ClientTransaction> c2 ) {
         // per RFC 3261 16.7.6
         if( ProxyCore::ClientTransaction::completed == c1->getTransactionState() && 
             ProxyCore::ClientTransaction::completed != c2->getTransactionState() ) return true ;
@@ -146,7 +145,7 @@ namespace drachtio {
     }
 
     ///ServerTransaction
-    ProxyCore::ServerTransaction::ServerTransaction(boost::shared_ptr<ProxyCore> pCore, msg_t* msg) : 
+    ProxyCore::ServerTransaction::ServerTransaction(std::shared_ptr<ProxyCore> pCore, msg_t* msg) : 
         m_pCore(pCore), m_msg(msg), m_canceled(false), m_sipStatus(0), m_rseq(0) {
 
         msg_ref_create(m_msg) ;
@@ -161,7 +160,7 @@ namespace drachtio {
     uint32_t ProxyCore::ServerTransaction::getReplacedRSeq( uint32_t rseq ) {
         //DR_LOG(log_debug) << "searching for original rseq that was replaced with " << rseq << " map size " << m_mapAleg2BlegRseq.size();
         uint32_t original = 0 ;
-        boost::unordered_map<uint32_t,uint32_t>::const_iterator it = m_mapAleg2BlegRseq.find(rseq) ;
+        std::unordered_map<uint32_t,uint32_t>::const_iterator it = m_mapAleg2BlegRseq.find(rseq) ;
         if( m_mapAleg2BlegRseq.end() != it ) original = it->second ;
         //DR_LOG(log_debug) << "rseq that was replaced with " << rseq << " was originally " << original;
         return original ;
@@ -197,7 +196,7 @@ namespace drachtio {
                     bool add = true ;
                     int expires = 0 ;
 
-                    boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+                    std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
                     assert( pCore ) ;
 
                     if( sip->sip_cseq->cs_method == sip_method_subscribe ) {
@@ -231,7 +230,7 @@ namespace drachtio {
         bool bReplaceRR = false ;
         string newRR ;
         if( sip->sip_record_route && theOneAndOnlyController->hasPublicAddress() ) {
-            boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+            std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
             assert( pCore ) ;
 
             if( pCore->shouldAddRecordRoute() ) {
@@ -271,10 +270,10 @@ namespace drachtio {
     }
     void ProxyCore::ServerTransaction::writeCdr( msg_t* msg, sip_t* sip ) {
         if( 200 == sip->sip_status->st_status ) {
-            Cdr::postCdr( boost::make_shared<CdrStart>( msg, "application", Cdr::proxy_uas ) );                
+            Cdr::postCdr( std::make_shared<CdrStart>( msg, "application", Cdr::proxy_uas ) );                
         }
         else if( sip->sip_status->st_status > 200 ) {
-            Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application",
+            Cdr::postCdr( std::make_shared<CdrStop>( msg, "application",
                 487 == sip->sip_status->st_status ? Cdr::call_canceled : Cdr::call_rejected ) );
         }        
     }
@@ -286,7 +285,7 @@ namespace drachtio {
             TAG_END() ) ;
 
         if( sip_method_invite == sip_object(m_msg)->sip_request->rq_method && status >= 200 ) {
-            Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+            Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
         }
 
         msg_destroy(reply) ;  
@@ -296,8 +295,8 @@ namespace drachtio {
 
 
     ///ClientTransaction
-    ProxyCore::ClientTransaction::ClientTransaction(boost::shared_ptr<ProxyCore> pCore, 
-        boost::shared_ptr<TimerQueueManager> pTQM,  const string& target) : 
+    ProxyCore::ClientTransaction::ClientTransaction(std::shared_ptr<ProxyCore> pCore, 
+        std::shared_ptr<TimerQueueManager> pTQM,  const string& target) : 
         m_pCore(pCore), m_target(target), m_canceled(false), m_sipStatus(0),
         m_timerA(NULL), m_timerB(NULL), m_timerC(NULL), m_timerD(NULL), m_timerProvisional(NULL), 
         m_timerE(NULL), m_timerF(NULL), m_timerK(NULL),
@@ -343,7 +342,7 @@ namespace drachtio {
     void ProxyCore::ClientTransaction::setState( State_t newState ) {
         if( newState == m_state ) return ;
 
-        boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+        std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
         assert( pCore ) ;
 
         DR_LOG(log_info) << "ClientTransaction::setState - " << getStateName(m_state) << " --> " << getStateName(newState) << " " << pCore->getCallId();
@@ -360,19 +359,19 @@ namespace drachtio {
 
                     //timer A = retransmission timer 
                     m_timerA = m_pTQM->addTimer("timerA", 
-                        boost::bind(&ProxyCore::timerA, pCore, shared_from_this()), NULL, m_durationTimerA = NTA_SIP_T1 ) ;
+                        std::bind(&ProxyCore::timerA, pCore, shared_from_this()), NULL, m_durationTimerA = NTA_SIP_T1 ) ;
 
                     //timer B = timeout when all invite retransmissions have been exhausted
                     m_timerB = m_pTQM->addTimer("timerB", 
-                        boost::bind(&ProxyCore::timerB, pCore, shared_from_this()), NULL, TIMER_B_MSECS ) ;
+                        std::bind(&ProxyCore::timerB, pCore, shared_from_this()), NULL, TIMER_B_MSECS ) ;
                     
                     //timer C - timeout to wait for final response before returning 408 Request Timeout. 
                     m_timerC = m_pTQM->addTimer("timerC", 
-                        boost::bind(&ProxyCore::timerC, pCore, shared_from_this()), NULL, TIMER_C_MSECS ) ;
+                        std::bind(&ProxyCore::timerC, pCore, shared_from_this()), NULL, TIMER_C_MSECS ) ;
 
                     if( pCore->getProvisionalTimeout() > 0 ) {
                         m_timerProvisional = m_pTQM->addTimer("timerProvisional", 
-                            boost::bind(&ProxyCore::timerProvisional, pCore, shared_from_this()), NULL, pCore->getProvisionalTimeout() ) ;
+                            std::bind(&ProxyCore::timerProvisional, pCore, shared_from_this()), NULL, pCore->getProvisionalTimeout() ) ;
                     }
                 break ;
 
@@ -393,7 +392,7 @@ namespace drachtio {
                     //we can have a timer D set when we get here as state will go 
                     //CALLING --> COMPLETED (when decide to cancel) --> PROCEEDING (when late response arrives) --> COMPLETED (as we send the CANCEL)
                     removeTimer( m_timerD, "timerD" ) ;
-                    m_timerD = m_pTQM->addTimer("timerD", boost::bind(&ProxyCore::timerD, pCore, shared_from_this()), 
+                    m_timerD = m_pTQM->addTimer("timerD", std::bind(&ProxyCore::timerD, pCore, shared_from_this()), 
                         NULL, TIMER_D_MSECS ) ;
                 break ;
 
@@ -418,9 +417,9 @@ namespace drachtio {
                     assert( !m_timerE ) ; //TODO: should only be doing this on unreliable transports
                     assert( !m_timerF ) ;
                     m_timerE = m_pTQM->addTimer("timerE", 
-                        boost::bind(&ProxyCore::timerE, pCore, shared_from_this()), NULL, m_durationTimerA = NTA_SIP_T1 ) ;
+                        std::bind(&ProxyCore::timerE, pCore, shared_from_this()), NULL, m_durationTimerA = NTA_SIP_T1 ) ;
                     m_timerF = m_pTQM->addTimer("timerF", 
-                        boost::bind(&ProxyCore::timerF, pCore, shared_from_this()), NULL, 64 * NTA_SIP_T1 ) ;
+                        std::bind(&ProxyCore::timerF, pCore, shared_from_this()), NULL, 64 * NTA_SIP_T1 ) ;
                 break ;
 
                 case proceeding: 
@@ -432,7 +431,7 @@ namespace drachtio {
                     //we've received a final response to a non-INVITE request
                     removeTimer( m_timerE, "timerE" ) ;
                     removeTimer( m_timerF, "timerF" ) ;
-                    m_timerK = m_pTQM->addTimer("timerK", boost::bind(&ProxyCore::timerK, pCore, shared_from_this()), 
+                    m_timerK = m_pTQM->addTimer("timerK", std::bind(&ProxyCore::timerK, pCore, shared_from_this()), 
                         NULL, NTA_SIP_T4 ) ;
                 break ;
 
@@ -448,7 +447,7 @@ namespace drachtio {
         }
     }
     bool ProxyCore::ClientTransaction::forwardPrack(msg_t* msg, sip_t* sip) {
-        boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+        std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
         assert( pCore ) ;
 
         assert( sip->sip_rack ) ;
@@ -471,7 +470,7 @@ namespace drachtio {
                         URL_STRING_MAKE(buf), (void **) &tp ) ;
             assert( 0 == rc ) ;
             if( 0 == rc ) {
-                boost::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
+                std::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
                 assert(p) ;
 
                 p->getContactUri(record_route) ;
@@ -495,7 +494,7 @@ namespace drachtio {
         return true ;
     }
     bool ProxyCore::ClientTransaction::forwardRequest(msg_t* msg, const string& headers) {
-        boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+        std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
         assert( pCore ) ;
 
         sip_t* sip = sip_object(msg) ;
@@ -546,7 +545,7 @@ namespace drachtio {
         }
 
         string record_route, transport;
-        boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
+        std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
         assert(p) ;
         p->getDescription(transport);
 
@@ -582,7 +581,7 @@ namespace drachtio {
         }
 
         if( 1 == m_transmitCount && this->isInviteTransaction() ) {
-            Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "application" ) );
+            Cdr::postCdr( std::make_shared<CdrAttempt>( msg, "application" ) );
         }
         
         return true ;
@@ -591,15 +590,15 @@ namespace drachtio {
         m_durationTimerA <<= 1 ;
         if( forwardRequest(msg, headers) ) {
             DR_LOG(log_debug) << "ClientTransaction - retransmitting request, timer A/E will be set to " << dec << m_durationTimerA << "ms" ;
-            boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+            std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
             assert( pCore ) ;
             if( this->isInviteTransaction() ) {
                 m_timerA = m_pTQM->addTimer("timerA", 
-                    boost::bind(&ProxyCore::timerA, pCore, shared_from_this()), NULL, m_durationTimerA) ;
+                    std::bind(&ProxyCore::timerA, pCore, shared_from_this()), NULL, m_durationTimerA) ;
             }
             else {
                 m_timerE = m_pTQM->addTimer("timerE", 
-                    boost::bind(&ProxyCore::timerE, pCore, shared_from_this()), NULL, m_durationTimerA) ;                
+                    std::bind(&ProxyCore::timerE, pCore, shared_from_this()), NULL, m_durationTimerA) ;                
             }
             return true ;
         }
@@ -615,8 +614,8 @@ namespace drachtio {
         if( 0 != m_branch.compare(sip->sip_via->v_branch) && sip_method_prack != sip->sip_cseq->cs_method ) return false ; 
         if( 0 == m_branchPrack.compare(sip->sip_via->v_branch) && sip_method_prack == sip->sip_cseq->cs_method ) return false ;
 
-        boost::shared_ptr<ClientTransaction> me = shared_from_this() ;
-        boost::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
+        std::shared_ptr<ClientTransaction> me = shared_from_this() ;
+        std::shared_ptr<ProxyCore> pCore = m_pCore.lock() ;
         assert( pCore ) ;
 
         if( terminated == m_state ) {
@@ -654,7 +653,7 @@ namespace drachtio {
                 if( 100 != m_sipStatus && this->isInviteTransaction() ) {
                     assert( m_timerC ) ;
                     removeTimer( m_timerC, "timerC" ) ;
-                    m_timerC = m_pTQM->addTimer("timerC", boost::bind(&ProxyCore::timerC, pCore, shared_from_this()), 
+                    m_timerC = m_pTQM->addTimer("timerC", std::bind(&ProxyCore::timerC, pCore, shared_from_this()), 
                         NULL, TIMER_C_MSECS ) ;
                 }                  
             }
@@ -700,7 +699,7 @@ namespace drachtio {
 
                 //TODO: move this up to ProxyCore??
                 if( m_sipStatus >= 300 && m_sipStatus <= 399 && pCore->shouldFollowRedirects() && sip->sip_contact ) {
-                    vector< boost::shared_ptr<ClientTransaction> > vecNewTransactions  ;
+                    vector< std::shared_ptr<ClientTransaction> > vecNewTransactions  ;
                     sip_contact_t* contact = sip->sip_contact ;
                     for (sip_contact_t* m = sip->sip_contact; m; m = m->m_next) {
                         char buffer[URL_MAXLEN] = "" ;
@@ -708,8 +707,8 @@ namespace drachtio {
 
                         DR_LOG(log_debug) << "ClientTransaction::processResponse -- adding contact from redirect response " << buffer ;
 
-                        boost::shared_ptr<TimerQueueManager> pTQM = theProxyController->getTimerQueueManager() ;
-                        boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>(pCore, pTQM, buffer) ;
+                        std::shared_ptr<TimerQueueManager> pTQM = theProxyController->getTimerQueueManager() ;
+                        std::shared_ptr<ClientTransaction> pClient = std::make_shared<ClientTransaction>(pCore, pTQM, buffer) ;
                         vecNewTransactions.push_back( pClient ) ;
                     }
                     pCore->addClientTransactions( vecNewTransactions, shared_from_this() ) ;
@@ -829,10 +828,10 @@ namespace drachtio {
         string encodedMessage ;
         EncodeStackMessage( sip, encodedMessage ) ;
         if( 200 == m_sipStatus ) {
-            Cdr::postCdr( boost::make_shared<CdrStart>( msg, "network", Cdr::proxy_uac ), encodedMessage );                
+            Cdr::postCdr( std::make_shared<CdrStart>( msg, "network", Cdr::proxy_uac ), encodedMessage );                
         }               
         else {
-            Cdr::postCdr( boost::make_shared<CdrStop>( msg, "network",  
+            Cdr::postCdr( std::make_shared<CdrStop>( msg, "network",  
                 487 == m_sipStatus ? Cdr::call_canceled : Cdr::call_rejected ), encodedMessage );                
         }        
     }
@@ -848,11 +847,11 @@ namespace drachtio {
         DR_LOG(log_debug) << "ProxyCore::~ProxyCore" ;
     }
     void ProxyCore::initializeTransactions( msg_t* msg, const vector<string>& vecDestination ) {
-        m_pServerTransaction = boost::make_shared<ServerTransaction>( shared_from_this(), msg ) ;
+        m_pServerTransaction = std::make_shared<ServerTransaction>( shared_from_this(), msg ) ;
 
         for( vector<string>::const_iterator it = vecDestination.begin(); it != vecDestination.end(); it++ ) {
-            boost::shared_ptr<TimerQueueManager> pTQM = theProxyController->getTimerQueueManager() ;
-            boost::shared_ptr<ClientTransaction> pClient = boost::make_shared<ClientTransaction>( shared_from_this(), pTQM, *it ) ;
+            std::shared_ptr<TimerQueueManager> pTQM = theProxyController->getTimerQueueManager() ;
+            std::shared_ptr<ClientTransaction> pClient = std::make_shared<ClientTransaction>( shared_from_this(), pTQM, *it ) ;
             m_vecClientTransactions.push_back( pClient ) ;
         }
         DR_LOG(log_debug) << "ProxyCore::initializeTransactions - added " << dec << m_vecClientTransactions.size() << " client transactions " ;
@@ -874,16 +873,16 @@ namespace drachtio {
             theProxyController->removeProxy( shared_from_this() ) ;
         }
     }
-    void ProxyCore::notifyForwarded200OK( boost::shared_ptr<ClientTransaction> pClient ) {
+    void ProxyCore::notifyForwarded200OK( std::shared_ptr<ClientTransaction> pClient ) {
         DR_LOG(log_debug) << "forwarded 200 OK terminating other clients" ;
         m_searching = false ;
         cancelOutstandingRequests() ;
         removeTerminated(true) ;
     }
-    void ProxyCore::addClientTransactions( const vector< boost::shared_ptr<ClientTransaction> >& vecClientTransactions, 
-        boost::shared_ptr<ClientTransaction> pClient ) {
+    void ProxyCore::addClientTransactions( const vector< std::shared_ptr<ClientTransaction> >& vecClientTransactions, 
+        std::shared_ptr<ClientTransaction> pClient ) {
 
-        vector< boost::shared_ptr< ClientTransaction > >::iterator it = std::find_if( m_vecClientTransactions.begin(), 
+        vector< std::shared_ptr< ClientTransaction > >::iterator it = std::find_if( m_vecClientTransactions.begin(), 
             m_vecClientTransactions.end(), has_target(pClient->getTarget()) ) ;
         assert( m_vecClientTransactions.end() != it ) ;
 
@@ -891,26 +890,30 @@ namespace drachtio {
         DR_LOG(log_debug) << "ProxyCore::addClientTransactions: there are now " << dec << vecClientTransactions.size() << " client transactions";
     }
     void ProxyCore::setProvisionalTimeout(const string& t ) {
-        boost::regex e("^(\\d+)(ms|s)$", boost::regex::extended);
-        boost::smatch mr;
-        if( boost::regex_search( t, mr, e ) ) {
-            string s = mr[1] ;
-            m_nProvisionalTimeout = ::atoi( s.c_str() ) ;
-            if( 0 == mr[2].compare("s") ) {
-                m_nProvisionalTimeout *= 1000 ;
+        try {
+            std::regex re("^(\\d+)(ms|s)$");
+            std:smatch mr;
+            if (std::regex_search(t, mr, re) && mr.size() > 1) {
+                string s = mr[1] ;
+                m_nProvisionalTimeout = ::atoi( s.c_str() ) ;
+                if( 0 == mr[2].compare("s") ) {
+                    m_nProvisionalTimeout *= 1000 ;
+                }
+                DR_LOG(log_debug) << "provisional timeout is " << m_nProvisionalTimeout << "ms" ;
             }
-            DR_LOG(log_debug) << "provisional timeout is " << m_nProvisionalTimeout << "ms" ;
+            else if( t.length() > 0 ) {
+                DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
+            }        
+        } catch( std::regex_error& e) {
+            DR_LOG(log_error) << "ProxyCore::setProvisionalTimeout - regex error " << e.what();
         }
-        else if( t.length() > 0 ) {
-            DR_LOG(log_error) << "Invalid timeout syntax: " << t ;
-        }        
     }
 
     //timer functions
     
 
     //retransmission timer
-    void ProxyCore::timerA(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerA(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer A fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerA() ;
@@ -919,7 +922,7 @@ namespace drachtio {
         msg_destroy(msg) ;
     }
     //max retransmission timer
-    void ProxyCore::timerB(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerB(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer B fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerB() ;
@@ -928,7 +931,7 @@ namespace drachtio {
         if( m_searching && exhaustedAllTargets() ) forwardBestResponse() ;
     }
     //final invite response timer
-    void ProxyCore::timerC(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerC(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer C fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::proceeding || 
              pClient->getTransactionState() == ClientTransaction::calling ) ;
@@ -944,7 +947,7 @@ namespace drachtio {
         if( m_searching && exhaustedAllTargets() ) forwardBestResponse() ;
     }
     //completed state timer
-    void ProxyCore::timerD(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerD(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_debug) << "timer D fired for a client transaction" ;
         assert( pClient->getTransactionState() == ClientTransaction::completed ) ;
         pClient->clearTimerD() ;
@@ -952,7 +955,7 @@ namespace drachtio {
         removeTerminated() ;
     }
     //non-INVITE retransmission timer
-    void ProxyCore::timerE(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerE(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer E fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::trying ) ;
         pClient->clearTimerE() ;
@@ -961,21 +964,21 @@ namespace drachtio {
         msg_destroy(msg) ;
     }
     //non-INVITE transaction timeout timer
-    void ProxyCore::timerF(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerF(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer F fired for a client transaction in " << pClient->getCurrentStateName() ;
         pClient->clearTimerF() ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
     }
     //wait time for non-INVITE response retransmits
-    void ProxyCore::timerK(boost::shared_ptr<ClientTransaction> pClient) {
+    void ProxyCore::timerK(std::shared_ptr<ClientTransaction> pClient) {
         DR_LOG(log_info) << "timer K fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::completed ) ;
         pClient->clearTimerK() ;
         pClient->setState( ClientTransaction::terminated ) ;
         removeTerminated() ;
     }
-    void ProxyCore::timerProvisional( boost::shared_ptr<ClientTransaction> pClient ) {
+    void ProxyCore::timerProvisional( std::shared_ptr<ClientTransaction> pClient ) {
         DR_LOG(log_info) << "timer Provisional fired for a client transaction in " << pClient->getCurrentStateName() ;
         assert( pClient->getTransactionState() == ClientTransaction::calling ) ;
         pClient->clearTimerProvisional() ;
@@ -995,10 +998,10 @@ namespace drachtio {
 
         int count = 0 ;
         int idx = 0 ;
-        vector< boost::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
+        vector< std::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end(); ++it, idx++ ) {
             DR_LOG(log_debug) << "startRequests: evaluating client " << idx ; 
-            boost::shared_ptr<ClientTransaction> pClient = *it ;
+            std::shared_ptr<ClientTransaction> pClient = *it ;
             if( ClientTransaction::not_started == pClient->getTransactionState() ) {
                 DR_LOG(log_debug) << "launching client " << idx ;
                 msg_t* msg = m_pServerTransaction->msgDup();
@@ -1015,9 +1018,9 @@ namespace drachtio {
     }
     void ProxyCore::cancelOutstandingRequests() {
         m_searching = false ;
-        vector< boost::shared_ptr<ProxyCore::ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
+        vector< std::shared_ptr<ProxyCore::ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end(); ++it ) {
-            boost::shared_ptr<ProxyCore::ClientTransaction> pClient = *it ;
+            std::shared_ptr<ProxyCore::ClientTransaction> pClient = *it ;
             msg_t* msg = m_pServerTransaction->msgDup() ;
             pClient->cancelRequest(msg) ;
             msg_destroy(msg) ;
@@ -1027,9 +1030,9 @@ namespace drachtio {
     const string& ProxyCore::getTransactionId() { return m_transactionId; }
     tport_t* ProxyCore::getTport() { return m_tp; }
     bool ProxyCore::allClientsAreTerminated(void) {
-        vector< boost::shared_ptr<ProxyCore::ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
+        vector< std::shared_ptr<ProxyCore::ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for(; it != m_vecClientTransactions.end(); ++it ) {
-            boost::shared_ptr<ProxyCore::ClientTransaction> pClient = *it ;
+            std::shared_ptr<ProxyCore::ClientTransaction> pClient = *it ;
             if( ClientTransaction::completed != pClient->getTransactionState() && 
                 ClientTransaction::terminated != pClient->getTransactionState() ) return false ;
         }
@@ -1039,9 +1042,9 @@ namespace drachtio {
         bool handled = false ;
         string target ;
         int status = sip->sip_status->st_status  ;
-        vector< boost::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
+        vector< std::shared_ptr<ClientTransaction> >::const_iterator it = m_vecClientTransactions.begin() ;
         for( ; it != m_vecClientTransactions.end() && !handled; ++it ) {
-            boost::shared_ptr<ClientTransaction> pClient = *it ;
+            std::shared_ptr<ClientTransaction> pClient = *it ;
             if( pClient->processResponse( msg, sip ) ) {
                 handled = true ;
                 target = pClient->getTarget() ;
@@ -1069,8 +1072,8 @@ namespace drachtio {
     }
     bool ProxyCore::forwardPrack( msg_t* msg, sip_t* sip ) {
         uint32_t rseq = m_pServerTransaction->getReplacedRSeq( sip->sip_rack->ra_response ) ;
-        boost::shared_ptr< ClientTransaction > pClient ;
-        vector< boost::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
+        std::shared_ptr< ClientTransaction > pClient ;
+        vector< std::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
             m_vecClientTransactions.end(), has_rseq(rseq) ) ;
         if( m_vecClientTransactions.end() != it ) {
             pClient = *it ;
@@ -1080,9 +1083,9 @@ namespace drachtio {
         return false ;
     }
     bool ProxyCore::forwardRequest( msg_t* msg, sip_t* sip ) {
-        boost::shared_ptr< ClientTransaction > pClient ;
+        std::shared_ptr< ClientTransaction > pClient ;
         string headers ;
-        vector< boost::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
+        vector< std::shared_ptr< ClientTransaction > >::const_iterator it = std::find_if( m_vecClientTransactions.begin(), 
             m_vecClientTransactions.end(), ClientTransactionIsCallingOrProceeding ) ;
         if( m_vecClientTransactions.end() != it ) {
             pClient = *it ;
@@ -1129,7 +1132,7 @@ namespace drachtio {
             assert(m_agent) ;
             nta = m_agent ;
             theProxyController = this ;
-            m_pTQM = boost::make_shared<SipTimerQueueManager>( pController->getRoot() ) ;
+            m_pTQM = std::make_shared<SipTimerQueueManager>( pController->getRoot() ) ;
     }
     SipProxyController::~SipProxyController() {
     }
@@ -1165,7 +1168,7 @@ namespace drachtio {
 
         DR_LOG(log_debug) << "SipProxyController::doProxy - transactionId: " << transactionId << " clientMsgId: " << clientMsgId ;
 
-        boost::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
+        std::shared_ptr<PendingRequest_t> p = m_pController->getPendingRequestController()->findAndRemove( transactionId ) ;
         if( !p) {
             string failMsg = "Unknown transaction id: " + transactionId ;
             DR_LOG(log_error) << "SipProxyController::proxyRequest - " << failMsg;  
@@ -1184,7 +1187,7 @@ namespace drachtio {
             else {
                 pData->getDestinations( vecDestination ) ;
             }
-            boost::shared_ptr<ProxyCore> pCore = addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), pData->getRecordRoute(), 
+            std::shared_ptr<ProxyCore> pCore = addProxy( clientMsgId, transactionId, p->getMsg(), p->getSipObject(), p->getTport(), pData->getRecordRoute(), 
                 pData->getFullResponse(), pData->getFollowRedirects(), pData->getSimultaneous(), pData->getProvisionalTimeout(), 
                 pData->getFinalTimeout(), vecDestination, pData->getHeaders() ) ;
 
@@ -1200,7 +1203,7 @@ namespace drachtio {
                     msg_ref_create(msg), //because it will lose a ref in here
                     TAG_END() ) ;
 
-                Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
 
                 msg_destroy(reply) ;
 
@@ -1209,6 +1212,9 @@ namespace drachtio {
                 return ;
             }
  
+            // some clients (e.g. Tandberg) "preload" a Route header on the initial request
+            sip_route_remove( msg, sip) ;
+
             int clients = pCore->startRequests() ;
 
             //check to make sure we got at least one request out
@@ -1222,7 +1228,7 @@ namespace drachtio {
                     msg_ref_create(msg), //because it will lose a ref in here
                     TAG_END() ) ;
 
-                Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
 
                 msg_destroy(reply) ;
 
@@ -1248,7 +1254,7 @@ namespace drachtio {
             nta_msg_tsend( nta, msg, NULL, TAG_END() ) ;  
             return true ;                      
         }
-        boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
+        std::shared_ptr<ProxyCore> p = getProxy( sip ) ;
 
         if( !p ) return false ;
 
@@ -1272,11 +1278,11 @@ namespace drachtio {
         //generate cdrs on BYE
         if( sip_method_bye == sip->sip_request->rq_method ) {
 
-            Cdr::postCdr( boost::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
+            Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
         }
 
         if( sip_method_prack == sip->sip_request->rq_method ) {
-            boost::shared_ptr<ProxyCore> p = getProxyByCallId( sip ) ;
+            std::shared_ptr<ProxyCore> p = getProxyByCallId( sip ) ;
             if( !p ) {
                DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader unknown call-id for PRACK " <<  
                     sip->sip_call_id->i_id ;
@@ -1292,7 +1298,7 @@ namespace drachtio {
         bool forceTport = false ;
         const tport_t* tp = NULL ;
         if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
-            boost::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
+            std::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
             if( NULL != pData ) {
                 tp = pData->getTport() ;
                 forceTport = true ;
@@ -1309,7 +1315,7 @@ namespace drachtio {
                 route = sip->sip_request->rq_url->url_host;
             }
 
-            boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(route.c_str());
+            std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(route.c_str());
             assert(p) ;
 
             tp = p->getTport();
@@ -1328,7 +1334,7 @@ namespace drachtio {
         }
 
         if( sip_method_bye == sip->sip_request->rq_method ) {
-            Cdr::postCdr( boost::make_shared<CdrStop>( msg, "application", Cdr::normal_release ) );            
+            Cdr::postCdr( std::make_shared<CdrStop>( msg, "application", Cdr::normal_release ) );            
         }
 
         msg_destroy(msg) ;
@@ -1338,7 +1344,7 @@ namespace drachtio {
     bool SipProxyController::processRequestWithoutRouteHeader( msg_t* msg, sip_t* sip ) {
         string callId = sip->sip_call_id->i_id ;
 
-        boost::shared_ptr<ProxyCore> p = getProxy( sip ) ;
+        std::shared_ptr<ProxyCore> p = getProxy( sip ) ;
         if( !p ) {
             DR_LOG(log_error) << "SipProxyController::processRequestWithoutRouteHeader unknown call-id for " <<  sip->sip_request->rq_method_name << " " << callId;
             nta_msg_discard( nta, msg ) ;
@@ -1385,16 +1391,16 @@ namespace drachtio {
     bool SipProxyController::isProxyingRequest( msg_t* msg, sip_t* sip )  {
       string id ;
       makeUniqueSipTransactionIdentifier(sip, id) ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       return it != m_mapCallId2Proxy.end() ;
     }
 
-    boost::shared_ptr<ProxyCore> SipProxyController::removeProxy( sip_t* sip ) {
+    std::shared_ptr<ProxyCore> SipProxyController::removeProxy( sip_t* sip ) {
       string id ;
       makeUniqueSipTransactionIdentifier(sip, id); 
-      boost::shared_ptr<ProxyCore> p ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::shared_ptr<ProxyCore> p ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       if( it != m_mapCallId2Proxy.end() ) {
         p = it->second ;
@@ -1403,7 +1409,7 @@ namespace drachtio {
       DR_LOG(log_debug) << "SipProxyController::removeProxyByCallId - there are now " << dec << m_mapCallId2Proxy.size() << " proxy instances" ;
       return p ;
     }
-    void SipProxyController::removeProxy( boost::shared_ptr<ProxyCore> pCore ) {
+    void SipProxyController::removeProxy( std::shared_ptr<ProxyCore> pCore ) {
         removeProxy( sip_object( pCore->msg() ) ) ;
     }
 
@@ -1418,7 +1424,7 @@ namespace drachtio {
         }
     }
 
-    boost::shared_ptr<ProxyCore>  SipProxyController::addProxy( const string& clientMsgId, const string& transactionId, 
+    std::shared_ptr<ProxyCore>  SipProxyController::addProxy( const string& clientMsgId, const string& transactionId, 
         msg_t* msg, sip_t* sip, tport_t* tp, bool recordRoute, bool fullResponse, bool followRedirects,
         bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string> vecDestination, 
         const string& headers ) {
@@ -1429,13 +1435,13 @@ namespace drachtio {
       DR_LOG(log_debug) << "SipProxyController::addProxy - adding transaction id " << transactionId << ", id " << 
         id << " before insert there are "<< m_mapCallId2Proxy.size() << " proxy instances";
 
-      boost::shared_ptr<ProxyCore> p = boost::make_shared<ProxyCore>( clientMsgId, transactionId, tp, recordRoute, 
+      std::shared_ptr<ProxyCore> p = std::make_shared<ProxyCore>( clientMsgId, transactionId, tp, recordRoute, 
         fullResponse, simultaneous, headers ) ;
       p->shouldFollowRedirects( followRedirects ) ;
       p->initializeTransactions( msg, vecDestination ) ;
       if( !provisionalTimeout.empty() ) p->setProvisionalTimeout( provisionalTimeout ) ;
       
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       m_mapCallId2Proxy.insert( mapCallId2Proxy::value_type(id, p) ) ;
       return p ;         
     }
@@ -1459,11 +1465,11 @@ namespace drachtio {
             }
         }
         if( nonce && realm ) {
-            boost::shared_ptr<ChallengedRequest> pChallenge = boost::make_shared<ChallengedRequest>( realm, nonce, target) ;
+            std::shared_ptr<ChallengedRequest> pChallenge = std::make_shared<ChallengedRequest>( realm, nonce, target) ;
             m_mapNonce2Challenge.insert( mapNonce2Challenge::value_type( nonce, pChallenge) );  
 
             // give client 2 seconds to resend with credentials before clearing state
-            TimerEventHandle handle = m_timerQueue.add( boost::bind(&SipProxyController::timeoutChallenge, shared_from_this(), 
+            TimerEventHandle handle = m_timerQueue.add( std::bind(&SipProxyController::timeoutChallenge, shared_from_this(), 
                 nonce), NULL, 2000 ) ;
             pChallenge->setTimerHandle( handle ) ;
    
@@ -1492,7 +1498,7 @@ namespace drachtio {
         if( nonce && realm ) {
             mapNonce2Challenge::iterator it = m_mapNonce2Challenge.find( nonce ) ;
             if( m_mapNonce2Challenge.end() != it ) {
-                boost::shared_ptr<ChallengedRequest> pChallenge = it->second ;
+                std::shared_ptr<ChallengedRequest> pChallenge = it->second ;
                 if( 0 == pChallenge->getRealm().compare( realm ) ) {
                     isResponse = true ;
                     target = pChallenge->getRemoteAddress() ;
@@ -1513,7 +1519,7 @@ namespace drachtio {
     }
 
     void SipProxyController::logStorageCount(void)  {
-        boost::lock_guard<boost::mutex> lock(m_mutex) ;
+        std::lock_guard<std::mutex> lock(m_mutex) ;
         
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;

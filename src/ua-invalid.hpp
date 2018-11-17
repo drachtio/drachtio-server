@@ -40,6 +40,11 @@ namespace drachtio {
         uri.append( m_szHost ) ;
       }
       tport_t* getTport(void) { return m_tp; }
+      void setTport(tport_t* tp) {
+        tport_unref(m_tp) ;
+        m_tp = tp;
+        tport_ref(m_tp) ;
+      }
       bool isExpired(void) {
         return m_expires < time(0) ;
       }

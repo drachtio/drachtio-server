@@ -24,9 +24,9 @@ THE SOFTWARE.
 
 
 #include <iostream>
-#include <boost/unordered_map.hpp>
+#include <unordered_map>
+
 #include <boost/property_tree/ptree.hpp>
-#include <boost/noncopyable.hpp>
 
 #include "drachtio.h"
 #include "sip-transports.hpp"
@@ -37,21 +37,22 @@ using namespace std ;
 namespace drachtio {
 
 
-    
-    class DrachtioConfig : private boost::noncopyable {
+    class DrachtioConfig {
     public:
 
         DrachtioConfig( const char* szFilename, bool isDaemonized = true ) ;
         ~DrachtioConfig() ;
+
+        DrachtioConfig( const DrachtioConfig& ) = delete;
         
-       typedef boost::unordered_map<string, vector<string > > mapHeader2Values ;
+       typedef unordered_map<string, vector<string > > mapHeader2Values ;
 
         bool isValid() ;
 
-        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const ;
+        void getTransports(std::vector< std::shared_ptr<SipTransport> >& transports) const ;
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const ;
-        bool getSyslogTarget( string& address, unsigned int& port ) const ;
+        bool getSyslogTarget( string& address, unsigned short& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
         bool getFileLogTarget( string& fileName, string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
@@ -62,11 +63,15 @@ namespace drachtio {
         severity_levels getLoglevel() ;
         unsigned int getSofiaLogLevel(void) ;
 
-        unsigned int getAdminPort( string& address ) ;
+        unsigned int getMtu(void);
+
+        bool getAdminAddress( string& address ) ;
+        unsigned int getAdminTcpPort( void ) ;
+        unsigned int getAdminTlsPort( void ) ;
 
         bool getRedisAddress( string& address, unsigned int& port ) const ;
 
-        bool getTlsFiles( string& keyFile, string& certFile, string& chainFile ) const ;
+        bool getTlsFiles( string& keyFile, string& certFile, string& chainFile, string& dhParam ) const ;
 
         bool generateCdrs(void) const ;
 

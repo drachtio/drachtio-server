@@ -21,11 +21,10 @@ THE SOFTWARE.
 */
 #include <iostream>
 #include <fstream>
+#include <algorithm>
+
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/exceptions.hpp>
-#include <boost/foreach.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>    
 #include <boost/algorithm/string/split.hpp>
 
@@ -41,8 +40,8 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3) {
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -64,9 +63,11 @@ namespace drachtio {
                 /* admin configuration */
                 try {
                     pt.get_child("drachtio.admin") ; // will throw if doesn't exist
-                    m_adminPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
+                    m_adminTcpPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.port", 9022) ;
+                    m_adminTlsPort = pt.get<unsigned int>("drachtio.admin.<xmlattr>.tls-port", 0) ;
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
+                    string tlsValue =  pt.get<string>("drachtio.admin.<xmlattr>.tls", "false") ;
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                     cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
                     return ;
@@ -78,7 +79,7 @@ namespace drachtio {
                 // old way: a single contact
                 try {
                     string strUrl = pt.get<string>("drachtio.sip.contact") ;
-                    m_vecTransports.push_back( boost::make_shared<SipTransport>(strUrl) );
+                    m_vecTransports.push_back( std::make_shared<SipTransport>(strUrl) );
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
 
@@ -92,7 +93,7 @@ namespace drachtio {
                                 string localNet = v.second.get<string>("<xmlattr>.local-net","") ;   
                                 string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");      
 
-                                boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(v.second.data(), localNet, external) ;
+                                std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>(v.second.data(), localNet, external) ;
                                 vector<string> names;
                                 boost::split(names, dnsNames, boost::is_any_of(",; "));
                                 for (vector<string>::iterator it = names.begin(); it != names.end(); ++it) {
@@ -130,6 +131,7 @@ namespace drachtio {
                 m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
                 m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
+                m_dhParam = pt.get<string>("drachtio.sip.tls.dh-param", "") ;
 
                 try {
                      BOOST_FOREACH(ptree::value_type &v, pt.get_child("drachtio.request-handlers")) {
@@ -162,7 +164,7 @@ namespace drachtio {
                 // syslog
                 try {
                     m_syslogAddress = pt.get<string>("drachtio.logging.syslog.address") ;
-                    m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 0) ;
+                    m_sysLogPort = pt.get<unsigned int>("drachtio.logging.syslog.port", 514) ;
                     m_syslogFacility = pt.get<string>("drachtio.logging.syslog.facility") ;
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
@@ -233,6 +235,8 @@ namespace drachtio {
                 string cdrs = pt.get<string>("drachtio.cdrs", "") ;
                 transform(cdrs.begin(), cdrs.end(), cdrs.begin(), ::tolower);
                 m_bGenerateCdrs = ( 0 == cdrs.compare("true") || 0 == cdrs.compare("yes") ) ;
+
+                m_mtu = pt.get<unsigned int>("drachtio.sip.udp-mtu", 0);
                 
                 fb.close() ;
                                                
@@ -245,9 +249,7 @@ namespace drachtio {
         }
                    
         bool isValid() const { return m_bIsValid; }
-        const string& getSyslogAddress() const { return m_syslogAddress; }
-        unsigned int getSyslogPort() const { return m_sysLogPort ; }        
-        bool getSyslogTarget( std::string& address, unsigned int& port ) const {
+        bool getSyslogTarget( std::string& address, unsigned short& port ) const {
             if( m_syslogAddress.length() > 0 ) {
                 address = m_syslogAddress ;
                 port = m_sysLogPort  ;
@@ -297,18 +299,25 @@ namespace drachtio {
             return sipOutboundProxy.length() > 0 ;
         }
 
-        bool getTlsFiles( string& tlsKeyFile, string& tlsCertFile, string& tlsChainFile ) {
+        bool getTlsFiles( string& tlsKeyFile, string& tlsCertFile, string& tlsChainFile, string& dhParam ) {
             tlsKeyFile = m_tlsKeyFile ;
             tlsCertFile = m_tlsCertFile ;
             tlsChainFile = m_tlsChainFile ;
+            dhParam = m_dhParam;
 
             // both key and cert are minimally required
             return tlsKeyFile.length() > 0 && tlsCertFile.length() > 0 ;
         }
         
-        unsigned int getAdminPort( string& address ) {
+        bool getAdminAddress( string& address ) {
             address = m_adminAddress ;
-            return m_adminPort ;
+            return !address.empty() ;
+        }
+        unsigned int getAdminTcpPort() {
+            return m_adminTcpPort ;
+        }
+        unsigned int getAdminTlsPort() {
+            return m_adminTlsPort ;
         }
         bool isSecret( const string& secret ) {
             return 0 == secret.compare( m_secret ) ;
@@ -332,7 +341,7 @@ namespace drachtio {
             return m_mapSpammers ;
         }
 
-        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+        void getTransports(std::vector< std::shared_ptr<SipTransport> >& transports) const {
             transports = m_vecTransports ;
         }
 
@@ -350,7 +359,9 @@ namespace drachtio {
             return true;
         }
 
-
+        unsigned int getMtu() {
+            return m_mtu;
+        }
  
     private:
         
@@ -375,16 +386,18 @@ namespace drachtio {
         string m_tlsKeyFile ;
         string m_tlsCertFile ;
         string m_tlsChainFile ;
+        string m_dhParam;
         bool m_bAutoFlush ;
         unsigned int m_rotationSize ;
         unsigned int m_maxSize ;
         unsigned int m_minSize ;
-        unsigned int m_sysLogPort ;
+        unsigned short m_sysLogPort ;
         string m_syslogFacility ;
         severity_levels m_loglevel ;
         unsigned int m_nSofiaLogLevel ;
         string m_adminAddress ;
-        unsigned int m_adminPort ;
+        unsigned int m_adminTcpPort ;
+        unsigned int m_adminTlsPort ;
         string m_secret ;
         bool m_bGenerateCdrs ;
         bool m_bDaemon;
@@ -393,12 +406,13 @@ namespace drachtio {
         string m_actionSpammer ;
         string m_tcpActionSpammer ;
         mapHeader2Values m_mapSpammers ;
-        vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
+        std::vector< std::shared_ptr<SipTransport> >  m_vecTransports;
         RequestRouter m_router ;
         string m_captureServerAddress ;
         unsigned int m_captureServerPort;
         uint32_t m_captureServerAgentId ;
         unsigned int m_captureHepVersion ;
+        unsigned int m_mtu;
 
   } ;
     
@@ -419,7 +433,7 @@ namespace drachtio {
         return m_pimpl->getSofiaLogLevel() ;
     }
    
-    bool DrachtioConfig::getSyslogTarget( std::string& address, unsigned int& port ) const {
+    bool DrachtioConfig::getSyslogTarget( std::string& address, unsigned short& port ) const {
         return m_pimpl->getSyslogTarget( address, port ) ;
     }
     bool DrachtioConfig::getSyslogFacility( sinks::syslog::facility& facility ) const {
@@ -443,14 +457,20 @@ namespace drachtio {
     severity_levels DrachtioConfig::getLoglevel() {
         return m_pimpl->getLoglevel() ;
     }
-    unsigned int DrachtioConfig::getAdminPort( string& address ) {
-        return m_pimpl->getAdminPort( address ) ;
+    unsigned int DrachtioConfig::getAdminTcpPort() {
+        return m_pimpl->getAdminTcpPort() ;
+    }
+    unsigned int DrachtioConfig::getAdminTlsPort() {
+        return m_pimpl->getAdminTlsPort() ;
+    }
+    bool DrachtioConfig::getAdminAddress( string& address ) {
+        return m_pimpl->getAdminAddress( address ) ;
     }
     bool DrachtioConfig::isSecret( const string& secret ) const {
         return m_pimpl->isSecret( secret ) ;
     }
-    bool DrachtioConfig::getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile ) const {
-        return m_pimpl->getTlsFiles( keyFile, certFile, chainFile ) ;
+    bool DrachtioConfig::getTlsFiles( std::string& keyFile, std::string& certFile, std::string& chainFile, std::string& dhParam ) const {
+        return m_pimpl->getTlsFiles( keyFile, certFile, chainFile, dhParam ) ;
     }
     bool DrachtioConfig::generateCdrs(void) const {
         return m_pimpl->generateCdrs() ;
@@ -461,7 +481,7 @@ namespace drachtio {
     DrachtioConfig::mapHeader2Values& DrachtioConfig::getSpammers( string& action, string& tcpAction ) {
         return m_pimpl->getSpammers( action, tcpAction ) ;
     }
-    void DrachtioConfig::getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+    void DrachtioConfig::getTransports(std::vector< std::shared_ptr<SipTransport> >& transports) const {
         return m_pimpl->getTransports(transports) ;
     }
     void DrachtioConfig::getRequestRouter( RequestRouter& router ) {
@@ -469,5 +489,8 @@ namespace drachtio {
     }
     bool DrachtioConfig::getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version) {
         return m_pimpl->getCaptureServer(address, port, agentId, version);
+    }
+    unsigned int DrachtioConfig::getMtu() {
+        return m_pimpl->getMtu();
     }
 }

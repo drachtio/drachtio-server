@@ -23,8 +23,6 @@ THE SOFTWARE.
 #define __SIP_DIALOG_HPP__
 
 #include <sys/time.h>
-#include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
@@ -35,7 +33,7 @@ using namespace std ;
 
 namespace drachtio {
 
-	class SipDialog : public boost::enable_shared_from_this<SipDialog> {
+	class SipDialog : public std::enable_shared_from_this<SipDialog> {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
 		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
@@ -74,6 +72,8 @@ namespace drachtio {
 			,we_are_refresher
 			,they_are_refresher 
 		} ;
+
+		bool isInviteDialog(void) { return m_bInviteDialog; }
 
 		const string& getCallId(void) const { return m_strCallId; }
 		const Endpoint_t& getLocalEndpoint(void) const { return m_localEndpoint; }
@@ -165,7 +165,17 @@ namespace drachtio {
 		TimerEventHandle getTimerH(void) { return m_timerH; }
 		void clearTimerH() { m_timerH = NULL;}
 
+		bool getRouteUri(string& routeUri) {
+			if (!m_routeUri.empty()) {
+				routeUri = m_routeUri;
+				return true;
+			}
+			return false;
+		}
+
 	protected:
+		bool 				m_bInviteDialog;
+
 		string 			m_dialogId ;
 		string 			m_transactionId ;
 		DialogType_t	m_type ;
@@ -187,7 +197,7 @@ namespace drachtio {
     unsigned long 	m_nMinSE ;
     su_timer_t*     m_timerSessionRefresh ;
     SessionRefresher_t	m_refresher ;
-    boost::weak_ptr<SipDialog>* m_ppSelf ;
+    std::weak_ptr<SipDialog>* m_ppSelf ;
 
 		string 			m_sourceAddress ;
 		unsigned int 	m_sourcePort ;
@@ -199,6 +209,8 @@ namespace drachtio {
 		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp ;
 		nta_outgoing_t*  m_ackOrq;
+
+		string 		m_routeUri;
 
 		// sip timers
     TimerEventHandle  m_timerD ;

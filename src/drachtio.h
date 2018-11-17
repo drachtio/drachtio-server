@@ -30,8 +30,8 @@ THE SOFTWARE.
 #include <stdexcept>
 #include <string>
 #include <iostream>
-#include <boost/shared_ptr.hpp>
-#include <boost/scoped_ptr.hpp>
+#include <unordered_map>
+
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/attributes.hpp>
@@ -40,8 +40,6 @@ THE SOFTWARE.
 #include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/tokenizer.hpp>
-#include <boost/thread.hpp>
-#include <boost/unordered_map.hpp>
 
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
@@ -89,7 +87,7 @@ namespace drachtio {
 	  log_debug
 	};
 
-  typedef boost::unordered_map<string, string> mapSipHeader_t ;
+  typedef std::unordered_map<string, string> mapSipHeader_t ;
 
 
 	BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_levels) ;
@@ -141,7 +139,7 @@ namespace drachtio {
 
 	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
 
-	tagi_t* makeTags( const string& hdrs, const string& transport ) ;
+	tagi_t* makeTags( const string& hdrs, const string& transport, const char* szExternalIP = NULL ) ;
 	void deleteTags( tagi_t* tags ) ;
 
 	int ackResponse( msg_t* msg ) ;
@@ -150,6 +148,10 @@ namespace drachtio {
         vector< pair<string,string> >& params) ;
 
 	string urlencode(const string &s);
+
+  int utf8_strlen(const string& str);
+
+	bool isRfc1918(const char* szHost);
 
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 

@@ -25,10 +25,12 @@ THE SOFTWARE.
 #include <getopt.h>
 #include <assert.h>
 #include <pwd.h>
+#include <algorithm>
+#include <functional>
+#include <regex>
 
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-#include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 
@@ -57,7 +59,6 @@ THE SOFTWARE.
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
-#include <boost/regex.hpp>
 
 #include <jansson.h>
 
@@ -109,7 +110,7 @@ namespace {
 	static void __sofiasip_logger_func(void *logarg, char const *fmt, va_list ap) {
         
     static bool loggingSipMsg = false ;
-    static boost::shared_ptr<drachtio::StackMsg> msg ;
+    static std::shared_ptr<drachtio::StackMsg> msg ;
 
     char output[MAXLOGLEN+1] ;
     vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
@@ -136,7 +137,7 @@ namespace {
       char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
       if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
 
-      msg = boost::make_shared<drachtio::StackMsg>( output ) ;
+      msg = std::make_shared<drachtio::StackMsg>( output ) ;
     }
     else {
       int len = strlen(output) ;
@@ -166,79 +167,80 @@ namespace {
     return controller->processMessageStatelessly( msg, sip ) ;
   }
 
-  static boost::unordered_map<unsigned int, std::string> responseReasons = boost::assign::map_list_of
-    (100, "Trying") 
-    (180, "Ringing")
-    (181, "Call is Being Forwarded")
-    (182, "Queued")
-    (183, "Session in Progress")
-    (199, "Early Dialog Terminated")
-    (200, "OK")
-    (202, "Accepted") 
-    (204, "No Notification") 
-    (300, "Multiple Choices") 
-    (301, "Moved Permanently") 
-    (302, "Moved Temporarily") 
-    (305, "Use Proxy") 
-    (380, "Alternative Service") 
-    (400, "Bad Request") 
-    (401, "Unauthorized") 
-    (402, "Payment Required") 
-    (403, "Forbidden") 
-    (404, "Not Found") 
-    (405, "Method Not Allowed") 
-    (406, "Not Acceptable") 
-    (407, "Proxy Authentication Required") 
-    (408, "Request Timeout") 
-    (409, "Conflict") 
-    (410, "Gone") 
-    (411, "Length Required") 
-    (412, "Conditional Request Failed") 
-    (413, "Request Entity Too Large") 
-    (414, "Request-URI Too Long") 
-    (415, "Unsupported Media Type") 
-    (416, "Unsupported URI Scheme") 
-    (417, "Unknown Resource-Priority") 
-    (420, "Bad Extension") 
-    (421, "Extension Required") 
-    (422, "Session Interval Too Small") 
-    (423, "Interval Too Brief") 
-    (424, "Bad Location Information") 
-    (428, "Use Identity Header") 
-    (429, "Provide Referrer Identity") 
-    (430, "Flow Failed") 
-    (433, "Anonymity Disallowed") 
-    (436, "Bad Identity-Info") 
-    (437, "Unsupported Certificate") 
-    (438, "Invalid Identity Header") 
-    (439, "First Hop Lacks Outbound Support") 
-    (470, "Consent Needed") 
-    (480, "Temporarily Unavailable") 
-    (481, "Call Leg/Transaction Does Not Exist") 
-    (482, "Loop Detected") 
-    (483, "Too Many Hops") 
-    (484, "Address Incomplete") 
-    (485, "Ambiguous") 
-    (486, "Busy Here") 
-    (487, "Request Terminated") 
-    (488, "Not Acceptable Here") 
-    (489, "Bad Event") 
-    (491, "Request Pending") 
-    (493, "Undecipherable") 
-    (494, "Security Agreement Required") 
-    (500, "Server Internal Error") 
-    (501, "Not Implemented") 
-    (502, "Bad Gateway") 
-    (503, "Service Unavailable") 
-    (504, "Server Timeout") 
-    (505, "Version Not Supported") 
-    (513, "Message Too Large") 
-    (580, "Precondition Failure") 
-    (600, "Busy Everywhere") 
-    (603, "Decline") 
-    (604, "Does Not Exist Anywhere") 
-    (606, "Not Acceptable");
- }
+  static std::unordered_map<unsigned int, std::string> responseReasons({
+    {100, "Trying"},
+    {180, "Ringing"},
+    {181, "Call is Being Forwarded"},
+    {182, "Queued"},
+    {183, "Session in Progress"},
+    {199, "Early Dialog Terminated"},
+    {200, "OK"},
+    {202, "Accepted"}, 
+    {204, "No Notification"}, 
+    {300, "Multiple Choices"}, 
+    {301, "Moved Permanently"}, 
+    {302, "Moved Temporarily"}, 
+    {305, "Use Proxy"}, 
+    {380, "Alternative Service"}, 
+    {400, "Bad Request"}, 
+    {401, "Unauthorized"}, 
+    {402, "Payment Required"}, 
+    {403, "Forbidden"}, 
+    {404, "Not Found"}, 
+    {405, "Method Not Allowed"}, 
+    {406, "Not Acceptable"}, 
+    {407, "Proxy Authentication Required"}, 
+    {408, "Request Timeout"}, 
+    {409, "Conflict"}, 
+    {410, "Gone"}, 
+    {411, "Length Required"}, 
+    {412, "Conditional Request Failed"}, 
+    {413, "Request Entity Too Large"}, 
+    {414, "Request-URI Too Long"}, 
+    {415, "Unsupported Media Type"}, 
+    {416, "Unsupported URI Scheme"}, 
+    {417, "Unknown Resource-Priority"}, 
+    {420, "Bad Extension"}, 
+    {421, "Extension Required"}, 
+    {422, "Session Interval Too Small"}, 
+    {423, "Interval Too Brief"}, 
+    {424, "Bad Location Information"}, 
+    {428, "Use Identity Header"}, 
+    {429, "Provide Referrer Identity"}, 
+    {430, "Flow Failed"}, 
+    {433, "Anonymity Disallowed"}, 
+    {436, "Bad Identity-Info"}, 
+    {437, "Unsupported Certificate"}, 
+    {438, "Invalid Identity Header"}, 
+    {439, "First Hop Lacks Outbound Support"}, 
+    {470, "Consent Needed"}, 
+    {480, "Temporarily Unavailable"}, 
+    {481, "Call Leg/Transaction Does Not Exist"}, 
+    {482, "Loop Detected"}, 
+    {483, "Too Many Hops"}, 
+    {484, "Address Incomplete"}, 
+    {485, "Ambiguous"}, 
+    {486, "Busy Here"}, 
+    {487, "Request Terminated"}, 
+    {488, "Not Acceptable Here"}, 
+    {489, "Bad Event"}, 
+    {491, "Request Pending"}, 
+    {493, "Undecipherable"}, 
+    {494, "Security Agreement Required"}, 
+    {500, "Server Internal Error"}, 
+    {501, "Not Implemented"}, 
+    {502, "Bad Gateway"}, 
+    {503, "Service Unavailable"}, 
+    {504, "Server Timeout"}, 
+    {505, "Version Not Supported"}, 
+    {513, "Message Too Large"}, 
+    {580, "Precondition Failure"}, 
+    {600, "Busy Everywhere"}, 
+    {603, "Decline"}, 
+    {604, "Does Not Exist Anywhere"}, 
+    {606, "Not Acceptable"}
+  });
+};
 
 namespace drachtio {
 
@@ -262,9 +264,9 @@ namespace drachtio {
     }
  
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
-        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminPort(0), m_bNoConfig(false), 
+        m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
-        m_nHomerPort(0), m_nHomerId(0) {
+        m_nHomerPort(0), m_nHomerId(0), m_mtu(0) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -272,7 +274,7 @@ namespace drachtio {
         }
         
         logging::add_common_attributes();
-        m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
+        m_Config = std::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
 
         if( !m_Config->isValid() ) {
             exit(-1) ;
@@ -301,6 +303,7 @@ namespace drachtio {
         
     }
     void DrachtioController::logConfig() {
+        DR_LOG(log_notice) << "Starting drachtio version " << DRACHTIO_VERSION;
         DR_LOG(log_notice) << "Logging threshold:                     " << (int) m_current_severity_threshold  ;
 
         vector<string> routes ;
@@ -311,8 +314,17 @@ namespace drachtio {
         }
     }
 
+    void DrachtioController::handleSigPipe( int signal ) {
+        DR_LOG(log_notice) << "Received SIGPIPE; ignoring.."  ;
+    }
     void DrachtioController::handleSigTerm( int signal ) {
-        DR_LOG(log_notice) << "Received SIGTERM; exiting.."  ;
+        DR_LOG(log_notice) << "Received SIGTERM; exiting after dumping stats.."  ;
+        this->printStats() ;
+        m_pDialogController->logStorageCount() ;
+        m_pClientController->logStorageCount() ;
+        m_pPendingRequestController->logStorageCount() ;
+        m_pProxyController->logStorageCount() ;
+
         nta_agent_destroy(m_nta);
         exit(0);
     }
@@ -368,13 +380,21 @@ namespace drachtio {
                 {"stdout",    no_argument, 0, 'b'},
                 {"homer",    required_argument, 0, 'y'},
                 {"homer-id",    required_argument, 0, 'z'},
+                {"key-file", required_argument, 0, 'A'},
+                {"cert-file", required_argument, 0, 'B'},
+                {"chain-file", required_argument, 0, 'C'},
+                {"mtu", required_argument, 0, 'D'},
+                {"address", required_argument, 0, 'E'},
+                {"secret", required_argument, 0, 'F'},
+                {"dh-param", required_argument, 0, 'G'},
+                {"tls-port",    required_argument, 0, 'H'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:E:F:G:",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -391,6 +411,27 @@ namespace drachtio {
                     if (optarg)
                         cout << " with arg " << optarg;
                     cout << endl ;
+                    break;
+                case 'A':
+                    m_tlsKeyFile = optarg;
+                    break;
+                case 'B':
+                    m_tlsCertFile = optarg;
+                    break;
+                case 'C':
+                    m_tlsChainFile = optarg;
+                    break;
+                case 'D':
+                    m_mtu = ::atoi(optarg);
+                    break;
+                case 'E':
+                    m_adminAddress = optarg;
+                    break;
+                case 'F':
+                    m_secret = optarg;
+                    break;
+                case 'G':
+                    m_dhParam = optarg;
                     break;
                 case 'a':
                     httpUrl = optarg ;
@@ -447,7 +488,7 @@ namespace drachtio {
 
                 case 'c':
                     if( !contact.empty() ) {
-                        m_vecTransports.push_back( boost::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
+                        m_vecTransports.push_back( std::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
                         contact.clear() ;
                         publicAddress.clear() ;
                         localNet.clear() ;
@@ -481,7 +522,12 @@ namespace drachtio {
 
                 case 'p':
                     port = optarg ;
-                    m_adminPort = ::atoi( port.c_str() ) ;
+                    m_adminTcpPort = ::atoi( port.c_str() ) ;
+                    break;
+
+                case 'H':
+                    port = optarg ;
+                    m_adminTlsPort = ::atoi( port.c_str() ) ;
                     break;
 
                 case 'y':
@@ -530,7 +576,7 @@ namespace drachtio {
         }
 
         if( !contact.empty() ) {
-          boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(contact, localNet, publicAddress);
+          std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>(contact, localNet, publicAddress);
           for( std::vector<string>::const_iterator it = vecDnsNames.begin(); it != vecDnsNames.end(); ++it) {
             p->addDnsName(*it);
           }
@@ -557,21 +603,29 @@ namespace drachtio {
         cerr << "Usage: drachtio [OPTIONS]" << endl ;
         cerr << endl << "Start drachtio sip engine" << endl << endl ;
         cerr << "Options:" << endl << endl ;
-        cerr << "    --daemon           Run the process as a daemon background process" << endl ;
-        cerr << "-c, --contact          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
-        cerr << "    --dns-name         specifies a DNS name that resolves to the local host, if any" << endl ;
-        cerr << "-f, --file             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
-        cerr << "    --homer            ip:port of homer/sipcapture agent" << endl ;
-        cerr << "    --homer-id         homer agent id to use in HEP messages to identify this server" << endl ;
-        cerr << "    --http-handler     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
-        cerr << "    --http-method      method to use with http-handler: GET (default) or POST" << endl ;
-        cerr << "-l  --loglevel         Log level (choices: notice, error, warning, info, debug)" << endl ;
-        cerr << "    --local-net        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
-        cerr << "-p, --port             TCP port to listen on for application connections (default 9022)" << endl ;
-        cerr << "    --sofia-loglevel   Log level of internal sip stack (choices: 0-9)" << endl ;
-        cerr << "    --external-ip      External IP address to use in SIP messaging" << endl ;
-        cerr << "    --stdout           Log to standard output as well as any configured log destinations" << endl ;
-        cerr << "-v  --version          Print version and exit" << endl ;
+        cerr << "    --address                      Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
+        cerr << "    --daemon                       Run the process as a daemon background process" << endl ;
+        cerr << "    --encrypt-inbound-connections  Run the process as a daemon background process" << endl ;
+        cerr << "    --cert-file                    TLS certificate file" << endl ;
+        cerr << "    --chain-file                   TLS certificate chain file" << endl ;
+        cerr << "-c, --contact                      Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
+        cerr << "    --dh-param                     file containing Diffie-Helman parameters, required when using --encrypt-inbound-connections" << endl ;
+        cerr << "    --dns-name                     specifies a DNS name that resolves to the local host, if any" << endl ;
+        cerr << "-f, --file                         Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
+        cerr << "    --homer                        ip:port of homer/sipcapture agent" << endl ;
+        cerr << "    --homer-id                     homer agent id to use in HEP messages to identify this server" << endl ;
+        cerr << "    --http-handler                 http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
+        cerr << "    --http-method                  method to use with http-handler: GET (default) or POST" << endl ;
+        cerr << "    --key-file                     TLS key file" << endl ;
+        cerr << "-l  --loglevel                     Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "    --local-net                    CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
+        cerr << "    --mtu                          max packet size for UDP (default: system-defined mtu)" << endl ;
+        cerr << "-p, --port                         TCP port to listen on for application connections (default 9022)" << endl ;
+        cerr << "    --secret                       The shared secret to use for authenticating application connections" << endl ;
+        cerr << "    --sofia-loglevel               Log level of internal sip stack (choices: 0-9)" << endl ;
+        cerr << "    --external-ip                  External IP address to use in SIP messaging" << endl ;
+        cerr << "    --stdout                       Log to standard output as well as any configured log destinations" << endl ;
+        cerr << "-v  --version                      Print version and exit" << endl ;
     }
 
     void DrachtioController::daemonize() {
@@ -667,7 +721,7 @@ namespace drachtio {
                 // Create a syslog sink
                 sinks::syslog::facility facility  ;
                 string syslogAddress ;
-                unsigned int syslogPort;
+                unsigned short syslogPort;
                 
                 // initalize syslog sink, if configuredd
                 if( m_Config->getSyslogTarget( syslogAddress, syslogPort ) ) {
@@ -691,7 +745,7 @@ namespace drachtio {
                     m_sinkSysLog->locked_backend()->set_severity_mapper(mapping);
 
                     // Set the remote address to sent syslog messages to
-                    m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str() );
+                    m_sinkSysLog->locked_backend()->set_target_address( syslogAddress.c_str(), syslogPort );
 
                     logging::core::get()->add_global_attribute("RecordID", attrs::counter< unsigned int >());
 
@@ -758,16 +812,16 @@ namespace drachtio {
       m_logger.reset( this->createLogger() );
       this->logConfig() ;
 
-        DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
+        DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << std::this_thread::get_id() ;
 
        /* open admin connection */
         string adminAddress ;
-        unsigned int adminPort = m_Config->getAdminPort( adminAddress ) ;
-        if( 0 != m_adminPort ) adminPort = m_adminPort ;
-        if( 0 != adminPort ) {
-            DR_LOG(log_notice) << "DrachtioController::run: listening for client connections on " << adminAddress << ":" << adminPort ;
-            m_pClientController.reset( new ClientController( this, adminAddress, adminPort )) ;
-        }
+        m_Config->getAdminAddress(adminAddress);
+        unsigned int adminTcpPort = m_Config->getAdminTcpPort() ;
+        unsigned int adminTlsPort = m_Config->getAdminTlsPort() ;
+        if (!m_adminAddress.empty()) adminAddress = m_adminAddress;
+        if( 0 != m_adminTcpPort ) adminTcpPort = m_adminTcpPort ;
+        if( 0 != m_adminTlsPort ) adminTlsPort = m_adminTlsPort ;
 
         if( 0 == m_vecTransports.size() ) {
             m_Config->getTransports( m_vecTransports ) ; 
@@ -775,7 +829,7 @@ namespace drachtio {
         if( 0 == m_vecTransports.size() ) {
 
             DR_LOG(log_notice) << "DrachtioController::run: no sip contacts provided, will listen on 5060 for udp and tcp " ;
-            m_vecTransports.push_back( boost::make_shared<SipTransport>("sip:*;transport=udp,tcp"));            
+            m_vecTransports.push_back( std::make_shared<SipTransport>("sip:*;transport=udp,tcp"));            
         }
 
         string outboundProxy ;
@@ -783,8 +837,51 @@ namespace drachtio {
             DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
         }
 
-        string tlsKeyFile, tlsCertFile, tlsChainFile ;
-        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile ) ;
+        // tls files
+        string tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ;
+        bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ) ;
+        if (!m_tlsKeyFile.empty()) tlsKeyFile = m_tlsKeyFile;
+        if (!m_tlsCertFile.empty()) tlsCertFile = m_tlsCertFile;
+        if (!m_tlsChainFile.empty()) tlsChainFile = m_tlsChainFile;
+        if (!m_dhParam.empty()) dhParam = m_dhParam;
+        if (!hasTlsFiles && !tlsKeyFile.empty() && !tlsCertFile.empty()) hasTlsFiles = true;
+
+        if (hasTlsFiles) {
+            DR_LOG(log_notice) << "DrachtioController::run tls key file:         " << tlsKeyFile;
+            DR_LOG(log_notice) << "DrachtioController::run tls certificate file: " << tlsCertFile;
+            if (!tlsChainFile.empty()) DR_LOG(log_notice) << "DrachtioController::run tls chain file:       " << tlsChainFile;
+        }
+
+        if (adminTlsPort) {
+            if ((tlsChainFile.empty() && tlsCertFile.empty()) || tlsKeyFile.empty() || dhParam.empty()) {
+                DR_LOG(log_notice) << "DrachtioController::run tls was requested on admin connection but either chain file/cert file, private key, or dhParams were not provided";
+                throw runtime_error("missing tls settings");
+            }
+        }
+
+        if (m_adminTcpPort && !m_adminTlsPort) {
+            DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " only";
+            m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort));
+        }
+        else if (!m_adminTcpPort && m_adminTlsPort) {
+            DR_LOG(log_notice) << "DrachtioController::run listening for applications on tls port " << adminTlsPort << " only";
+            m_pClientController.reset(new ClientController(this, adminAddress, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
+        }
+        else {
+             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort ;
+           m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
+        }
+        m_pClientController->start();
+        
+        // mtu
+        if (!m_mtu) m_mtu = m_Config->getMtu();
+        if (m_mtu > 0 && m_mtu < 1000) {
+            DR_LOG(log_notice) << "DrachtioController::run invalid mtu size provided, must be > 1000: " << m_mtu;
+            throw runtime_error("invalid mtu setting");
+        }
+        else if (m_mtu > 0) {
+            DR_LOG(log_notice) << "DrachtioController::run mtu size for udp packets: " << m_mtu;            
+        }
         
         string captureServer;
         string captureString;
@@ -856,29 +953,29 @@ namespace drachtio {
          
          /* create our agent */
         bool tlsTransport = string::npos != m_vecTransports[0]->getContact().find("sips") || string::npos != m_vecTransports[0]->getContact().find("tls") ;
-    		m_nta = nta_agent_create( m_root,
-             URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
-             stateless_callback,                            /* no callback function */
-             this,                                      /* therefore no context */
-             TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
-             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
-             TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-             TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
-             TAG_IF( tlsTransport &&hasTlsFiles, 
-                TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
-             NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
-             NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
-             TAG_NULL(),
-             TAG_END() ) ;
+		m_nta = nta_agent_create( m_root,
+         URL_STRING_MAKE(newUrl.c_str()),               /* our contact address */
+         stateless_callback,                            /* no callback function */
+         this,                                      /* therefore no context */
+         TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+         TAG_IF( tlsTransport &&hasTlsFiles, 
+            TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+         NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
+         NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
+         TAG_NULL(),
+         TAG_END() ) ;
         
         if( NULL == m_nta ) {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
         }
 
-        SipTransport::addTransports(m_vecTransports[0]) ;
+        SipTransport::addTransports(m_vecTransports[0], m_mtu) ;
 
-        for( vector< boost::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
+        for( std::vector< std::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
             string contact = (*it)->getContact() ;
             string externalIp = (*it)->getExternalIp() ;
             string newUrl ;
@@ -898,7 +995,7 @@ namespace drachtio {
                  TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
-                 TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles && !tlsChainFile.empty(), TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                  TAG_IF( tlsTransport &&hasTlsFiles, 
                     TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
                  TAG_NULL(),
@@ -908,14 +1005,14 @@ namespace drachtio {
                 DR_LOG(log_error) << "DrachtioController::run: Error adding additional transport"  ;
                 return ;            
             }
-            SipTransport::addTransports(*it) ;
+            SipTransport::addTransports(*it, m_mtu) ;
         }
 
         SipTransport::logTransports() ;
 
-        m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
-        m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
-        m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
+        m_pDialogController = std::make_shared<SipDialogController>( this, &m_clone ) ;
+        m_pProxyController = std::make_shared<SipProxyController>( this, &m_clone ) ;
+        m_pPendingRequestController = std::make_shared<PendingRequestController>( this ) ;
 
         // set sip timers
         unsigned int t1, t2, t4, t1x64 ;
@@ -930,7 +1027,7 @@ namespace drachtio {
         ) ;
               
         /* sofia event loop */
-        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id()  ;
+        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  std::this_thread::get_id()  ;
 
         /* start a timer */
         m_timer = su_timer_create( su_root_task(m_root), 30000) ;
@@ -953,7 +1050,7 @@ namespace drachtio {
         int rc = 0 ;
 
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
-            " does not match an existing call leg, processed in thread " << boost::this_thread::get_id()  ;
+            " does not match an existing call leg, processed in thread " << std::this_thread::get_id()  ;
 
         if( sip->sip_request ) {
 
@@ -1081,7 +1178,7 @@ namespace drachtio {
                         //write attempt record
                         if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
 
-                            Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
+                            Cdr::postCdr( std::make_shared<CdrAttempt>( msg, "network" ) );
                         }
 
                         //reject message if necessary, write stop record
@@ -1091,7 +1188,7 @@ namespace drachtio {
                             nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
 
                             if( sip->sip_request->rq_method == sip_method_invite ) {
-                                Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                                Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;
                             return -1 ;                    
@@ -1105,7 +1202,7 @@ namespace drachtio {
 
                     case sip_method_cancel:
                     {
-                        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findInviteByCallId( sip->sip_call_id->i_id ) ;
+                        std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findInviteByCallId( sip->sip_call_id->i_id ) ;
                         if( p ) {
                             DR_LOG(log_info) << "received quick cancel for invite that is out to client for disposition: " << sip->sip_call_id->i_id  ;
 
@@ -1113,11 +1210,10 @@ namespace drachtio {
                             EncodeStackMessage( sip, encodedMessage ) ;
                             SipMsgData_t meta( msg ) ;
 
-                            client_ptr client = m_pClientController->findClientForNetTransaction( p->getTransactionId() ); 
-
-                            if( client ) {
-                                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, p->getTransactionId(), 
-                                    encodedMessage, meta ) ) ;                                
+                            client_ptr client = m_pClientController->findClientForNetTransaction(p->getTransactionId()); 
+                            if(client) {
+                                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                                m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta)) ;
                             }
 
                             nta_msg_treply( m_nta, msg, 200, NULL, TAG_END() ) ;  
@@ -1158,7 +1254,7 @@ namespace drachtio {
 
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
-        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
+        std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
         if( !p ) {
             return false ;
         }
@@ -1168,30 +1264,28 @@ namespace drachtio {
 
         if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ) {
 
-            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating an incoming transaction"  ;
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite" ;
                 return false ;
             }
 
-            //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - creating leg"  ;
             nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
                                            SIPTAG_CALL_ID(sip->sip_call_id),
                                            SIPTAG_CSEQ(sip->sip_cseq),
                                            SIPTAG_TO(sip->sip_from),
                                            SIPTAG_FROM(sip->sip_to),
                                            TAG_END());
-
             if( NULL == leg ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a leg for new incoming invite"  ;
                 return false ;
             }
 
-            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << ", for transactionId: " << transactionId; 
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << 
+                ", for transactionId: " << transactionId;
 
 
-            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
+            std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( leg, irq, sip, msg ) ;
             dlg->setTransactionId( transactionId ) ;
 
             string contactStr ;
@@ -1244,8 +1338,8 @@ namespace drachtio {
                 msg_t* msg = nta_incoming_getrequest( irq ) ;
                 SipMsgData_t meta( msg, irq ) ;
 
-                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, 
-                    encodedMessage, meta ) ) ;
+                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                m_pClientController->getIOService().post( std::bind(fn, client, transactionId, encodedMessage, meta)) ;
                 
                 m_pClientController->addNetTransaction( client, transactionId ) ;
 
@@ -1260,7 +1354,7 @@ namespace drachtio {
                     //TODO: we got a client out there with a dead INVITE now...
                     return 500 ;
                 }
-                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
+                std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( leg, irq, sip, msg ) ;
                 dlg->setTransactionId( transactionId ) ;
 
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
@@ -1294,8 +1388,8 @@ namespace drachtio {
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq ) ;
 
-                m_pClientController->getIOService().post( boost::bind(&Client::sendSipMessageToClient, client, transactionId, 
-                    encodedMessage, meta ) ) ;
+                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                m_pClientController->getIOService().post( std::bind(fn, client, transactionId, encodedMessage, meta)) ;
                 m_pClientController->addNetTransaction( client, transactionId ) ;
                 m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
                 return 0 ;
@@ -1323,7 +1417,7 @@ namespace drachtio {
             return rc ;
         }
          
-        boost::shared_ptr<SipDialog> dlg ;
+        std::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
             if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && dlg->getSipStatus() >= 200 ) {
                DR_LOG(log_info) << "DrachtioController::processRequestInsideDialog - received INVITE out of order (still waiting ACK from prev transaction)" ;
@@ -1349,7 +1443,7 @@ namespace drachtio {
     }
 
     const tport_t* DrachtioController::getTportForProtocol( const string& remoteHost, const char* proto ) {
-      boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(remoteHost.c_str(), proto) ;
+      std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(remoteHost.c_str(), proto) ;
       return p->getTport() ;
     }
 
@@ -1390,18 +1484,21 @@ namespace drachtio {
 
     void DrachtioController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
         string uri ;
-        boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
+        std::shared_ptr<UaInvalidData> pUa = std::make_shared<UaInvalidData>(user, host, expires, tp) ;
         pUa->getUri( uri ) ;
 
         std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
         if( ret.second == false ) {
             mapUri2InvalidData::iterator it = ret.first ;
-            *(it->second) = *pUa ;
-            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+            pUa = it->second;
+            //*(it->second) = *pUa ;
+            pUa->extendExpires(expires);
+            pUa->setTport(tp);
+            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription updated "  << uri << ", expires: " << expires << 
+                " tport: " << (void*) tp << ", count is now: " << m_mapUri2InvalidData.size();
         }
         else {
-            boost::shared_ptr<UaInvalidData> p = (ret.first)->second ;
-            p->extendExpires( expires ) ;
+            std::shared_ptr<UaInvalidData> p = (ret.first)->second ;
             DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
@@ -1417,8 +1514,8 @@ namespace drachtio {
         }
         DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
     }
-    boost::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
-        boost::shared_ptr<UaInvalidData> p ;
+    std::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+        std::shared_ptr<UaInvalidData> p ;
         string uri = "" ;
 
         if( !user ) {
@@ -1441,22 +1538,35 @@ namespace drachtio {
   void DrachtioController::makeOutboundConnection(const string& transactionId, const string& uri) {
     string host ;
     string port = "9021";
-    vector<string> strs;
+    string transport = "tcp";
 
-    boost::split(strs, uri, boost::is_any_of(":"));
-    if( strs.size() > 2 ) {
-      DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
-      //TODO: send 480, remove pending connection
-      return ;              
-    }
-    host = strs.at(0) ;
-    if( 2 == strs.size() ) {
-      port = strs.at(1);
+    try {
+        std::regex re("^(.*):(\\d+)(;transport=(tcp|tls))?");
+        std::smatch mr;
+        if (std::regex_search(uri, mr, re) && mr.size() > 1) {
+            host = mr[1] ;
+            port = mr[2] ;
+            if (mr.size() > 4) {
+                transport = mr[4];
+            }
+        }
+        else {
+          DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
+          //TODO: send 480, remove pending connection
+          return ;              
+        }
+    } catch (std::regex_error& e) {
+        DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - regex error: " << e.what();
+        return;        
     }
 
     DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
-      host << ":" << port ;
-    m_pClientController->makeOutboundConnection( transactionId, host, port ) ;
+      host << ":" << port << " with transport " << transport;
+    m_pClientController->makeOutboundConnection(transactionId, host, port, transport) ;
+  }
+
+  void DrachtioController::selectInboundConnectionForTag(const string& transactionId, const string& tag) {
+    m_pClientController->selectClientForTag(transactionId, tag);
   }
 
   // handling responses from http route lookups
@@ -1469,7 +1579,7 @@ namespace drachtio {
     json_error_t error;
     root = json_loads(body.c_str(), 0, &error);
 
-    DR_LOG(log_debug) << "DrachtioController::httpCallRoutingComplete thread id " << boost::this_thread::get_id() << 
+    DR_LOG(log_debug) << "DrachtioController::httpCallRoutingComplete thread id " << std::this_thread::get_id() << 
       " transaction id " << transactionId << " response: (" << response_code << ") " << body ; 
 
     try {
@@ -1576,11 +1686,17 @@ namespace drachtio {
       }
       else if( 0 == strcmp("route", actionText)) {
         json_t* uri = json_object_get(data, "uri") ;
+        json_t* tag = json_object_get(data, "tag") ;
 
-        if( !uri || !json_is_string(uri) ) {
+        if(uri && json_is_string(uri)) {
+            processOutboundConnectionInstruction(transactionId, json_string_value(uri));
+        }
+        else if(tag && json_is_string(tag)) {
+            processTaggedConnectionInstruction(transactionId, json_string_value(tag));
+        }
+        else {
           throw std::runtime_error("'uri' is missing or is not a string") ;  
         }
-        processOutboundConnectionInstruction(transactionId, json_string_value(uri));
       }
       else {
         msg << "DrachtioController::processRoutingInstructions - invalid 'action' attribute value '" << actionText << 
@@ -1612,7 +1728,7 @@ namespace drachtio {
           statusLine << reason ;
       }
       else {
-          boost::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
+          std::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
           if( it != responseReasons.end() ) {
               statusLine << it->second ;
           }
@@ -1649,8 +1765,13 @@ namespace drachtio {
   }
 
   void DrachtioController::processOutboundConnectionInstruction(const string& transactionId, const char* uri) {
-    string routeUri = uri ;
-    makeOutboundConnection(transactionId, routeUri);
+    string val = uri ;
+    makeOutboundConnection(transactionId, val);
+  }
+
+  void DrachtioController::processTaggedConnectionInstruction(const string& transactionId, const char* tag) {
+    string val = tag ;
+    selectInboundConnectionForTag(transactionId, val);
   }
 
 
@@ -1743,7 +1864,7 @@ namespace drachtio {
     
         // expire any UaInvalidData
         for(  mapUri2InvalidData::iterator it = m_mapUri2InvalidData.begin(); it != m_mapUri2InvalidData.end(); ) {
-            boost::shared_ptr<UaInvalidData> p = it->second ;
+            std::shared_ptr<UaInvalidData> p = it->second ;
             if( p->isExpired() ) {
                 string uri  ;
                 p->getUri(uri) ;

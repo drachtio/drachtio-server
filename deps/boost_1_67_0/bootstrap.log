@@ -1,0 +1,33 @@
+###
+### Using 'darwin' toolset.
+###
+rm -rf bootstrap
+mkdir bootstrap
+cc -o bootstrap/jam0 command.c compile.c constants.c debug.c execcmd.c frames.c function.c glob.c hash.c hdrmacro.c headers.c jam.c jambase.c jamgram.c lists.c make.c make1.c object.c option.c output.c parse.c pathsys.c regexp.c rules.c scan.c search.c subst.c timestamp.c variable.c modules.c strings.c filesys.c builtins.c class.c cwd.c native.c md5.c w32_getreg.c modules/set.c modules/path.c modules/regex.c modules/property-set.c modules/sequence.c modules/order.c execunix.c fileunix.c pathunix.c
+scan.c:551:42: warning: '&&' within '||' [-Wlogical-op-parentheses]
+                            if ( b > buf && buf[ 0 ] == '<' ||
+                                 ~~~~~~~~^~~~~~~~~~~~~~~~~~ ~~
+scan.c:551:42: note: place parentheses around the '&&' expression to silence this warning
+                            if ( b > buf && buf[ 0 ] == '<' ||
+                                         ^
+                                 (                         )
+1 warning generated.
+./bootstrap/jam0 -f build.jam --toolset=darwin --toolset-root= clean
+...found 1 target...
+...updating 1 target...
+[DELETE] clean
+...updated 1 target...
+./bootstrap/jam0 -f build.jam --toolset=darwin --toolset-root=
+...found 160 targets...
+...updating 2 targets...
+[COMPILE] bin.macosxx86_64/b2
+scan.c:551:42: warning: '&&' within '||' [-Wlogical-op-parentheses]
+                            if ( b > buf && buf[ 0 ] == '<' ||
+                                 ~~~~~~~~^~~~~~~~~~~~~~~~~~ ~~
+scan.c:551:42: note: place parentheses around the '&&' expression to silence this warning
+                            if ( b > buf && buf[ 0 ] == '<' ||
+                                         ^
+                                 (                         )
+1 warning generated.
+[COPY] bin.macosxx86_64/bjam
+...updated 2 targets...

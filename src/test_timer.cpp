@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <iostream>
+#include <cassert>
 
 #include "sofia-sip/su.h"
 #include "sofia-sip/su_wait.h"

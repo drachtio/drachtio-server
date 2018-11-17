@@ -22,10 +22,9 @@ THE SOFTWARE.
 #ifndef __SIP_DIALOG_CONTROLLER_HPP__
 #define __SIP_DIALOG_CONTROLLER_HPP__
 
-#include <boost/shared_ptr.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/enable_shared_from_this.hpp>
+#include <unordered_map>
+#include <unordered_set>
+#include <mutex>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/nta.h>
@@ -51,10 +50,10 @@ namespace drachtio {
 	/* invites in progress */
 	class IIP {
 	public:
-		IIP( nta_leg_t* leg, nta_incoming_t* irq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
+		IIP( nta_leg_t* leg, nta_incoming_t* irq, const string& transactionId, std::shared_ptr<SipDialog> dlg ) : 
 			m_leg(leg), m_irq(irq), m_orq(NULL), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role),m_rel(NULL) {}
 
-		IIP( nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) : 
+		IIP( nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, std::shared_ptr<SipDialog> dlg ) : 
 			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role),m_rel(NULL) {}
 
 		~IIP() {
@@ -72,7 +71,7 @@ namespace drachtio {
 			}
 		}
 		const string& getTransactionId(void) { return m_strTransactionId; }
-		boost::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
+		std::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
 
 	private:
 		string 			m_strTransactionId ;
@@ -80,7 +79,7 @@ namespace drachtio {
 		nta_incoming_t*	m_irq ;
 		nta_outgoing_t*	m_orq ;
 		nta_reliable_t*	m_rel ;
-		boost::shared_ptr<SipDialog> 	m_dlg ;
+		std::shared_ptr<SipDialog> 	m_dlg ;
 		agent_role		m_role ;
 	} ;
 
@@ -91,7 +90,7 @@ namespace drachtio {
 			m_transactionId(transactionId) {}
 		RIP( const string& transactionId, const string& dialogId ) : 
 			m_transactionId(transactionId), m_dialogId(dialogId) {}
-		RIP( const string& transactionId, const string& dialogId,  boost::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse = false ) : 
+		RIP( const string& transactionId, const string& dialogId,  std::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse = false ) : 
 			m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
 			}
 
@@ -105,11 +104,11 @@ namespace drachtio {
 		string 												m_transactionId ;
 		string												m_dialogId ;
 		bool													m_bClearDialogOnResponse;
-		boost::shared_ptr<SipDialog> 	m_dlg ;
+		std::shared_ptr<SipDialog> 	m_dlg ;
 	} ;
 
 
-	class SipDialogController : public boost::enable_shared_from_this<SipDialogController> {
+	class SipDialogController : public std::enable_shared_from_this<SipDialogController> {
 	public:
 		SipDialogController(DrachtioController* pController, su_clone_r* pClone );
 		~SipDialogController() ;
@@ -200,8 +199,8 @@ namespace drachtio {
     int processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) ;
     int processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) ;
 
-    void notifyRefreshDialog( boost::shared_ptr<SipDialog> dlg ) ;
-    void notifyTerminateStaleDialog( boost::shared_ptr<SipDialog> dlg ) ;
+    void notifyRefreshDialog( std::shared_ptr<SipDialog> dlg ) ;
+    void notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg ) ;
 
     bool isManagingTransaction( const string& transactionId ) {
     	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;
@@ -210,47 +209,47 @@ namespace drachtio {
 		void logStorageCount(void)  ;
 
 		/// IIP helpers 
-		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, boost::shared_ptr<SipDialog> dlg ) ;
-		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, boost::shared_ptr<SipDialog> dlg ) ;
+		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg ) ;
+		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, std::shared_ptr<SipDialog> dlg ) ;
 
-		void addIncomingPrackTransaction( const string& transactionId, boost::shared_ptr<IIP> p ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		void addIncomingPrackTransaction( const string& transactionId, std::shared_ptr<IIP> p ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			m_mapTransactionId2IIP.insert( mapTransactionId2IIP::value_type(transactionId, p) ) ;   			
 		}
-		void addReliable( nta_reliable_t* rel, boost::shared_ptr<IIP>& iip) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		void addReliable( nta_reliable_t* rel, std::shared_ptr<IIP>& iip) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			m_mapRel2IIP.insert( mapRel2IIP::value_type(rel, iip) ) ;
 		}
-		bool findIIPByIrq( nta_incoming_t* irq, boost::shared_ptr<IIP>& iip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findIIPByIrq( nta_incoming_t* irq, std::shared_ptr<IIP>& iip ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 	        mapIrq2IIP::iterator it = m_mapIrq2IIP.find( irq ) ;
 	        if( m_mapIrq2IIP.end() == it ) return false ;
 	        iip = it->second ;
 	        return true ;			
 		}
-		bool findIIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<IIP>& iip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findIIPByOrq( nta_outgoing_t* orq, std::shared_ptr<IIP>& iip ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 	        mapOrq2IIP::iterator it = m_mapOrq2IIP.find( orq ) ;
 	        if( m_mapOrq2IIP.end() == it ) return false ;
 	        iip = it->second ;
 	        return true ;						
 		}
-		bool findIIPByLeg( nta_leg_t* leg, boost::shared_ptr<IIP>& iip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findIIPByLeg( nta_leg_t* leg, std::shared_ptr<IIP>& iip ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
 			if( m_mapLeg2IIP.end() == it ) return false ;
 			iip = it->second ;
 			return true ;			
 		}
-		bool findIIPByTransactionId( const string& transactionId, boost::shared_ptr<IIP>& iip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findIIPByTransactionId( const string& transactionId, std::shared_ptr<IIP>& iip ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			mapTransactionId2IIP::iterator it = m_mapTransactionId2IIP.find( transactionId ) ;
 			if( m_mapTransactionId2IIP.end() == it ) return false ;
 			iip = it->second ;
 			return true ;			
 		}
-		bool findIIPByReliable( nta_reliable_t* rel, boost::shared_ptr<IIP>& iip ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findIIPByReliable( nta_reliable_t* rel, std::shared_ptr<IIP>& iip ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			mapRel2IIP::iterator it = m_mapRel2IIP.find( rel ) ;
 			if( m_mapRel2IIP.end() == it ) return false ;
 			iip = it->second.lock() ;
@@ -262,20 +261,20 @@ namespace drachtio {
 		}
 
 		/// Dialog helpers
-		void addDialog( boost::shared_ptr<SipDialog> dlg ) {
+		void addDialog( std::shared_ptr<SipDialog> dlg ) {
 			const string strDialogId = dlg->getDialogId() ;
 			nta_leg_t *leg = nta_leg_by_call_id( m_agent, dlg->getCallId().c_str() );
 			assert( leg ) ;
 
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+			std::lock_guard<std::mutex> lock(m_mutex) ;
       m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
       m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
 
       m_pClientController->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;		
 		}
-		bool findDialogByLeg( nta_leg_t* leg, boost::shared_ptr<SipDialog>& dlg ) {
+		bool findDialogByLeg( nta_leg_t* leg, std::shared_ptr<SipDialog>& dlg ) {
 			/* look in invites-in-progress first */
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 	        mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
 	        if( m_mapLeg2IIP.end() == it ) {
 
@@ -289,15 +288,15 @@ namespace drachtio {
 	        dlg = it->second->dlg() ;
 	        return true ;
 		}
-		bool findDialogById(  const string& strDialogId, boost::shared_ptr<SipDialog>& dlg ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findDialogById(  const string& strDialogId, std::shared_ptr<SipDialog>& dlg ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			mapId2Dialog::iterator it = m_mapId2Dialog.find( strDialogId ) ;
 			if( m_mapId2Dialog.end() == it ) return false ;
 			dlg = it->second ;
 			return true ;
 		}
-		bool findDialogByCallId( const string& strCallId, boost::shared_ptr<SipDialog>& dlg ) {
-			boost::lock_guard<boost::mutex> lock(m_mutex) ;
+		bool findDialogByCallId( const string& strCallId, std::shared_ptr<SipDialog>& dlg ) {
+			std::lock_guard<std::mutex> lock(m_mutex) ;
 			mapId2Dialog::iterator it = m_mapId2Dialog.find( strCallId + ";uas" ) ;
 			if( m_mapId2Dialog.end() == it ) it = m_mapId2Dialog.find( strCallId + ";uac" ) ;
 			if( m_mapId2Dialog.end() == it ) {
@@ -308,8 +307,8 @@ namespace drachtio {
 		}
 
 		/// RIP helpers
-		void addRIP( nta_outgoing_t* orq, boost::shared_ptr<RIP> rip) ;
-		bool findRIPByOrq( nta_outgoing_t* orq, boost::shared_ptr<RIP>& rip ) ;
+		void addRIP( nta_outgoing_t* orq, std::shared_ptr<RIP> rip) ;
+		bool findRIPByOrq( nta_outgoing_t* orq, std::shared_ptr<RIP>& rip ) ;
 		void clearRIP( nta_outgoing_t* orq ) ;
 
 		/// IRQ helpers
@@ -317,18 +316,18 @@ namespace drachtio {
 		bool findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) ;
 		nta_incoming_t* findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) ;
 
-		void timerD(boost::shared_ptr<IIP> iip, nta_leg_t* leg, const string& dialogId);
-		void clearIIPFinal(boost::shared_ptr<IIP> iip, nta_leg_t* leg);
+		void timerD(std::shared_ptr<IIP> iip, nta_leg_t* leg, const string& dialogId);
+		void clearIIPFinal(std::shared_ptr<IIP> iip, nta_leg_t* leg);
 
 		// retransmit final response to invite
-		void retransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg);
-		void endRetransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, boost::shared_ptr<SipDialog> dlg);
+		void retransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg);
+		void endRetransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg);
 
 		// timers
-		void clearSipTimers(boost::shared_ptr<SipDialog>& dlg);
+		void clearSipTimers(std::shared_ptr<SipDialog>& dlg);
 
 	protected:
-		boost::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;
+		std::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;
 		
 		void clearDialog( const string& strDialogId ) ;
 		
@@ -348,61 +347,61 @@ namespace drachtio {
 			are utilized in the low-level addXX, findXX, and clearXX methods that appear in this header file.  There should be
 			NO direct access to the maps nor use of the mutex in the .cpp (the exception being the method to log storage counts)
 		*/
-   	boost::mutex 		m_mutex ;
+   	std::mutex 		m_mutex ;
 
 		nta_agent_t*		m_agent ;
-		boost::shared_ptr< ClientController > m_pClientController ;
+		std::shared_ptr< ClientController > m_pClientController ;
  
  		/// INVITEs in progress
 
  		/* we need to lookup invites in progress that we've received by nta_incoming_t* when we get a CANCEL from the network */
-    typedef boost::unordered_map<nta_incoming_t*, boost::shared_ptr<IIP> > mapIrq2IIP ;
+    typedef std::unordered_map<nta_incoming_t*, std::shared_ptr<IIP> > mapIrq2IIP ;
     mapIrq2IIP m_mapIrq2IIP ;
 
 		/* we need to lookup invites in progress that we've generated by nta_outgoing_t* when we get a response from the network */
-    typedef boost::unordered_map<nta_outgoing_t*, boost::shared_ptr<IIP> > mapOrq2IIP ;
+    typedef std::unordered_map<nta_outgoing_t*, std::shared_ptr<IIP> > mapOrq2IIP ;
     mapOrq2IIP m_mapOrq2IIP ;
 
  		/* we need to lookup invites in progress by transactionId when we get a request from a client to respond to the invite (for uas dialogs)
 			or when we get a CANCEL from a client (for uac dialogs)
  		*/
-   typedef boost::unordered_map<string, boost::shared_ptr<IIP> > mapTransactionId2IIP ;
+   typedef std::unordered_map<string, std::shared_ptr<IIP> > mapTransactionId2IIP ;
     mapTransactionId2IIP m_mapTransactionId2IIP ;
 
 		/* we need to lookup invites in progress by leg when we get an ACK from the network */
-		typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<IIP> > mapLeg2IIP ;
+		typedef std::unordered_map<nta_leg_t*, std::shared_ptr<IIP> > mapLeg2IIP ;
 		mapLeg2IIP m_mapLeg2IIP ;
 
 		/* we need to lookup invites in progress by nta_reliable_t when we get an PRACK from the network */
-		typedef boost::unordered_map<nta_reliable_t*, boost::weak_ptr<IIP> > mapRel2IIP ;
+		typedef std::unordered_map<nta_reliable_t*, std::weak_ptr<IIP> > mapRel2IIP ;
 		mapRel2IIP m_mapRel2IIP ;
 
 
       /// Stable Dialogs 
 
 		/* we need to lookup dialogs by leg when we get a request from the network */
-		typedef boost::unordered_map<nta_leg_t*, boost::shared_ptr<SipDialog> > mapLeg2Dialog ;
+		typedef std::unordered_map<nta_leg_t*, std::shared_ptr<SipDialog> > mapLeg2Dialog ;
 		mapLeg2Dialog m_mapLeg2Dialog ;
 
 		/* we need to lookup dialogs by dialog id when we get a request from the client  */
-		typedef boost::unordered_map<string, boost::shared_ptr<SipDialog> > mapId2Dialog ;
+		typedef std::unordered_map<string, std::shared_ptr<SipDialog> > mapId2Dialog ;
 		mapId2Dialog m_mapId2Dialog ;
 
 		/// Requests sent by client
 
 		/* we need to lookup responses to requests sent by the client inside a dialog */
-		typedef boost::unordered_map<nta_outgoing_t*, boost::shared_ptr<RIP> > mapOrq2RIP ;
+		typedef std::unordered_map<nta_outgoing_t*, std::shared_ptr<RIP> > mapOrq2RIP ;
 		mapOrq2RIP m_mapOrq2RIP ;
 
 		/// Requests received from the network 
 
 		/* we need to lookup incoming transactions by transaction id when we get a response from the client */
-		typedef boost::unordered_map<string, nta_incoming_t*> mapTransactionId2Irq ;
+		typedef std::unordered_map<string, nta_incoming_t*> mapTransactionId2Irq ;
 		mapTransactionId2Irq m_mapTransactionId2Irq ;
 
 
 		// timers for dialogs and leg that we can remove after suitable timeout period waiting for retransmissions
-    boost::shared_ptr<TimerQueueManager> m_pTQM ;
+    std::shared_ptr<TimerQueueManager> m_pTQM ;
 	} ;
 
 }
