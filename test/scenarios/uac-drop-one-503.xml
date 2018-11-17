@@ -33,7 +33,7 @@
       CSeq: 1 INVITE
       Contact: sip:sipp@[local_ip]:[local_port]
       Max-Forwards: 70
-      Subject: Performance Test
+      Subject: uac-drop-one-503
       Content-Type: application/sdp
       Content-Length: [len]
 
@@ -68,7 +68,6 @@
       CSeq: 1 ACK
       Contact: sip:sipp@[local_ip]:[local_port]
       Max-Forwards: 70
-      Subject: Performance Test
       Content-Length: 0
 
     ]]>

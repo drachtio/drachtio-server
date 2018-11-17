@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 #include <iostream>
+#include <iomanip>
 
 #include <boost/bind.hpp>
 #include <boost/tokenizer.hpp>
@@ -40,6 +41,7 @@ namespace {
       (err.value() == 335544539 || //short read error
       err.value() == 336130329); //decryption failed or bad record mac
   }
+
 }
 
 
@@ -47,48 +49,35 @@ namespace drachtio {
 
   unsigned int RequestHandler::easyHandleCacheSize = 4 ;
   bool RequestHandler::instanceFlag = false;
-  boost::shared_ptr<RequestHandler> RequestHandler::single ;
+  std::shared_ptr<RequestHandler> RequestHandler::single ;
   std::deque<CURL*> RequestHandler::m_cacheEasyHandles ;
   boost::object_pool<RequestHandler::ConnInfo> RequestHandler::m_pool(16, 256) ;
 
-  RequestHandler::RequestHandler( DrachtioController* pController ) :
-      m_pController( pController ), m_timer(m_ioservice) {
-          
-      memset(&m_g, 0, sizeof(GlobalInfo));
-      m_g.multi = curl_multi_init();
+  static int multi_timer_cb(CURLM *multi, long timeout_ms, drachtio::RequestHandler::GlobalInfo *g);
+  static int sock_cb(CURL *e, curl_socket_t s, int what, void *cbp, void *sockp);
+  static void timer_cb(const boost::system::error_code & error, drachtio::RequestHandler::GlobalInfo *g);
+  static int mcode_test(const char *where, CURLMcode code);
+  static void check_multi_info(drachtio::RequestHandler::GlobalInfo *g);
+  static void event_cb(drachtio::RequestHandler::GlobalInfo *g, curl_socket_t s,
+                       int action, const boost::system::error_code & error,
+                       int *fdp);
+  static void remsock(int *f, drachtio::RequestHandler::GlobalInfo *g);
+  static void setsock(int *fdp, curl_socket_t s, CURL *e, int act, int oldact,
+                      drachtio::RequestHandler::GlobalInfo *g);
+  static void addsock(curl_socket_t s, CURL *easy, int action, drachtio::RequestHandler::GlobalInfo *g);
+  static size_t write_cb(void *ptr, size_t size, size_t nmemb, drachtio::RequestHandler::ConnInfo *conn);
+  static size_t header_callback(char *buffer, size_t size, size_t nitems, drachtio::RequestHandler::ConnInfo *conn);
+  static int prog_cb(void *p, double dltotal, double dlnow, double ult,
+                     double uln);
+  static curl_socket_t opensocket(void *clientp, curlsocktype purpose,
+                                  struct curl_sockaddr *address);
+  static int close_socket(void *clientp, curl_socket_t item);
+  static int debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, 
+    RequestHandler::ConnInfo *conn);
 
-      assert(m_g.multi);
-
-      curl_multi_setopt(m_g.multi, CURLMOPT_SOCKETFUNCTION, sock_cb);
-      curl_multi_setopt(m_g.multi, CURLMOPT_SOCKETDATA, &m_g);
-      curl_multi_setopt(m_g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
-      curl_multi_setopt(m_g.multi, CURLMOPT_TIMERDATA, &m_g);
-
-      boost::thread t(&RequestHandler::threadFunc, this) ;
-      m_thread.swap( t ) ;
-  }
-  RequestHandler::~RequestHandler() {
-    curl_multi_cleanup(m_g.multi);
-  }
-  void RequestHandler::threadFunc() {
-               
-    /* to make sure the event loop doesn't terminate when there is no work to do */
-    boost::asio::io_service::work work(m_ioservice);
-    
-    for(;;) {
-        
-      try {
-        m_ioservice.run() ;
-        break ;
-      }
-      catch( std::exception& e) {
-        DR_LOG(log_error) << "RequestHandler::threadFunc - Error in event thread: " << string( e.what() )  ;
-      }
-    }
-  }
-  int RequestHandler::sock_cb(CURL *e, curl_socket_t s, int what, void *cbp, void *sockp) {
-    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
-    GlobalInfo *g = &(p->getGlobal()) ;
+  int sock_cb(CURL *e, curl_socket_t s, int what, void *cbp, void *sockp) {
+    std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    RequestHandler::GlobalInfo *g = &(p->getGlobal()) ;
 
     int *actionp = (int *) sockp;
     static const char *whatstr[] = { "none", "IN", "OUT", "INOUT", "REMOVE"};
@@ -106,21 +95,21 @@ namespace drachtio {
     }
     return 0;  
   }
-  void RequestHandler::addsock(curl_socket_t s, CURL *easy, int action, RequestHandler::GlobalInfo *g) {
+  void addsock(curl_socket_t s, CURL *easy, int action, drachtio::RequestHandler::GlobalInfo *g) {
     /* fdp is used to store current action */
     int *fdp = (int *) calloc(sizeof(int), 1);
 
     setsock(fdp, s, easy, action, 0, g);
     curl_multi_assign(g->multi, s, fdp);
   }
-  void RequestHandler::remsock(int *f, RequestHandler::GlobalInfo *g) {
+  void remsock(int *f, RequestHandler::GlobalInfo *g) {
     if(f) {
       free(f);
     }
   }
 
-  void RequestHandler::setsock(int *fdp, curl_socket_t s, CURL *e, int act, int oldact, RequestHandler::GlobalInfo *g) {
-    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+  void setsock(int *fdp, curl_socket_t s, CURL *e, int act, int oldact, drachtio::RequestHandler::GlobalInfo *g) {
+    std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
 
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>::iterator it =
@@ -162,8 +151,8 @@ namespace drachtio {
     }
   }
 
-  int RequestHandler::multi_timer_cb(CURLM *multi, long timeout_ms, RequestHandler::GlobalInfo *g) {
-    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+  int multi_timer_cb(CURLM *multi, long timeout_ms, drachtio::RequestHandler::GlobalInfo *g) {
+    std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     boost::asio::deadline_timer& timer = p->getTimer() ;
 
     /* cancel running timer */
@@ -182,7 +171,7 @@ namespace drachtio {
 
     return 0;
   }
-  int RequestHandler::mcode_test(const char *where, CURLMcode code) {
+  int mcode_test(const char *where, CURLMcode code) {
     if(CURLM_OK != code) {
       const char *s;
       switch(code) {
@@ -223,7 +212,7 @@ namespace drachtio {
   }
 
   /* Check for completed transfers, and remove their easy handles */
-  void RequestHandler::check_multi_info(RequestHandler::GlobalInfo *g) {
+  void check_multi_info(drachtio::RequestHandler::GlobalInfo *g) {
     char *eff_url;
     CURLMsg *msg;
     int msgs_left;
@@ -256,29 +245,29 @@ namespace drachtio {
         // return easy handle to cache
         {
           //alloc and free happen in the same thread
-          //boost::lock_guard<boost::mutex> l( m_lock ) ;
-          m_cacheEasyHandles.push_back(easy) ;
+          //std::lock_guard<std::mutex> l( m_lock ) ;
+          RequestHandler::m_cacheEasyHandles.push_back(easy) ;
           DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after returning handle  in thread" << 
-            boost::this_thread::get_id() << " " << dec <<
-            m_cacheEasyHandles.size() << " handles are available in cache";
+            std::this_thread::get_id() << " " << dec <<
+            RequestHandler::m_cacheEasyHandles.size() << " handles are available in cache";
         }
 
         curl_multi_remove_handle(g->multi, easy);
         
         if( conn->hdr_list ) curl_slist_free_all(conn->hdr_list);
 
-        memset(conn, 0, sizeof(ConnInfo));
-        m_pool.destroy(conn) ;
+        memset(conn, 0, sizeof(RequestHandler::ConnInfo));
+        RequestHandler::m_pool.destroy(conn) ;
         //free(conn);
       }
     }
   }
 
   /* Called by asio when there is an action on a socket */
-  void RequestHandler::event_cb(RequestHandler::GlobalInfo *g, curl_socket_t s,
+  void event_cb(drachtio::RequestHandler::GlobalInfo *g, curl_socket_t s,
                        int action, const boost::system::error_code & error,
                        int *fdp) {
-    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
     boost::asio::deadline_timer& timer = p->getTimer() ;
 
@@ -323,9 +312,9 @@ namespace drachtio {
   }
 
   /* CURLOPT_PROGRESSFUNCTION */
-  int RequestHandler::prog_cb(void *p, double dltotal, double dlnow, double ult,
+  int prog_cb(void *p, double dltotal, double dlnow, double ult,
                      double uln) {
-    RequestHandler::ConnInfo *conn = (RequestHandler::ConnInfo *)p;
+    drachtio::RequestHandler::ConnInfo *conn = (drachtio::RequestHandler::ConnInfo *)p;
 
     (void)ult;
     (void)uln;
@@ -337,7 +326,7 @@ namespace drachtio {
   }
 
   /* Called by asio when our timeout expires */
-  void RequestHandler::timer_cb(const boost::system::error_code & error, RequestHandler::GlobalInfo *g)
+  void timer_cb(const boost::system::error_code & error, drachtio::RequestHandler::GlobalInfo *g)
   {
     if(!error) {
       CURLMcode rc;
@@ -350,7 +339,7 @@ namespace drachtio {
   }
 
   /* CURLOPT_WRITEFUNCTION */
-  size_t RequestHandler::write_cb(void *ptr, size_t size, size_t nmemb, ConnInfo *conn) {
+  size_t write_cb(void *ptr, size_t size, size_t nmemb, RequestHandler::ConnInfo *conn) {
     size_t written = size * nmemb;
     size_t needed = strlen(conn->response) + written ;
     if( needed > HTTP_BODY_LEN ) {
@@ -364,18 +353,17 @@ namespace drachtio {
     return written;
   }
 
-  size_t RequestHandler::header_callback(char *buffer, size_t size, size_t nitems, ConnInfo *conn) {
+  size_t header_callback(char *buffer, size_t size, size_t nitems, RequestHandler::ConnInfo *conn) {
     size_t written = size * nitems;
     string header(buffer, written);
     DR_LOG(log_debug) << header ;
     return written;
   }
 
-
   /* CURLOPT_OPENSOCKETFUNCTION */
-  curl_socket_t RequestHandler::opensocket(void *clientp, curlsocktype purpose,
+  curl_socket_t opensocket(void *clientp, curlsocktype purpose,
                                   struct curl_sockaddr *address) {
-    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::shared_ptr<RequestHandler> p = drachtio::RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
     boost::asio::io_service& io_service = p->getIOService() ;
 
@@ -408,10 +396,10 @@ namespace drachtio {
   }
 
   /* CURLOPT_CLOSESOCKETFUNCTION */
-  int RequestHandler::close_socket(void *clientp, curl_socket_t item) {
+  int close_socket(void *clientp, curl_socket_t item) {
     //DR_LOG(log_debug) <<"close_socket : " << hex << item;
 
-    boost::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
+    std::shared_ptr<RequestHandler> p = drachtio::RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
 
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>::iterator it =
@@ -424,10 +412,46 @@ namespace drachtio {
 
     return 0;
   }
-  int RequestHandler::debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, 
-    RequestHandler::ConnInfo *conn) {
+  int debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, 
+    drachtio::RequestHandler::ConnInfo *conn) {
 
     return 0 ;
+  }
+
+  RequestHandler::RequestHandler( DrachtioController* pController ) :
+      m_pController( pController ), m_timer(m_ioservice) {
+          
+      memset(&m_g, 0, sizeof(GlobalInfo));
+      m_g.multi = curl_multi_init();
+
+      assert(m_g.multi);
+
+      curl_multi_setopt(m_g.multi, CURLMOPT_SOCKETFUNCTION, sock_cb);
+      curl_multi_setopt(m_g.multi, CURLMOPT_SOCKETDATA, &m_g);
+      curl_multi_setopt(m_g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
+      curl_multi_setopt(m_g.multi, CURLMOPT_TIMERDATA, &m_g);
+
+      std::thread t(&RequestHandler::threadFunc, this) ;
+      m_thread.swap( t ) ;
+  }
+  RequestHandler::~RequestHandler() {
+    curl_multi_cleanup(m_g.multi);
+  }
+  void RequestHandler::threadFunc() {
+               
+    /* to make sure the event loop doesn't terminate when there is no work to do */
+    boost::asio::io_service::work work(m_ioservice);
+    
+    for(;;) {
+        
+      try {
+        m_ioservice.run() ;
+        break ;
+      }
+      catch( std::exception& e) {
+        DR_LOG(log_error) << "RequestHandler::threadFunc - Error in event thread: " << string( e.what() )  ;
+      }
+    }
   }
 
   /* Create a new easy handle, and add it to the global curl_multi */
@@ -444,14 +468,14 @@ namespace drachtio {
     CURL* easy = NULL ;
     {
       //alloc and free happen in the same thread
-      //boost::lock_guard<boost::mutex> l( m_lock ) ;
+      //std::lock_guard<std::mutex> l( m_lock ) ;
       if( m_cacheEasyHandles.empty() ) {
         m_cacheEasyHandles.push_back(createEasyHandle()) ;
       }
       easy = m_cacheEasyHandles.front() ;
       m_cacheEasyHandles.pop_front() ;
       DR_LOG(log_debug) << "RequestHandler::makeRequestForRoute - after acquiring handle in thread " << 
-        boost::this_thread::get_id() << " " << dec <<
+        std::this_thread::get_id() << " " << dec <<
         m_cacheEasyHandles.size() << " handles remain in cache";
     }
 
@@ -528,7 +552,7 @@ namespace drachtio {
 
   // public API
 
-  boost::shared_ptr<RequestHandler> RequestHandler::getInstance() {
+  std::shared_ptr<RequestHandler> RequestHandler::getInstance() {
     if(!instanceFlag) {
 
       for( int i = 0; i < easyHandleCacheSize; i++ ) {
@@ -548,6 +572,6 @@ namespace drachtio {
   void RequestHandler::makeRequestForRoute(const string& transactionId, const string& httpMethod, 
     const string& httpUrl, const string& body, bool verifyPeer) {
 
-    m_ioservice.post( boost::bind(&RequestHandler::startRequest, this, transactionId, httpMethod, httpUrl, body, verifyPeer)) ;
+    m_ioservice.post( std::bind(&RequestHandler::startRequest, this, transactionId, httpMethod, httpUrl, body, verifyPeer)) ;
   }
  }

@@ -42,8 +42,8 @@ int main( int argc, char *argv[] ) {
 	try {
 		theOneAndOnlyController = new DrachtioController( argc, argv ) ;
 		signal( SIGHUP, handleSigHup ) ;
-    	signal( SIGTERM, handleSigTerm ) ;
-    	signal( SIGPIPE, handleSigPipe ) ;
+    signal( SIGTERM, handleSigTerm ) ;
+    signal( SIGPIPE, handleSigPipe ) ;
 		theOneAndOnlyController->run() ;
 	} catch( std::runtime_error& err ) {
 		cerr << "Uncaught exception: " << err.what() << endl ;

@@ -37,11 +37,11 @@ host_triplet = @host@
 bin_PROGRAMS = drachtio$(EXEEXT) timer$(EXEEXT) ssltest$(EXEEXT) \
 	parser$(EXEEXT) uri_test$(EXEEXT) test_https$(EXEEXT) \
 	test_asio_curl$(EXEEXT)
-@LINUX_TRUE@am__append_1 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
+@LINUX_TRUE@am__append_1 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz -lrt
 @LINUX_TRUE@am__append_2 = -lrt
 @LINUX_TRUE@am__append_3 = -lrt
 @LINUX_TRUE@am__append_4 = -lrt -lpthread ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
-@OSX_TRUE@am__append_5 = -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz 
+@OSX_TRUE@am__append_5 = -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a  ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz 
 @OSX_TRUE@am__append_6 = -I/usr/local/opt/openssl/include
 @OSX_TRUE@am__append_7 = -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a
 @OSX_TRUE@am__append_8 = -I/usr/local/opt/openssl/include
@@ -51,8 +51,10 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure AUTHORS COPYING ChangeLog INSTALL NEWS \
 	config.guess config.sub depcomp install-sh missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/libcurl.m4 \
-	$(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cxx_compile_stdcxx.m4 \
+	$(top_srcdir)/m4/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/m4/ax_cxx_compile_stdcxx_17.m4 \
+	$(top_srcdir)/m4/libcurl.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
@@ -82,12 +84,10 @@ drachtio_OBJECTS = $(am_drachtio_OBJECTS)
 @LINUX_TRUE@am__DEPENDENCIES_1 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
 @LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
 @LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
-@LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
 @LINUX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a
 @OSX_TRUE@am__DEPENDENCIES_2 = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
 @OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
 @OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
-@OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
 @OSX_TRUE@	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a
 drachtio_DEPENDENCIES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a \
@@ -99,13 +99,13 @@ parser_DEPENDENCIES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-si
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
-	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a \
 	$(am__DEPENDENCIES_3)
 am_ssltest_OBJECTS = src/ssltest-ssltest.$(OBJEXT)
 ssltest_OBJECTS = $(am_ssltest_OBJECTS)
 ssltest_DEPENDENCIES =
-am_test_asio_curl_OBJECTS = src/test_asio_curl.$(OBJEXT)
+am_test_asio_curl_OBJECTS =  \
+	src/test_asio_curl-test_asio_curl.$(OBJEXT)
 test_asio_curl_OBJECTS = $(am_test_asio_curl_OBJECTS)
 test_asio_curl_DEPENDENCIES =  \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
@@ -127,7 +127,6 @@ uri_test_OBJECTS = $(am_uri_test_OBJECTS)
 uri_test_DEPENDENCIES =  \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
-	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -177,6 +176,8 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EXEEXT = @EXEEXT@
+HAVE_CXX11 = @HAVE_CXX11@
+HAVE_CXX17 = @HAVE_CXX17@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -259,9 +260,10 @@ MYVERSION = $(shell git describe)
 INCLUDES = -I/usr/local/include -I${srcdir}/deps/boost_1_67_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson-2.10/src
 AM_LDFLAGS = -L/usr/local/lib 
 LDADD = -lboost_thread -lpthread -lssl -lcrypto -lz
+ACLOCAL_AMFLAGS = -I m4
 drachtio_SOURCES = src/main.cpp src/controller.cpp src/drachtio-config.cpp src/client-controller.cpp src/client.cpp src/drachtio.cpp src/sip-dialog.cpp src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp src/sip-transports.cpp src/request-handler.cpp src/request-router.cpp
 drachtio_CPPFLAGS = -D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" \
-	-std=c++11 -Wno-error=deprecated-declarations $(am__append_6)
+	-Wno-error=deprecated-declarations $(am__append_6)
 drachtio_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl \
 	-lpthread -lssl -lcrypto -lz $(am__append_1) $(am__append_5)
@@ -277,12 +279,11 @@ parser_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a 
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a \
-	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a \
 	${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a \
 	-lpthread -lssl -lcrypto -lz $(am__append_3)
 uri_test_SOURCES = src/test_uri_parser.cpp
 uri_test_CPPFLAGS = -D_REENTRANT -DTEST
-uri_test_LDADD = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lz
+uri_test_LDADD = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_filesystem.a -lpthread -lz
 ssltest_SOURCES = src/ssltest.cpp
 ssltest_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0
 ssltest_LDADD = -lssl -lcrypto -lz
@@ -290,10 +291,10 @@ test_https_SOURCES = src/test_https.cpp
 test_https_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0 $(am__append_8)
 test_https_LDADD = -lssl -lcrypto -lz $(am__append_4) $(am__append_7)
 test_asio_curl_SOURCES = src/test_asio_curl.cpp
-ttest_asio_curl_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0
+test_asio_curl_CPPFLAGS = -D_REENTRANT -DDEBUG -g -O0
 test_asio_curl_LDADD = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a -lpthread -lcurl -lssl -lcrypto -lz
-@LINUX_TRUE@make_BOOST_CMD = cd ${srcdir}/deps/boost_1_63_0 && ./bootstrap.sh --with-libraries=thread,system,log,regex,filesystem && ./b2 stage
-@OSX_TRUE@make_BOOST_CMD = cd ${srcdir}/deps/boost_1_67_0 && ./bootstrap.sh --with-toolset=darwin --with-libraries=thread,system,log,regex,filesystem && ./b2 stage && rm -f ./stage/lib/*.dylib
+@LINUX_TRUE@make_BOOST_CMD = cd ${srcdir}/deps/boost_1_67_0 && ./bootstrap.sh --with-libraries=thread,system,log,filesystem && ./b2 stage
+@OSX_TRUE@make_BOOST_CMD = cd ${srcdir}/deps/boost_1_67_0 && ./bootstrap.sh --with-toolset=darwin --with-libraries=thread,system,log,filesystem && ./b2 stage && rm -f ./stage/lib/*.dylib
 BUILT_SOURCES = ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a
 all: $(BUILT_SOURCES) config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
@@ -439,7 +440,7 @@ src/ssltest-ssltest.$(OBJEXT): src/$(am__dirstamp) \
 ssltest$(EXEEXT): $(ssltest_OBJECTS) $(ssltest_DEPENDENCIES) 
 	@rm -f ssltest$(EXEEXT)
 	$(CXXLINK) $(ssltest_OBJECTS) $(ssltest_LDADD) $(LIBS)
-src/test_asio_curl.$(OBJEXT): src/$(am__dirstamp) \
+src/test_asio_curl-test_asio_curl.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 test_asio_curl$(EXEEXT): $(test_asio_curl_OBJECTS) $(test_asio_curl_DEPENDENCIES) 
 	@rm -f test_asio_curl$(EXEEXT)
@@ -482,7 +483,7 @@ mostlyclean-compile:
 	-rm -f src/drachtio-timer-queue.$(OBJEXT)
 	-rm -f src/parser-test_parser.$(OBJEXT)
 	-rm -f src/ssltest-ssltest.$(OBJEXT)
-	-rm -f src/test_asio_curl.$(OBJEXT)
+	-rm -f src/test_asio_curl-test_asio_curl.$(OBJEXT)
 	-rm -f src/test_https-test_https.$(OBJEXT)
 	-rm -f src/timer-test_timer.$(OBJEXT)
 	-rm -f src/timer-timer-queue.$(OBJEXT)
@@ -509,7 +510,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/drachtio-timer-queue.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/parser-test_parser.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ssltest-ssltest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/test_asio_curl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/test_asio_curl-test_asio_curl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/test_https-test_https.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/timer-test_timer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/timer-timer-queue.Po@am__quote@
@@ -782,6 +783,20 @@ src/ssltest-ssltest.obj: src/ssltest.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/ssltest.cpp' object='src/ssltest-ssltest.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ssltest_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/ssltest-ssltest.obj `if test -f 'src/ssltest.cpp'; then $(CYGPATH_W) 'src/ssltest.cpp'; else $(CYGPATH_W) '$(srcdir)/src/ssltest.cpp'; fi`
+
+src/test_asio_curl-test_asio_curl.o: src/test_asio_curl.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_asio_curl_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/test_asio_curl-test_asio_curl.o -MD -MP -MF src/$(DEPDIR)/test_asio_curl-test_asio_curl.Tpo -c -o src/test_asio_curl-test_asio_curl.o `test -f 'src/test_asio_curl.cpp' || echo '$(srcdir)/'`src/test_asio_curl.cpp
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/test_asio_curl-test_asio_curl.Tpo src/$(DEPDIR)/test_asio_curl-test_asio_curl.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/test_asio_curl.cpp' object='src/test_asio_curl-test_asio_curl.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_asio_curl_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/test_asio_curl-test_asio_curl.o `test -f 'src/test_asio_curl.cpp' || echo '$(srcdir)/'`src/test_asio_curl.cpp
+
+src/test_asio_curl-test_asio_curl.obj: src/test_asio_curl.cpp
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_asio_curl_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/test_asio_curl-test_asio_curl.obj -MD -MP -MF src/$(DEPDIR)/test_asio_curl-test_asio_curl.Tpo -c -o src/test_asio_curl-test_asio_curl.obj `if test -f 'src/test_asio_curl.cpp'; then $(CYGPATH_W) 'src/test_asio_curl.cpp'; else $(CYGPATH_W) '$(srcdir)/src/test_asio_curl.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) src/$(DEPDIR)/test_asio_curl-test_asio_curl.Tpo src/$(DEPDIR)/test_asio_curl-test_asio_curl.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/test_asio_curl.cpp' object='src/test_asio_curl-test_asio_curl.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_asio_curl_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o src/test_asio_curl-test_asio_curl.obj `if test -f 'src/test_asio_curl.cpp'; then $(CYGPATH_W) 'src/test_asio_curl.cpp'; else $(CYGPATH_W) '$(srcdir)/src/test_asio_curl.cpp'; fi`
 
 src/test_https-test_https.o: src/test_https.cpp
 @am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_https_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT src/test_https-test_https.o -MD -MP -MF src/$(DEPDIR)/test_https-test_https.Tpo -c -o src/test_https-test_https.o `test -f 'src/test_https.cpp' || echo '$(srcdir)/'`src/test_https.cpp
@@ -1170,7 +1185,7 @@ clean-local:
 	cd ${srcdir}/deps/sofia-sip && make clean  
 	cd ${srcdir}/deps/jansson-2.10 && make clean  
 
-${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_regex.a:
+${srcdir}/deps/boost_1_67_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_67_0/stage/lib/libboost_log.a:
 	$(make_BOOST_CMD)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:

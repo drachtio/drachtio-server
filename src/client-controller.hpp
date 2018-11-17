@@ -25,10 +25,11 @@ THE SOFTWARE.
 
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
-#include <boost/thread.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
+
+#include <unordered_set>
+#include <unordered_map>
+#include <mutex>
+#include <thread>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/sip.h>
@@ -43,7 +44,7 @@ using namespace std ;
 
 namespace drachtio {
     
-  class ClientController : public boost::enable_shared_from_this<ClientController>  {
+  class ClientController : public std::enable_shared_from_this<ClientController>  {
   public:
     // tcp only
     ClientController( DrachtioController* pController, string& address, unsigned int port ) ;
@@ -119,7 +120,7 @@ namespace drachtio {
 
     boost::asio::io_context& getIOService(void) { return m_ioservice ;}
 
-    boost::shared_ptr<SipDialogController> getDialogController(void) ;
+    std::shared_ptr<SipDialogController> getDialogController(void) ;
 
     //void sendSipMessageToClient( client_ptr client, const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta );
 
@@ -148,8 +149,8 @@ namespace drachtio {
     client_ptr findClientForDialog_nolock( const string& dialogId ) ;
 
     DrachtioController*         m_pController ;
-    boost::thread               m_thread ;
-    boost::mutex                m_lock ;
+    std::thread                 m_thread ;
+    std::mutex                m_lock ;
 
     boost::asio::io_context m_ioservice;
     boost::asio::ip::tcp::endpoint  m_endpoint_tcp;
@@ -159,25 +160,25 @@ namespace drachtio {
     boost::asio::ssl::context m_context;
     unsigned int m_tcpPort, m_tlsPort;
 
-    typedef boost::unordered_set<client_ptr> set_of_clients ;
+    typedef std::unordered_set<client_ptr> set_of_clients ;
     set_of_clients m_clients ;
 
-    typedef boost::unordered_multimap<string,client_weak_ptr> map_of_services ;
+    typedef std::unordered_multimap<string,client_weak_ptr> map_of_services ;
     map_of_services m_services ;
 
-    typedef boost::unordered_multimap<string,RequestSpecifier> map_of_request_types ;
+    typedef std::unordered_multimap<string,RequestSpecifier> map_of_request_types ;
     map_of_request_types m_request_types ;
 
-    typedef boost::unordered_map<string,unsigned int> map_of_request_type_offsets ;
+    typedef std::unordered_map<string,unsigned int> map_of_request_type_offsets ;
     map_of_request_type_offsets m_map_of_request_type_offsets ;
 
-    typedef boost::unordered_map<string,client_weak_ptr> mapId2Client ;
+    typedef std::unordered_map<string,client_weak_ptr> mapId2Client ;
     mapId2Client m_mapDialogs ;
     mapId2Client m_mapAppTransactions ;
     mapId2Client m_mapNetTransactions ;
     mapId2Client m_mapApiRequests ;
 
-    typedef boost::unordered_map<string,string> mapDialogId2Appname ;
+    typedef std::unordered_map<string,string> mapDialogId2Appname ;
     mapDialogId2Appname m_mapDialogId2Appname ;
       
   } ;

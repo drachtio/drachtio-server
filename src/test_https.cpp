@@ -10,7 +10,8 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <boost/bind.hpp>
+#include <functional>
+
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 
@@ -29,11 +30,9 @@ public:
 
     socket_.set_verify_mode(boost::asio::ssl::verify_peer);
     socket_.set_verify_callback(
-        boost::bind(&client::verify_certificate, this, _1, _2));
+        std::bind(&client::verify_certificate, this, std::placeholders::_1, std::placeholders::_2));
 
-    boost::asio::async_connect(socket_.lowest_layer(), endpoint_iterator,
-        boost::bind(&client::handle_connect, this,
-          boost::asio::placeholders::error));
+    boost::asio::async_connect(socket_.lowest_layer(), endpoint_iterator, std::bind(&client::handle_connect, this, std::placeholders::_1));
   }
 
   bool verify_certificate(bool preverified,
@@ -59,9 +58,7 @@ public:
   {
     if (!error)
     {
-      socket_.async_handshake(boost::asio::ssl::stream_base::client,
-          boost::bind(&client::handle_handshake, this,
-            boost::asio::placeholders::error));
+      socket_.async_handshake(boost::asio::ssl::stream_base::client, std::bind(&client::handle_handshake, this, std::placeholders::_1));
     }
     else
     {
@@ -77,11 +74,7 @@ public:
       std::cin.getline(request_, max_length);
       size_t request_length = strlen(request_);
 
-      boost::asio::async_write(socket_,
-          boost::asio::buffer(request_, request_length),
-          boost::bind(&client::handle_write, this,
-            boost::asio::placeholders::error,
-            boost::asio::placeholders::bytes_transferred));
+      boost::asio::async_write(socket_, boost::asio::buffer(request_, request_length), std::bind(&client::handle_write, this, std::placeholders::_1, std::placeholders::_2));
     }
     else
     {
@@ -96,9 +89,7 @@ public:
     {
       boost::asio::async_read(socket_,
           boost::asio::buffer(reply_, bytes_transferred),
-          boost::bind(&client::handle_read, this,
-            boost::asio::placeholders::error,
-            boost::asio::placeholders::bytes_transferred));
+          std::bind(&client::handle_read, this, std::placeholders::_1, std::placeholders::_2));
     }
     else
     {

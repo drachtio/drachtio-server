@@ -22,9 +22,8 @@ THE SOFTWARE.
 #ifndef __QUEUE_H__
 #define __QUEUE_H__
 
-#include <boost/noncopyable.hpp>
-#include <boost/function.hpp>
-#include <boost/thread.hpp>
+#include <functional>
+#include <thread>
 
 #include <sofia-sip/su_wait.h>
 
@@ -32,7 +31,7 @@ namespace drachtio {
 
   class TimerQueue ;
 
-  typedef boost::function<void (void*)> TimerFunc ;
+  typedef std::function<void (void*)> TimerFunc ;
 
   struct queueEntry_t {
     queueEntry_t(TimerQueue* queue, TimerFunc f, void* functionArgs, su_time_t when) ;
@@ -47,11 +46,12 @@ namespace drachtio {
 
   typedef queueEntry_t * TimerEventHandle ;
  
-  class TimerQueue : public boost::noncopyable {
+  class TimerQueue  {
   public:
     
 
     TimerQueue(su_root_t* root, const char*szName = NULL) ;
+    TimerQueue( const TimerQueue& ) = delete;
     ~TimerQueue() ;
 
     TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;

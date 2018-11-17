@@ -42,8 +42,10 @@ THE SOFTWARE.
 #include <stdexcept>
 #include <string>
 #include <iostream>
-#include <boost/shared_ptr.hpp>
-#include <boost/scoped_ptr.hpp>
+#include <thread>
+#include <unordered_map>
+#include <unordered_set>
+#include <mutex>
 
 #include <boost/log/common.hpp>
 #include <boost/log/attributes.hpp>
@@ -51,11 +53,7 @@ THE SOFTWARE.
 #include <boost/log/sinks/syslog_backend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
-#include <boost/noncopyable.hpp>
-#include <boost/thread.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/bimap.hpp>
+//#include <boost/bimap.hpp>
 
 #include "drachtio.h"
 #include "drachtio-config.hpp"
@@ -68,16 +66,13 @@ THE SOFTWARE.
 #include "sip-transports.hpp"
 #include "request-router.hpp"
 
-typedef boost::mt19937 RNGType;
+//typedef boost::mt19937 RNGType;
 
 using namespace std ;
 
 namespace drachtio {
 	
-	class DrachtioController ;
-
-	using boost::shared_ptr;
-	using boost::scoped_ptr;
+    class DrachtioController ;
 
   class StackMsg {
   public:
@@ -115,12 +110,12 @@ namespace drachtio {
   	src::severity_logger_mt<severity_levels>& getLogger() const { return *m_logger; }
     src::severity_logger_mt< severity_levels >* createLogger() ;
   
-    boost::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
-    boost::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
-    boost::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
-    boost::shared_ptr<RequestHandler> getRequestHandler(void) { return m_pRequestHandler ; }
-    boost::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
-    boost::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
+    std::shared_ptr<DrachtioConfig> getConfig(void) { return m_Config; }
+    std::shared_ptr<SipDialogController> getDialogController(void) { return m_pDialogController ; }
+    std::shared_ptr<ClientController> getClientController(void) { return m_pClientController ; }
+    std::shared_ptr<RequestHandler> getRequestHandler(void) { return m_pRequestHandler ; }
+    std::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
+    std::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
     su_root_t* getRoot(void) { return m_root; }
     
     enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
@@ -162,7 +157,7 @@ namespace drachtio {
     bool isDaemonized(void) { return m_bDaemonize; }
     void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
     void flushTportForSubscription( const char* user, const char* host ) ; 
-    boost::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
+    std::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
     RequestRouter& getRequestRouter(void) { return m_requestRouter; }
 
@@ -195,9 +190,8 @@ namespace drachtio {
         unsigned int status_code, const string& body) ;
 
 
-  	scoped_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
-  	boost::mutex m_mutexGlobal ;
-  	boost::shared_mutex m_mutexConfig ; 
+  	std::unique_ptr< src::severity_logger_mt<severity_levels> > m_logger ;
+  	std::mutex m_mutexGlobal ;
   	bool m_bLoggingInitialized ;
   	string m_configFilename ;
 
@@ -210,11 +204,11 @@ namespace drachtio {
 
     string m_publicAddress ;
 
-    shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
-    shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
-    shared_ptr<  sinks::synchronous_sink< sinks::text_ostream_backend > > m_sinkConsole ;
+    boost::shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > m_sinkSysLog ;
+    boost::shared_ptr<  sinks::synchronous_sink< sinks::text_file_backend > > m_sinkTextFile ;
+    boost::shared_ptr<  sinks::synchronous_sink< sinks::text_ostream_backend > > m_sinkConsole ;
 
-    shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
+    std::shared_ptr<DrachtioConfig> m_Config, m_ConfigNew ;
     int m_bDaemonize ;
     int m_bNoConfig ;
     int m_bConsoleLogging;
@@ -227,15 +221,14 @@ namespace drachtio {
     string m_secret;
     string m_adminAddress;
 
-    shared_ptr<ClientController> m_pClientController ;
-    shared_ptr<RequestHandler> m_pRequestHandler ;
-    shared_ptr<SipDialogController> m_pDialogController ;
-    shared_ptr<SipProxyController> m_pProxyController ;
-    shared_ptr<PendingRequestController> m_pPendingRequestController ;
+    std::shared_ptr<ClientController> m_pClientController ;
+    std::shared_ptr<RequestHandler> m_pRequestHandler ;
+    std::shared_ptr<SipDialogController> m_pDialogController ;
+    std::shared_ptr<SipProxyController> m_pProxyController ;
+    std::shared_ptr<PendingRequestController> m_pPendingRequestController ;
 
-    shared_ptr<StackMsg> m_lastSentMsg ;
-    shared_ptr<StackMsg> m_lastRecvMsg ;
-
+    std::shared_ptr<StackMsg> m_lastSentMsg ;
+    std::shared_ptr<StackMsg> m_lastRecvMsg ;
 
     su_home_t* 	m_home ;
     su_root_t* 	m_root ;
@@ -244,9 +237,9 @@ namespace drachtio {
     nta_leg_t*      m_defaultLeg ;
   	su_clone_r 	m_clone ;
 
-    vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
+    std::vector< std::shared_ptr<SipTransport> >  m_vecTransports;
     
-    typedef boost::unordered_map<string, boost::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
+    typedef std::unordered_map<string, std::shared_ptr<UaInvalidData> > mapUri2InvalidData ;
     mapUri2InvalidData m_mapUri2InvalidData ;
 
     bool    m_bIsOutbound ;

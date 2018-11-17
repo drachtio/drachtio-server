@@ -59,15 +59,15 @@ obj.stop = () => {
 
   return new Promise((resolve, reject) => {
     debug('killing drachtio');
-    drachtio.kill();
+    drachtio.kill('SIGTERM');
     debug('killing router');
     router.kill();
-    drachtio = null;
     router = null;
-    debug('waiting 200ms to end');
-    setTimeout(() => {
-      debug('resolving promise');
+    //drachtio = null;
+    drachtio.on('exit', () => {
+      drachtio = null;
+      debug('drachtio exited');
       resolve();
-    }, 250);
+    });
   });
 };

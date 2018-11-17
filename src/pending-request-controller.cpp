@@ -20,11 +20,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-namespace drachtio {
-    class SipDialogController ;
-}
 
-#include <boost/bind.hpp>
+#include <functional>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 
@@ -36,7 +33,9 @@ namespace drachtio {
 
 #define CLIENT_TIMEOUT (64000)
 
+
 namespace drachtio {
+  class SipDialogController ;
 
   PendingRequest_t::PendingRequest_t(msg_t* msg, sip_t* sip, tport_t* tp ) : m_msg( msg ), m_tp(tp), m_canceled(false),
     m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), m_methodName(sip->sip_cseq->cs_method_name) {
@@ -68,7 +67,7 @@ namespace drachtio {
   }
 
   bool PendingRequestController::getMethodForRequest(const string& transactionId, string& method) {
-    boost::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
+    std::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
     if (!p) return false;
 
     method = p->getMethodName();
@@ -94,7 +93,7 @@ namespace drachtio {
       }
     }
 
-    boost::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
+    std::shared_ptr<PendingRequest_t> p = add( msg, sip ) ;
     transactionId = p->getTransactionId() ;      
 
     msg_destroy( msg ) ;  //our PendingRequest_t is now the holder of the message
@@ -157,56 +156,58 @@ namespace drachtio {
           httpUrl.append(urlencode(p.second));
       }
 
-      boost::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
+      std::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
       pHandler->makeRequestForRoute(transactionId, httpMethod, httpUrl, encodedMessage) ;
     }
     else {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
-      m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, p->getTransactionId(), 
-          encodedMessage, meta ) ) ;
+      void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+      m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta ) ) ;
     }
     return 0 ;
   }
 
   int PendingRequestController::routeNewRequestToClient( client_ptr client, const string& transactionId) {
-    boost::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
+    std::shared_ptr<PendingRequest_t> p = this->find( transactionId ) ;
     if( !p ) {
       DR_LOG(log_error) << "PendingRequestController::routeNewRequestToClient: transactionId not found: " << transactionId ;
       return 500 ;
     }
     m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
-    m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, p->getTransactionId(), 
+
+    void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+    m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), 
         p->getEncodedMsg(), p->getMeta() ) ) ;
     return 0 ;
   }
 
-  boost::shared_ptr<PendingRequest_t> PendingRequestController::add( msg_t* msg, sip_t* sip ) {
+  std::shared_ptr<PendingRequest_t> PendingRequestController::add( msg_t* msg, sip_t* sip ) {
     tport_t *tp = nta_incoming_transport(m_pController->getAgent(), NULL, msg);
     tport_unref(tp) ; //because the above increments the refcount and we don't need to
 
-    boost::shared_ptr<PendingRequest_t> p = boost::make_shared<PendingRequest_t>( msg, sip, tp ) ;
+    std::shared_ptr<PendingRequest_t> p = std::make_shared<PendingRequest_t>( msg, sip, tp ) ;
 
     DR_LOG(log_debug) << "PendingRequestController::add - tport: " << std::hex << (void*) tp << 
       ", Call-ID: " << p->getCallId() << ", transactionId " << p->getTransactionId() ;
     
     // give client 4 seconds to respond before clearing state
-    TimerEventHandle handle = m_timerQueue.add( boost::bind(&PendingRequestController::timeout, shared_from_this(), p->getTransactionId()), NULL, CLIENT_TIMEOUT ) ;
+    TimerEventHandle handle = m_timerQueue.add( std::bind(&PendingRequestController::timeout, shared_from_this(), p->getTransactionId()), NULL, CLIENT_TIMEOUT ) ;
     p->setTimerHandle( handle ) ;
 
     string id ;
     p->getUniqueSipTransactionIdentifier(id) ;
-    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+    std::lock_guard<std::mutex> lock(m_mutex) ;
     m_mapCallId2Invite.insert( mapCallId2Invite::value_type(id, p) ) ;
     m_mapTxnId2Invite.insert( mapTxnId2Invite::value_type(p->getTransactionId(), p) ) ;
 
     return p ;
   }
 
-  boost::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId, bool timeout ) {
-    boost::shared_ptr<PendingRequest_t> p ;
+  std::shared_ptr<PendingRequest_t> PendingRequestController::findAndRemove( const string& transactionId, bool timeout ) {
+    std::shared_ptr<PendingRequest_t> p ;
     string id ;
-    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+    std::lock_guard<std::mutex> lock(m_mutex) ;
     mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
     if( it != m_mapTxnId2Invite.end() ) {
       p = it->second ;
@@ -224,9 +225,9 @@ namespace drachtio {
     return p ;
   }
 
-  boost::shared_ptr<PendingRequest_t> PendingRequestController::find( const string& transactionId ) {
-    boost::shared_ptr<PendingRequest_t> p ;
-    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+  std::shared_ptr<PendingRequest_t> PendingRequestController::find( const string& transactionId ) {
+    std::shared_ptr<PendingRequest_t> p ;
+    std::lock_guard<std::mutex> lock(m_mutex) ;
     mapTxnId2Invite::iterator it = m_mapTxnId2Invite.find( transactionId ) ;
     if( it != m_mapTxnId2Invite.end() ) {
       p = it->second ;
@@ -242,7 +243,7 @@ namespace drachtio {
   }
 
   void PendingRequestController::logStorageCount(void)  {
-    boost::lock_guard<boost::mutex> lock(m_mutex) ;
+    std::lock_guard<std::mutex> lock(m_mutex) ;
 
     DR_LOG(log_debug) << "PendingRequestController storage counts"  ;
     DR_LOG(log_debug) << "----------------------------------"  ;

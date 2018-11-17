@@ -20,7 +20,6 @@
 #include <stdexcept>
 #include <string>
 #include <iostream>
-#include <boost/shared_ptr.hpp>
 
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
@@ -35,8 +34,6 @@ namespace sinks = boost::log::sinks;
 namespace expr = boost::log::expressions;
 namespace keywords = boost::log::keywords;
 
-using boost::shared_ptr;
-
 //! Define application-specific severity levels
 enum severity_levels
 {
@@ -50,7 +47,7 @@ int main(int argc, char* argv[])
     try
     {
         // Create a syslog sink
-        shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > sink(
+        std::shared_ptr< sinks::synchronous_sink< sinks::syslog_backend > > sink(
             new sinks::synchronous_sink< sinks::syslog_backend >());
 
         sink->set_formatter

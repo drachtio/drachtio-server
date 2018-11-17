@@ -50,7 +50,6 @@ test('round robin inbound connections', (t) => {
       return Promise.all([uas1.accept(), uas2.accept(), uas3.accept()]);
     })
     .then(() => {
-      t.pass('sending 4 calls to 3 apps (all with inbound connections)');
       return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
@@ -63,9 +62,8 @@ test('round robin inbound connections', (t) => {
       return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.ok(uas1.calls === 2, 'uas1 got 2 calls');
-      t.ok(uas2.calls === 1, 'uas2 got 1 call');
-      t.ok(uas3.calls === 1, 'uas3 got 1 call');
+      t.ok(uas1.calls > 0 && uas2.calls > 0 && uas3.calls > 0, `all clients got at least 1 call`);
+      t.ok(uas1.calls === 2 || uas2.calls === 2 || uas3.calls === 2, `one client got 2 calls`);
       return;
     })
     .then(() => {
@@ -103,8 +101,6 @@ test('handles disconnected clients', (t) => {
       return Promise.all([uas1.accept(), uas2.accept(), uas3.accept()]);
     })
     .then(() => {
-      t.pass('started 3 apps (all inbound connections)');
-      t.pass('now disconnecting the app #2');
       uas2.disconnect();
       uas2 = null;
       return;
@@ -119,9 +115,9 @@ test('handles disconnected clients', (t) => {
       return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.ok(uas1.calls === 2, 'uas1 got 2 calls');
-      t.ok(uas3.calls === 1, 'uas3 got 1 calls');
-      return t.pass('skipped over and removed disconnected client');
+      t.ok(uas1.calls === 2 || uas3.calls === 2, 'one client got two calls');
+      t.ok(uas1.calls === 1 || uas3.calls === 1, 'one client got one call');
+      return;
     })
     .then(() => {
       return new Promise((resolve, reject) => {
@@ -147,28 +143,27 @@ test('handles disconnected clients', (t) => {
 
 test('tagged inbound connections', (t) => {
   let uas1, uas2, uas3;
-  return start()
+  return start('./drachtio.conf2.xml')
     .then(() => {
-      uas1 = new Uas();
-      uas2 = new Uas();
-      uas3 = new Uas();
+      uas1 = new Uas(['blue','green']);
+      uas2 = new Uas('orange');
+      uas3 = new Uas('red');
       return Promise.all([uas1.connect(), uas2.connect(), uas3.connect()]);
     })
     .then(() => {
       return Promise.all([uas1.accept(), uas2.accept(), uas3.accept()]);
     })
     .then(() => {
-      t.pass('sending 4 calls to 3 apps (all with inbound connections)');
-      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac_blue.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac_green.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac_orange.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac_red.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
       t.ok(uas1.calls === 2, 'uas1 got 2 calls');
@@ -266,9 +261,8 @@ test('tls inbound connections', (t) => {
       return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
     })
     .then(() => {
-      t.ok(uas1.calls === 2, 'uas1 got 2 calls');
-      t.ok(uas2.calls === 1, 'uas2 got 1 call');
-      t.ok(uas3.calls === 1, 'uas3 got 1 call');
+      t.ok(uas1.calls > 0 && uas2.calls > 0 && uas3.calls > 0, `all clients got at least 1 call`);
+      t.ok(uas1.calls === 2 || uas2.calls === 2 || uas3.calls === 2, `one client got 2 calls`);
       return;
     })
     .then(() => {

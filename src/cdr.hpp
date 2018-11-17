@@ -24,8 +24,6 @@ THE SOFTWARE.
 
 #include <string>
 
-#include <boost/noncopyable.hpp>
-
 #include <sofia-sip/msg.h>
 #include <sofia-sip/sip.h>
 #include <sofia-sip/nta_tport.h>
@@ -35,10 +33,12 @@ using std::string ;
 
 namespace drachtio {
     
-    class Cdr : public boost::noncopyable {
+    class Cdr {
     public:
 
-        static boost::shared_ptr<Cdr> postCdr( boost::shared_ptr<Cdr> cdr, const string& encodedMsg = "" ) ;
+        static std::shared_ptr<Cdr> postCdr( std::shared_ptr<Cdr> cdr, const string& encodedMsg = "" ) ;
+
+        Cdr( const Cdr& ) = delete;
 
         enum AgentRole_t {
             role_undefined = 0,

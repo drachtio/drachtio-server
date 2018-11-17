@@ -41,8 +41,8 @@ namespace {
     }
 
     void session_timer_handler( su_root_magic_t* magic, su_timer_t* timer, su_timer_arg_t* args) {
-    	boost::weak_ptr<drachtio::SipDialog> *p = reinterpret_cast< boost::weak_ptr<drachtio::SipDialog> *>( args ) ;
-    	boost::shared_ptr<drachtio::SipDialog> pDialog = p->lock() ;
+    	std::weak_ptr<drachtio::SipDialog> *p = reinterpret_cast< std::weak_ptr<drachtio::SipDialog> *>( args ) ;
+    	std::shared_ptr<drachtio::SipDialog> pDialog = p->lock() ;
     	if( pDialog ) pDialog->doSessionTimerHandling() ;
     	else assert(0) ;
     }
@@ -209,7 +209,7 @@ namespace drachtio {
 		if( areWeRefresher() ) nMilliseconds /= 2 ;
 		m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), nMilliseconds ) ;
 
-		m_ppSelf = new boost::weak_ptr<SipDialog>( shared_from_this() ) ;
+		m_ppSelf = new std::weak_ptr<SipDialog>( shared_from_this() ) ;
 		su_timer_set(m_timerSessionRefresh, session_timer_handler, (su_timer_arg_t *) m_ppSelf );
 	}
 	void SipDialog::cancelSessionTimer() {

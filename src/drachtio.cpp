@@ -27,17 +27,19 @@ THE SOFTWARE.
 #include <ifaddrs.h>
 #include <errno.h>
 #include <stdio.h>
+#include <unordered_map>
+#include <unordered_set>
+#include <mutex>
+#include <algorithm>
+#include <regex>
 
 #include <boost/tokenizer.hpp>
-#include <boost/assign/list_of.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
-#include <boost/foreach.hpp>
 #include <boost/algorithm/string/find.hpp>
-#include <boost/regex.hpp>
+
+#include "drachtio.h"
+#include "controller.hpp"
 
 #include <sofia-sip/url.h>
 #include <sofia-sip/nta_tport.h>
@@ -50,9 +52,6 @@ THE SOFTWARE.
 #include <sofia-sip/su_addrinfo.h>
 
 
-#include "drachtio.h"
-#include "controller.hpp"
-
 #define MAX_LINELEN 2047
 
 #define BOOST_UUID (1)
@@ -62,127 +61,121 @@ using namespace std ;
 namespace {
     unsigned int json_allocs = 0 ;
     unsigned int json_bytes = 0 ;
-    boost::mutex  json_lock ;
+    std::mutex  json_lock ;
 } ;
 
 namespace drachtio {
     
-    typedef boost::unordered_map<string,tag_type_t> mapHdr2Tag ;
+    typedef std::unordered_map<string,tag_type_t> mapHdr2Tag ;
 
-    typedef boost::unordered_set<string> setHdr ;
+    typedef std::unordered_set<string> setHdr ;
 
-    typedef boost::unordered_map<string,sip_method_t> mapMethod2Type ;
+    typedef std::unordered_map<string,sip_method_t> mapMethod2Type ;
 
 	/* headers that are allowed to be set by the client in responses to sip requests */
-	mapHdr2Tag m_mapHdr2Tag = boost::assign::map_list_of
-		( string("user_agent"), siptag_user_agent_str ) 
-        ( string("subject"), siptag_subject_str ) 
-        ( string("max_forwards"), siptag_max_forwards_str ) 
-        ( string("proxy_require"), siptag_proxy_require_str ) 
-        ( string("accept_contact"), siptag_accept_contact_str ) 
-        ( string("reject_contact"), siptag_reject_contact_str ) 
-        ( string("expires"), siptag_expires_str ) 
-        ( string("date"), siptag_date_str ) 
-        ( string("retry_after"), siptag_retry_after_str ) 
-        ( string("timestamp"), siptag_timestamp_str ) 
-        ( string("min_expires"), siptag_min_expires_str ) 
-        ( string("priority"), siptag_priority_str ) 
-        ( string("call_info"), siptag_call_info_str ) 
-        ( string("organization"), siptag_organization_str ) 
-        ( string("server"), siptag_server_str ) 
-        ( string("in_reply_to"), siptag_in_reply_to_str ) 
-        ( string("accept"), siptag_accept_str ) 
-        ( string("accept_encoding"), siptag_accept_encoding_str ) 
-        ( string("accept_language"), siptag_accept_language_str ) 
-        ( string("allow"), siptag_allow_str ) 
-        ( string("require"), siptag_require_str ) 
-        ( string("supported"), siptag_supported_str ) 
-        ( string("unsupported"), siptag_unsupported_str ) 
-        ( string("event"), siptag_event_str ) 
-        ( string("allow_events"), siptag_allow_events_str ) 
-        ( string("subscription_state"), siptag_subscription_state_str ) 
-        ( string("proxy_authenticate"), siptag_proxy_authenticate_str ) 
-        ( string("proxy_authentication_info"), siptag_proxy_authentication_info_str ) 
-        ( string("proxy_authorization"), siptag_proxy_authorization_str ) 
-        ( string("authorization"), siptag_authorization_str ) 
-        ( string("www_authenticate"), siptag_www_authenticate_str ) 
-        ( string("authentication_info"), siptag_authentication_info_str ) 
-        ( string("error_info"), siptag_error_info_str ) 
-        ( string("warning"), siptag_warning_str ) 
-        ( string("refer_to"), siptag_refer_to_str ) 
-        ( string("referred_by"), siptag_referred_by_str ) 
-        ( string("replaces"), siptag_replaces_str ) 
-        ( string("session_expires"), siptag_session_expires_str ) 
-        ( string("min_se"), siptag_min_se_str ) 
-        ( string("path"), siptag_path_str ) 
-        ( string("service_route"), siptag_service_route_str ) 
-        ( string("reason"), siptag_reason_str ) 
-        ( string("security_client"), siptag_security_client_str ) 
-        ( string("security_server"), siptag_security_server_str ) 
-        ( string("security_verify"), siptag_security_verify_str ) 
-        ( string("privacy"), siptag_privacy_str ) 
-        ( string("sip_etag"), siptag_etag_str ) 
-        ( string("sip_if_match"), siptag_if_match_str ) 
-        ( string("mime_version"), siptag_mime_version_str ) 
-        ( string("content_type"), siptag_content_type_str ) 
-        ( string("content_encoding"), siptag_content_encoding_str ) 
-        ( string("content_language"), siptag_content_language_str ) 
-        ( string("content_disposition"), siptag_content_disposition_str ) 
-        ( string("request_disposition"), siptag_request_disposition_str ) 
-        ( string("error"), siptag_error_str ) 
-        ( string("refer_sub"), siptag_refer_sub_str ) 
-        ( string("alert_info"), siptag_alert_info_str ) 
-        ( string("reply_to"), siptag_reply_to_str ) 
-        ( string("p_asserted_identity"), siptag_p_asserted_identity_str ) 
-        ( string("p_preferred_identity"), siptag_p_preferred_identity_str ) 
-        ( string("remote_party_id"), siptag_remote_party_id_str ) 
-        ( string("payload"), siptag_payload_str ) 
-        ( string("from"), siptag_from_str ) 
-        ( string("to"), siptag_to_str ) 
-        ( string("call_id"), siptag_call_id_str ) 
-        ( string("cseq"), siptag_cseq_str ) 
-        ( string("via"), siptag_via_str ) 
-        ( string("route"), siptag_route_str ) 
-        ( string("contact"), siptag_contact_str ) 
-        ( string("from"), siptag_from_str ) 
-        ( string("to"), siptag_to_str ) 
-        ( string("rseq"), siptag_rseq_str ) 
-        ( string("rack"), siptag_rack_str ) 
-        ( string("record_route"), siptag_record_route_str ) 
-        ( string("content_length"), siptag_content_length_str ) 
-		;
+	mapHdr2Tag m_mapHdr2Tag({
+		{string("user_agent"), siptag_user_agent_str}, 
+        {string("subject"), siptag_subject_str}, 
+        {string("max_forwards"), siptag_max_forwards_str}, 
+        {string("proxy_require"), siptag_proxy_require_str}, 
+        {string("accept_contact"), siptag_accept_contact_str}, 
+        {string("reject_contact"), siptag_reject_contact_str}, 
+        {string("expires"), siptag_expires_str}, 
+        {string("date"), siptag_date_str}, 
+        {string("retry_after"), siptag_retry_after_str}, 
+        {string("timestamp"), siptag_timestamp_str}, 
+        {string("min_expires"), siptag_min_expires_str}, 
+        {string("priority"), siptag_priority_str}, 
+        {string("call_info"), siptag_call_info_str}, 
+        {string("organization"), siptag_organization_str}, 
+        {string("server"), siptag_server_str}, 
+        {string("in_reply_to"), siptag_in_reply_to_str}, 
+        {string("accept"), siptag_accept_str}, 
+        {string("accept_encoding"), siptag_accept_encoding_str}, 
+        {string("accept_language"), siptag_accept_language_str}, 
+        {string("allow"), siptag_allow_str}, 
+        {string("require"), siptag_require_str}, 
+        {string("supported"), siptag_supported_str}, 
+        {string("unsupported"), siptag_unsupported_str}, 
+        {string("event"), siptag_event_str}, 
+        {string("allow_events"), siptag_allow_events_str}, 
+        {string("subscription_state"), siptag_subscription_state_str}, 
+        {string("proxy_authenticate"), siptag_proxy_authenticate_str}, 
+        {string("proxy_authentication_info"), siptag_proxy_authentication_info_str}, 
+        {string("proxy_authorization"), siptag_proxy_authorization_str}, 
+        {string("authorization"), siptag_authorization_str}, 
+        {string("www_authenticate"), siptag_www_authenticate_str}, 
+        {string("authentication_info"), siptag_authentication_info_str}, 
+        {string("error_info"), siptag_error_info_str}, 
+        {string("warning"), siptag_warning_str}, 
+        {string("refer_to"), siptag_refer_to_str}, 
+        {string("referred_by"), siptag_referred_by_str}, 
+        {string("replaces"), siptag_replaces_str}, 
+        {string("session_expires"), siptag_session_expires_str}, 
+        {string("min_se"), siptag_min_se_str}, 
+        {string("path"), siptag_path_str}, 
+        {string("service_route"), siptag_service_route_str}, 
+        {string("reason"), siptag_reason_str}, 
+        {string("security_client"), siptag_security_client_str}, 
+        {string("security_server"), siptag_security_server_str}, 
+        {string("security_verify"), siptag_security_verify_str}, 
+        {string("privacy"), siptag_privacy_str}, 
+        {string("sip_etag"), siptag_etag_str}, 
+        {string("sip_if_match"), siptag_if_match_str}, 
+        {string("mime_version"), siptag_mime_version_str}, 
+        {string("content_type"), siptag_content_type_str}, 
+        {string("content_encoding"), siptag_content_encoding_str}, 
+        {string("content_language"), siptag_content_language_str}, 
+        {string("content_disposition"), siptag_content_disposition_str}, 
+        {string("request_disposition"), siptag_request_disposition_str}, 
+        {string("error"), siptag_error_str}, 
+        {string("refer_sub"), siptag_refer_sub_str}, 
+        {string("alert_info"), siptag_alert_info_str}, 
+        {string("reply_to"), siptag_reply_to_str}, 
+        {string("p_asserted_identity"), siptag_p_asserted_identity_str}, 
+        {string("p_preferred_identity"), siptag_p_preferred_identity_str}, 
+        {string("remote_party_id"), siptag_remote_party_id_str}, 
+        {string("payload"), siptag_payload_str}, 
+        {string("from"), siptag_from_str}, 
+        {string("to"), siptag_to_str}, 
+        {string("call_id"), siptag_call_id_str}, 
+        {string("cseq"), siptag_cseq_str}, 
+        {string("via"), siptag_via_str}, 
+        {string("route"), siptag_route_str}, 
+        {string("contact"), siptag_contact_str}, 
+        {string("from"), siptag_from_str}, 
+        {string("to"), siptag_to_str}, 
+        {string("rseq"), siptag_rseq_str}, 
+        {string("rack"), siptag_rack_str}, 
+        {string("record_route"), siptag_record_route_str}, 
+        {string("content_length"), siptag_content_length_str}
+	});
 
 	/* headers that are not allowed to be set by the client in responses to sip requests */
-	setHdr m_setImmutableHdrs = boost::assign::list_of
-//		( string("from") ) 
-//		( string("to") ) 
-//		( string("call_id") ) 
-//		( string("cseq") ) 
-        ( string("via") ) 
-        ( string("route") ) 
-//      ( string("contact") ) 
-        ( string("rseq") ) 
-//        ( string("rack") ) 
-        ( string("record_route") ) 
-        ( string("content_length") ) 
-		;
+	setHdr m_setImmutableHdrs({
+        {string("via")},
+        {string("route")},
+        {string("rseq")},
+        {string("record_route")}, 
+        {string("content_length")} 
+	});
 
-   mapMethod2Type m_mapMethod2Type = boost::assign::map_list_of
-        ( string("INVITE"), sip_method_invite ) 
-        ( string("ACK"), sip_method_ack ) 
-        ( string("CANCEL"), sip_method_cancel ) 
-        ( string("BYE"), sip_method_bye ) 
-        ( string("OPTIONS"), sip_method_options ) 
-        ( string("REGISTER"), sip_method_register ) 
-        ( string("INFO"), sip_method_info ) 
-        ( string("PRACK"), sip_method_prack ) 
-        ( string("UPDATE"), sip_method_update ) 
-        ( string("MESSAGE"), sip_method_message ) 
-        ( string("SUBSCRIBE"), sip_method_subscribe ) 
-        ( string("NOTIFY"), sip_method_notify ) 
-        ( string("REFER"), sip_method_refer ) 
-        ( string("PUBLISH"), sip_method_publish ) 
-        ;
+   mapMethod2Type m_mapMethod2Type({
+        {string("INVITE"), sip_method_invite},
+        {string("ACK"), sip_method_ack},
+        {string("CANCEL"), sip_method_cancel},
+        {string("BYE"), sip_method_bye},
+        {string("OPTIONS"), sip_method_options},
+        {string("REGISTER"), sip_method_register},
+        {string("INFO"), sip_method_info},
+        {string("PRACK"), sip_method_prack},
+        {string("UPDATE"), sip_method_update},
+        {string("MESSAGE"), sip_method_message},
+        {string("SUBSCRIBE"), sip_method_subscribe},
+        {string("NOTIFY"), sip_method_notify},
+        {string("REFER"), sip_method_refer},
+        {string("PUBLISH"), sip_method_publish} 
+    });
 
 
 	bool isImmutableHdr( const string& hdr ) {
@@ -239,46 +232,50 @@ namespace drachtio {
         }
     }
     bool parseTransportDescription( const string& desc, string& proto, string& host, string& port ) {
-        boost::regex e("^(.*)/(.*):(\\d+)", boost::regex::extended);
-        boost::smatch mr; ;
-        if( boost::regex_search( desc, mr, e ) ) {
-            proto = mr[1] ;
-            host = mr[2] ;
-            port = mr[3] ;
-            return true ;
+        try {
+            std::regex re("^(.*)/(.*):(\\d+)");
+            std::smatch mr;
+            if (std::regex_search(desc, mr, re) && mr.size() > 1) {
+                proto = mr[1] ;
+                host = mr[2] ;
+                port = mr[3] ;
+                return true ;  
+            }
+        } catch (std::regex_error& e) {
+            DR_LOG(log_error) << "parseTransportDescription - regex error: " << e.what();
         }
-        return false ;
+        return false;
     }
-  bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
+    bool parseSipUri(const string& uri, string& scheme, string& userpart, string& hostpart, string& port, 
     vector< pair<string,string> >& params) {
 
-    boost::regex e("^<?(sip|sips):(?:([^;]+)@)?([^;|^>|^:]+)(?::(\\d+))?(?:;([^>]+))?>?$");
-    boost::smatch mr; 
-    if (!boost::regex_search(uri, mr, e)) {
+        try {
+            std::regex re("^<?(sip|sips):(?:([^;]+)@)?([^;|^>|^:]+)(?::(\\d+))?(?:;([^>]+))?>?$");
+            std::regex re2("^<?(sip|sips):(?:([^;]+)@)?(\\[[0-9a-fA-F:]+\\])(?::(\\d+))?(?:;([^>]+))?>?$");
+            std::smatch mr;
+            if (std::regex_search(uri, mr, re) || std::regex_search(uri, mr, re2)) {
+                scheme = mr[1] ;
+                userpart = mr[2] ;
+                hostpart = mr[3] ;
+                port = mr[4] ; 
 
-      boost::regex e2("^<?(sip|sips):(?:([^;]+)@)?(\\[[0-9a-fA-F:]+\\])(?::(\\d+))?(?:;([^>]+))?>?$");
-      if (!boost::regex_search(uri, mr, e2)) {
-        return false ;
-      }
+                string paramString = mr[5] ;
+                if (paramString.length() > 0) {
+                  vector<string> strs;
+                  boost::split(strs, paramString, boost::is_any_of(";"));
+                  for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+                    vector<string> kv ;
+                    boost::split(kv, *it, boost::is_any_of("="));
+                    params.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+                  }
+                }
+                return true ;
+            }
+        } catch (std::regex_error& e) {
+            DR_LOG(log_error) << "parseSipUri - regex error: " << e.what();
+        }
+        return false;
     }
-
-    scheme = mr[1] ;
-    userpart = mr[2] ;
-    hostpart = mr[3] ;
-    port = mr[4] ;
-
-    string paramString = mr[5] ;
-    if (paramString.length() > 0) {
-      vector<string> strs;
-      boost::split(strs, paramString, boost::is_any_of(";"));
-      for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
-        vector<string> kv ;
-        boost::split(kv, *it, boost::is_any_of("="));
-        params.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
-      }
-    }
-    return true ;
-  }
 
 	void parseGenericHeader( msg_common_t* p, string& hvalue) {
 		string str((const char*) p->h_data, p->h_len) ;
@@ -288,13 +285,17 @@ namespace drachtio {
  	}
 
     bool FindCSeqMethod( const string& headers, string& method ) {
-        boost::regex e("^CSeq:\\s+\\d+\\s+(\\w+)$", boost::regex::extended);
-        boost::smatch mr;
-        if( boost::regex_search( headers, mr, e ) ) {
-            method = mr[1] ;
-            return true ;
+        try {
+            std::regex re("^CSeq:\\s+\\d+\\s+(\\w+)$");
+            std::smatch mr;
+            if (std::regex_search(headers, mr, re) && mr.size() > 1) {
+                method = mr[1] ;
+                return true ;                
+            }
+        } catch (std::regex_error& e) {
+            DR_LOG(log_error) << "FindCSeqMethod - regex error: " << e.what();
         }
-        return false ;
+        return false;
     }
 
     void EncodeStackMessage( const sip_t* sip, string& encodedMessage ) {
@@ -501,7 +502,7 @@ namespace drachtio {
     }
 
     void* my_json_malloc( size_t bytes ) {
-        boost::lock_guard<boost::mutex> l( json_lock ) ;
+        std::lock_guard<std::mutex> l( json_lock ) ;
 
         json_allocs++ ;
         json_bytes += bytes ;
@@ -515,7 +516,7 @@ namespace drachtio {
     }
 
     void my_json_free( void* ptr ) {
-       boost::lock_guard<boost::mutex> l( json_lock ) ;
+       std::lock_guard<std::mutex> l( json_lock ) ;
 
         size_t size;
         ptr = (void *) ((char *) ptr - 8) ;

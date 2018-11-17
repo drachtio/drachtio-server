@@ -22,10 +22,8 @@ THE SOFTWARE.
 #ifndef __PENDING_CONTROLLER_HPP__
 #define __PENDING_CONTROLLER_HPP__
 
-#include <boost/shared_ptr.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/thread.hpp>
-#include <boost/enable_shared_from_this.hpp>
+#include <unordered_map>
+#include <mutex>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/sip.h>
@@ -86,7 +84,7 @@ namespace drachtio {
   } ;
 
 
-  class PendingRequestController : public boost::enable_shared_from_this<PendingRequestController> {
+  class PendingRequestController : public std::enable_shared_from_this<PendingRequestController> {
   public:
     PendingRequestController(DrachtioController* pController);
     ~PendingRequestController() ;
@@ -94,24 +92,24 @@ namespace drachtio {
     int processNewRequest( msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) ;
     int routeNewRequestToClient( client_ptr client, const string& transactionId) ; 
 
-    boost::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
+    std::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
 
     void logStorageCount(void) ;
 
     bool isRetransmission( sip_t* sip ) {
       string id ;
       makeUniqueSipTransactionIdentifier( sip, id ) ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       mapCallId2Invite::iterator it = m_mapCallId2Invite.find( id ) ;   
       return it != m_mapCallId2Invite.end() ;
     }
 
-    boost::shared_ptr<PendingRequest_t> findInviteByCallId( const char* call_id ) {
-      boost::shared_ptr<PendingRequest_t> p ;
+    std::shared_ptr<PendingRequest_t> findInviteByCallId( const char* call_id ) {
+      std::shared_ptr<PendingRequest_t> p ;
       string callId = call_id ;
-      boost::lock_guard<boost::mutex> lock(m_mutex) ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
       for( mapCallId2Invite::iterator it = m_mapCallId2Invite.begin() ; m_mapCallId2Invite.end() != it; it++ ) {
-        boost::shared_ptr<PendingRequest_t> p = it->second ;
+        std::shared_ptr<PendingRequest_t> p = it->second ;
         sip_t* sip = p->getSipObject() ;
         if( 0 == callId.compare( sip->sip_call_id->i_id) && sip->sip_request->rq_method == sip_method_invite) {
           return p ;
@@ -125,20 +123,20 @@ namespace drachtio {
 
   protected:
 
-    boost::shared_ptr<PendingRequest_t> find( const string& transactionId ) ;
-    boost::shared_ptr<PendingRequest_t> add( msg_t* msg, sip_t* sip ) ;
+    std::shared_ptr<PendingRequest_t> find( const string& transactionId ) ;
+    std::shared_ptr<PendingRequest_t> add( msg_t* msg, sip_t* sip ) ;
 
   private:
     DrachtioController* m_pController ;
     nta_agent_t*    m_agent ;
-    boost::shared_ptr< ClientController > m_pClientController ;
+    std::shared_ptr< ClientController > m_pClientController ;
 
-    boost::mutex    m_mutex ;
+    std::mutex    m_mutex ;
 
-    typedef boost::unordered_map<string, boost::shared_ptr<PendingRequest_t> > mapCallId2Invite ;
+    typedef std::unordered_map<string, std::shared_ptr<PendingRequest_t> > mapCallId2Invite ;
     mapCallId2Invite m_mapCallId2Invite ;
 
-    typedef boost::unordered_map<string, boost::shared_ptr<PendingRequest_t> > mapTxnId2Invite ;
+    typedef std::unordered_map<string, std::shared_ptr<PendingRequest_t> > mapTxnId2Invite ;
     mapTxnId2Invite m_mapTxnId2Invite ;
 
     TimerQueue      m_timerQueue ;

@@ -44,10 +44,10 @@
  * write callback.
  */
 
+#include <functional>
 
 #include <curl/curl.h>
 #include <boost/asio.hpp>
-#include <boost/bind.hpp>
 #include <iostream>
 
 #define MSG_OUT stdout /* Send info to stdout, change to stderr if you want */
@@ -88,7 +88,7 @@ static int multi_timer_cb(CURLM *multi, long timeout_ms, GlobalInfo *g)
   if(timeout_ms > 0) {
     /* update timer */
     timer.expires_from_now(boost::posix_time::millisec(timeout_ms));
-    timer.async_wait(boost::bind(&timer_cb, _1, g));
+    timer.async_wait(std::bind(&timer_cb, std::placeholders::_1, g));
   }
   else if(timeout_ms == 0) {
     /* call timeout function immediately */
@@ -205,13 +205,13 @@ static void event_cb(GlobalInfo *g, curl_socket_t s,
 
       if(action == CURL_POLL_IN) {
         tcp_socket->async_read_some(boost::asio::null_buffers(),
-                                    boost::bind(&event_cb, g, s,
-                                                action, _1, fdp));
+                                    std::bind(&event_cb, g, s,
+                                                action, std::placeholders::_1, fdp));
       }
       if(action == CURL_POLL_OUT) {
         tcp_socket->async_write_some(boost::asio::null_buffers(),
-                                     boost::bind(&event_cb, g, s,
-                                                 action, _1, fdp));
+                                     std::bind(&event_cb, g, s,
+                                                 action, std::placeholders::_1, fdp));
       }
     }
   }
@@ -263,29 +263,29 @@ static void setsock(int *fdp, curl_socket_t s, CURL *e, int act, int oldact,
     fprintf(MSG_OUT, "\nwatching for socket to become readable");
     if(oldact != CURL_POLL_IN && oldact != CURL_POLL_INOUT) {
       tcp_socket->async_read_some(boost::asio::null_buffers(),
-                                  boost::bind(&event_cb, g, s,
-                                              CURL_POLL_IN, _1, fdp));
+                                  std::bind(&event_cb, g, s,
+                                              CURL_POLL_IN, std::placeholders::_1, fdp));
     }
   }
   else if(act == CURL_POLL_OUT) {
     fprintf(MSG_OUT, "\nwatching for socket to become writable");
     if(oldact != CURL_POLL_OUT && oldact != CURL_POLL_INOUT) {
       tcp_socket->async_write_some(boost::asio::null_buffers(),
-                                   boost::bind(&event_cb, g, s,
-                                               CURL_POLL_OUT, _1, fdp));
+                                   std::bind(&event_cb, g, s,
+                                               CURL_POLL_OUT, std::placeholders::_1, fdp));
     }
   }
   else if(act == CURL_POLL_INOUT) {
     fprintf(MSG_OUT, "\nwatching for socket to become readable & writable");
     if(oldact != CURL_POLL_IN && oldact != CURL_POLL_INOUT) {
       tcp_socket->async_read_some(boost::asio::null_buffers(),
-                                  boost::bind(&event_cb, g, s,
-                                              CURL_POLL_IN, _1, fdp));
+                                  std::bind(&event_cb, g, s,
+                                              CURL_POLL_IN, std::placeholders::_1, fdp));
     }
     if(oldact != CURL_POLL_OUT && oldact != CURL_POLL_INOUT) {
       tcp_socket->async_write_some(boost::asio::null_buffers(),
-                                   boost::bind(&event_cb, g, s,
-                                               CURL_POLL_OUT, _1, fdp));
+                                   std::bind(&event_cb, g, s,
+                                               CURL_POLL_OUT, std::placeholders::_1, fdp));
     }
   }
 }
@@ -473,8 +473,7 @@ int main(int argc, char **argv)
   curl_multi_setopt(g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
   curl_multi_setopt(g.multi, CURLMOPT_TIMERDATA, &g);
 
-  //new_conn((char *)"www.google.com", &g);  /* add a URL */
-  new_conn((char *)"https://viber-proxy.voxbone.com", &g);  /* add a URL */
+  new_conn((char *)"www.google.com", &g);  /* add a URL */
 
   /* enter io_service run loop */
   io_service.run();

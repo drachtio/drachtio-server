@@ -34,7 +34,7 @@
       Contact: sip:sipp@[local_ip]:[local_port]
       Route: <sip:[service]@[remote_ip]:[remote_port];lr>
       Max-Forwards: 70
-      Subject: Performance Test
+      Subject: uac-preloaded-route
       Content-Type: application/sdp
       Content-Length: [len]
 
@@ -78,7 +78,6 @@
       CSeq: 1 ACK
       [routes]
       Max-Forwards: 70
-      Subject: Performance Test
       Content-Length: 0
 
     ]]>
@@ -100,7 +99,6 @@
       CSeq: 2 BYE
       [routes]
       Max-Forwards: 70
-      Subject: Performance Test
       Content-Length: 0
 
     ]]>

@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include <sofia-sip/nta.h>
 
 #ifndef TEST

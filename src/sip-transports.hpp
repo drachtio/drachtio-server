@@ -22,9 +22,7 @@ THE SOFTWARE.
 #ifndef __SIP_TRANSPORTS_HPP__
 #define __SIP_TRANSPORTS_HPP__
 
-#include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/unordered_map.hpp>
+#include <unordered_map>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
@@ -34,12 +32,12 @@ using namespace std ;
 
 namespace drachtio {
 
-  class SipTransport : public boost::enable_shared_from_this<SipTransport> {
+  class SipTransport : public std::enable_shared_from_this<SipTransport> {
   public:
     SipTransport(const string& contact, const string& localNet, const string& externalIp) ;
     SipTransport(const string& contact, const string& localNet) ;
     SipTransport(const string& contact) ;
-    SipTransport(const boost::shared_ptr<drachtio::SipTransport> other) ;
+    SipTransport(const std::shared_ptr<drachtio::SipTransport> other) ;
 
     ~SipTransport() ;
 
@@ -81,9 +79,9 @@ namespace drachtio {
 
     uint32_t getOctetMatchCount(const string& address);
 
-    static void addTransports(boost::shared_ptr<SipTransport> config, unsigned int mtu);
-    static boost::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
-    static boost::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp") ;
+    static void addTransports(std::shared_ptr<SipTransport> config, unsigned int mtu);
+    static std::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
+    static std::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp") ;
     static void logTransports() ;
     static void getAllHostports( vector<string>& vec ) ;
     static void getAllExternalIps( vector<string>& vec ) ;
@@ -93,10 +91,10 @@ namespace drachtio {
   protected:
     void init() ;
 
-    typedef boost::unordered_map<tport_t*, boost::shared_ptr<SipTransport> > mapTport2SipTransport ;
+    typedef std::unordered_map<tport_t*, std::shared_ptr<SipTransport> > mapTport2SipTransport ;
 
     static mapTport2SipTransport m_mapTport2SipTransport ;
-    static boost::shared_ptr<SipTransport> m_masterTransport ;
+    static std::shared_ptr<SipTransport> m_masterTransport ;
 
     // these are loaded from config
     string  m_strContact ;
@@ -112,8 +110,8 @@ namespace drachtio {
     string m_contactUserpart ;
     string m_contactHostpart ;
     string m_contactPort ;
-    vector< pair<string,string> > m_contactParams ;
-    vector<string> m_dnsNames; 
+    std::vector< pair<string,string> > m_contactParams ;
+    std::vector<string> m_dnsNames; 
 
     // these are given when we actually create a transport with the info above
     tport_t* m_tp;

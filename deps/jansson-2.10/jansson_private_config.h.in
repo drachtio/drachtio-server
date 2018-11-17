@@ -88,7 +88,8 @@
    E.g. 3 -> 2^3 = 8. */
 #undef INITIAL_HASHTABLE_ORDER
 
-/* Define to the sub-directory where libtool stores uninstalled libraries. */
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
 #undef LT_OBJDIR
 
 /* Name of package */

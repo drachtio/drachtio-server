@@ -31,6 +31,7 @@
       To: [service] <sip:[service]@[remote_ip]:[remote_port]>
       Call-ID: [call_id]
       CSeq: 1 REGISTER
+      Subject: uac-register-subscribe-publish
       Contact: <sip:sipp@[local_ip]:[local_port]>
       Expires: 3600
       Content-Length: 0

@@ -25,10 +25,12 @@ THE SOFTWARE.
 #include <getopt.h>
 #include <assert.h>
 #include <pwd.h>
+#include <algorithm>
+#include <functional>
+#include <regex>
 
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-#include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 
@@ -57,7 +59,6 @@ THE SOFTWARE.
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
-#include <boost/regex.hpp>
 
 #include <jansson.h>
 
@@ -109,7 +110,7 @@ namespace {
 	static void __sofiasip_logger_func(void *logarg, char const *fmt, va_list ap) {
         
     static bool loggingSipMsg = false ;
-    static boost::shared_ptr<drachtio::StackMsg> msg ;
+    static std::shared_ptr<drachtio::StackMsg> msg ;
 
     char output[MAXLOGLEN+1] ;
     vsnprintf( output, MAXLOGLEN, fmt, ap ) ;
@@ -136,7 +137,7 @@ namespace {
       char* szStartSeparator = strstr( output, "   " MSG_SEPARATOR ) ;
       if( NULL != szStartSeparator ) *szStartSeparator = '\0' ;
 
-      msg = boost::make_shared<drachtio::StackMsg>( output ) ;
+      msg = std::make_shared<drachtio::StackMsg>( output ) ;
     }
     else {
       int len = strlen(output) ;
@@ -166,79 +167,80 @@ namespace {
     return controller->processMessageStatelessly( msg, sip ) ;
   }
 
-  static boost::unordered_map<unsigned int, std::string> responseReasons = boost::assign::map_list_of
-    (100, "Trying") 
-    (180, "Ringing")
-    (181, "Call is Being Forwarded")
-    (182, "Queued")
-    (183, "Session in Progress")
-    (199, "Early Dialog Terminated")
-    (200, "OK")
-    (202, "Accepted") 
-    (204, "No Notification") 
-    (300, "Multiple Choices") 
-    (301, "Moved Permanently") 
-    (302, "Moved Temporarily") 
-    (305, "Use Proxy") 
-    (380, "Alternative Service") 
-    (400, "Bad Request") 
-    (401, "Unauthorized") 
-    (402, "Payment Required") 
-    (403, "Forbidden") 
-    (404, "Not Found") 
-    (405, "Method Not Allowed") 
-    (406, "Not Acceptable") 
-    (407, "Proxy Authentication Required") 
-    (408, "Request Timeout") 
-    (409, "Conflict") 
-    (410, "Gone") 
-    (411, "Length Required") 
-    (412, "Conditional Request Failed") 
-    (413, "Request Entity Too Large") 
-    (414, "Request-URI Too Long") 
-    (415, "Unsupported Media Type") 
-    (416, "Unsupported URI Scheme") 
-    (417, "Unknown Resource-Priority") 
-    (420, "Bad Extension") 
-    (421, "Extension Required") 
-    (422, "Session Interval Too Small") 
-    (423, "Interval Too Brief") 
-    (424, "Bad Location Information") 
-    (428, "Use Identity Header") 
-    (429, "Provide Referrer Identity") 
-    (430, "Flow Failed") 
-    (433, "Anonymity Disallowed") 
-    (436, "Bad Identity-Info") 
-    (437, "Unsupported Certificate") 
-    (438, "Invalid Identity Header") 
-    (439, "First Hop Lacks Outbound Support") 
-    (470, "Consent Needed") 
-    (480, "Temporarily Unavailable") 
-    (481, "Call Leg/Transaction Does Not Exist") 
-    (482, "Loop Detected") 
-    (483, "Too Many Hops") 
-    (484, "Address Incomplete") 
-    (485, "Ambiguous") 
-    (486, "Busy Here") 
-    (487, "Request Terminated") 
-    (488, "Not Acceptable Here") 
-    (489, "Bad Event") 
-    (491, "Request Pending") 
-    (493, "Undecipherable") 
-    (494, "Security Agreement Required") 
-    (500, "Server Internal Error") 
-    (501, "Not Implemented") 
-    (502, "Bad Gateway") 
-    (503, "Service Unavailable") 
-    (504, "Server Timeout") 
-    (505, "Version Not Supported") 
-    (513, "Message Too Large") 
-    (580, "Precondition Failure") 
-    (600, "Busy Everywhere") 
-    (603, "Decline") 
-    (604, "Does Not Exist Anywhere") 
-    (606, "Not Acceptable");
- }
+  static std::unordered_map<unsigned int, std::string> responseReasons({
+    {100, "Trying"},
+    {180, "Ringing"},
+    {181, "Call is Being Forwarded"},
+    {182, "Queued"},
+    {183, "Session in Progress"},
+    {199, "Early Dialog Terminated"},
+    {200, "OK"},
+    {202, "Accepted"}, 
+    {204, "No Notification"}, 
+    {300, "Multiple Choices"}, 
+    {301, "Moved Permanently"}, 
+    {302, "Moved Temporarily"}, 
+    {305, "Use Proxy"}, 
+    {380, "Alternative Service"}, 
+    {400, "Bad Request"}, 
+    {401, "Unauthorized"}, 
+    {402, "Payment Required"}, 
+    {403, "Forbidden"}, 
+    {404, "Not Found"}, 
+    {405, "Method Not Allowed"}, 
+    {406, "Not Acceptable"}, 
+    {407, "Proxy Authentication Required"}, 
+    {408, "Request Timeout"}, 
+    {409, "Conflict"}, 
+    {410, "Gone"}, 
+    {411, "Length Required"}, 
+    {412, "Conditional Request Failed"}, 
+    {413, "Request Entity Too Large"}, 
+    {414, "Request-URI Too Long"}, 
+    {415, "Unsupported Media Type"}, 
+    {416, "Unsupported URI Scheme"}, 
+    {417, "Unknown Resource-Priority"}, 
+    {420, "Bad Extension"}, 
+    {421, "Extension Required"}, 
+    {422, "Session Interval Too Small"}, 
+    {423, "Interval Too Brief"}, 
+    {424, "Bad Location Information"}, 
+    {428, "Use Identity Header"}, 
+    {429, "Provide Referrer Identity"}, 
+    {430, "Flow Failed"}, 
+    {433, "Anonymity Disallowed"}, 
+    {436, "Bad Identity-Info"}, 
+    {437, "Unsupported Certificate"}, 
+    {438, "Invalid Identity Header"}, 
+    {439, "First Hop Lacks Outbound Support"}, 
+    {470, "Consent Needed"}, 
+    {480, "Temporarily Unavailable"}, 
+    {481, "Call Leg/Transaction Does Not Exist"}, 
+    {482, "Loop Detected"}, 
+    {483, "Too Many Hops"}, 
+    {484, "Address Incomplete"}, 
+    {485, "Ambiguous"}, 
+    {486, "Busy Here"}, 
+    {487, "Request Terminated"}, 
+    {488, "Not Acceptable Here"}, 
+    {489, "Bad Event"}, 
+    {491, "Request Pending"}, 
+    {493, "Undecipherable"}, 
+    {494, "Security Agreement Required"}, 
+    {500, "Server Internal Error"}, 
+    {501, "Not Implemented"}, 
+    {502, "Bad Gateway"}, 
+    {503, "Service Unavailable"}, 
+    {504, "Server Timeout"}, 
+    {505, "Version Not Supported"}, 
+    {513, "Message Too Large"}, 
+    {580, "Precondition Failure"}, 
+    {600, "Busy Everywhere"}, 
+    {603, "Decline"}, 
+    {604, "Does Not Exist Anywhere"}, 
+    {606, "Not Acceptable"}
+  });
+};
 
 namespace drachtio {
 
@@ -272,7 +274,7 @@ namespace drachtio {
         }
         
         logging::add_common_attributes();
-        m_Config = boost::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
+        m_Config = std::make_shared<DrachtioConfig>( m_configFilename.c_str(), m_bDaemonize ) ;
 
         if( !m_Config->isValid() ) {
             exit(-1) ;
@@ -486,7 +488,7 @@ namespace drachtio {
 
                 case 'c':
                     if( !contact.empty() ) {
-                        m_vecTransports.push_back( boost::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
+                        m_vecTransports.push_back( std::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
                         contact.clear() ;
                         publicAddress.clear() ;
                         localNet.clear() ;
@@ -574,7 +576,7 @@ namespace drachtio {
         }
 
         if( !contact.empty() ) {
-          boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(contact, localNet, publicAddress);
+          std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>(contact, localNet, publicAddress);
           for( std::vector<string>::const_iterator it = vecDnsNames.begin(); it != vecDnsNames.end(); ++it) {
             p->addDnsName(*it);
           }
@@ -810,7 +812,7 @@ namespace drachtio {
       m_logger.reset( this->createLogger() );
       this->logConfig() ;
 
-        DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << boost::this_thread::get_id() ;
+        DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << std::this_thread::get_id() ;
 
        /* open admin connection */
         string adminAddress ;
@@ -827,7 +829,7 @@ namespace drachtio {
         if( 0 == m_vecTransports.size() ) {
 
             DR_LOG(log_notice) << "DrachtioController::run: no sip contacts provided, will listen on 5060 for udp and tcp " ;
-            m_vecTransports.push_back( boost::make_shared<SipTransport>("sip:*;transport=udp,tcp"));            
+            m_vecTransports.push_back( std::make_shared<SipTransport>("sip:*;transport=udp,tcp"));            
         }
 
         string outboundProxy ;
@@ -973,7 +975,7 @@ namespace drachtio {
 
         SipTransport::addTransports(m_vecTransports[0], m_mtu) ;
 
-        for( vector< boost::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
+        for( std::vector< std::shared_ptr<SipTransport> >::iterator it = m_vecTransports.begin() + 1; it != m_vecTransports.end(); it++ ) {
             string contact = (*it)->getContact() ;
             string externalIp = (*it)->getExternalIp() ;
             string newUrl ;
@@ -1008,9 +1010,9 @@ namespace drachtio {
 
         SipTransport::logTransports() ;
 
-        m_pDialogController = boost::make_shared<SipDialogController>( this, &m_clone ) ;
-        m_pProxyController = boost::make_shared<SipProxyController>( this, &m_clone ) ;
-        m_pPendingRequestController = boost::make_shared<PendingRequestController>( this ) ;
+        m_pDialogController = std::make_shared<SipDialogController>( this, &m_clone ) ;
+        m_pProxyController = std::make_shared<SipProxyController>( this, &m_clone ) ;
+        m_pPendingRequestController = std::make_shared<PendingRequestController>( this ) ;
 
         // set sip timers
         unsigned int t1, t2, t4, t1x64 ;
@@ -1025,7 +1027,7 @@ namespace drachtio {
         ) ;
               
         /* sofia event loop */
-        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  boost::this_thread::get_id()  ;
+        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  std::this_thread::get_id()  ;
 
         /* start a timer */
         m_timer = su_timer_create( su_root_task(m_root), 30000) ;
@@ -1048,7 +1050,7 @@ namespace drachtio {
         int rc = 0 ;
 
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
-            " does not match an existing call leg, processed in thread " << boost::this_thread::get_id()  ;
+            " does not match an existing call leg, processed in thread " << std::this_thread::get_id()  ;
 
         if( sip->sip_request ) {
 
@@ -1176,7 +1178,7 @@ namespace drachtio {
                         //write attempt record
                         if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {
 
-                            Cdr::postCdr( boost::make_shared<CdrAttempt>( msg, "network" ) );
+                            Cdr::postCdr( std::make_shared<CdrAttempt>( msg, "network" ) );
                         }
 
                         //reject message if necessary, write stop record
@@ -1186,7 +1188,7 @@ namespace drachtio {
                             nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
 
                             if( sip->sip_request->rq_method == sip_method_invite ) {
-                                Cdr::postCdr( boost::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                                Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;
                             return -1 ;                    
@@ -1200,7 +1202,7 @@ namespace drachtio {
 
                     case sip_method_cancel:
                     {
-                        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findInviteByCallId( sip->sip_call_id->i_id ) ;
+                        std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findInviteByCallId( sip->sip_call_id->i_id ) ;
                         if( p ) {
                             DR_LOG(log_info) << "received quick cancel for invite that is out to client for disposition: " << sip->sip_call_id->i_id  ;
 
@@ -1210,7 +1212,8 @@ namespace drachtio {
 
                             client_ptr client = m_pClientController->findClientForNetTransaction(p->getTransactionId()); 
                             if(client) {
-                                m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, p->getTransactionId(), encodedMessage, meta)) ;
+                                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                                m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta)) ;
                             }
 
                             nta_msg_treply( m_nta, msg, 200, NULL, TAG_END() ) ;  
@@ -1251,7 +1254,7 @@ namespace drachtio {
 
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
-        boost::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
+        std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
         if( !p ) {
             return false ;
         }
@@ -1282,7 +1285,7 @@ namespace drachtio {
                 ", for transactionId: " << transactionId;
 
 
-            boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
+            std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( leg, irq, sip, msg ) ;
             dlg->setTransactionId( transactionId ) ;
 
             string contactStr ;
@@ -1335,7 +1338,8 @@ namespace drachtio {
                 msg_t* msg = nta_incoming_getrequest( irq ) ;
                 SipMsgData_t meta( msg, irq ) ;
 
-                m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, encodedMessage, meta)) ;
+                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                m_pClientController->getIOService().post( std::bind(fn, client, transactionId, encodedMessage, meta)) ;
                 
                 m_pClientController->addNetTransaction( client, transactionId ) ;
 
@@ -1350,7 +1354,7 @@ namespace drachtio {
                     //TODO: we got a client out there with a dead INVITE now...
                     return 500 ;
                 }
-                boost::shared_ptr<SipDialog> dlg = boost::make_shared<SipDialog>( leg, irq, sip, msg ) ;
+                std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( leg, irq, sip, msg ) ;
                 dlg->setTransactionId( transactionId ) ;
 
                 nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
@@ -1384,7 +1388,8 @@ namespace drachtio {
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq ) ;
 
-                m_pClientController->getIOService().post( boost::bind(&BaseClient::sendSipMessageToClient, client, transactionId, encodedMessage, meta)) ;
+                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                m_pClientController->getIOService().post( std::bind(fn, client, transactionId, encodedMessage, meta)) ;
                 m_pClientController->addNetTransaction( client, transactionId ) ;
                 m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
                 return 0 ;
@@ -1412,7 +1417,7 @@ namespace drachtio {
             return rc ;
         }
          
-        boost::shared_ptr<SipDialog> dlg ;
+        std::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
             if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && dlg->getSipStatus() >= 200 ) {
                DR_LOG(log_info) << "DrachtioController::processRequestInsideDialog - received INVITE out of order (still waiting ACK from prev transaction)" ;
@@ -1438,7 +1443,7 @@ namespace drachtio {
     }
 
     const tport_t* DrachtioController::getTportForProtocol( const string& remoteHost, const char* proto ) {
-      boost::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(remoteHost.c_str(), proto) ;
+      std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(remoteHost.c_str(), proto) ;
       return p->getTport() ;
     }
 
@@ -1479,7 +1484,7 @@ namespace drachtio {
 
     void DrachtioController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
         string uri ;
-        boost::shared_ptr<UaInvalidData> pUa = boost::make_shared<UaInvalidData>(user, host, expires, tp) ;
+        std::shared_ptr<UaInvalidData> pUa = std::make_shared<UaInvalidData>(user, host, expires, tp) ;
         pUa->getUri( uri ) ;
 
         std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
@@ -1493,7 +1498,7 @@ namespace drachtio {
                 " tport: " << (void*) tp << ", count is now: " << m_mapUri2InvalidData.size();
         }
         else {
-            boost::shared_ptr<UaInvalidData> p = (ret.first)->second ;
+            std::shared_ptr<UaInvalidData> p = (ret.first)->second ;
             DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
@@ -1509,8 +1514,8 @@ namespace drachtio {
         }
         DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
     }
-    boost::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
-        boost::shared_ptr<UaInvalidData> p ;
+    std::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+        std::shared_ptr<UaInvalidData> p ;
         string uri = "" ;
 
         if( !user ) {
@@ -1535,20 +1540,26 @@ namespace drachtio {
     string port = "9021";
     string transport = "tcp";
 
-    boost::regex e("^(.*):(\\d+)(;transport=(tcp|tls))?", boost::regex::extended);
-    boost::smatch mr; ;
-    if( boost::regex_search( uri, mr, e ) ) {
-        host = mr[1] ;
-        port = mr[2] ;
-        if (mr.size() > 4) {
-            transport = mr[4];
+    try {
+        std::regex re("^(.*):(\\d+)(;transport=(tcp|tls))?");
+        std::smatch mr;
+        if (std::regex_search(uri, mr, re) && mr.size() > 1) {
+            host = mr[1] ;
+            port = mr[2] ;
+            if (mr.size() > 4) {
+                transport = mr[4];
+            }
         }
+        else {
+          DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
+          //TODO: send 480, remove pending connection
+          return ;              
+        }
+    } catch (std::regex_error& e) {
+        DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - regex error: " << e.what();
+        return;        
     }
-    else {
-      DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - invalid uri: " << uri;
-      //TODO: send 480, remove pending connection
-      return ;              
-    }
+
     DR_LOG(log_warning) << "DrachtioController::makeOutboundConnection - attempting connection to " << 
       host << ":" << port << " with transport " << transport;
     m_pClientController->makeOutboundConnection(transactionId, host, port, transport) ;
@@ -1568,7 +1579,7 @@ namespace drachtio {
     json_error_t error;
     root = json_loads(body.c_str(), 0, &error);
 
-    DR_LOG(log_debug) << "DrachtioController::httpCallRoutingComplete thread id " << boost::this_thread::get_id() << 
+    DR_LOG(log_debug) << "DrachtioController::httpCallRoutingComplete thread id " << std::this_thread::get_id() << 
       " transaction id " << transactionId << " response: (" << response_code << ") " << body ; 
 
     try {
@@ -1717,7 +1728,7 @@ namespace drachtio {
           statusLine << reason ;
       }
       else {
-          boost::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
+          std::unordered_map<unsigned int, std::string>::const_iterator it = responseReasons.find(status) ;
           if( it != responseReasons.end() ) {
               statusLine << it->second ;
           }
@@ -1853,7 +1864,7 @@ namespace drachtio {
     
         // expire any UaInvalidData
         for(  mapUri2InvalidData::iterator it = m_mapUri2InvalidData.begin(); it != m_mapUri2InvalidData.end(); ) {
-            boost::shared_ptr<UaInvalidData> p = it->second ;
+            std::shared_ptr<UaInvalidData> p = it->second ;
             if( p->isExpired() ) {
                 string uri  ;
                 p->getUri(uri) ;

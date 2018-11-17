@@ -22,11 +22,11 @@ THE SOFTWARE.
 //
 #include <iostream>
 
-#include <boost/bind.hpp>
+#include <functional>
+#include <algorithm>
+
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/foreach.hpp>
 #include <boost/algorithm/string/join.hpp>
 
 #include "drachtio.h"
@@ -61,7 +61,7 @@ namespace drachtio {
       DR_LOG(log_debug) << "BaseClient::~BaseClient";
     }
 
-    boost::shared_ptr<SipDialogController> BaseClient::getDialogController() {
+    std::shared_ptr<SipDialogController> BaseClient::getDialogController() {
         return m_controller.getDialogController(); 
     }
 
@@ -154,7 +154,7 @@ namespace drachtio {
 
                 //if provided, check if Call-ID is for an existing dialog 
                 if( GetValueForHeader( headers, "Call-ID", strCallId ) ) {
-                    boost::shared_ptr<SipDialog> dlg ;
+                    std::shared_ptr<SipDialog> dlg ;
                     if( getDialogController()->findDialogByCallId( strCallId, dlg ) ) {
                         DR_LOG(log_debug) << "Client::processMessage - sending a request inside a dialog (call-id provided)"  ;
                         m_controller.sendRequestInsideDialog( shared_from_this(), tokens[0], dlg->getDialogId(), startLine, headers, body, transactionId ) ;
@@ -197,7 +197,7 @@ namespace drachtio {
 
     bool BaseClient::readMessageLength(unsigned int& len) {
         bool continueOn = true ;
-        boost::array<char, 6> ch ;
+        std::array<char, 6> ch ;
         memset( ch.data(), 0, sizeof(ch)) ;
         unsigned int i = 0 ;
         char c ;
@@ -324,8 +324,7 @@ namespace drachtio {
                 msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
                 DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
                 boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
-                    boost::bind( &BaseClient::write_handler, shared_from_this(), 
-                        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+                    std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
             }
             if( !bContinue ) {
                  DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
@@ -362,7 +361,7 @@ namespace drachtio {
 
 read_again:
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+            std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
        
     }
 
@@ -380,7 +379,7 @@ read_again:
         o << len << "#" << str ;
        
         boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
-            boost::bind( &BaseClient::write_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+            std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
         //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
     }
 
@@ -414,7 +413,7 @@ read_again:
 
         m_controller.join( shared_from_this() ) ;
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+            std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
     }
 
     template<>
@@ -424,7 +423,7 @@ read_again:
         tcp::resolver::iterator endpointIterator = resolver.resolve(query);
         tcp::endpoint endpoint = *endpointIterator;
 
-        m_sock.async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+        m_sock.async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
     }
 
     template<>
@@ -435,8 +434,8 @@ read_again:
 
         m_controller.join( shared_from_this() ) ;
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-            boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, 
-            boost::asio::placeholders::bytes_transferred ) ) ;
+            std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1, 
+            std::placeholders::_2 ) ) ;
 
         //TODO: set a timeout of 2 secs or so for remote side to authenticate
 
@@ -446,7 +445,7 @@ read_again:
             endpoint_address() << ":" << endpoint_port() ;
             m_sock.close() ;
             tcp::endpoint endpoint = *endpointIterator;
-            m_sock.async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+            m_sock.async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
         }
         else {
             // final failure
@@ -484,8 +483,8 @@ read_again:
         DR_LOG(log_info) << "Client::start - Received tls connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
 
         m_sock.async_handshake(boost::asio::ssl::stream_base::server,
-            boost::bind(&BaseClient::handle_handshake, shared_from_this(),
-            boost::asio::placeholders::error));
+            std::bind(&BaseClient::handle_handshake, shared_from_this(),
+            std::placeholders::_1));
     }
 
     template<>
@@ -495,7 +494,7 @@ read_again:
         tcp::resolver::iterator endpointIterator = resolver.resolve(query);
         tcp::endpoint endpoint = *endpointIterator;
 
-        m_sock.lowest_layer().async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+        m_sock.lowest_layer().async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
     }
 
     template<>
@@ -505,14 +504,14 @@ read_again:
                 ":" << m_sock.lowest_layer().remote_endpoint().port() ;
 
             m_controller.join( shared_from_this() ) ;
-            m_sock.async_handshake(boost::asio::ssl::stream_base::client, boost::bind(&BaseClient::handle_handshake, this, boost::asio::placeholders::error));
+            m_sock.async_handshake(boost::asio::ssl::stream_base::client, std::bind(&BaseClient::handle_handshake, shared_from_this(), std::placeholders::_1));
         }
         else if( endpointIterator != tcp::resolver::iterator() ) {
             DR_LOG(log_debug) << "Client::connect_handler tls - failed to connect to "  << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
                 ":" << m_sock.lowest_layer().remote_endpoint().port() ;
             m_sock.lowest_layer().close() ;
             tcp::endpoint endpoint = *endpointIterator;
-            m_sock.lowest_layer().async_connect(endpoint, boost::bind(&BaseClient::connect_handler, shared_from_this(), boost::asio::placeholders::error, ++endpointIterator));
+            m_sock.lowest_layer().async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
         }
         else {
             // final failure
@@ -526,7 +525,7 @@ read_again:
         if (!ec) {
             DR_LOG(log_debug) << "Client::handle_handshake - TLS handshake succeeded ";
             m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-                boost::bind( &BaseClient::read_handler, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred ) ) ;
+                std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
         }
         else {
             m_controller.leave( shared_from_this() ) ;

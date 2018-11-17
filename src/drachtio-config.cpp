@@ -21,11 +21,10 @@ THE SOFTWARE.
 */
 #include <iostream>
 #include <fstream>
+#include <algorithm>
+
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/exceptions.hpp>
-#include <boost/foreach.hpp>
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>    
 #include <boost/algorithm/string/split.hpp>
 
@@ -80,7 +79,7 @@ namespace drachtio {
                 // old way: a single contact
                 try {
                     string strUrl = pt.get<string>("drachtio.sip.contact") ;
-                    m_vecTransports.push_back( boost::make_shared<SipTransport>(strUrl) );
+                    m_vecTransports.push_back( std::make_shared<SipTransport>(strUrl) );
 
                 } catch( boost::property_tree::ptree_bad_path& e ) {
 
@@ -94,7 +93,7 @@ namespace drachtio {
                                 string localNet = v.second.get<string>("<xmlattr>.local-net","") ;   
                                 string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");      
 
-                                boost::shared_ptr<SipTransport> p = boost::make_shared<SipTransport>(v.second.data(), localNet, external) ;
+                                std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>(v.second.data(), localNet, external) ;
                                 vector<string> names;
                                 boost::split(names, dnsNames, boost::is_any_of(",; "));
                                 for (vector<string>::iterator it = names.begin(); it != names.end(); ++it) {
@@ -342,7 +341,7 @@ namespace drachtio {
             return m_mapSpammers ;
         }
 
-        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+        void getTransports(std::vector< std::shared_ptr<SipTransport> >& transports) const {
             transports = m_vecTransports ;
         }
 
@@ -407,7 +406,7 @@ namespace drachtio {
         string m_actionSpammer ;
         string m_tcpActionSpammer ;
         mapHeader2Values m_mapSpammers ;
-        vector< boost::shared_ptr<SipTransport> >  m_vecTransports;
+        std::vector< std::shared_ptr<SipTransport> >  m_vecTransports;
         RequestRouter m_router ;
         string m_captureServerAddress ;
         unsigned int m_captureServerPort;
@@ -482,7 +481,7 @@ namespace drachtio {
     DrachtioConfig::mapHeader2Values& DrachtioConfig::getSpammers( string& action, string& tcpAction ) {
         return m_pimpl->getSpammers( action, tcpAction ) ;
     }
-    void DrachtioConfig::getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const {
+    void DrachtioConfig::getTransports(std::vector< std::shared_ptr<SipTransport> >& transports) const {
         return m_pimpl->getTransports(transports) ;
     }
     void DrachtioConfig::getRequestRouter( RequestRouter& router ) {

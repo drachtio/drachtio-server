@@ -22,14 +22,14 @@ THE SOFTWARE.
 #ifndef __CLIENT_H__
 #define __CLIENT_H__
 
+#include <unordered_map>
+#include <unordered_set>
+#include <array>
+#include <thread>
+
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
-#include <boost/thread.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
 #include <boost/circular_buffer.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/unordered_set.hpp>
 
 
 namespace drachtio {
@@ -41,7 +41,7 @@ namespace drachtio {
 
 	class SipDialogController ;
 
-    class BaseClient : public boost::enable_shared_from_this<BaseClient> {
+    class BaseClient : public enable_shared_from_this<BaseClient> {
     public:
         BaseClient(ClientController& controller);
         BaseClient(ClientController& controller, 
@@ -81,17 +81,17 @@ namespace drachtio {
     
         bool readMessageLength( unsigned int& len ) ;
         void createResponseMsg( const string& msgId, string& msg, bool ok = true, const char* szReason = NULL ) ;
-        boost::shared_ptr<SipDialogController> getDialogController(void);
+        std::shared_ptr<SipDialogController> getDialogController(void);
 
         ClientController& m_controller ;
         state m_state ;
 
-        boost::array<char, 8192> m_readBuf ;
+        std::array<char, 8192> m_readBuf ;
         boost::circular_buffer<char> m_buffer ;
         unsigned int m_nMessageLength ;
         string m_strAppName ;
 
-        typedef boost::unordered_set<string> set_of_tags ;
+        typedef std::unordered_set<string> set_of_tags ;
         set_of_tags m_tags;
 
         // outbound connections
@@ -138,8 +138,8 @@ namespace drachtio {
 
     } ;
 
-    typedef boost::shared_ptr<BaseClient> client_ptr;
-    typedef boost::weak_ptr<BaseClient> client_weak_ptr;
+    typedef std::shared_ptr<BaseClient> client_ptr;
+    typedef std::weak_ptr<BaseClient> client_weak_ptr;
 }
 
 

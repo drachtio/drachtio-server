@@ -24,9 +24,9 @@ THE SOFTWARE.
 
 
 #include <iostream>
-#include <boost/unordered_map.hpp>
+#include <unordered_map>
+
 #include <boost/property_tree/ptree.hpp>
-#include <boost/noncopyable.hpp>
 
 #include "drachtio.h"
 #include "sip-transports.hpp"
@@ -37,18 +37,19 @@ using namespace std ;
 namespace drachtio {
 
 
-    
-    class DrachtioConfig : private boost::noncopyable {
+    class DrachtioConfig {
     public:
 
         DrachtioConfig( const char* szFilename, bool isDaemonized = true ) ;
         ~DrachtioConfig() ;
+
+        DrachtioConfig( const DrachtioConfig& ) = delete;
         
-       typedef boost::unordered_map<string, vector<string > > mapHeader2Values ;
+       typedef unordered_map<string, vector<string > > mapHeader2Values ;
 
         bool isValid() ;
 
-        void getTransports(vector< boost::shared_ptr<SipTransport> >& transports) const ;
+        void getTransports(std::vector< std::shared_ptr<SipTransport> >& transports) const ;
 
         bool getSipOutboundProxy( string& sipOutboundProxy ) const ;
         bool getSyslogTarget( string& address, unsigned short& port ) const ;
