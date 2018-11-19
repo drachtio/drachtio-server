@@ -35,7 +35,7 @@ before_install:
     - cd $TRAVIS_BUILD_DIR
     - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
     - git submodule update --init --recursive
-    - ./bootstrap.sh
+    - ./autogen.sh
     - mkdir build && cd build
     - ../configure
     - make

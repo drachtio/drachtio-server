@@ -22,7 +22,7 @@ After installing libcurl, do as follows:
 ```
 git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
-./bootstrap.sh
+./autogen.sh
 mkdir build && cd $_
 ../configure CPPFLAGS='-DNDEBUG'
 make
