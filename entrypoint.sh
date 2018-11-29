@@ -52,3 +52,4 @@ if [ "$1" = 'drachtio' ]; then
 fi
 
 exec "$@"
+
