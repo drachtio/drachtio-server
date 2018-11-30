@@ -12,7 +12,7 @@ RUN apt-get update \
   && ../configure CPPFLAGS='-DNDEBUG' CXXFLAGS='-O0' \
   && make \
   && make install \
-  && apt-get purge -y --quiet --force-yes --auto-remove gcc g++ make build-essential git autoconf automake curl libtool libtool-bin \
+  && apt-get purge -y --quiet --force-yes --auto-remove gcc g++ make build-essential git autoconf automake libtool libtool-bin \
   && rm -rf /var/lib/{apt,dpkg,cache,log}/ \
   && rm -Rf /var/log/* \
   && rm -Rf /var/lib/apt/lists/* \
@@ -22,6 +22,8 @@ RUN apt-get update \
   && rm -Rf drachtio-server \
   && cd /usr/local/bin \
   && rm -f timer ssltest parser uri_test test_https test_asio_curl
+
+COPY ./entrypoint.sh /
 
 VOLUME ["/config"]
 
