@@ -41,4 +41,4 @@ before_install:
     - make
     - ./drachtio --version 
     - node --version
-    - sudo npm install -g npm
+    - npm --version
