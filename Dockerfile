@@ -1,5 +1,7 @@
 FROM debian:jessie
 
+COPY ./entrypoint.sh /
+
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
   && apt-get install -y --no-install-recommends ca-certificates gcc g++ make build-essential git autoconf automake  curl libtool libtool-bin libssl-dev libcurl4-openssl-dev \
