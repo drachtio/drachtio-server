@@ -50,10 +50,20 @@ matrix:
     - os: linux
       dist: xenial
       compiler: gcc
+      addons:
+        apt:
+          update: true
+          packages:
+            - libtool-bin
 
     - os: linux
       dist: xenial
       compiler: clang
+      addons:
+        apt:
+          update: true
+          packages:
+            - libtool-bin
 
 script: 
     - cd  ${TRAVIS_BUILD_DIR}/test
@@ -69,7 +79,7 @@ git:
 
 before_install:
     - eval "${MATRIX_EVAL}"
-    - sudo apt-get install curl libz-dev ncurses-dev libpcap-dev libtool libtool-bin
+    - sudo apt-get install curl libz-dev ncurses-dev libpcap-dev libtool
     - sudo chmod 0777 /usr/local/src 
     - cd /usr/local/src
     - git clone https://github.com/SIPp/sipp.git && cd sipp && git checkout v3.5.1 
