@@ -19,8 +19,24 @@ class App extends Emitter {
     super();
 
     this.srf = new Srf() ;
-    this.srf.connect(config.drachtio.connectOpts);
     this.srf.on('error', (err) => { this.emit('error', err);});
+  }
+
+  options(uri) {
+    return this.srf.request({
+      uri,
+      method: 'OPTIONS'
+    });
+  }
+
+  connect() {
+    this.srf.connect(config.drachtio.connectOpts);
+    return new Promise((resolve, reject) => {
+      this.srf.on('connect', (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   }
 
   call(uri, opts) {

@@ -471,7 +471,9 @@ namespace drachtio {
                     DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
                 }
                 pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str(), proto.c_str() ) ;
-                assert(pSelectedTransport); 
+                if (!pSelectedTransport) {
+                    throw std::runtime_error(string("requested protocol/transport not available"));
+                }
 
                 pSelectedTransport->getDescription(desc);
                 pSelectedTransport->getContactUri( contact, true ) ;

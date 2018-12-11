@@ -43,19 +43,19 @@ namespace {
 namespace drachtio {
   
   SipTransport::SipTransport(const string& contact, const string& localNet, const string& externalIp) :
-    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL) {
+    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
   SipTransport::SipTransport(const string& contact, const string& localNet) :
-    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL) {
+    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
-  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL) {
+  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
   SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport> other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
-    m_dnsNames(other->m_dnsNames), m_tp(NULL) {
+    m_dnsNames(other->m_dnsNames), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
 
@@ -480,11 +480,15 @@ namespace drachtio {
     }
 #endif
 
-    if (candidates.empty()) {
+    if (candidates.empty() && m_masterTransport->hasTportAndTpname()) {
       m_masterTransport->getDescription(desc) ;
       DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() << 
         " as we found no better matches: " << desc ;
       return m_masterTransport ;      
+    }
+    else if (candidates.empty()) {
+      DR_LOG(log_info) << "SipTransport::findAppropriateTransport: - no transports found ";
+      return nullptr;
     }
 
     std::shared_ptr<SipTransport> p = candidates[0];
