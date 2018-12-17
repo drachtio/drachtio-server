@@ -18,49 +18,22 @@ matrix:
 # Change this to your needs
 script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version
 
-script: 
-    - cd  ${TRAVIS_BUILD_DIR}/test
-    - rm ./tls/dh1024.pem
-    - openssl dhparam -out ./tls/dh1024.pem 1024
-    - cat package.json
-    - npm install
-    - npm test
-    - cat /tmp/drachtio.log
-
+# Handle git submodules yourself
 git:
     submodules: false
 
 # Use sed to replace the SSH URL with the public URL, then initialize submodules
 before_install:
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libcurl4-openssl-dev ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y nodejs ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libpcap-dev ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y ncurses-dev ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libz-dev ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libcurl4-openssl-dev; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --version; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --libs; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install openssl; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gnu-sed; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libpcap; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ncurses; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then gsed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export LDFLAGS="-L/usr/local/opt/openssl/lib $LDFLAGS"; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CXXFLAGS="-I/usr/local/opt/openssl/include $CXXFLAGS"; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CFLAGS="-I/usr/local/opt/openssl/include $CFLAGS"; fi
-    - sudo chmod 0777 /usr/local/src 
-    - cd /usr/local/src
-    - git clone https://github.com/SIPp/sipp.git && cd sipp && git checkout v3.5.1 
-    - ./build.sh  --with-rtpstream --with-pcap 
-    - sudo make install
-    - sudo curl -sL https://deb.nodesource.com/setup_8.x | sudo bash -
-    - cd $TRAVIS_BUILD_DIR
-    - git submodule update --init --recursive
-    - ./bootstrap.sh
-    - mkdir build && cd build
-    - ../configure
-    - make
-    - ./drachtio --version 
-    - node --version
+    - git submodule update --init --recursive;
