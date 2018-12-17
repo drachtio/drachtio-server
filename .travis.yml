@@ -35,6 +35,9 @@ before_install:
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update ; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libcurl4-openssl-dev ; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y nodejs ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libpcap-dev ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y ncurses-dev ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libz-dev ; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --version; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --libs; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
@@ -42,6 +45,8 @@ before_install:
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install openssl; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gnu-sed; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install nodejs; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libpcap; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ncurses; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then gsed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export LDFLAGS="-L/usr/local/opt/openssl/lib $LDFLAGS"; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CXXFLAGS="-I/usr/local/opt/openssl/include $CXXFLAGS"; fi
