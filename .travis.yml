@@ -44,7 +44,6 @@ before_install:
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install openssl; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gnu-sed; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install nodejs; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libpcap; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ncurses; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then gsed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
@@ -65,4 +64,3 @@ before_install:
     - make
     - ./drachtio --version 
     - node --version
-    - sudo npm install -g npm
