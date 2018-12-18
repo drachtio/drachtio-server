@@ -79,11 +79,22 @@ namespace drachtio {
 		}
 
 		// UDP nat check: if no Record-Route and Contact != source address:port, then set a RouteUri to the source address:port
-		if (tport_is_dgram(m_tp) && NULL == sip->sip_record_route && sip->sip_contact) {// && isRfc1918(sip->sip_contact->m_url->url_host)) {
-			const url_t* url = sip->sip_contact->m_url;
-			if (0 != m_sourceAddress.compare(url->url_host) || (url->url_port && atoi(url->url_port) != m_sourcePort)) {
-				DR_LOG(log_debug) << "SipDialog::SipDialog - Contact header " << sip->sip_contact->m_url->url_host << 
-					" suggests uac is behind a nat, using  " << m_sourceAddress << ":" << m_sourcePort << " as route for requests within this dialog";
+		// update: if there is a Record-Route and topmost Record-Route has nat=yes in the url param, do the same as above
+		if (tport_is_dgram(m_tp)) {
+			bool nat = false;
+			if (sipMsgHasNatEqualsYes(sip)) {
+				DR_LOG(log_info) << "SipDialog::SipDialog - (UAS) detected nat=yes in Contact or Record-Route, using  " << m_sourceAddress << ":" << m_sourcePort << " as route for requests within this dialog";
+				nat = true;
+			}
+			else if (sip->sip_contact && !sip->sip_record_route) {
+				const url_t* url = sip->sip_contact->m_url;
+				if (url && 0 != m_sourceAddress.compare(url->url_host) || (url->url_port && atoi(url->url_port) != m_sourcePort)) {
+					DR_LOG(log_info) << "SipDialog::SipDialog - (UAS) detected client behind nat, using  " << m_sourceAddress << ":" << m_sourcePort << " as route for requests within this dialog";
+					nat = true;
+				}
+			}
+
+			if (nat) {
 				url_t const * url = nta_incoming_url(irq);
 				m_routeUri = url->url_scheme;
 				m_routeUri.append(":");

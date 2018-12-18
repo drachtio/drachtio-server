@@ -165,6 +165,8 @@ namespace drachtio {
 		TimerEventHandle getTimerH(void) { return m_timerH; }
 		void clearTimerH() { m_timerH = NULL;}
 
+		void setRouteUri(string& routeUri) { m_routeUri = routeUri; }
+
 		bool getRouteUri(string& routeUri) {
 			if (!m_routeUri.empty()) {
 				routeUri = m_routeUri;
@@ -172,6 +174,7 @@ namespace drachtio {
 			}
 			return false;
 		}
+		void clearRouteUri() { m_routeUri.clear(); }
 
 	protected:
 		bool 				m_bInviteDialog;
