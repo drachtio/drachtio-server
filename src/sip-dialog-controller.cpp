@@ -691,6 +691,7 @@ namespace drachtio {
         msg_t* msg = nta_outgoing_getresponse(orq) ;    //adds a reference
         SipMsgData_t meta( msg, orq, "network") ;
 
+        DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - HEYHEY source of response is " << meta.getAddress() << ":" << meta.getPort();
         EncodeStackMessage( sip, encodedMessage ) ;
 
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
@@ -756,19 +757,9 @@ namespace drachtio {
                 }
 
                 if (nat) {
-                    url_t const * url = nta_outgoing_route_uri(orq);
-                    if (!url) url = nta_outgoing_request_uri(orq);
-                    if (url) {
-                        string routeUri = url->url_scheme;
-                        routeUri.append(":");
-                        routeUri.append(url->url_host); 
-                        if (url->url_port) {
-                            routeUri.append(":");
-                            routeUri.append(boost::lexical_cast<string>(url->url_port));
-                        }
-                        dlg->setRouteUri(routeUri);
-                        DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected nat setting route to: " <<   routeUri;
-                    }
+                    string routeUri = meta.getAddress() + ":" + meta.getPort();
+                    dlg->setRouteUri(routeUri);
+                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected nat setting route to: " <<   routeUri;
                 }
                 else {
                     dlg->clearRouteUri();
