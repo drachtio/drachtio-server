@@ -762,8 +762,10 @@ namespace drachtio {
                         string routeUri = url->url_scheme;
                         routeUri.append(":");
                         routeUri.append(url->url_host); 
-                        routeUri.append(":");
-                        routeUri.append(boost::lexical_cast<string>(url->url_port));
+                        if (url->url_port) {
+                            routeUri.append(":");
+                            routeUri.append(boost::lexical_cast<string>(url->url_port));
+                        }
                         dlg->setRouteUri(routeUri);
                         DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected nat setting route to: " <<   routeUri;
                     }
