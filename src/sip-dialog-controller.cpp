@@ -757,7 +757,8 @@ namespace drachtio {
                 }
 
                 if (nat) {
-                    string routeUri = meta.getAddress() + ":" + meta.getPort();
+                    url_t const * url = nta_outgoing_route_uri(orq);
+                    string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
                     dlg->setRouteUri(routeUri);
                     DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected nat setting route to: " <<   routeUri;
                 }
