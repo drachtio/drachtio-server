@@ -153,7 +153,7 @@ namespace drachtio {
 
 	bool isRfc1918(const char* szHost);
 
-	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool checkContact = false );
+	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool weAreUac, bool checkContact );
 
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 
