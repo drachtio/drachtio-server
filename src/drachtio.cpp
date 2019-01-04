@@ -754,12 +754,17 @@ namespace drachtio {
 	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool checkContact ) {
         if (!sip->sip_record_route && !checkContact) return false;
 
-        if (sip->sip_record_route &&
-            sip->sip_record_route->r_url &&
-            sip->sip_record_route->r_url->url_params &&
-            NULL != ::strstr(sip->sip_record_route->r_url->url_params, "nat=yes")) {
-            
-            return true;
+        if (sip->sip_record_route) {
+            sip_record_route_t *r;
+
+            for (r = sip->sip_record_route; r; r = r->r_next) {
+                if (r->r_next == NULL) {
+                    if (r->r_url && r->r_url->url_params && NULL != ::strstr(sip->sip_record_route->r_url->url_params, "nat=yes")) {
+                        return true;
+                    }
+                    break;
+                }
+            }
         }
 
         if (checkContact && !sip->sip_record_route) {
