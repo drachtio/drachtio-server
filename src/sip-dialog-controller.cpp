@@ -751,7 +751,7 @@ namespace drachtio {
                     DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client at RFC1918 address: " << route->r_url->url_host  ;
                     nat = true;
                 }
-                else if (sipMsgHasNatEqualsYes(sip, true, true)) {
+                else if (theOneAndOnlyController->isAggressiveNatEnabled() && sipMsgHasNatEqualsYes(sip, true, true)) {
                         DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client advertising nat=yes";
                     nat = true;
                 }

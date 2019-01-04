@@ -82,7 +82,7 @@ namespace drachtio {
 		// update: if there is a Record-Route and topmost Record-Route has nat=yes in the url param, do the same as above
 		if (tport_is_dgram(m_tp)) {
 			bool nat = false;
-			if (sipMsgHasNatEqualsYes(sip, false, false)) {
+			if ( theOneAndOnlyController->isAggressiveNatEnabled() && sipMsgHasNatEqualsYes(sip, false, false)) {
 				DR_LOG(log_info) << "SipDialog::SipDialog - (UAS) detected nat=yes in Contact or Record-Route, using  " << m_sourceAddress << ":" << m_sourcePort << " as route for requests within this dialog";
 				nat = true;
 			}

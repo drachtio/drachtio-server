@@ -129,7 +129,9 @@ namespace drachtio {
                 
                 try {
                     string nat = pt.get<string>("drachtio.sip.aggressive-nat-detection", "no") ;
-                    if (0 == nat.compare("yes") || 0 == nat.compare("YES") || 0 == nat.compare("true") || 0 == nat.compare("TRUE")) {
+                    if (0 == nat.compare("yes") || 0 == nat.compare("YES") || 
+                        0 == nat.compare("true") || 0 == nat.compare("TRUE") ||
+                         0 == nat.compare("on") || 0 == nat.compare("ON")) {
                         m_bAggressiveNatDetection = true;
                     }
                 } catch( boost::property_tree::ptree_bad_path& e) {
