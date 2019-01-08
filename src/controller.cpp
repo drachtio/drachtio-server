@@ -266,7 +266,7 @@ namespace drachtio {
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
-        m_nHomerPort(0), m_nHomerId(0), m_mtu(0) {
+        m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false) {
         
         if( !parseCmdArgs( argc, argv ) ) {
             usage() ;
@@ -388,13 +388,14 @@ namespace drachtio {
                 {"secret", required_argument, 0, 'F'},
                 {"dh-param", required_argument, 0, 'G'},
                 {"tls-port",    required_argument, 0, 'H'},
+                {"aggressive-nat-detection", no_argument, 0, 'I'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
             /* getopt_long stores the option index here. */
             int option_index = 0;
             
-            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:E:F:G:",
+            c = getopt_long (argc, argv, "a:c:f:hi:l:m:p:n:u:vx:y:z:A:B:C:D:E:F:G:I",
                              long_options, &option_index);
             
             /* Detect the end of the options. */
@@ -556,6 +557,9 @@ namespace drachtio {
                         return false;                        
                     }
                     break;
+                case 'I':
+                    m_bAggressiveNatDetection = true;
+                    break;
 
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
@@ -604,6 +608,7 @@ namespace drachtio {
         cerr << endl << "Start drachtio sip engine" << endl << endl ;
         cerr << "Options:" << endl << endl ;
         cerr << "    --address                      Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
+        cerr << "    --aggressive-nat-detection     take presence of 'nat=yes' in Record-Route or Contact hdr as an indicator a remote server is behind a NAT" << endl ;
         cerr << "    --daemon                       Run the process as a daemon background process" << endl ;
         cerr << "    --encrypt-inbound-connections  Run the process as a daemon background process" << endl ;
         cerr << "    --cert-file                    TLS certificate file" << endl ;
@@ -835,6 +840,10 @@ namespace drachtio {
         string outboundProxy ;
         if( m_Config->getSipOutboundProxy(outboundProxy) ) {
             DR_LOG(log_notice) << "DrachtioController::run: outbound proxy " << outboundProxy ;
+        }
+
+        if (!m_bAggressiveNatDetection) {
+            m_bAggressiveNatDetection = m_Config->isAggressiveNatEnabled();
         }
 
         // tls files

@@ -41,7 +41,7 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0) {
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -127,6 +127,15 @@ namespace drachtio {
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
                 
+                try {
+                    string nat = pt.get<string>("drachtio.sip.aggressive-nat-detection", "no") ;
+                    if (0 == nat.compare("yes") || 0 == nat.compare("YES") || 
+                        0 == nat.compare("true") || 0 == nat.compare("TRUE") ||
+                         0 == nat.compare("on") || 0 == nat.compare("ON")) {
+                        m_bAggressiveNatDetection = true;
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e) {
+                }
 
                 m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
@@ -362,6 +371,10 @@ namespace drachtio {
         unsigned int getMtu() {
             return m_mtu;
         }
+
+        bool isAggressiveNatEnabled() {
+            return m_bAggressiveNatDetection;
+        }
  
     private:
         
@@ -413,7 +426,7 @@ namespace drachtio {
         uint32_t m_captureServerAgentId ;
         unsigned int m_captureHepVersion ;
         unsigned int m_mtu;
-
+        bool m_bAggressiveNatDetection;
   } ;
     
     /*
@@ -493,4 +506,7 @@ namespace drachtio {
     unsigned int DrachtioConfig::getMtu() {
         return m_pimpl->getMtu();
     }
+    bool DrachtioConfig::isAggressiveNatEnabled() {
+        return m_pimpl->isAggressiveNatEnabled();
+    }   
 }

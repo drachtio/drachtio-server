@@ -83,6 +83,8 @@ namespace drachtio {
 
         bool getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version);
 
+        bool isAggressiveNatEnabled(void);   
+
         void Log() const ;
         
     private:

@@ -165,6 +165,8 @@ namespace drachtio {
     void makeConnectionForTag(const string& transactionId, const string& tag);
     void selectInboundConnectionForTag(const string& transactionId, const string& tag);
 
+    bool isAggressiveNatEnabled(void) { return m_bAggressiveNatDetection; }    
+
 	private:
 
   	DrachtioController() ;
@@ -247,6 +249,8 @@ namespace drachtio {
     string  m_strRequestPath ;
 
     RequestRouter   m_requestRouter ;
+
+    bool    m_bAggressiveNatDetection;
   } ;
 
 } ;

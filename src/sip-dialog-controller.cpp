@@ -228,15 +228,7 @@ namespace drachtio {
             }
 
             if (dlg->getRouteUri(routeUri)) {
-                su_home_t* home = theOneAndOnlyController->getHome();
-                url_t *url = url_make(home, requestUri.c_str());
-                if (dlg->getRole() == SipDialog::we_are_uas || (url && isRfc1918(url->url_host))) {
-                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to nat'ed address using route " << routeUri ;
-                }
-                else {
-                    routeUri.clear();
-                }
-                su_free(home, (void *) url);
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to nat'ed address using route " << routeUri ;
             }
 
             if( sip_method_ack == method ) {
@@ -699,6 +691,7 @@ namespace drachtio {
         msg_t* msg = nta_outgoing_getresponse(orq) ;    //adds a reference
         SipMsgData_t meta( msg, orq, "network") ;
 
+        DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - HEYHEY source of response is " << meta.getAddress() << ":" << meta.getPort();
         EncodeStackMessage( sip, encodedMessage ) ;
 
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
@@ -747,10 +740,31 @@ namespace drachtio {
                 (sip->sip_cseq->cs_method == sip_method_subscribe && 
                     (202 == sip->sip_status->st_status || 200 == sip->sip_status->st_status) ) )  {
 
-                DR_LOG(log_error) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
+                DR_LOG(log_info) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
                 nta_leg_t* leg = iip->leg() ;
                 nta_leg_rtag( leg, sip->sip_to->a_tag) ;
                 nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, false );
+
+                bool nat = false;
+                const sip_route_t* route = NULL;
+                if (nta_leg_get_route(leg, &route, NULL) >= 0 && route && route->r_url && route->r_url->url_host && isRfc1918(route->r_url->url_host)) {
+                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client at RFC1918 address: " << route->r_url->url_host  ;
+                    nat = true;
+                }
+                else if (theOneAndOnlyController->isAggressiveNatEnabled() && sipMsgHasNatEqualsYes(sip, true, true)) {
+                        DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client advertising nat=yes";
+                    nat = true;
+                }
+
+                if (nat) {
+                    url_t const * url = nta_outgoing_route_uri(orq);
+                    string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                    dlg->setRouteUri(routeUri);
+                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected nat setting route to: " <<   routeUri;
+                }
+                else {
+                    dlg->clearRouteUri();
+                }
 
                 addDialog( dlg ) ;
             }

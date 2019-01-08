@@ -751,6 +751,35 @@ namespace drachtio {
         return false;
      }
 
+	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool weAreUac, bool checkContact ) {
+        if (!sip->sip_record_route && !checkContact) return false;
+
+        if (sip->sip_record_route) {
+            sip_record_route_t *r = sip->sip_record_route;
+
+            if (weAreUac) {
+                for (; r; r = r->r_next) {
+                    if (r->r_next == NULL) break ;
+                }
+            }
+            if (r && r->r_url && r->r_url->url_params && NULL != ::strstr(r->r_url->url_params, "nat=yes")) {
+                return true;
+            }
+        }
+
+        if (checkContact && !sip->sip_record_route) {
+            if (sip->sip_contact &&
+                sip->sip_contact->m_url &&
+                sip->sip_contact->m_url &&
+                sip->sip_contact->m_url->url_params &&
+                NULL != ::strstr(sip->sip_contact->m_url->url_params, "nat=yes")) {
+                
+                return true;
+            }
+        }
+        return false;
+    }
+
     string urlencode(const string &s) {
         static const char lookup[]= "0123456789abcdef";
         std::stringstream e;
