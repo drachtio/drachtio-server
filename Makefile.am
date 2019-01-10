@@ -1,6 +1,6 @@
 
 MYVERSION=$(shell git describe)
-INCLUDES= -I/usr/local/include -I${srcdir}/deps/boost_1_67_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson-2.10/src
+INCLUDES= -I${srcdir}/deps/boost_1_67_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson-2.10/src -I/usr/local/include
 AM_LDFLAGS= -L/usr/local/lib 
 LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
 bin_PROGRAMS= drachtio timer ssltest parser uri_test test_https test_asio_curl

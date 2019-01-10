@@ -281,7 +281,7 @@ namespace drachtio {
 		string str((const char*) p->h_data, p->h_len) ;
 		boost::char_separator<char> sep(": \r\n") ;
         tokenizer tok( str, sep) ;
-        if( distance( tok.begin(), tok.end() ) > 1 ) hvalue = *(++tok.begin() ) ;
+        if( std::distance( tok.begin(), tok.end() ) > 1 ) hvalue = *(++tok.begin() ) ;
  	}
 
     bool FindCSeqMethod( const string& headers, string& method ) {
@@ -762,15 +762,13 @@ namespace drachtio {
                     if (r->r_next == NULL) break ;
                 }
             }
-            if (r && r->r_url && r->r_url->url_params && NULL != ::strstr(r->r_url->url_params, "nat=yes")) {
+            if (r && r->r_url->url_params && NULL != ::strstr(r->r_url->url_params, "nat=yes")) {
                 return true;
             }
         }
 
         if (checkContact && !sip->sip_record_route) {
             if (sip->sip_contact &&
-                sip->sip_contact->m_url &&
-                sip->sip_contact->m_url &&
                 sip->sip_contact->m_url->url_params &&
                 NULL != ::strstr(sip->sip_contact->m_url->url_params, "nat=yes")) {
                 

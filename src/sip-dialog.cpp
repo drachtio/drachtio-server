@@ -88,7 +88,7 @@ namespace drachtio {
 			}
 			else if (sip->sip_contact && !sip->sip_record_route) {
 				const url_t* url = sip->sip_contact->m_url;
-				if (url && 0 != m_sourceAddress.compare(url->url_host) || (url->url_port && atoi(url->url_port) != m_sourcePort)) {
+				if (url && (0 != m_sourceAddress.compare(url->url_host) || (url->url_port && atoi(url->url_port) != m_sourcePort))) {
 					DR_LOG(log_info) << "SipDialog::SipDialog - (UAS) detected client behind nat, using  " << m_sourceAddress << ":" << m_sourcePort << " as route for requests within this dialog";
 					nat = true;
 				}

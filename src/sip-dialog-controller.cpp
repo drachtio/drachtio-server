@@ -747,7 +747,7 @@ namespace drachtio {
 
                 bool nat = false;
                 const sip_route_t* route = NULL;
-                if (nta_leg_get_route(leg, &route, NULL) >= 0 && route && route->r_url && route->r_url->url_host && isRfc1918(route->r_url->url_host)) {
+                if (nta_leg_get_route(leg, &route, NULL) >= 0 && route && route->r_url->url_host && isRfc1918(route->r_url->url_host)) {
                     DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client at RFC1918 address: " << route->r_url->url_host  ;
                     nat = true;
                 }
