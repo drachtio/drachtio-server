@@ -197,9 +197,9 @@ namespace drachtio {
                 // we need to check if there was a mid-call network handoff, where this client jumped networks
                 std::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
                 if( NULL != pData ) {
-                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
                     if (pData->getTport() != tp) {
-                        DR_LOG(log_info) << "SipProxyController::doSendRequestOutsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
+                        DR_LOG(log_info) << "SipDialogController::doSendRequestOutsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
                         tp = pData->getTport();
                         forceTport = true ;
                     }
@@ -394,7 +394,7 @@ namespace drachtio {
                 useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
             }
             if (useOutboundProxy) {
-                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog sending request to route url: " << sipOutboundProxy ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog sending request to route url: " << sipOutboundProxy ;
             }
 
             sip_request_t *sip_request = sip_request_make(m_pController->getHome(), pData->getStartLine() ) ;
@@ -421,7 +421,7 @@ namespace drachtio {
                 if( NULL != pData ) {
                     forceTport = true ;
                     tp = pData->getTport() ;
-                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selecting existing secondary transport " << std::hex << (void *) tp ;
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selecting existing secondary transport " << std::hex << (void *) tp ;
 
                     getTransportDescription( tp, desc ) ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - selected transport " << std::hex << (void*)tp << ": " << desc << " for request-uri " << requestUri  ;            
@@ -440,27 +440,28 @@ namespace drachtio {
                 string wss = "transport=wss" ;
                 string ws = "transport=ws" ;
                 string tls = "transport=tls" ;
+                string *r = useOutboundProxy ? &sipOutboundProxy : &requestUri;
 
                 typedef const boost::iterator_range<std::string::const_iterator> StringRange;
 
-                if ( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(tcp.begin(), tcp.end()))) {
+                if ( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(tcp.begin(), tcp.end()))) {
                     proto = "tcp" ;
                 }
-                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(wss.begin(), wss.end()))) {
+                else if( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(wss.begin(), wss.end()))) {
                     proto = "wss";
                 }
-                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(ws.begin(), ws.end()))) {
+                else if( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(ws.begin(), ws.end()))) {
                     proto = "ws";
                 }
-                else if( boost::ifind_first(StringRange(requestUri.begin(), requestUri.end()), StringRange(tls.begin(), tls.end()))) {
+                else if( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(tls.begin(), tls.end()))) {
                     proto = "tls";
                 }
 
                 if (useOutboundProxy) {
-                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for route url " << sipOutboundProxy << " proto: " << proto ;
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog attempting to determine transport tport for route url " << sipOutboundProxy << " proto: " << proto ;
                 }
                 else {
-                    DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
                 }
                 pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str(), proto.c_str() ) ;
                 if (!pSelectedTransport) {
@@ -474,8 +475,8 @@ namespace drachtio {
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
-                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp ;
-                DR_LOG(log_debug) << "SipProxyController::doSendRequestOutsideDialog selected transport " << desc ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << desc ;
                 forceTport = true ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
