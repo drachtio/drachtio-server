@@ -223,6 +223,10 @@ namespace drachtio {
         contact.append(":") ;
         contact.append(szPort);
       }
+      if (szProto && strlen(szProto) > 0 && 0 != strcmp(szProto, "udp")) {
+        contact.append(";transport=");
+        contact.append(szProto);
+      }
     }
     else {
       contact.append(useExternalIp && !m_strExternalIp.empty() ? m_strExternalIp : m_contactHostpart) ;

@@ -853,7 +853,9 @@ namespace drachtio {
             pSelectedTransport = SipTransport::findTransport( tport ) ;
             assert(pSelectedTransport); 
 
-            pSelectedTransport->getContactUri(contact);
+            pSelectedTransport->getContactUri(contact, true);
+            contact = "<" + contact + ">" ;
+
             pSelectedTransport->getDescription(transportDesc);
 
             tport_unref( tp ) ;
@@ -965,7 +967,9 @@ namespace drachtio {
                 pSelectedTransport = SipTransport::findTransport( tport ) ;
                 assert(pSelectedTransport); 
 
-                pSelectedTransport->getContactUri(contact);
+                pSelectedTransport->getContactUri(contact, true);
+                contact = "<" + contact + ">" ;
+
                 pSelectedTransport->getDescription(transportDesc);
 
                 tport_unref( tp ) ;
