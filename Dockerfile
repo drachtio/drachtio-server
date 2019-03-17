@@ -13,7 +13,9 @@ RUN apt-get update \
   && make \
   && make install \
   && apt-get purge -y --quiet --force-yes --auto-remove gcc g++ make build-essential git autoconf automake libtool libtool-bin \
-  && rm -rf /var/lib/{apt,dpkg,cache,log}/ \
+  && rm -rf /var/lib/apt/* \
+  && rm -rf /var/lib/dpkg/* \
+  && rm -rf /var/lib/cache/* \
   && rm -Rf /var/log/* \
   && rm -Rf /var/lib/apt/lists/* \
   && cd /usr/local/src \
