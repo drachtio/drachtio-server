@@ -197,9 +197,9 @@ namespace drachtio {
                 // we need to check if there was a mid-call network handoff, where this client jumped networks
                 std::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
                 if( NULL != pData ) {
-                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
                     if (pData->getTport() != tp) {
-                        DR_LOG(log_info) << "SipDialogController::doSendRequestOutsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
+                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
                         tp = pData->getTport();
                         forceTport = true ;
                     }
@@ -692,7 +692,6 @@ namespace drachtio {
         msg_t* msg = nta_outgoing_getresponse(orq) ;    //adds a reference
         SipMsgData_t meta( msg, orq, "network") ;
 
-        DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - HEYHEY source of response is " << meta.getAddress() << ":" << meta.getPort();
         EncodeStackMessage( sip, encodedMessage ) ;
 
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
