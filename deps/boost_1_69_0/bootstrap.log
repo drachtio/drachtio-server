@@ -1,0 +1,25 @@
+###
+### Using 'gcc' toolset.
+###
+rm -rf bootstrap
+mkdir bootstrap
+gcc -o bootstrap/jam0 command.c compile.c constants.c debug.c execcmd.c frames.c function.c glob.c hash.c hdrmacro.c headers.c jam.c jambase.c jamgram.c lists.c make.c make1.c object.c option.c output.c parse.c pathsys.c regexp.c rules.c scan.c search.c subst.c timestamp.c variable.c modules.c strings.c filesys.c builtins.c class.c cwd.c native.c md5.c w32_getreg.c modules/set.c modules/path.c modules/regex.c modules/property-set.c modules/sequence.c modules/order.c execunix.c fileunix.c pathunix.c
+./bootstrap/jam0 -f build.jam --toolset=gcc --toolset-root= clean
+...found 1 target...
+...updating 1 target...
+[DELETE] clean
+...updated 1 target...
+./bootstrap/jam0 -f build.jam --toolset=gcc --toolset-root=
+...found 160 targets...
+...updating 2 targets...
+[COMPILE] bin.linuxx86_64/b2
+debugger.c: In function ‘debug_mi_format_breakpoint’:
+debugger.c:1837:13: warning: zero-length gnu_printf format string [-Wformat-zero-length]
+     printf( "" );
+             ^
+debugger.c: In function ‘debug_list_read’:
+debugger.c:165:5: warning: ignoring return value of ‘fscanf’, declared with attribute warn_unused_result [-Wunused-result]
+     fscanf( in, "%d", &len );
+     ^
+[COPY] bin.linuxx86_64/bjam
+...updated 2 targets...

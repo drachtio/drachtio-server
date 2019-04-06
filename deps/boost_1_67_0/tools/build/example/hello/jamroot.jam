@@ -1,3 +1,0 @@
-#[jamroot
-exe hello : hello.cpp ;
-#]
