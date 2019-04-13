@@ -266,7 +266,8 @@ namespace drachtio {
                   for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
                     vector<string> kv ;
                     boost::split(kv, *it, boost::is_any_of("="));
-                    params.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+                    std::pair<string, string> kvpair(kv[0], kv.size() == 2 ? kv[1] : "");
+                    params.push_back(kvpair);
                   }
                 }
                 return true ;

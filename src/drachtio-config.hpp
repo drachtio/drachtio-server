@@ -69,8 +69,6 @@ namespace drachtio {
         unsigned int getAdminTcpPort( void ) ;
         unsigned int getAdminTlsPort( void ) ;
 
-        bool getRedisAddress( string& address, unsigned int& port ) const ;
-
         bool getTlsFiles( string& keyFile, string& certFile, string& chainFile, string& dhParam ) const ;
 
         bool generateCdrs(void) const ;
@@ -84,6 +82,8 @@ namespace drachtio {
         bool getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version);
 
         bool isAggressiveNatEnabled(void);   
+
+        bool getPrometheusAddress( string& address, unsigned int& port ) const ;
 
         void Log() const ;
         

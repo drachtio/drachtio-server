@@ -44,6 +44,7 @@ namespace drachtio {
     RequestRouter() {}
     ~RequestRouter() {}
     
+    void clearRoutes(void) {m_mapSipMethod2Route.clear();}
     void addRoute(const string& sipMethod, const string& httpMethod, const string& httpUrl, bool verifyPeer = false);
     bool getRoute(const char* szMethod, string& httpMethod, string& httpUrl, bool& verifyPeer) ;
     int getAllRoutes( vector< string >& vecRoutes ) ;

@@ -18,6 +18,7 @@
                     sip:*:5061          
         -->
         <contacts>
+            <contact>sip:127.0.0.1:5090;transport=udp</contact>
         </contacts>
 
         <spammers action="reject" tcp-action="discard">

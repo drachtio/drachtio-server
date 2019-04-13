@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <chrono>
 
 #include <boost/foreach.hpp>
 
@@ -75,6 +76,16 @@ namespace drachtio {
       uint32_t getReplacedRSeq( uint32_t rseq ) ;
 
     protected:
+      chrono::time_point<chrono::steady_clock>& getArrivalTime(void) {
+        return m_timeArrive;
+      }
+      bool hasAlerted() const {
+        return m_bAlerting;
+      }
+      void alerting(void) {
+        m_bAlerting = true;
+      }
+
       void writeCdr( msg_t* msg, sip_t* sip ) ;
 
       std::weak_ptr<ProxyCore>  m_pCore ;
@@ -83,6 +94,10 @@ namespace drachtio {
       int     m_sipStatus ;
       uint32_t m_rseq ;
       std::unordered_map<uint32_t,uint32_t> m_mapAleg2BlegRseq ;
+
+      //timing
+      chrono::time_point<chrono::steady_clock> m_timeArrive;
+      bool m_bAlerting;
     } ;
 
     class ClientTransaction : public std::enable_shared_from_this<ClientTransaction>  {
@@ -146,7 +161,17 @@ namespace drachtio {
       void clearTimerK(void) { m_timerK = NULL;}
       void clearTimerProvisional(void) { m_timerProvisional = NULL;}
 
+
     protected:
+      chrono::time_point<chrono::steady_clock>& getArrivalTime(void) {
+        return m_timeArrive;
+      }
+      bool hasAlerted() const {
+        return m_bAlerting;
+      }
+      void alerting(void) {
+        m_bAlerting = true;
+      }
       void writeCdr( msg_t* msg, sip_t* sip ) ;
       const char* getStateName( State_t state) ;
       void removeTimer( TimerEventHandle& handle, const char *szTimer = NULL ) ;
@@ -176,6 +201,11 @@ namespace drachtio {
       TimerEventHandle  m_timerE ;
       TimerEventHandle  m_timerF ;
       TimerEventHandle  m_timerK ;
+
+      //timing
+      chrono::time_point<chrono::steady_clock> m_timeArrive;
+      bool m_bAlerting;
+
     } ;
 
     enum LaunchType_t {

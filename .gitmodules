@@ -4,3 +4,6 @@
 [submodule "deps/libzrtp"]
 	path = deps/libzrtp
 	url = https://github.com/traviscross/libzrtp.git
+[submodule "deps/prometheus-cpp"]
+	path = deps/prometheus-cpp
+	url = https://github.com/jupp0r/prometheus-cpp.git

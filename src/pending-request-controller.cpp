@@ -38,12 +38,11 @@ namespace drachtio {
   class SipDialogController ;
 
   PendingRequest_t::PendingRequest_t(msg_t* msg, sip_t* sip, tport_t* tp ) : m_msg( msg ), m_tp(tp), m_canceled(false),
-    m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), m_methodName(sip->sip_cseq->cs_method_name) {
-    //DR_LOG(log_debug) << "PendingRequest_t::PendingRequest_t" ;
-    generateUuid( m_transactionId ) ;
-   
+    m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), 
+    m_methodName(sip->sip_cseq->cs_method_name), m_timeArrive({std::chrono::steady_clock::now()}) {
+    
+    generateUuid( m_transactionId ) ;   
     msg_ref_create( m_msg ) ; 
-
   }
   PendingRequest_t::~PendingRequest_t()  {
     msg_destroy( m_msg ) ;
@@ -88,6 +87,9 @@ namespace drachtio {
       client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
       if( !client ) {
         DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {
+          {"method", sip->sip_request->rq_method_name},
+          {"code", "503"}})
         generateUuid( transactionId ) ;
         return 503 ;
       }

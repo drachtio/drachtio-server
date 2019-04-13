@@ -267,7 +267,7 @@ namespace drachtio {
 			assert( leg ) ;
 
 			std::lock_guard<std::mutex> lock(m_mutex) ;
-      m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg,dlg)) ;	
+      m_mapLeg2Dialog.insert( mapLeg2Dialog::value_type(leg, dlg)) ;	
       m_mapId2Dialog.insert( mapId2Dialog::value_type(strDialogId, dlg)) ;
 
       m_pClientController->addDialogForTransaction( dlg->getTransactionId(), strDialogId ) ;		
@@ -275,18 +275,17 @@ namespace drachtio {
 		bool findDialogByLeg( nta_leg_t* leg, std::shared_ptr<SipDialog>& dlg ) {
 			/* look in invites-in-progress first */
 			std::lock_guard<std::mutex> lock(m_mutex) ;
-	        mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
-	        if( m_mapLeg2IIP.end() == it ) {
+			mapLeg2IIP::iterator it = m_mapLeg2IIP.find( leg ) ;
+			if( m_mapLeg2IIP.end() == it ) {
 
-	        	/* if not found, look in stable dialogs */
+				/* if not found, look in stable dialogs */
 				mapLeg2Dialog::iterator itLeg = m_mapLeg2Dialog.find( leg ) ;
 				if( m_mapLeg2Dialog.end() == itLeg ) return false ;
 				dlg = itLeg->second ;
 				return true ;
-	        }
-
-	        dlg = it->second->dlg() ;
-	        return true ;
+			}
+			dlg = it->second->dlg() ;
+			return true ;
 		}
 		bool findDialogById(  const string& strDialogId, std::shared_ptr<SipDialog>& dlg ) {
 			std::lock_guard<std::mutex> lock(m_mutex) ;

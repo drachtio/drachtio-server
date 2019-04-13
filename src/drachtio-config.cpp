@@ -41,7 +41,7 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false) {
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false), m_prometheusPort(0), m_prometheusAddress("0.0.0.0") {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -164,7 +164,15 @@ namespace drachtio {
                     // optional
                 }
 
+                /* monitoring */
 
+                /* prometheus */
+                try {
+                    pt.get_child("drachtio.monitoring.prometheus") ; // will throw if doesn't exist
+                    m_prometheusPort = pt.get<unsigned int>("drachtio.monitoring.prometheus.<xmlattr>.port") ;
+                    m_prometheusAddress = pt.get<string>("drachtio.monitoring.prometheus") ;
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                }
 
                 /* logging configuration  */
  
@@ -375,6 +383,14 @@ namespace drachtio {
         bool isAggressiveNatEnabled() {
             return m_bAggressiveNatDetection;
         }
+
+        bool getPrometheusAddress( string& address, unsigned int& port ) {
+            if (0 == m_prometheusPort) return false;
+            address = m_prometheusAddress;
+            port = m_prometheusPort;
+            return true;
+        }
+
  
     private:
         
@@ -427,6 +443,8 @@ namespace drachtio {
         unsigned int m_captureHepVersion ;
         unsigned int m_mtu;
         bool m_bAggressiveNatDetection;
+        string m_prometheusAddress;
+        unsigned int m_prometheusPort;
   } ;
     
     /*
@@ -508,5 +526,9 @@ namespace drachtio {
     }
     bool DrachtioConfig::isAggressiveNatEnabled() {
         return m_pimpl->isAggressiveNatEnabled();
-    }   
+    }
+    bool DrachtioConfig::getPrometheusAddress( string& address, unsigned int& port ) const {
+        return m_pimpl->getPrometheusAddress(address, port);
+    }
+  
 }

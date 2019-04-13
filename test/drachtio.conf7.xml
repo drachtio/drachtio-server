@@ -2,11 +2,11 @@
 
     <!-- udp port to listen on for client connections (default 8022), and shared secret used to authenticate clients -->
     <admin port="9022" secret="cymru">127.0.0.1</admin>
- <!--
+ 
      <request-handlers>
-       <request-handler sip-method="REGISTER" http-method="GET">http://127.0.0.1:3001</request-handler>
+       <request-handler sip-method="INVITE" http-method="POST">http://127.0.0.1:3030</request-handler>
     </request-handlers>
--->
+
     <!-- sip configuration -->
     <sip>
         <!-- local sip address to bind to.  Default: 'sip:*', which means listens on port 5060 on all interfaces and transports -->
@@ -31,15 +31,10 @@
             </header>
         </spammers>
 
-        <udp-mtu>4096</udp-mtu>
     </sip>
 
     <cdrs>true</cdrs>
             
-    <monitoring>
-        <prometheus port="9999">127.0.0.1</prometheus>
-    </monitoring>
-
     <!-- logging configuration -->
     <logging>
 

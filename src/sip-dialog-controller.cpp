@@ -52,25 +52,37 @@ namespace {
     void cloneSendSipCancelRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", "CANCEL"}})
         pController->getDialogController()->doSendCancelRequest( d ) ;
     }
     int uacLegCallback( nta_leg_magic_t* p, nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
+        if( sip && sip->sip_request ) STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", sip->sip_request->rq_method_name}})
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         return pController->getDialogController()->processRequestInsideDialog( leg, irq, sip) ;
     }
     int uasCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
-       drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
+        if( sip && sip->sip_request ) STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", sip->sip_request->rq_method_name}})
+        drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         return pController->getDialogController()->processCancelOrAck( p, irq, sip) ;
     }
     int uasPrack( drachtio::SipDialogController *pController, nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) {
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", "PRACK"}})
         return pController->processPrack( rel, prack, sip) ;
     }
-   int response_to_request_outside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {   
+   int response_to_request_outside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {  
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_IN, {
+            {"method", sip->sip_cseq->cs_method_name},
+            {"code", boost::lexical_cast<std::string>(sip->sip_status->st_status)}
+        }) 
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         return pController->getDialogController()->processResponseOutsideDialog( request, sip ) ;
     } 
    int response_to_request_inside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {   
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_IN, {
+            {"method", sip->sip_cseq->cs_method_name},
+            {"code", boost::lexical_cast<std::string>(sip->sip_status->st_status)}
+        }) 
         return pController->getDialogController()->processResponseInsideDialog( request, sip ) ;
     } 
     void cloneSendSipRequestInsideDialog(su_root_magic_t* p, su_msg_r msg, void* arg ) {
@@ -304,6 +316,8 @@ namespace drachtio {
                 msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
                 sip_t* sip = sip_object( m ) ;
 
+                STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", sip->sip_request->rq_method_name}})
+
                 string encodedMessage ;
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta(m, orq) ;
@@ -435,35 +449,7 @@ namespace drachtio {
                }
             }
             if( NULL == tp ) {
-                string proto = "udp" ;
-                string tcp = "transport=tcp" ;
-                string wss = "transport=wss" ;
-                string ws = "transport=ws" ;
-                string tls = "transport=tls" ;
-                string *r = useOutboundProxy ? &sipOutboundProxy : &requestUri;
-
-                typedef const boost::iterator_range<std::string::const_iterator> StringRange;
-
-                if ( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(tcp.begin(), tcp.end()))) {
-                    proto = "tcp" ;
-                }
-                else if( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(wss.begin(), wss.end()))) {
-                    proto = "wss";
-                }
-                else if( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(ws.begin(), ws.end()))) {
-                    proto = "ws";
-                }
-                else if( boost::ifind_first(StringRange(r->begin(), r->end()), StringRange(tls.begin(), tls.end()))) {
-                    proto = "tls";
-                }
-
-                if (useOutboundProxy) {
-                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog attempting to determine transport tport for route url " << sipOutboundProxy << " proto: " << proto ;
-                }
-                else {
-                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog attempting to determine transport tport for request-uri " << requestUri << " proto: " << proto ;
-                }
-                pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str(), proto.c_str() ) ;
+                pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str()) ;
                 if (!pSelectedTransport) {
                     throw std::runtime_error(string("requested protocol/transport not available"));
                 }
@@ -475,8 +461,7 @@ namespace drachtio {
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp ;
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << desc ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp << desc ;
                 forceTport = true ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
@@ -569,6 +554,8 @@ namespace drachtio {
 
             msg_t* m = nta_outgoing_getrequest(orq) ; //adds a reference
             sip_t* sip = sip_object( m ) ;
+
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", sip->sip_request->rq_method_name}})
 
             if( method == sip_method_invite || method == sip_method_subscribe ) {
                 std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( pData->getDialogId(), pData->getTransactionId(), 
@@ -731,6 +718,23 @@ namespace drachtio {
             if( sip->sip_payload ) {
                 iip->dlg()->setRemoteSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
             }
+
+            // stats
+            if (theOneAndOnlyController->getStatsCollector().enabled()) {
+                // post-dial delay
+                if (sip->sip_cseq->cs_method == sip_method_invite && dlg->getSipStatus() <= 200) {
+                    auto now = std::chrono::steady_clock::now();
+                    std::chrono::duration<double> diff = now - dlg->getArrivalTime();
+                    if (!dlg->hasAlerted()) {
+                        dlg->alerting();
+                        STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_PDD_OUT, diff.count())
+                    }
+                    if (200 == dlg->getSipStatus()) {
+                        STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_RESPONSE_TIME_OUT, diff.count())
+                    }
+                }
+            }
+
 
             //UAC Dialog is added when we receive a final response from the network, or a reliable provisional response
             //for non-success responses, it will subsequently be removed when we receive the ACK from the client
@@ -1090,6 +1094,23 @@ namespace drachtio {
                             dlg->setTimerH(t) ;
                         }
                     }
+
+                    // stats
+                    if (theOneAndOnlyController->getStatsCollector().enabled()) {
+    
+                        // response time to incoming INVITE request
+                        if (sip_method_invite == nta_incoming_method(irq) && code <= 200) {
+                            auto now = std::chrono::steady_clock::now();
+                            std::chrono::duration<double> diff = now - dlg->getArrivalTime();
+                            if (!dlg->hasAlerted()) {
+                                dlg->alerting();
+                                STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_PDD_IN, diff.count())
+                            }
+                            if (code == 200) {
+                                STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN, diff.count())
+                            }
+                        }
+                    }
                 }
 
                 msg_destroy( msg ); //release the reference
@@ -1123,8 +1144,13 @@ namespace drachtio {
             // we can get an rc=0 from nta_incoming_treply above, but have it actually fail
             // in the case of a websocket that closed immediately after sending us a BYE
             if (msg) {
-                EncodeStackMessage( sip_object(msg), encodedMessage ) ;
+                sip_t *sip = sip_object( msg );
+                EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq, "application" ) ;
+
+                STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {
+                    {"method", sip->sip_cseq->cs_method_name},
+                    {"code", boost::lexical_cast<std::string>(code)}})
 
                 string s ;
                 meta.toMessageFormat(s) ;
@@ -1358,6 +1384,8 @@ namespace drachtio {
 
             nta_outgoing_destroy( ack_request ) ;
 
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "ACK"}})
+
             if( sip->sip_status->st_status != 200 ) {
                 //TODO: notify client that call has failed, send BYE
             }
@@ -1524,6 +1552,8 @@ namespace drachtio {
             std::shared_ptr<RIP> p = std::make_shared<RIP>( transactionId ) ; 
             addRIP( orq, p ) ;
 
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "INVITE"}})
+
             //m_pClientController->route_event_inside_dialog( "{\"eventName\": \"refresh\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
     }
@@ -1537,6 +1567,9 @@ namespace drachtio {
                                             SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"Session timer expired\""),
                                             TAG_END() ) ;
             nta_outgoing_destroy(orq) ;
+
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "BYE"}})
+
             //m_pClientController->route_event_inside_dialog( "{\"eventName\": \"terminate\",\"eventData\":\"session expired\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
         clearDialog( dlg->getDialogId() ) ;
@@ -1767,6 +1800,8 @@ namespace drachtio {
         msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
         sip_t* sip = sip_object( m ) ;
 
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "BYE"}})
+
         string encodedMessage ;
         EncodeStackMessage( sip, encodedMessage ) ;
         SipMsgData_t meta(m, orq) ;
@@ -1836,6 +1871,24 @@ namespace drachtio {
         DR_LOG(log_debug) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size()  ;
         DR_LOG(log_debug) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;
         m_pTQM->logQueueSizes() ;
+
+        // stats
+        if (theOneAndOnlyController->getStatsCollector().enabled()) {
+
+            size_t nUas = 0, nUac = 0;
+            {
+                mapLeg2Dialog::const_iterator it = m_mapLeg2Dialog.begin();
+                for (; it != m_mapLeg2Dialog.end(); ++it) {
+                    const shared_ptr<SipDialog>& pDialog = it->second;
+                    if (pDialog->isInviteDialog()) {
+                        if (SipDialog::we_are_uas == pDialog->getRole()) nUas++;
+                        else if (SipDialog::we_are_uac == pDialog->getRole()) nUac++;
+                    }
+                }
+            }
+            STATS_GAUGE_SET_NOCHECK(STATS_GAUGE_STABLE_DIALOGS, nUas, {{"type", "inbound"}})
+            STATS_GAUGE_SET_NOCHECK(STATS_GAUGE_STABLE_DIALOGS, nUac, {{"type", "outbound"}})
+        }
     }
 
 }

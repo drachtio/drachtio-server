@@ -17,10 +17,34 @@ const execCmd = (cmd, opts) => {
     }, 750);
   });
 };
+test('reads config from ENV', (t) => {
+  let uac;
+  return start('./drachtio.conf4.xml', [], false, 500, {
+    'DRACHTIO_SECRET': 'foobar'
+  })
+    .then(() => {
+      uac = new Uac();
+      return uac.connect({
+        "host": "127.0.0.1",
+        "port": 9022,
+        "secret": "foobar"
+      });
+    })
+    .then(() => {
+      t.pass('successfully used environment variable');
+      uac.disconnect();
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uac) uac.disconnect();
+      stop();
+    });
+});
 
 test('requested protocol not available', (t) => {
   let uac;
-  return start('./drachtio.conf4.xml', ['--contact', 'sip:127.0.0.1;transport=udp'])
+  return start('./drachtio.conf4.xml')
     .then(() => {
       uac = new Uac();
       return uac.connect();

@@ -158,6 +158,10 @@
 
     <!-- set to true if you want the server to cdr events to a connected client -->
     <cdrs>false</cdrs>
+
+    <monitoring>
+        <prometheus port="8088">127.0.0.1</prometheus>
+    </monitoring>
             
     <!-- logging configuration -->
     <logging>

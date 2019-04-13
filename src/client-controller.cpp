@@ -609,6 +609,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "m_mapApiRequests size:                                           " << m_mapApiRequests.size()  ;
         DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size()  ;
 
+        STATS_GAUGE_SET(STATS_GAUGE_CLIENT_APP_CONNECTIONS, m_clients.size())
 
     }
     std::shared_ptr<SipDialogController> ClientController::getDialogController(void) {

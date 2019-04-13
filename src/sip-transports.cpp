@@ -412,14 +412,20 @@ namespace drachtio {
     string scheme, userpart, hostpart, port ;
     vector< pair<string,string> > vecParam ;
     string host = remoteHost ;
-
-    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: searching for a transport to reach " << proto << "/" << remoteHost ;
+    string requestedProto = (NULL == proto ? "" : proto);
 
     if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
       host = hostpart ;
-      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: host parsed as " << host;
     }
 
+    for (vector<pair<string, string> >::const_iterator it = vecParam.begin(); it != vecParam.end(); ++it) {
+      if (0 == it->first.compare("transport")) {
+        requestedProto = it->second;
+        break;
+      }
+    }
+    std::transform(requestedProto.begin(), requestedProto.end(), requestedProto.begin(), ::tolower);
+    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: searching for a transport to reach " << requestedProto.c_str() << "/" << remoteHost ;
     string desc ;
     bool wantsIpV6 = (NULL != strstr( remoteHost, "[") && NULL != strstr( remoteHost, "]")) ;
 
@@ -444,9 +450,9 @@ namespace drachtio {
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for transport we have " << candidates.size() << " candidates";
 
     // filter by protocol
-    it = std::remove_if(candidates.begin(), candidates.end(), [proto](const std::shared_ptr<SipTransport>& p) {
-      if (!proto) return false;
-      return 0 != strcmp(p->getProtocol(), proto);
+    it = std::remove_if(candidates.begin(), candidates.end(), [requestedProto](const std::shared_ptr<SipTransport>& p) {
+      if (requestedProto.length() == 0) return false;
+      return 0 != strcmp(p->getProtocol(), requestedProto.c_str());
     });
     candidates.erase(it, candidates.end());
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for protocol we have " << candidates.size() << " candidates";

@@ -126,3 +126,107 @@ test('proxy call - remove preloaded Route header', (t) => {
       stop();
     });
 });
+
+test('proxy call over tcp when transport=tcp appears in route', (t) => {
+  let uas;
+  return start()
+    .then(() => {
+      uas = new Uas();
+      return uas.connect();
+    })
+    .then(() => {
+      return uas.proxy('sip:127.0.0.1:5091;transport=tcp');
+    })
+    .then(() => {
+      execCmd('sipp -sf ./uas-success.xml -i 127.0.0.1 -p 5091 -m 1 -t t1', {cwd: './scenarios'});
+      return;
+    })
+    .then(() => {
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1 -t t1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.pass('proxy succeeded');
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          uas.disconnect();
+          resolve();
+        }, 1000);
+      });
+    })
+    .then(() => {
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas) uas.disconnect();
+      stop();
+    });
+});
+
+test('attempt to proxy over tcp when the server has no udp tport', (t) => {
+  let uas;
+  return start('./drachtio.conf5.xml')
+    .then(() => {
+      uas = new Uas();
+      return uas.connect();
+    })
+    .then(() => {
+      return uas.proxy('sip:127.0.0.1:5091');
+    })
+    .then(() => {
+      execCmd('sipp -sf ./uas-success.xml -i 127.0.0.1 -p 5091 -m 1 -t t1', {cwd: './scenarios'});
+      return;
+    })
+    .then(() => {
+      return execCmd('sipp -sf ./uac.xml 127.0.0.1:5090 -m 1 -t t1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.pass('proxy succeeded');
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          uas.disconnect();
+          resolve();
+        }, 1000);
+      });
+    })
+    .then(() => {
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas) uas.disconnect();
+      stop();
+    });
+});
+
+test('return 500 if call cannot be proxied due to lack of appropriate tport', (t) => {
+  let uas;
+  return start('./drachtio.conf6.xml')
+    .then(() => {
+      uas = new Uas();
+      return uas.connect();
+    })
+    .then(() => {
+      return uas.proxy('sip:127.0.0.1:5091;transport=udp');
+    })
+    .then(() => {
+      return execCmd('sipp -sf ./uac-expect-500.xml 127.0.0.1:5090 -m 1 -t t1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.pass('proxy succeeded');
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          uas.disconnect();
+          resolve();
+        }, 1000);
+      });
+    })
+    .then(() => {
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas) uas.disconnect();
+      stop();
+    });
+});

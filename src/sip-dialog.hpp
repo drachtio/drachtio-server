@@ -23,6 +23,7 @@ THE SOFTWARE.
 #define __SIP_DIALOG_HPP__
 
 #include <sys/time.h>
+#include <chrono>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
@@ -176,6 +177,16 @@ namespace drachtio {
 		}
 		void clearRouteUri() { m_routeUri.clear(); }
 
+		chrono::time_point<chrono::steady_clock>& getArrivalTime(void) {
+			return m_timeArrive;
+		}
+		bool hasAlerted() const {
+			return m_bAlerting;
+		}
+		void alerting(void) {
+			m_bAlerting = true;
+		}
+
 	protected:
 		bool 				m_bInviteDialog;
 
@@ -221,6 +232,11 @@ namespace drachtio {
     TimerEventHandle  m_timerH ;
     uint32_t					m_durationTimerG;
     uint32_t					m_countTimerG;
+
+		//timing
+		chrono::time_point<chrono::steady_clock> m_timeArrive;
+		bool m_bAlerting;
+
 	}  ;
 
 }

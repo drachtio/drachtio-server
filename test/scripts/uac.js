@@ -29,8 +29,8 @@ class App extends Emitter {
     });
   }
 
-  connect() {
-    this.srf.connect(config.drachtio.connectOpts);
+  connect(opts) {
+    this.srf.connect(opts || config.drachtio.connectOpts);
     return new Promise((resolve, reject) => {
       this.srf.on('connect', (err) => {
         if (err) return reject(err);
