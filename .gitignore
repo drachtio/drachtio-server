@@ -33,6 +33,7 @@ depcomp
 *.tar.gz
 *.old
 /build/
+.vscode
 
 test/.eslintignore
 test/.eslintrc.json
