@@ -1302,6 +1302,20 @@ namespace drachtio {
                 msg_destroy( msg ); // release the reference
 
                 bool routed = m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, transactionId, dlg->getDialogId() ) ;
+                if (!routed && dlg->getSipStatus() < 200) {
+                    // got a request before we sent a 200 OK to the initial INVITE, treat as an out-of-dialog request
+                    switch (sip->sip_request->rq_method) {
+                        case sip_method_notify:
+                        case sip_method_options:
+                        case sip_method_info:
+                        case sip_method_message:
+                        case sip_method_publish:
+                        case sip_method_subscribe:
+                            return m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                        default:
+                        break;
+                    }
+                }
 
                 addIncomingRequestTransaction( irq, transactionId) ;
     
