@@ -256,6 +256,7 @@ namespace drachtio {
                     dlg->ackSent(orq) ;  
                     dlg->setTport( nta_outgoing_transport( orq ) ) ;
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
+
                     this->clearIIP( leg ) ;     
                 }
             }
@@ -1343,7 +1344,7 @@ namespace drachtio {
     	ostringstream o ;
         std::shared_ptr<RIP> rip  ;
 
-        if( findRIPByOrq( orq, rip ) ) {
+        if( findAndEraseRIPByOrq( orq, rip ) ) {
             DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: found request for response"  ;
 
             string encodedMessage ;
@@ -1368,12 +1369,15 @@ namespace drachtio {
                     assert(false) ;
                 }
             }
-            clearRIP( orq ) ;          
         }
         else {
             DR_LOG(log_error) << "SipDialogController::processResponseInsideDialog: unable to find request associated with response"  ;            
         }
-        nta_outgoing_destroy( orq ) ;
+
+        // if orq is also in IIP, don't destroy it here
+        mapOrq2IIP::iterator itOrq = m_mapOrq2IIP.find(orq) ;
+        if ( m_mapOrq2IIP.end() == itOrq )
+            nta_outgoing_destroy( orq ) ;
   
 		return 0 ;
     }
@@ -1762,6 +1766,16 @@ namespace drachtio {
         if( m_mapOrq2RIP.end() == it ) return false ;
         rip = it->second ;
         return true ;                       
+    }
+    // the only difference from findRIPByOrq is this method erase rip from m_mapOrq2RIP after it is found
+    bool SipDialogController::findAndEraseRIPByOrq( nta_outgoing_t* orq, std::shared_ptr<RIP>& rip ) {
+        DR_LOG(log_debug) << "SipDialogController::findRIPByOrq orq " << std::hex << (void*) orq  ;
+        std::lock_guard<std::mutex> lock(m_mutex) ;
+        mapOrq2RIP::iterator it = m_mapOrq2RIP.find( orq ) ;
+        if( m_mapOrq2RIP.end() == it ) return false ;
+        rip = it->second ;
+        m_mapOrq2RIP.erase( it ) ;
+        return true ;
     }
     void SipDialogController::clearRIP( nta_outgoing_t* orq ) {
         DR_LOG(log_debug) << "SipDialogController::clearRIP clearing orq " << std::hex << (void*) orq  ;
