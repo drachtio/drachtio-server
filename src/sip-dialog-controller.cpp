@@ -300,8 +300,6 @@ namespace drachtio {
                 }
             }
 
-            deleteTags( tags ) ;
-
             if( NULL == orq && sip_method_ack != method ) {
                 throw std::runtime_error("Error creating sip transaction for request") ;               
             }
@@ -347,7 +345,9 @@ namespace drachtio {
                 }
      
                 msg_destroy(m) ; //releases reference
-                m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;                
+                m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ; 
+                deleteTags( tags ) ;
+               
             }
 
  
@@ -546,8 +546,6 @@ namespace drachtio {
                 ,TAG_IF( forceTport, NTATAG_TPORT(tp))
                 ,TAG_NEXT(tags) ) ;
 
-            deleteTags( tags ) ;
-
             if( NULL == orq ) {
                 throw std::runtime_error("Error creating sip transaction for uac request") ;               
             }
@@ -578,7 +576,8 @@ namespace drachtio {
             string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;
-           
+            deleteTags( tags ) ;
+
  
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - " << err.what() ;
@@ -1697,7 +1696,7 @@ namespace drachtio {
         m_mapTransactionId2IIP.erase( itTransaction ) ;
 
         if( irq ) nta_incoming_destroy( irq ) ;
-        if( orq ) nta_outgoing_destroy( orq ) ;
+        //if( orq ) nta_outgoing_destroy( orq ) ;
 
         if( rel ) {
             mapRel2IIP::iterator itRel = m_mapRel2IIP.find( rel ) ;
