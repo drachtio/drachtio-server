@@ -100,7 +100,7 @@ namespace drachtio {
 
     std::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
 
-    void logStorageCount(void) ;
+    void logStorageCount(bool bDetail = false) ;
 
     bool isRetransmission( sip_t* sip ) {
       string id ;

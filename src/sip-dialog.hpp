@@ -137,18 +137,10 @@ namespace drachtio {
 		unsigned long getMinSE(void) { return m_nMinSE; }
 		void setMinSE(unsigned long secs) { m_nMinSE = secs;}
 
-		bool hasAckBeenSent(void) { return m_bAckSent;}
-		void ackSent(nta_outgoing_t* ack = NULL) { m_bAckSent = true; if (ack) { m_ackOrq = ack; }}
-		void retransmitAck(void) ;
 		tport_t* getTport(void) { return m_tp ;}
 		void setTport(tport_t* tp) ;
 
 		nta_leg_t* getNtaLeg(void) { return m_leg; }
-
-		void setTimerD(TimerEventHandle& handle) { m_timerD = handle; }
-		TimerEventHandle getTimerD(void) { return m_timerD; }
-		void clearTimerD() { m_timerD = NULL;}
-
 		void setTimerG(TimerEventHandle& handle) { 
 			m_timerG = handle; 
 			if( 0 == m_durationTimerG ) {
@@ -217,17 +209,12 @@ namespace drachtio {
 		unsigned int 	m_sourcePort ;
 		string      m_protocol ;
 
-		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
-		bool			m_bAckSent ;
-
 		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp ;
-		nta_outgoing_t*  m_ackOrq;
 
 		string 		m_routeUri;
 
 		// sip timers
-    TimerEventHandle  m_timerD ;
     TimerEventHandle  m_timerG ;
     TimerEventHandle  m_timerH ;
     uint32_t					m_durationTimerG;

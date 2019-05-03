@@ -107,6 +107,34 @@ namespace drachtio {
 		std::shared_ptr<SipDialog> 	m_dlg ;
 	} ;
 
+	/**
+	 * manages timer D: the timer that governs how long we keep around ACKs
+	 * for UAC INVITEs to be able to respond to retransmitted final responses
+	 */
+	class TimerDHandler {
+	public:
+		TimerDHandler() {}
+		~TimerDHandler() {}
+
+		void setTimerQueueManager(std::shared_ptr<TimerQueueManager> pTQM) { 
+			m_pTQM = pTQM;
+		}
+		void addInvite(nta_outgoing_t* invite);
+		void addAck(nta_outgoing_t*	ack);
+		bool resendIfNeeded(nta_outgoing_t* invite);
+		size_t countTimerD() { return m_mapInvite2Ack.size();}
+		size_t countPending() { return m_mapCallIdAndCSeq2Invite.size();}
+
+	private:
+		void timerD(nta_outgoing_t*	invite, const string& callIdAndCSeq);
+
+		std::shared_ptr<TimerQueueManager> m_pTQM;
+		typedef std::unordered_map<string, nta_outgoing_t*> mapCallIdAndCSeq2Invite;
+		typedef std::unordered_map<nta_outgoing_t*, nta_outgoing_t*> mapInvite2Ack;
+		
+		mapCallIdAndCSeq2Invite	m_mapCallIdAndCSeq2Invite;
+		mapInvite2Ack 					m_mapInvite2Ack;
+	} ;
 
 	class SipDialogController : public std::enable_shared_from_this<SipDialogController> {
 	public:
@@ -206,7 +234,7 @@ namespace drachtio {
     	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;
     }
 
-		void logStorageCount(void)  ;
+		void logStorageCount(bool bDetail = false)  ;
 
 		/// IIP helpers 
 		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg ) ;
@@ -315,9 +343,6 @@ namespace drachtio {
 		bool findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) ;
 		nta_incoming_t* findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) ;
 
-		void timerD(std::shared_ptr<IIP> iip, nta_leg_t* leg, const string& dialogId);
-		void clearIIPFinal(std::shared_ptr<IIP> iip, nta_leg_t* leg);
-
 		// retransmit final response to invite
 		void retransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg);
 		void endRetransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg);
@@ -327,13 +352,9 @@ namespace drachtio {
 
 	protected:
 		std::shared_ptr<SipDialog> clearIIP( nta_leg_t* leg ) ;
-		
 		void clearDialog( const string& strDialogId ) ;
-		
 		void clearDialog( nta_leg_t* leg ) ;
-
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
-
 		void bindIrq( nta_incoming_t* irq ) ;
 
 
@@ -350,6 +371,8 @@ namespace drachtio {
 
 		nta_agent_t*		m_agent ;
 		std::shared_ptr< ClientController > m_pClientController ;
+
+		TimerDHandler 	m_timerDHandler;
  
  		/// INVITEs in progress
 

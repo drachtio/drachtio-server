@@ -17,32 +17,8 @@ const execCmd = (cmd, opts) => {
     }, 750);
   });
 };
-test('reads config from ENV', (t) => {
-  let uac;
-  return start('./drachtio.conf4.xml', ['--memory-debug'], false, 500, {
-    'DRACHTIO_SECRET': 'foobar'
-  })
-    .then(() => {
-      uac = new Uac();
-      return uac.connect({
-        "host": "127.0.0.1",
-        "port": 9022,
-        "secret": "foobar"
-      });
-    })
-    .then(() => {
-      t.pass('successfully used environment variable');
-      uac.disconnect();
-      return stop();
-    })
-    .catch((err) => {
-      t.fail(`failed with error ${err}`);
-      if (uac) uac.disconnect();
-      stop();
-    });
-});
 
-test('requested protocol not available', (t) => {
+test('uac session < 32s', {timeout: 45000}, (t) => {
   let uac;
   return start('./drachtio.conf4.xml', ['--memory-debug'])
     .then(() => {
@@ -50,48 +26,26 @@ test('requested protocol not available', (t) => {
       return uac.connect();
     })
     .then(() => {
-      return uac.options('sip:192.168.100.53;transport=tcp');
-    })
-    .catch((err) => {
-      t.equal(err, 'requested protocol/transport not available', 'fails with expected error');
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          uac.disconnect();
-          resolve();
-        }, 1000);
-      });
-    })
-    .then(() => {
-      return stop();
-    })
-    .catch((err) => {
-      t.fail(`failed with error ${err}`);
-      if (uac) uac.disconnect();
-      stop();
-    });
-});
-
-test('retransmit OPTIONS', (t) => {
-  let uac;
-  return start('./drachtio.conf4.xml', ['--memory-debug'])
-    .then(() => {
-      uac = new Uac();
-      return uac.connect();
-    })
-    .then(() => {
-      execCmd('sipp -sf ./uas-options-delay.xml -i 127.0.0.1 -p 5091 -m 1', {cwd: './scenarios'});
+      execCmd('sipp -sf ./uas-success.xml -i 127.0.0.1 -p 5095 -m 1', {cwd: './scenarios', maxBuffer: 100 * 102 * 11024});
       return;
     })
     .then(() => {
-      return uac.options('sip:127.0.0.1:5091');
+      return uac.call('sip:127.0.0.1:5095', {hangupAfter: 5000});
     })
-    .then((req) => {
+    .then((emitter) => {
+      t.pass('sent call')
       return new Promise((resolve) => {
-        req.on('response', () => resolve());
+        emitter.on('success', () => resolve());
       })
     })
     .then(() => {
-      t.pass('successfully handled delayed response');
+      return t.pass('call connected, waiting 36s');
+    }).then(() => {
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(), 36000);
+      })
+    })
+    .then(() => {
       uac.disconnect();
       return stop();
     })
@@ -102,7 +56,7 @@ test('retransmit OPTIONS', (t) => {
     });
 });
 
-test('retransmit INVITE', (t) => {
+test('uac session > 32s', {timeout: 55000}, (t) => {
   let uac;
   return start('./drachtio.conf4.xml', ['--memory-debug'])
     .then(() => {
@@ -110,19 +64,26 @@ test('retransmit INVITE', (t) => {
       return uac.connect();
     })
     .then(() => {
-      execCmd('sipp -sf ./uas-invite-delay.xml -i 127.0.0.1 -p 5092 -m 1', {cwd: './scenarios'});
+      execCmd('sipp -sf ./uas-success.xml -i 127.0.0.1 -p 5095 -m 1', {cwd: './scenarios', maxBuffer: 100 * 102 * 11024});
       return;
     })
     .then(() => {
-      return uac.invite('sip:127.0.0.1:5092');
+      return uac.call('sip:127.0.0.1:5095', {hangupAfter: 10000});
     })
-    .then((req) => {
+    .then((emitter) => {
+      t.pass('sent call')
       return new Promise((resolve) => {
-        req.on('response', () => resolve());
+        emitter.on('success', () => resolve());
       })
     })
     .then(() => {
-      t.pass('successfully handled delayed response');
+      return t.pass('call connected, waiting 50s for hangup');
+    }).then(() => {
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(), 50000);
+      })
+    })
+    .then(() => {
       uac.disconnect();
       return stop();
     })
@@ -133,3 +94,40 @@ test('retransmit INVITE', (t) => {
     });
 });
 
+test('uac invite/reinvite', {timeout: 55000}, (t) => {
+  let uac;
+  return start('./drachtio.conf4.xml', ['--memory-debug'])
+    .then(() => {
+      uac = new Uac();
+      return uac.connect();
+    })
+    .then(() => {
+      execCmd('sipp -sf ./uas-success-reinvite.xml -i 127.0.0.1 -p 5095 -m 1', {cwd: './scenarios', maxBuffer: 100 * 102 * 11024});
+      return;
+    })
+    .then(() => {
+      return uac.call('sip:127.0.0.1:5095', {hangupAfter: 40000,  reinviteAfter: 5000});
+    })
+    .then((emitter) => {
+      t.pass('sent call')
+      return new Promise((resolve) => {
+        emitter.on('success', () => resolve());
+      })
+    })
+    .then(() => {
+      return t.pass('call connected, waiting 50s for hangup');
+    }).then(() => {
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(), 50000);
+      })
+    })
+    .then(() => {
+      uac.disconnect();
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uac) uac.disconnect();
+      stop();
+    });
+});

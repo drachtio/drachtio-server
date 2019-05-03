@@ -414,7 +414,7 @@ namespace drachtio {
 
     bool isProxyingRequest( msg_t* msg, sip_t* sip )  ;
 
-    void logStorageCount(void) ;
+    void logStorageCount(bool bDetail = false) ;
 
     bool isRetransmission( sip_t* sip ) {
       std::lock_guard<std::mutex> lock(m_mutex) ;

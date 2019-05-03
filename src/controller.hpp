@@ -256,6 +256,7 @@ namespace drachtio {
     string m_strPrometheusAddress;
     unsigned int m_nPrometheusPort;
 
+    bool m_bMemoryDebug;
   } ;
 
 } ;

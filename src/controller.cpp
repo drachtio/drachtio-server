@@ -269,7 +269,7 @@ namespace drachtio {
     DrachtioController::DrachtioController( int argc, char* argv[] ) : m_bDaemonize(false), m_bLoggingInitialized(false),
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
-        m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), 
+        m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0") {
 
         getEnv();
@@ -396,8 +396,8 @@ namespace drachtio {
                 {"dh-param", required_argument, 0, 'G'},
                 {"tls-port",    required_argument, 0, 'H'},
                 {"aggressive-nat-detection", no_argument, 0, 'I'},
-                {"aggressive-nat-detection", no_argument, 0, 'I'},
                 {"prometheus-scrape-port", required_argument, 0, 'J'},
+                {"memory-debug", no_argument, 0, 'K'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -584,6 +584,10 @@ namespace drachtio {
                     }
                     break;
 
+                case 'K':
+                    m_bMemoryDebug = true;
+                    break;
+
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -646,6 +650,7 @@ namespace drachtio {
         cerr << "    --key-file                     TLS key file" << endl ;
         cerr << "-l  --loglevel                     Log level (choices: notice, error, warning, info, debug)" << endl ;
         cerr << "    --local-net                    CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
+        cerr << "    --memory-debug                 enable verbose debugging of memory allocations (do not turn on in production)" << endl ;
         cerr << "    --mtu                          max packet size for UDP (default: system-defined mtu)" << endl ;
         cerr << "-p, --port                         TCP port to listen on for application connections (default 9022)" << endl ;
         cerr << "    --prometheus-scrape-port       The port (or host:port) to listen on for Prometheus.io metrics scrapes" << endl ;
@@ -664,6 +669,8 @@ namespace drachtio {
         if (p && ::atoi(p) > 0) m_adminTlsPort = ::atoi(p);
         p = std::getenv("DRACHTIO_AGRESSIVE_NAT_DETECTION");
         if (p && ::atoi(p) == 1) m_bAggressiveNatDetection = true;
+        p = std::getenv("DRACHTIO_MEMORY_DEBUG");
+        if (p && ::atoi(p) == 1) m_bMemoryDebug = true;
         p = std::getenv("DRACHTIO_TLS_CERT_FILE");
         if (p) m_tlsCertFile = p;
         p = std::getenv("DRACHTIO_TLS_CHAIN_FILE");
@@ -900,6 +907,7 @@ namespace drachtio {
       this->logConfig() ;
 
         DR_LOG(log_debug) << "DrachtioController::run: Main thread id: " << std::this_thread::get_id() ;
+        if (m_bMemoryDebug) DR_LOG(log_notice) << "DrachtioController::run: memory debugging is ON...only use for non-production configurations" ;
 
        /* open admin connection */
         string adminAddress ;
@@ -1940,8 +1948,35 @@ namespace drachtio {
        DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash  ;
        DR_LOG(log_info) << "size of hash table for dialogs                                   " << leg_hash  ;
        DR_LOG(log_info) << "number of server-side transactions in the hash table             " << irq_used  ;
+       if (m_bMemoryDebug && irq_used > 0) {
+           nta_incoming_t* irq = NULL;
+           do {
+               irq = nta_get_next_server_txn_from_hash(m_nta, irq);
+               if (irq) {
+                   DR_LOG(log_info) << "    nta_incoming_t*: " << std::hex << (void *) irq  ;
+               }
+           } while (irq) ;
+       }
        DR_LOG(log_info) << "number of client-side transactions in the hash table             " << orq_used  ;
+       if (m_bMemoryDebug && orq_used > 0) {
+           nta_outgoing_t* orq = NULL;
+           do {
+               orq = nta_get_next_client_txn_from_hash(m_nta, orq);
+               if (orq) {
+                   DR_LOG(log_info) << "    nta_outgoing_t*: " << std::hex << (void *) orq  ;
+               }
+           } while (orq) ;
+       }
        DR_LOG(log_info) << "number of dialogs in the hash table                              " << leg_used  ;
+       if (m_bMemoryDebug && leg_used > 0) {
+           nta_leg_t* leg = NULL;
+           do {
+               leg = nta_get_next_dialog_from_hash(m_nta, leg);
+               if (leg) {
+                   DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) leg  ;
+               }
+           } while (leg) ;
+       }
        DR_LOG(log_info) << "number of sip messages received                                  " << recv_msg  ;
        DR_LOG(log_info) << "number of sip messages sent                                      " << sent_msg  ;
        DR_LOG(log_info) << "number of sip requests received                                  " << recv_request  ;
@@ -2003,10 +2038,10 @@ namespace drachtio {
         }
 
         this->printStats() ;
-        m_pDialogController->logStorageCount() ;
-        m_pClientController->logStorageCount() ;
-        m_pPendingRequestController->logStorageCount() ;
-        m_pProxyController->logStorageCount() ;
+        m_pDialogController->logStorageCount(m_bMemoryDebug) ;
+        m_pClientController->logStorageCount(m_bMemoryDebug) ;
+        m_pPendingRequestController->logStorageCount(m_bMemoryDebug) ;
+        m_pProxyController->logStorageCount(m_bMemoryDebug) ;
 
         DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
 

@@ -19,6 +19,13 @@ config.sub
 project-cache.jam
 bin.v2/config.log
 project-config.jam
+b2
+bin.v2/config.log
+bjam
+bootstrap.log
+project-config.jam.*
+config.log
+tools/build/src/engine/bootstrap/
 
 # Compiled Object files
 *.slo

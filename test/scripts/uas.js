@@ -23,6 +23,9 @@ class App extends Emitter {
         resolve();
       });
     });
+
+    // for the test recv-notify-before-sending-200-ok
+    this.srf.notify((req, res) => res.send(200));
   }
   
   connectTls(serverCert) {

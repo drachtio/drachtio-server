@@ -29,6 +29,13 @@ class App extends Emitter {
     });
   }
 
+  invite(uri) {
+    return this.srf.request({
+      uri,
+      method: 'INVITE'
+    });
+  }
+
   connect(opts) {
     this.srf.connect(opts || config.drachtio.connectOpts);
     return new Promise((resolve, reject) => {
@@ -71,6 +78,11 @@ class App extends Emitter {
             setTimeout(() => {
               uac.destroy();
             }, opts.hangupAfter);
+          }
+          if (opts.reinviteAfter) {
+            setTimeout(() => {
+              uac.modify(sdp);
+            }, opts.reinviteAfter);
           }
 
           return uac

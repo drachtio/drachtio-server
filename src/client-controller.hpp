@@ -116,7 +116,7 @@ namespace drachtio {
 
     void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
 
-    void logStorageCount(void) ;
+    void logStorageCount(bool bDetail = false) ;
 
     boost::asio::io_context& getIOService(void) { return m_ioservice ;}
 

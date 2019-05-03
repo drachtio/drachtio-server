@@ -1602,13 +1602,26 @@ namespace drachtio {
         }
     }
 
-    void SipProxyController::logStorageCount(void)  {
+    void SipProxyController::logStorageCount(bool bDetail)  {
         std::lock_guard<std::mutex> lock(m_mutex) ;
         
         DR_LOG(log_info) << "SipProxyController storage counts"  ;
         DR_LOG(log_info) << "----------------------------------"  ;
         DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapCallId2Proxy) {
+                std::shared_ptr<ProxyCore> p = kv.second;
+                DR_LOG(log_debug) << "    sip proxy txn id: " << std::hex << (kv.first).c_str() << ", call-id: " << p->getCallId();
+            }
+        }
+
         DR_LOG(log_info) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapNonce2Challenge) {
+                std::shared_ptr<ChallengedRequest> p = kv.second;
+                DR_LOG(log_debug) << "    nonce: " << std::hex << (kv.first).c_str() << ", remote address: " << p->getRemoteAddress().c_str();
+            }
+        }
         m_pTQM->logQueueSizes() ;
 
         STATS_GAUGE_SET(STATS_GAUGE_PROXY, m_mapCallId2Proxy.size())
