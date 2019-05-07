@@ -117,9 +117,10 @@ namespace drachtio {
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
 
 		const string& getDialogId(void) { 
-			if( m_dialogId.empty() ) {
+			if (m_dialogId.empty()) {
 				m_dialogId = m_strCallId;
-				m_dialogId.append( we_are_uac == m_type ? ";uac" : ";uas");
+				m_dialogId.append(";from-tag=");
+				m_dialogId.append( we_are_uac == m_type ? m_localEndpoint.m_strTag :m_remoteEndpoint.m_strTag);
 			}
 			return m_dialogId ;
 		}

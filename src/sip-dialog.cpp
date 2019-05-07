@@ -73,6 +73,8 @@ namespace drachtio {
 		if( sip->sip_call_id->i_id  ) m_strCallId = sip->sip_call_id->i_id ;
 		const char*  rtag = nta_leg_get_rtag( leg )  ;
 		if( rtag ) this->setRemoteTag( rtag ) ;
+		assert(rtag); // should always have a from tag on incoming invite
+	
 		if( sip->sip_payload ) this->setRemoteSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
 		if( sip->sip_content_type ) {
 			string hvalue ;
@@ -139,6 +141,8 @@ namespace drachtio {
 
 		const char *ltag = nta_leg_get_tag( leg ) ;
 		if( ltag ) this->setLocalTag( ltag ) ;
+		assert(ltag); // should always have a from tag on incoming invite
+
 		if( sip->sip_payload ) this->setLocalSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
 		if( sip->sip_content_type ) {
 			string hvalue ;
