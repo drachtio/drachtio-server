@@ -548,8 +548,8 @@ namespace drachtio {
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", sip->sip_request->rq_method_name}})
 
             if( method == sip_method_invite || method == sip_method_subscribe ) {
-                std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( pData->getDialogId(), pData->getTransactionId(), 
-                    leg, orq, sip, m, desc ) ;
+                std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>(pData->getTransactionId(), 
+                    leg, orq, sip, m, desc) ;
                 addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;          
             }
             else {

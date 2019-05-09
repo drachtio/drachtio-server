@@ -37,7 +37,7 @@ namespace drachtio {
 	class SipDialog : public std::enable_shared_from_this<SipDialog> {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
-		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
+		SipDialog( const string& transactionId, nta_leg_t* leg, 
 			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport ) ;
 		~SipDialog() ;
 
