@@ -335,6 +335,10 @@ namespace drachtio {
                 if( sip_method_invite == method ) {
                     addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;
                 }
+
+                if (sip_method_bye == method) {
+                  Cdr::postCdr( std::make_shared<CdrStop>( m, "application", Cdr::normal_release ) );
+                }
      
                 msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ; 
@@ -550,7 +554,10 @@ namespace drachtio {
             if( method == sip_method_invite || method == sip_method_subscribe ) {
                 std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>(pData->getTransactionId(), 
                     leg, orq, sip, m, desc) ;
-                addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;          
+                addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;
+                if (method == sip_method_invite) {
+                  Cdr::postCdr( std::make_shared<CdrAttempt>(m, "application"));
+                }
             }
             else {
                 std::shared_ptr<RIP> p = std::make_shared<RIP>( pData->getTransactionId(), pData->getDialogId() ) ;
@@ -769,6 +776,15 @@ namespace drachtio {
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, transactionId, dlg->getDialogId() ) ;            
         }
 
+        if( sip->sip_cseq->cs_method == sip_method_invite) {
+          if (sip->sip_status->st_status >= 300) {
+            Cdr::postCdr( std::make_shared<CdrStop>( msg, "network",
+                487 == sip->sip_status->st_status ? Cdr::call_canceled : Cdr::call_rejected ) );
+          }
+          else if (sip->sip_status->st_status == 200) {
+            Cdr::postCdr( std::make_shared<CdrStart>( msg, "network", Cdr::uac ) );                
+          }
+        }
         if( sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status > 200 ) {
             assert( dlg ) ;
             m_pController->getClientController()->removeDialog( dlg->getDialogId() ) ;
@@ -1135,6 +1151,9 @@ namespace drachtio {
                 if( iip && code >= 300 ) {
                     Cdr::postCdr( std::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
                 }
+                else if (iip && code == 200) {
+                    Cdr::postCdr( std::make_shared<CdrStart>( msg, "application", Cdr::uas ) );                
+                }
 
                 msg_destroy(msg) ;      // release the ref                          
             }
@@ -1307,7 +1326,11 @@ namespace drachtio {
                     if( !routed ) {
                         nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;                
                     }
-                } 
+                }
+
+                if (sip_method_bye == sip->sip_request->rq_method) {
+                  Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
+                }
             }
         }
         return rc ;
