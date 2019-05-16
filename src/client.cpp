@@ -78,7 +78,11 @@ namespace drachtio {
             return false ;
         }
 
-        if( 0 == tokens[1].compare("route") ) {
+        if (0 == tokens[1].compare("ping")) {
+            createResponseMsg( tokens[0], msgResponse, true, "pong" ) ;
+            return true;
+        }
+        else if( 0 == tokens[1].compare("route") ) {
             if( !m_controller.wants_requests( shared_from_this(), tokens[2] ) ) {
                 DR_LOG(log_error) << "Route request includes unsupported verb: " << tokens[2]  ;   
                 createResponseMsg( tokens[0], msgResponse, false, "Route request includes unsupported verb" ) ;
@@ -86,7 +90,7 @@ namespace drachtio {
             }
             createResponseMsg( tokens[0], msgResponse ) ;
         }
-        else if( 0 == tokens[1].compare("authenticate") ) {
+        else if( 0 == tokens[1].compare("authenticate")) {
             string secret = tokens[2] ;
             if (tokens.size() > 3) {
                 string tags = tokens[3];
