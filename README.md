@@ -53,8 +53,10 @@ The following libraries are required to build:
 * gcc and c++ compilers
 * libssl-dev
 * libtool
+* libtool-bin
 * autoconf
 * automake
+* cmake
 * zlib1g-dev
 
 ## Installing
