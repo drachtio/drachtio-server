@@ -31,6 +31,7 @@ THE SOFTWARE.
 #include <string>
 #include <iostream>
 #include <unordered_map>
+#include <chrono>
 
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
@@ -58,6 +59,40 @@ using namespace std ;
 
 const string DR_CRLF = "\r\n" ;
 const string DR_CRLF2 = "\r\n\r\n" ;
+
+// metrics
+const string STATS_COUNTER_BUILD_INFO = "drachtio_build_info";
+const string STATS_COUNTER_SIP_REQUESTS_IN = "drachtio_sip_requests_in_total";
+const string STATS_COUNTER_SIP_REQUESTS_OUT = "drachtio_sip_requests_out_total";
+const string STATS_COUNTER_SIP_RESPONSES_IN = "drachtio_sip_responses_in_total";
+const string STATS_COUNTER_SIP_RESPONSES_OUT = "drachtio_sip_responses_out_total";
+
+const string STATS_GAUGE_START_TIME = "drachtio_time_started";
+const string STATS_GAUGE_STABLE_DIALOGS = "drachtio_stable_dialogs";
+const string STATS_GAUGE_PROXY = "drachtio_proxy_cores";
+const string STATS_GAUGE_REGISTERED_ENDPOINTS = "drachtio_registered_endpoints";
+const string STATS_GAUGE_CLIENT_APP_CONNECTIONS = "drachtio_app_connections";
+
+// sofia status
+const string STATS_GAUGE_SOFIA_SERVER_HASH_SIZE = "sofia_server_txn_hash_size";
+const string STATS_GAUGE_SOFIA_CLIENT_HASH_SIZE = "sofia_client_txn_hash_size";
+const string STATS_GAUGE_SOFIA_DIALOG_HASH_SIZE = "sofia_dialog_hash_size";
+const string STATS_GAUGE_SOFIA_NUM_SERVER_TXNS = "sofia_server_txns_total";
+const string STATS_GAUGE_SOFIA_NUM_CLIENT_TXNS = "sofia_client_txns_total";
+const string STATS_GAUGE_SOFIA_NUM_DIALOGS = "sofia_dialogs_total";
+const string STATS_GAUGE_SOFIA_MSG_RECV = "sofia_msgs_recv_total";
+const string STATS_GAUGE_SOFIA_MSG_SENT = "sofia_msgs_sent_total";
+const string STATS_GAUGE_SOFIA_REQ_RECV = "sofia_requests_recv_total";
+const string STATS_GAUGE_SOFIA_REQ_SENT = "sofia_requests_sent_total";
+const string STATS_GAUGE_SOFIA_BAD_MSGS = "sofia_bad_msgs_recv_total";
+const string STATS_GAUGE_SOFIA_BAD_REQS = "sofia_bad_reqs_recv_total";
+const string STATS_GAUGE_SOFIA_RETRANS_REQ = "sofia_retransmitted_requests_total";
+const string STATS_GAUGE_SOFIA_RETRANS_RES = "sofia_retransmitted_responses_total";
+
+const string STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN = "drachtio_call_answer_seconds_in";
+const string STATS_HISTOGRAM_INVITE_RESPONSE_TIME_OUT = "drachtio_call_answer_seconds_out";
+const string STATS_HISTOGRAM_INVITE_PDD_IN = "drachtio_call_pdd_seconds_in";
+const string STATS_HISTOGRAM_INVITE_PDD_OUT = "drachtio_call_pdd_seconds_out";
 
 #define TIMER_C_MSECS (185000)
 #define TIMER_B_MSECS (NTA_SIP_T1 * 64)
@@ -153,6 +188,8 @@ namespace drachtio {
 
 	bool isRfc1918(const char* szHost);
 
+	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool weAreUac, bool checkContact );
+
 	static char const rfc3261prefix[] =  "z9hG4bK" ;
 
 	class SipMsgData_t {
@@ -198,5 +235,98 @@ extern drachtio::DrachtioController* theOneAndOnlyController ;
 
 
 #define DR_LOG(level) BOOST_LOG_SEV(theOneAndOnlyController->getLogger(), level) 
+
+#define STATS_COUNTER_CREATE(name, desc) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().counterCreate(name, desc); \
+	} \
+}
+
+#define STATS_COUNTER_INCREMENT(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().counterIncrement(__VA_ARGS__) ;\
+	} \
+}
+#define STATS_COUNTER_INCREMENT_NOCHECK(...) theOneAndOnlyController->getStatsCollector().counterIncrement(__VA_ARGS__) ;
+
+#define STATS_COUNTER_INCREMENT_BY(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().counterIncrement(__VA_ARGS__); \
+	} \
+}
+#define STATS_COUNTER_INCREMENT_BY_NOCHECK(...) theOneAndOnlyController->getStatsCollector().counterIncrement(__VA_ARGS__);
+
+#define STATS_GAUGE_CREATE(name, desc) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeCreate(name, desc); \
+	} \
+}
+
+#define STATS_GAUGE_INCREMENT(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeIncrement(__VA_ARGS__) ;\
+	} \
+}
+#define STATS_GAUGE_INCREMENT_NOCHECK(...) theOneAndOnlyController->getStatsCollector().gaugeIncrement(__VA_ARGS__) ;
+
+#define STATS_GAUGE_INCREMENT_BY(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeIncrement(__VA_ARGS__); \
+	} \
+}
+#define STATS_GAUGE_INCREMENT_BY_NOCHECK(...) theOneAndOnlyController->getStatsCollector().gaugeIncrement(__VA_ARGS__);
+
+#define STATS_GAUGE_DECREMENT(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeDecrement(__VA_ARGS__) ;\
+	} \
+}
+#define STATS_GAUGE_DECREMENT_NOCHECK(...) theOneAndOnlyController->getStatsCollector().gaugeDecrement(__VA_ARGS__);
+
+#define STATS_GAUGE_DECREMENT_BY(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeDecrement(__VA_ARGS__); \
+	} \
+}
+#define STATS_GAUGE_DECREMENT_BY_NOCHECK(...) theOneAndOnlyController->getStatsCollector().gaugeDecrement(__VA_ARGS__); 
+
+#define STATS_GAUGE_SET(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeSet(__VA_ARGS__); \
+	} \
+}
+#define STATS_GAUGE_SET_NOCHECK(...) theOneAndOnlyController->getStatsCollector().gaugeSet(__VA_ARGS__);
+
+#define STATS_GAUGE_SET_TO_CURRENT_TIME(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().gaugeSetToCurrentTime(__VA_ARGS__); \
+	} \
+}
+#define STATS_GAUGE_SET_TO_CURRENT_TIME_NOCHECK(...) theOneAndOnlyController->getStatsCollector().gaugeSetToCurrentTime(__VA_ARGS__);
+
+#define STATS_HISTOGRAM_CREATE(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().histogramCreate(__VA_ARGS__); \
+	} \
+}
+
+#define STATS_HISTOGRAM_OBSERVE(...) \
+{ \
+	if (theOneAndOnlyController->getStatsCollector().enabled()) { \
+		theOneAndOnlyController->getStatsCollector().histogramObserve(__VA_ARGS__) ;\
+	} \
+}
+#define STATS_HISTOGRAM_OBSERVE_NOCHECK(...) theOneAndOnlyController->getStatsCollector().histogramObserve(__VA_ARGS__) ;
 
 #endif

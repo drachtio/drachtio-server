@@ -78,7 +78,11 @@ namespace drachtio {
             return false ;
         }
 
-        if( 0 == tokens[1].compare("route") ) {
+        if (0 == tokens[1].compare("ping")) {
+            createResponseMsg( tokens[0], msgResponse, true, "pong" ) ;
+            return true;
+        }
+        else if( 0 == tokens[1].compare("route") ) {
             if( !m_controller.wants_requests( shared_from_this(), tokens[2] ) ) {
                 DR_LOG(log_error) << "Route request includes unsupported verb: " << tokens[2]  ;   
                 createResponseMsg( tokens[0], msgResponse, false, "Route request includes unsupported verb" ) ;
@@ -86,7 +90,7 @@ namespace drachtio {
             }
             createResponseMsg( tokens[0], msgResponse ) ;
         }
-        else if( 0 == tokens[1].compare("authenticate") ) {
+        else if( 0 == tokens[1].compare("authenticate")) {
             string secret = tokens[2] ;
             if (tokens.size() > 3) {
                 string tags = tokens[3];
@@ -95,9 +99,9 @@ namespace drachtio {
                 for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
                     m_tags.insert(*it);
                 }
-                DR_LOG(log_info) << "Client::processAuthentication - added tags " << tags ;
+                DR_LOG(log_debug) << "Client::processAuthentication - added tags " << tags ;
             }
-            DR_LOG(log_info) << "Client::processAuthentication - validating secret " << secret  ;
+            DR_LOG(log_debug) << "Client::processAuthentication - validating secret " << secret  ;
             if( !theOneAndOnlyController->isSecret( secret ) ) {
                 DR_LOG(log_info) << "Client::processAuthentication - secret validation failed: " << secret  ;
                 createResponseMsg( tokens[0], msgResponse, false, "incorrect secret" ) ;
@@ -107,8 +111,9 @@ namespace drachtio {
                 vector<string> hps ;
                 theOneAndOnlyController->getMyHostports( hps ) ;
                 string hostports = boost::algorithm::join(hps, ",") ;
-                createResponseMsg( tokens[0], msgResponse, true, hostports.c_str() ) ;
-                DR_LOG(log_info) << "Client::processAuthentication - secret validated successfully: " << secret ;
+                string response = hostports + "|" + DRACHTIO_VERSION;
+                createResponseMsg( tokens[0], msgResponse, true, response.c_str()) ;
+                DR_LOG(log_debug) << "Client::processAuthentication - secret validated successfully: " << secret ;
                 return true ;
             }            
         }
@@ -322,7 +327,7 @@ namespace drachtio {
             /* send response if indicated */
             if( !msgResponse.empty() ) {
                 msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
-                DR_LOG(log_info) << "Sending response: " << msgResponse << endl ;
+                DR_LOG(log_debug) << "Sending response: " << msgResponse << endl ;
                 boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
                     std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
             }
@@ -409,7 +414,7 @@ read_again:
         m_strRemoteAddress = m_sock.remote_endpoint().address().to_string();
         m_nRemotePort = m_sock.remote_endpoint().port();
 
-        DR_LOG(log_info) << "Client::start - Received connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
+        DR_LOG(log_debug) << "Client::start - Received connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
 
         m_controller.join( shared_from_this() ) ;
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
@@ -480,7 +485,7 @@ read_again:
         m_strRemoteAddress = m_sock.lowest_layer().remote_endpoint().address().to_string();
         m_nRemotePort = m_sock.lowest_layer().remote_endpoint().port();
 
-        DR_LOG(log_info) << "Client::start - Received tls connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
+        DR_LOG(log_debug) << "Client::start - Received tls connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
 
         m_sock.async_handshake(boost::asio::ssl::stream_base::server,
             std::bind(&BaseClient::handle_handshake, shared_from_this(),

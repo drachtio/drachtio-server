@@ -43,19 +43,19 @@ namespace {
 namespace drachtio {
   
   SipTransport::SipTransport(const string& contact, const string& localNet, const string& externalIp) :
-    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL) {
+    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
   SipTransport::SipTransport(const string& contact, const string& localNet) :
-    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL) {
+    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
-  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL) {
+  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
   SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport> other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
-    m_dnsNames(other->m_dnsNames), m_tp(NULL) {
+    m_dnsNames(other->m_dnsNames), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
 
@@ -222,6 +222,10 @@ namespace drachtio {
       if( szPort && strlen(szPort) > 0 ) {
         contact.append(":") ;
         contact.append(szPort);
+      }
+      if (szProto && strlen(szProto) > 0 && 0 != strcmp(szProto, "udp")) {
+        contact.append(";transport=");
+        contact.append(szProto);
       }
     }
     else {
@@ -408,14 +412,20 @@ namespace drachtio {
     string scheme, userpart, hostpart, port ;
     vector< pair<string,string> > vecParam ;
     string host = remoteHost ;
-
-    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: searching for a transport to reach " << proto << "/" << remoteHost ;
+    string requestedProto = (NULL == proto ? "" : proto);
 
     if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
       host = hostpart ;
-      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: host parsed as " << host;
     }
 
+    for (vector<pair<string, string> >::const_iterator it = vecParam.begin(); it != vecParam.end(); ++it) {
+      if (0 == it->first.compare("transport")) {
+        requestedProto = it->second;
+        break;
+      }
+    }
+    std::transform(requestedProto.begin(), requestedProto.end(), requestedProto.begin(), ::tolower);
+    DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: searching for a transport to reach " << requestedProto.c_str() << "/" << remoteHost ;
     string desc ;
     bool wantsIpV6 = (NULL != strstr( remoteHost, "[") && NULL != strstr( remoteHost, "]")) ;
 
@@ -440,9 +450,9 @@ namespace drachtio {
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for transport we have " << candidates.size() << " candidates";
 
     // filter by protocol
-    it = std::remove_if(candidates.begin(), candidates.end(), [proto](const std::shared_ptr<SipTransport>& p) {
-      if (!proto) return false;
-      return 0 != strcmp(p->getProtocol(), proto);
+    it = std::remove_if(candidates.begin(), candidates.end(), [requestedProto](const std::shared_ptr<SipTransport>& p) {
+      if (requestedProto.length() == 0) return false;
+      return 0 != strcmp(p->getProtocol(), requestedProto.c_str());
     });
     candidates.erase(it, candidates.end());
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for protocol we have " << candidates.size() << " candidates";
@@ -480,11 +490,15 @@ namespace drachtio {
     }
 #endif
 
-    if (candidates.empty()) {
+    if (candidates.empty() && m_masterTransport->hasTportAndTpname()) {
       m_masterTransport->getDescription(desc) ;
       DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() << 
         " as we found no better matches: " << desc ;
       return m_masterTransport ;      
+    }
+    else if (candidates.empty()) {
+      DR_LOG(log_info) << "SipTransport::findAppropriateTransport: - no transports found ";
+      return nullptr;
     }
 
     std::shared_ptr<SipTransport> p = candidates[0];

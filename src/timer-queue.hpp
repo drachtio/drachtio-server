@@ -25,7 +25,6 @@ THE SOFTWARE.
 #include <functional>
 #include <thread>
 #include <string>
-
 #include <sofia-sip/su_wait.h>
 
 namespace drachtio {

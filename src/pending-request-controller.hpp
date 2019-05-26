@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include <unordered_map>
 #include <mutex>
+#include <chrono>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/sip.h>
@@ -70,6 +71,10 @@ namespace drachtio {
     const string& getEncodedMsg(void) { return m_encodedMsg;}
     void setEncodedMsg(const string& msg) { m_encodedMsg = msg; }
 
+    chrono::time_point<chrono::steady_clock>& getArrivalTime(void) {
+      return m_timeArrive;
+    }
+
   private:
     msg_t*  m_msg ;
     string  m_transactionId ;
@@ -81,6 +86,7 @@ namespace drachtio {
     bool m_canceled;
     SipMsgData_t m_meta ;
     string m_encodedMsg ;
+    chrono::time_point<chrono::steady_clock> m_timeArrive;
   } ;
 
 
@@ -94,7 +100,7 @@ namespace drachtio {
 
     std::shared_ptr<PendingRequest_t> findAndRemove( const string& transactionId, bool timeout = false ) ;
 
-    void logStorageCount(void) ;
+    void logStorageCount(bool bDetail = false) ;
 
     bool isRetransmission( sip_t* sip ) {
       string id ;

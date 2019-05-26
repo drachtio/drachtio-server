@@ -53,7 +53,6 @@ THE SOFTWARE.
 #include <boost/log/sinks/syslog_backend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
-//#include <boost/bimap.hpp>
 
 #include "drachtio.h"
 #include "drachtio-config.hpp"
@@ -65,8 +64,7 @@ THE SOFTWARE.
 #include "ua-invalid.hpp"
 #include "sip-transports.hpp"
 #include "request-router.hpp"
-
-//typedef boost::mt19937 RNGType;
+#include "stats-collector.hpp"
 
 using namespace std ;
 
@@ -160,16 +158,20 @@ namespace drachtio {
     std::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
     RequestRouter& getRequestRouter(void) { return m_requestRouter; }
+    StatsCollector& getStatsCollector(void) { return m_statsCollector; }
 
     void makeOutboundConnection(const string& transactionId, const string& uri);
     void makeConnectionForTag(const string& transactionId, const string& tag);
     void selectInboundConnectionForTag(const string& transactionId, const string& tag);
+
+    bool isAggressiveNatEnabled(void) { return m_bAggressiveNatDetection; }    
 
 	private:
 
   	DrachtioController() ;
 
   	bool parseCmdArgs( int argc, char* argv[] ) ;
+    void getEnv(void);
   	void usage() ;
   	
   	void daemonize() ;
@@ -178,6 +180,7 @@ namespace drachtio {
   	bool installConfig() ;
   	void logConfig() ;
     int validateSipMessage( sip_t const *sip ) ;
+    void initStats(void);
 
     void processRejectInstruction(const string& transactionId, unsigned int status, const char* reason = NULL) ;
     void processRedirectInstruction(const string& transactionId, vector<string>& vecContact) ;
@@ -247,6 +250,13 @@ namespace drachtio {
     string  m_strRequestPath ;
 
     RequestRouter   m_requestRouter ;
+    StatsCollector  m_statsCollector;
+
+    bool    m_bAggressiveNatDetection;
+    string m_strPrometheusAddress;
+    unsigned int m_nPrometheusPort;
+
+    bool m_bMemoryDebug;
   } ;
 
 } ;

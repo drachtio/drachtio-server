@@ -57,6 +57,7 @@ namespace drachtio {
     bool shouldAdvertisePublic(const char* address) const ;
     bool isInNetwork(const char* address) const;
     bool hasTport(void) const { return NULL != m_tp; }
+    bool hasTportAndTpname(void) const { return NULL != m_tp && NULL != m_tpName; }
     const tport_t* getTport(void) const { return m_tp; }
     void setTport(tport_t* tp) { 
       assert(!m_tp);

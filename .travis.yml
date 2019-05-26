@@ -1,39 +1,105 @@
 language: cpp
+sudo: required
 
 matrix:
   include:
-    - os: linux
-      compiler:
-        - gcc
-      dist: trusty
-      sudo: required
-    - os: linux
-      compiler:
-        - clang
-      dist: trusty
-      sudo: required
     - os: osx
-      osx_image: xcode9.1
 
-# Change this to your needs
-script: ./bootstrap.sh && mkdir build && cd build && ../configure && make && ./drachtio --version
+    - os: linux
+      dist: trusty
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-4.9
+      env:
+         - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
 
-# Handle git submodules yourself
+    - os: linux
+      dist: trusty
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-5
+      env:
+         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
+
+    - os: linux
+      dist: trusty
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-6
+      env:
+        - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
+
+    - os: linux
+      dist: trusty
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+      env:
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+
+    - os: linux
+      dist: xenial
+      compiler: gcc
+      addons:
+        apt:
+          update: true
+          packages:
+            - libtool-bin
+
+    - os: linux
+      dist: xenial
+      compiler: clang
+      addons:
+        apt:
+          update: true
+          packages:
+            - libtool-bin
+    
+script: 
+    - cd  ${TRAVIS_BUILD_DIR}/test
+    - rm ./tls/dh1024.pem
+    - openssl dhparam -out ./tls/dh1024.pem 1024
+    - cat package.json
+    - npm install
+    - if [ $TRAVIS_OS_NAME = linux ]; then npm test; fi
+    - if [ $TRAVIS_OS_NAME = linux ]; then cat /tmp/drachtio.log; fi
+
 git:
     submodules: false
 
-# Use sed to replace the SSH URL with the public URL, then initialize submodules
 before_install:
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libcurl4-openssl-dev; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --version; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl-config --libs; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install openssl; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gnu-sed; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then gsed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export LDFLAGS="-L/usr/local/opt/openssl/lib $LDFLAGS"; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CXXFLAGS="-I/usr/local/opt/openssl/include $CXXFLAGS"; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CFLAGS="-I/usr/local/opt/openssl/include $CFLAGS"; fi
-    - git submodule update --init --recursive;
+    - eval "${MATRIX_EVAL}"
+    - if [ $TRAVIS_OS_NAME = osx ]; then nvm install "v8.11.3"; fi
+    - if [ $TRAVIS_OS_NAME = linux ]; then sudo apt-get install -y curl libz-dev ncurses-dev libpcap-dev libtool libcurl4-openssl-dev nodejs; else brew install curl ncurses libpcap libtool openssl gnu-sed; fi 
+    - if [ $TRAVIS_OS_NAME = osx ]; then sudo ln -s /usr/local/opt/openssl/include/openssl /usr/local/include; fi
+    - sudo mkdir -p /usr/local/src && sudo chmod 0777 /usr/local/src 
+    - cd /usr/local/src
+    - git clone https://github.com/SIPp/sipp.git && cd sipp && git checkout v3.5.1 
+    - ./build.sh  --with-rtpstream --with-pcap 
+    - sudo make install
+    - if [ $TRAVIS_OS_NAME = linux ]; then sudo curl -sL https://deb.nodesource.com/setup_8.x | sudo bash - ; fi
+    - if [ $TRAVIS_OS_NAME = linux ]; then sudo apt-get install -y nodejs; fi
+    - curl-config --version
+    - curl-config --libs 
+    - cd $TRAVIS_BUILD_DIR
+    - if [ $TRAVIS_OS_NAME = linux ]; then sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; else gsed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules; fi
+    - git submodule update --init --recursive
+    - ./autogen.sh
+    - mkdir build && cd build
+    - ../configure
+    - make
+    - ./drachtio --version 
+    - node --version
+    - npm --version

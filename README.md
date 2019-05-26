@@ -32,7 +32,7 @@ After installing libcurl, do as follows:
 ```
 git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
-./bootstrap.sh
+./autogen.sh
 mkdir build && cd $_
 ../configure CPPFLAGS='-DNDEBUG'
 make
@@ -56,7 +56,6 @@ The following libraries are required to build:
 * libtool-bin
 * autoconf
 * automake
-* cmake
 * zlib1g-dev
 
 ## Installing
@@ -70,14 +69,11 @@ To see all of the command line options, run `drachtio -h`.
 The process can be installed as a Linux systemd or init script using the example script that can be found in [drachtio.service](drachtio.service) or [drachtio-init-script](drachtio-init-script).
 
 ## Configuring
-
-**TL;DR** 
-
-Review the [sample configuration file](drachtio.conf.xml), which is heavily commented and mostly self-explanatory
+drachtio can be configured via a configuration file ([see sample config](drachtio.conf.xml)), environment variables, or command-line arguments.  The order of precedence is that command-line arguments will dictate, if provided; otherwise environment variables (if provided), and last of all the configuration file.  This is on a parameter-by-parameter basis; i.e. one configuration option may be provided by environment variables, some others by command-line args, and the rest by a configuration file.
 
 ### Overview
 
-drachtio can be configured either through an xml configuration file (installed by defaults into `/etc/drachtio.conf.xml`) or via command-line parameters.
+The configuration settings are described below as provided in the configuration file, with notes as to the equivalent command line or environment variables (if available).
 
 #### SIP
 The most important configuration parameters specify which sip address(es) and protocols to listen on/for.  drachtio can listen on multiple addresses/ports/protocols simultaneously,  Example config file section:
@@ -94,17 +90,23 @@ or, via command line:
 drachtio --contact "sip:172.28.0.1:5060;transport=udp,tcp" \
    --contact "sip:172.28.0.1:5080;transport=udp,tcp"
 ```
+> Note: there is currently no option to specify these settings via environment variables.
+
 Optionally, you can also specify an external ip address to associate with a sip contact, if the server is set up to masquerade or is otherwise assigned a public IP address that it does not know about.  You can also specify the local network CIDR associated with a sip address, which is useful in scenarios where a server is connected to both public and private networks.  See the sample configuration file for more details on this.
 
 #### Admin port
-The server listens for TCP connections (e.g. *inbound* connections) from node.js applications on a specified address and port.
+The server listens for TCP (or, if desired, TLS) connections (e.g. *inbound* connections) from node.js applications on a specified address and port.
 ```xml
 <drachtio>
-  <admin port="9022" secret="cymru">127.0.0.1</admin>
+  <admin port="9022" tls-port="9023" secret="cymru">127.0.0.1</admin>
 ```
 or
 ```
-drachtio --port 9022  # address defaults to 0.0.0.0
+drachtio --port 9022 --tls-port 9023 # address defaults to 0.0.0.0
+```
+or 
+```
+DRACHTIO_ADMIN_TCP_PORT=9022 DRACHTIO_ADMIN_TLS_PORT=9023 drachtio
 ```
 
 #### Logging
@@ -123,19 +125,48 @@ or
 ```bash
 drachtio --loglevel info --sofia-loglevel 3
 ```
+or
+```
+DRACHTIO_LOGLEVEL=info DRACHTIO_SOFIA_LOGLEVEL=3 drachtio
+```
+#### Monitoring
 
-#### Homer integration
-drachtio can send encapsulated SIP messages to [Homer](http://www.sipcapture.org/) for reporting
+##### Homer
+drachtio can send encapsulated SIP messages to [Homer](http://www.sipcapture.org/) for reporting.
 ```xml
 <drachtio>
   <sip>
     <capture-server port="9060" hep-version="3" id="101">172.28.0.23</capture-server>
 ```
-or
+or, using command-line arguments
 ```
 drachtio --homer 172.28.0.23 --homer-id 101  # defaults to HEP3 and UDP
 ```
-
+or, using environment variables
+```
+DRACHTIO_HOMER_ADDRESS=172.28.0.23 DRACHTIO_HOMER_PORT=9060 DRACHTIO_HOMER_ID=101 drachtio
+```
+##### Prometheus.io
+drachtio can be configured to report metrics to [Prometheus](https://prometheus.io/).
+```xml
+<drachtio>
+  <monitoring>
+    <prometheus port="9060">172.28.0.23</prometheus>
+  </monitoring>
+```
+or, using command line arguments
+```
+drachtio --prometheus-scrape-port 9090
+```
+or
+```
+drachtio --prometheus-scrape-port "0.0.0.0:9090"
+```
+or, using environment variables
+```
+DRACHTIO_PROMETHEUS_SCRAPE_PORT=9090 drachtio
+```
+For details on the specified metrics exposed, [see here](./docs/prometheus.md).
 #### Fail2ban integration
 
 To install fail2ban on a drachtio server, refer to this [ansible role](https://github.com/davehorton/ansible-role-fail2ban-drachtio) which installs and configures fail2ban with a filter for drachtio log files.

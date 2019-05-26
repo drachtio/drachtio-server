@@ -192,7 +192,7 @@ test('tagged inbound connections', (t) => {
       stop();
     });
 });
-
+/*
 test('outbound connections', (t) => {
   let uas1, uas2, uas3;
   return start('./drachtio.conf2.xml')
@@ -203,6 +203,45 @@ test('outbound connections', (t) => {
     .then(() => {
       return t.pass('sends 480 when no app found at specified uri');
     })
+    .then(() => {
+      uas1 = new Uas();
+      uas2 = new Uas();
+      return Promise.all([uas1.listen(3031), uas2.listen(3032)]);
+    })
+    .then(() => {
+      uas1.accept();
+      uas2.accept();
+      return execCmd('sipp -sf ./uac-outbound-3031.xml 127.0.0.1:5090 -m 1 -sleep 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.ok(uas1.calls === 1 && uas2.calls == 0, 'first call routed correctly');
+      return execCmd('sipp -sf ./uac-outbound-3031.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.ok(uas1.calls === 2 && uas2.calls == 0, 'second call routed correctly');
+      return execCmd('sipp -sf ./uac-outbound-3032.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return t.ok(uas1.calls === 2 && uas2.calls == 1, 'third call routed correctly');
+    })
+    .then(() => {
+      if (uas1) uas1.disconnect();
+      if (uas2) uas2.disconnect();
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas1) uas1.disconnect();
+      if (uas2) uas2.disconnect();
+      stop();
+    });
+});
+*/
+
+test('outbound connections using POST', (t) => {
+  let uas1, uas2, uas3;
+  return start('./drachtio.conf7.xml')
+
     .then(() => {
       uas1 = new Uas();
       uas2 = new Uas();

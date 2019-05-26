@@ -4,16 +4,27 @@ const config = require('./config');
 const debug = require('debug')('drachtio:server-test');
 const argv = require('minimist')(process.argv.slice(2));
 const transport = argv['transport'] === 'tls' ? 'tls' : 'tcp';
+const bodyParser = require('body-parser');
 
 process.on('SIGTERM', () => {
-  console.log('call router received SIGINT.');
+  debug('call router received SIGINT.');
   process.exit(0);
 });
 const server = app.listen(config.express.port, () => {
   debug(`call router app listening on ${JSON.stringify(server.address())} for http requests`);
 });
 
+app.use(bodyParser.text());
 app.get('/', (req, res) => {
+  debug(`call router got GET with ${req.uri} and body ${req.body}`);
+  doRoute(req, res);
+});
+app.post('/', (req, res) => {
+  debug(`call router got POST with ${JSON.stringify(req.query)} and body ${req.body}`);
+  doRoute(req, res);
+});
+
+function doRoute(req, res) {
   debug(`call-router: ${JSON.stringify(req.query)}`);
   debug(`started with ${JSON.stringify(argv)}`);
 
@@ -38,4 +49,4 @@ app.get('/', (req, res) => {
   
 
   res.json({action: 'reject', data: {status: 500}});
-});
+}

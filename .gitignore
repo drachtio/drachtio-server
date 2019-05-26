@@ -12,7 +12,20 @@ config.guess
 config.h.in
 config.h.in~
 depcomp
+config.guess
+config.sub
 
+# boost
+project-cache.jam
+bin.v2/config.log
+project-config.jam
+b2
+bin.v2/config.log
+bjam
+bootstrap.log
+project-config.jam.*
+config.log
+tools/build/src/engine/bootstrap/
 
 # Compiled Object files
 *.slo
@@ -33,6 +46,7 @@ depcomp
 *.tar.gz
 *.old
 /build/
+.vscode
 
 test/.eslintignore
 test/.eslintrc.json

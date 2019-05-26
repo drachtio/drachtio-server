@@ -6,15 +6,17 @@ const obj = module.exports = {} ;
 let drachtio = null;
 let router = null;
 
-obj.start = (confPath, extraArgs, tls = false, waitDelay = 500) => {
+obj.start = (confPath, extraArgs, tls = false, waitDelay = 500, env = {}) => {
   confPath = confPath || './drachtio.conf.xml';
-  debug(`starting drachtio with config file: ${confPath}`);
+  debug(`starting drachtio with config file: ${confPath} and env ${JSON.stringify(env)}`);
   assert(!drachtio);
   assert(!router);
 
   return new Promise((resolve, reject) => {
     const args = ['-f', confPath].concat(Array.isArray(extraArgs) ? extraArgs : []);
+
     drachtio = spawn('../build/drachtio', args, {
+      env,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -41,7 +43,7 @@ obj.start = (confPath, extraArgs, tls = false, waitDelay = 500) => {
       reject(err);
     });
     router.stdout.on('data', (data) => {
-      debug(`${data.toString()}`);
+      console.log(`${data.toString()}`);
     });
     router.stderr.on('data', (data) => {
       console.log(`${data.toString()}`);

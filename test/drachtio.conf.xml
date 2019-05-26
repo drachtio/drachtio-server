@@ -36,6 +36,10 @@
 
     <cdrs>true</cdrs>
             
+    <monitoring>
+        <prometheus port="9999">127.0.0.1</prometheus>
+    </monitoring>
+
     <!-- logging configuration -->
     <logging>
 

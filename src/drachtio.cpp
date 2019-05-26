@@ -266,7 +266,8 @@ namespace drachtio {
                   for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
                     vector<string> kv ;
                     boost::split(kv, *it, boost::is_any_of("="));
-                    params.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+                    std::pair<string, string> kvpair(kv[0], kv.size() == 2 ? kv[1] : "");
+                    params.push_back(kvpair);
                   }
                 }
                 return true ;
@@ -281,7 +282,7 @@ namespace drachtio {
 		string str((const char*) p->h_data, p->h_len) ;
 		boost::char_separator<char> sep(": \r\n") ;
         tokenizer tok( str, sep) ;
-        if( distance( tok.begin(), tok.end() ) > 1 ) hvalue = *(++tok.begin() ) ;
+        if( std::distance( tok.begin(), tok.end() ) > 1 ) hvalue = *(++tok.begin() ) ;
  	}
 
     bool FindCSeqMethod( const string& headers, string& method ) {
@@ -750,6 +751,33 @@ namespace drachtio {
         }
         return false;
      }
+
+	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool weAreUac, bool checkContact ) {
+        if (!sip->sip_record_route && !checkContact) return false;
+
+        if (sip->sip_record_route) {
+            sip_record_route_t *r = sip->sip_record_route;
+
+            if (weAreUac) {
+                for (; r; r = r->r_next) {
+                    if (r->r_next == NULL) break ;
+                }
+            }
+            if (r && r->r_url->url_params && NULL != ::strstr(r->r_url->url_params, "nat=yes")) {
+                return true;
+            }
+        }
+
+        if (checkContact && !sip->sip_record_route) {
+            if (sip->sip_contact &&
+                sip->sip_contact->m_url->url_params &&
+                NULL != ::strstr(sip->sip_contact->m_url->url_params, "nat=yes")) {
+                
+                return true;
+            }
+        }
+        return false;
+    }
 
     string urlencode(const string &s) {
         static const char lookup[]= "0123456789abcdef";

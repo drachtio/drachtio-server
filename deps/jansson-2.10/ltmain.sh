@@ -23,10 +23,72 @@
 # General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with GNU Libtool; see the file COPYING.  If not, a copy
-# can be downloaded from http://www.gnu.org/licenses/gpl.html,
-# or obtained by writing to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+PROGRAM=libtool
+PACKAGE=libtool
+VERSION="2.4.6 Debian-2.4.6-0.1"
+package_revision=2.4.6
+
+
+## ------ ##
+## Usage. ##
+## ------ ##
+
+# Run './libtool --help' for help with using this script from the
+# command line.
+
+
+## ------------------------------- ##
+## User overridable command paths. ##
+## ------------------------------- ##
+
+# After configure completes, it has a better idea of some of the
+# shell tools we need than the defaults used by the functions shared
+# with bootstrap, so set those here where they can still be over-
+# ridden by the user, but otherwise take precedence.
+
+: ${AUTOCONF="autoconf"}
+: ${AUTOMAKE="automake"}
+
+
+## -------------------------- ##
+## Source external libraries. ##
+## -------------------------- ##
+
+# Much of our low-level functionality needs to be sourced from external
+# libraries, which are installed to $pkgauxdir.
+
+# Set a version string for this script.
+scriptversion=2015-01-20.17; # UTC
+
+# General shell script boiler plate, and helper functions.
+# Written by Gary V. Vaughan, 2004
+
+# Copyright (C) 2004-2015 Free Software Foundation, Inc.
+# This is free software; see the source for copying conditions.  There is NO
+# warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+
+# As a special exception to the GNU General Public License, if you distribute
+# this file as part of a program or library that is built using GNU Libtool,
+# you may include this file under the same distribution terms that you use
+# for the rest of that program.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNES FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# Please report bugs or propose patches to gary@gnu.org.
 
 # Usage: $progname [OPTION]... [MODE-ARG]...
 #
@@ -546,8 +608,41 @@ func_help ()
 # exit_cmd.
 func_missing_arg ()
 {
-    func_error "missing argument for $1"
-    exit_cmd=exit
+    $debug_cmd
+
+    func_usage_message
+    $ECHO "$long_help_message
+
+MODE must be one of the following:
+
+       clean           remove files from the build directory
+       compile         compile a source file into a libtool object
+       execute         automatically set library path, then run a program
+       finish          complete the installation of libtool libraries
+       install         install libraries or executables
+       link            create a library or an executable
+       uninstall       remove libraries from an installed directory
+
+MODE-ARGS vary depending on the MODE.  When passed as first option,
+'--mode=MODE' may be abbreviated as 'MODE' or a unique abbreviation of that.
+Try '$progname --help --mode=MODE' for a more detailed description of MODE.
+
+When reporting a bug, please describe a test case to reproduce it and
+include the following information:
+
+       host-triplet:   $host
+       shell:          $SHELL
+       compiler:       $LTCC
+       compiler flags: $LTCFLAGS
+       linker:         $LD (gnu? $with_gnu_ld)
+       version:        $progname (GNU libtool) 2.4.6
+       automake:       `($AUTOMAKE --version) 2>/dev/null |$SED 1q`
+       autoconf:       `($AUTOCONF --version) 2>/dev/null |$SED 1q`
+
+Report bugs to <bug-libtool@gnu.org>.
+GNU libtool home page: <http://www.gnu.org/s/libtool/>.
+General help using GNU software: <http://www.gnu.org/gethelp/>."
+    exit 0
 }
 
 exit_cmd=:
@@ -4754,18 +4849,27 @@ func_mode_link ()
 	arg="$func_quote_for_eval_result"
 	;;
 
-      # -64, -mips[0-9] enable 64-bit mode on the SGI compiler
-      # -r[0-9][0-9]* specifies the processor on the SGI compiler
-      # -xarch=*, -xtarget=* enable 64-bit mode on the Sun compiler
-      # +DA*, +DD* enable 64-bit mode on the HP compiler
-      # -q* pass through compiler args for the IBM compiler
-      # -m*, -t[45]*, -txscale* pass through architecture-specific
-      # compiler args for GCC
-      # -F/path gives path to uninstalled frameworks, gcc on darwin
-      # -p, -pg, --coverage, -fprofile-* pass through profiling flag for GCC
-      # @file GCC response files
+      # Flags to be passed through unchanged, with rationale:
+      # -64, -mips[0-9]      enable 64-bit mode for the SGI compiler
+      # -r[0-9][0-9]*        specify processor for the SGI compiler
+      # -xarch=*, -xtarget=* enable 64-bit mode for the Sun compiler
+      # +DA*, +DD*           enable 64-bit mode for the HP compiler
+      # -q*                  compiler args for the IBM compiler
+      # -m*, -t[45]*, -txscale* architecture-specific flags for GCC
+      # -F/path              path to uninstalled frameworks, gcc on darwin
+      # -p, -pg, --coverage, -fprofile-*  profiling flags for GCC
+      # -fstack-protector*   stack protector flags for GCC
+      # @file                GCC response files
+      # -tp=*                Portland pgcc target processor selection
+      # --sysroot=*          for sysroot support
+      # -O*, -g*, -flto*, -fwhopr*, -fuse-linker-plugin GCC link-time optimization
+      # -specs=*             GCC specs files
+      # -stdlib=*            select c++ std lib with clang
+      # -fsanitize=*         Clang/GCC memory and address sanitizer
       -64|-mips[0-9]|-r[0-9][0-9]*|-xarch=*|-xtarget=*|+DA*|+DD*|-q*|-m*| \
-      -t[45]*|-txscale*|-p|-pg|--coverage|-fprofile-*|-F*|@*)
+      -t[45]*|-txscale*|-p|-pg|--coverage|-fprofile-*|-F*|@*|-tp=*|--sysroot=*| \
+      -O*|-g*|-flto*|-fwhopr*|-fuse-linker-plugin|-fstack-protector*|-stdlib=*| \
+      -specs=*|-fsanitize=*)
         func_quote_for_eval "$arg"
 	arg="$func_quote_for_eval_result"
         func_append compile_command " $arg"
@@ -5031,9 +5135,12 @@ func_mode_link ()
       fi
       if test "$linkmode" = prog; then
 	case $pass in
-	dlopen) libs="$dlfiles" ;;
-	dlpreopen) libs="$dlprefiles" ;;
-	link) libs="$deplibs %DEPLIBS% $dependency_libs" ;;
+	dlopen) libs=$dlfiles ;;
+	dlpreopen) libs=$dlprefiles ;;
+	link)
+	  libs="$deplibs %DEPLIBS%"
+	  test "X$link_all_deplibs" != Xno && libs="$libs $dependency_libs"
+	  ;;
 	esac
       fi
       if test "$linkmode,$pass" = "lib,dlpreopen"; then
@@ -5342,21 +5449,21 @@ func_mode_link ()
 	      func_fatal_error "cannot find name of link library for \`$lib'"
 	    fi
 	    # It is a libtool convenience library, so add in its objects.
-	    convenience="$convenience $ladir/$objdir/$old_library"
-	    old_convenience="$old_convenience $ladir/$objdir/$old_library"
-	  elif test "$linkmode" != prog && test "$linkmode" != lib; then
-	    func_fatal_error "\`$lib' is not a convenience library"
+	    func_append convenience " $ladir/$objdir/$old_library"
+	    func_append old_convenience " $ladir/$objdir/$old_library"
+	    tmp_libs=
+	    for deplib in $dependency_libs; do
+	      deplibs="$deplib $deplibs"
+	      if $opt_preserve_dup_deps; then
+		case "$tmp_libs " in
+		*" $deplib "*) func_append specialdeplibs " $deplib" ;;
+		esac
+	      fi
+	      func_append tmp_libs " $deplib"
+	    done
+	  elif test prog != "$linkmode" && test lib != "$linkmode"; then
+	    func_fatal_error "'$lib' is not a convenience library"
 	  fi
-	  tmp_libs=
-	  for deplib in $dependency_libs; do
-	    deplibs="$deplib $deplibs"
-	    if $opt_duplicate_deps ; then
-	      case "$tmp_libs " in
-	      *" $deplib "*) specialdeplibs="$specialdeplibs $deplib" ;;
-	      esac
-	    fi
-	    tmp_libs="$tmp_libs $deplib"
-	  done
 	  continue
 	fi # $pass = conv
 
@@ -6205,6 +6312,9 @@ func_mode_link ()
 	    age="$number_minor"
 	    revision="$number_minor"
 	    lt_irix_increment=no
+	    ;;
+	  *)
+	    func_fatal_configuration "$modename: unknown library version type '$version_type'"
 	    ;;
 	  esac
 	  ;;

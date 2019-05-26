@@ -594,7 +594,7 @@ namespace drachtio {
         DR_LOG(log_debug) << "ClientController::addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
 
-    void ClientController::logStorageCount() {
+    void ClientController::logStorageCount(bool bDetail) {
         std::lock_guard<std::mutex> lock(m_lock) ;
 
         DR_LOG(log_debug) << "ClientController storage counts"  ;
@@ -604,11 +604,38 @@ namespace drachtio {
         DR_LOG(log_debug) << "m_request_types size:                                            " << m_request_types.size()  ;
         DR_LOG(log_debug) << "m_map_of_request_type_offsets size:                              " << m_map_of_request_type_offsets.size()  ;
         DR_LOG(log_debug) << "m_mapDialogs size:                                               " << m_mapDialogs.size()  ;
-        DR_LOG(log_debug) << "m_mapNetTransactions size:                                       " << m_mapNetTransactions.size()  ;
-        DR_LOG(log_debug) << "m_mapAppTransactions size:                                       " << m_mapAppTransactions.size()  ;
-        DR_LOG(log_debug) << "m_mapApiRequests size:                                           " << m_mapApiRequests.size()  ;
-        DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapDialogs) {
+                DR_LOG(log_debug) << "    dialog id: " << std::hex << (kv.first).c_str();
+            }
+        }
 
+        DR_LOG(log_debug) << "m_mapNetTransactions size:                                       " << m_mapNetTransactions.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapNetTransactions) {
+                DR_LOG(log_debug) << "    transaction id: " << std::hex << (kv.first).c_str();
+            }
+        }
+        DR_LOG(log_debug) << "m_mapAppTransactions size:                                       " << m_mapAppTransactions.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapAppTransactions) {
+                DR_LOG(log_debug) << "    transaction id: " << std::hex << (kv.first).c_str();
+            }
+        }
+        DR_LOG(log_debug) << "m_mapApiRequests size:                                           " << m_mapApiRequests.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapApiRequests) {
+                DR_LOG(log_debug) << "    client msg id: " << std::hex << (kv.first).c_str();
+            }
+        }
+        DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size()  ;
+        if (bDetail) {
+            for (const auto& kv : m_mapDialogId2Appname) {
+                DR_LOG(log_debug) << "    dialog id: " << std::hex << (kv.first).c_str();
+            }
+        }
+
+        STATS_GAUGE_SET(STATS_GAUGE_CLIENT_APP_CONNECTIONS, m_clients.size())
 
     }
     std::shared_ptr<SipDialogController> ClientController::getDialogController(void) {

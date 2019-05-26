@@ -38,12 +38,11 @@ namespace drachtio {
   class SipDialogController ;
 
   PendingRequest_t::PendingRequest_t(msg_t* msg, sip_t* sip, tport_t* tp ) : m_msg( msg ), m_tp(tp), m_canceled(false),
-    m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), m_methodName(sip->sip_cseq->cs_method_name) {
-    //DR_LOG(log_debug) << "PendingRequest_t::PendingRequest_t" ;
-    generateUuid( m_transactionId ) ;
-   
+    m_callId(sip->sip_call_id->i_id), m_seq(sip->sip_cseq->cs_seq), 
+    m_methodName(sip->sip_cseq->cs_method_name), m_timeArrive({std::chrono::steady_clock::now()}) {
+    
+    generateUuid( m_transactionId ) ;   
     msg_ref_create( m_msg ) ; 
-
   }
   PendingRequest_t::~PendingRequest_t()  {
     msg_destroy( m_msg ) ;
@@ -88,6 +87,9 @@ namespace drachtio {
       client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
       if( !client ) {
         DR_LOG(log_error) << "processNewRequest - No providers available for " << sip->sip_request->rq_method_name  ;
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {
+          {"method", sip->sip_request->rq_method_name},
+          {"code", "503"}})
         generateUuid( transactionId ) ;
         return 503 ;
       }
@@ -242,13 +244,25 @@ namespace drachtio {
     m_pClientController->removeNetTransaction( transactionId ) ;
   }
 
-  void PendingRequestController::logStorageCount(void)  {
+  void PendingRequestController::logStorageCount(bool bDetail)  {
     std::lock_guard<std::mutex> lock(m_mutex) ;
 
     DR_LOG(log_debug) << "PendingRequestController storage counts"  ;
     DR_LOG(log_debug) << "----------------------------------"  ;
     DR_LOG(log_debug) << "m_mapCallId2Invite size:                                         " << m_mapCallId2Invite.size()  ;
+    if (bDetail) {
+        for (const auto& kv : m_mapCallId2Invite) {
+          DR_LOG(log_debug) << "    call-id: " << std::hex << (kv.first).c_str();
+        }
+    }
+
     DR_LOG(log_debug) << "m_mapTxnId2Invite size:                                          " << m_mapTxnId2Invite.size()  ;
+    if (bDetail) {
+        for (const auto& kv : m_mapTxnId2Invite) {
+          std::shared_ptr<PendingRequest_t> p = kv.second;
+          DR_LOG(log_debug) << "    txn id: " << std::hex << (kv.first).c_str() << ", call-id : " << p->getCallId().c_str();
+        }
+    }
   }
 
 

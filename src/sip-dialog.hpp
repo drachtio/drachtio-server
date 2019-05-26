@@ -23,6 +23,7 @@ THE SOFTWARE.
 #define __SIP_DIALOG_HPP__
 
 #include <sys/time.h>
+#include <chrono>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
@@ -36,7 +37,7 @@ namespace drachtio {
 	class SipDialog : public std::enable_shared_from_this<SipDialog> {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
-		SipDialog( const string& dialogId, const string& transactionId, nta_leg_t* leg, 
+		SipDialog( const string& transactionId, nta_leg_t* leg, 
 			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport ) ;
 		~SipDialog() ;
 
@@ -116,9 +117,10 @@ namespace drachtio {
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
 
 		const string& getDialogId(void) { 
-			if( m_dialogId.empty() ) {
+			if (m_dialogId.empty()) {
 				m_dialogId = m_strCallId;
-				m_dialogId.append( we_are_uac == m_type ? ";uac" : ";uas");
+				m_dialogId.append(";from-tag=");
+				m_dialogId.append( we_are_uac == m_type ? m_localEndpoint.m_strTag :m_remoteEndpoint.m_strTag);
 			}
 			return m_dialogId ;
 		}
@@ -136,18 +138,10 @@ namespace drachtio {
 		unsigned long getMinSE(void) { return m_nMinSE; }
 		void setMinSE(unsigned long secs) { m_nMinSE = secs;}
 
-		bool hasAckBeenSent(void) { return m_bAckSent;}
-		void ackSent(nta_outgoing_t* ack = NULL) { m_bAckSent = true; if (ack) { m_ackOrq = ack; }}
-		void retransmitAck(void) ;
 		tport_t* getTport(void) { return m_tp ;}
 		void setTport(tport_t* tp) ;
 
 		nta_leg_t* getNtaLeg(void) { return m_leg; }
-
-		void setTimerD(TimerEventHandle& handle) { m_timerD = handle; }
-		TimerEventHandle getTimerD(void) { return m_timerD; }
-		void clearTimerD() { m_timerD = NULL;}
-
 		void setTimerG(TimerEventHandle& handle) { 
 			m_timerG = handle; 
 			if( 0 == m_durationTimerG ) {
@@ -165,12 +159,25 @@ namespace drachtio {
 		TimerEventHandle getTimerH(void) { return m_timerH; }
 		void clearTimerH() { m_timerH = NULL;}
 
+		void setRouteUri(string& routeUri) { m_routeUri = routeUri; }
+
 		bool getRouteUri(string& routeUri) {
 			if (!m_routeUri.empty()) {
 				routeUri = m_routeUri;
 				return true;
 			}
 			return false;
+		}
+		void clearRouteUri() { m_routeUri.clear(); }
+
+		chrono::time_point<chrono::steady_clock>& getArrivalTime(void) {
+			return m_timeArrive;
+		}
+		bool hasAlerted() const {
+			return m_bAlerting;
+		}
+		void alerting(void) {
+			m_bAlerting = true;
 		}
 
 	protected:
@@ -203,21 +210,23 @@ namespace drachtio {
 		unsigned int 	m_sourcePort ;
 		string      m_protocol ;
 
-		/* ACK is automatically sent except in case of delayed SDP offer, so we need to track */
-		bool			m_bAckSent ;
-
 		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp ;
-		nta_outgoing_t*  m_ackOrq;
+
+		string 		m_routeUri;
 
 		string 		m_routeUri;
 
 		// sip timers
-    TimerEventHandle  m_timerD ;
     TimerEventHandle  m_timerG ;
     TimerEventHandle  m_timerH ;
     uint32_t					m_durationTimerG;
     uint32_t					m_countTimerG;
+
+		//timing
+		chrono::time_point<chrono::steady_clock> m_timeArrive;
+		bool m_bAlerting;
+
 	}  ;
 
 }
