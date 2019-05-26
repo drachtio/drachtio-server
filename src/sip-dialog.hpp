@@ -215,8 +215,6 @@ namespace drachtio {
 
 		string 		m_routeUri;
 
-		string 		m_routeUri;
-
 		// sip timers
     TimerEventHandle  m_timerG ;
     TimerEventHandle  m_timerH ;

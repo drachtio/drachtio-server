@@ -12,13 +12,13 @@ A docker image [can be found here](https://hub.docker.com/r/drachtio/drachtio-se
 The `drachtio/drachtio-server:latest` tagged image is kept current with the tip of the `develop` branch, which is probably what you want.
 
 ## Ansible
-An ansible role can be found [here](https://github.com/davehorton/ansible-role-drachtio) for building drachtio using ansible.
+An ansible role can be found [here](https://github.com/davehorton/ansible-role-drachtio) for building drachtio using ansible.  This is the recommended approach for building from source, as it will install a reasonable configuration file and systemd scripts for you, but if you want to build eveything manually then read on..
 
 ## Building from source
 
 *Please use the develop branch when building from source, as it is most up to date*
 
-> Note: The build requires libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project. 
+> Note: The build requires cmake, libtool-bin, libcurl, which can be installed on debian as `sudo apt install libcurl4-openssl-dev cmake libtool-bin`. All other third-party dependencies can be found under $(srcdir)/deps.  These include boost and the [sofia sip stack](https://github.com/davehorton/sofia-sip).  sofia is included as git submodules in this project. 
 
 > Note for OSX: Install and tell the compiler to use homebrew's openssl
 ```
@@ -28,7 +28,7 @@ export CXXFLAGS="-I/usr/local/opt/openssl/include $CXXFLAGS"
 export CFLAGS="-I/usr/local/opt/openssl/include $CFLAGS"
 ```
 
-After installing libcurl, do as follows:
+Then:
 ```
 git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
@@ -48,6 +48,7 @@ drachtio-server has been most heavily deployed on debian jesse (8) but has under
 * Fedora 20
 * Linux Mint
 * Mac OSX (10.9.2+)
+* Raspberry pi
 
 The following libraries are required to build:
 * gcc and c++ compilers
