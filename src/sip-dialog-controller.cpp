@@ -394,14 +394,11 @@ namespace drachtio {
         string host, port, proto, contact, desc ;
 
         try {
-            bool useOutboundProxy = false ;
+            bool useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy );
             const char *szRouteUrl = pData->getRouteUrl() ;
-            if (*szRouteUrl != '\0') {
+            if (!useOutboundProxy && *szRouteUrl != '\0') {
                 useOutboundProxy = true ;
                 sipOutboundProxy.assign(szRouteUrl);
-            }
-            else {
-                useOutboundProxy = m_pController->getConfig()->getSipOutboundProxy( sipOutboundProxy ) ;
             }
             if (useOutboundProxy) {
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog sending request to route url: " << sipOutboundProxy ;
