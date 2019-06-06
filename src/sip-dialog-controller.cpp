@@ -678,6 +678,13 @@ namespace drachtio {
 
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
             std::shared_ptr<IIP> iip ;
+
+            //check for retransmission 
+            if (sip->sip_cseq->cs_method == sip_method_invite && m_timerDHandler.resendIfNeeded(orq)) {
+                DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - retransmitted ACK for callid: " << sip->sip_call_id->i_id  ;
+                return 0;
+            }
+
             if( !findIIPByOrq( orq, iip ) ) {
                 DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - unable to match invite response with callid: " << sip->sip_call_id->i_id  ;
                 //TODO: do I need to destroy this transaction?
@@ -686,10 +693,6 @@ namespace drachtio {
             transactionId = iip->getTransactionId() ;   
             dlg = iip->dlg() ;   
 
-            //check for retransmission 
-            if (sip->sip_cseq->cs_method == sip_method_invite && m_timerDHandler.resendIfNeeded(orq)) {
-                return 0;
-            }
 
             //update dialog variables            
             dlg->setSipStatus( sip->sip_status->st_status ) ;
@@ -731,6 +734,13 @@ namespace drachtio {
                 const sip_route_t* route = NULL;
                 if (nta_leg_get_route(leg, &route, NULL) >= 0 && route && route->r_url->url_host && isRfc1918(route->r_url->url_host)) {
                     DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client at RFC1918 address: " << route->r_url->url_host  ;
+                    nat = true;
+                }
+                else if(sip->sip_cseq->cs_method == sip_method_invite && !route && sip->sip_contact && 
+                    0 != strcmp(sip->sip_contact->m_url->url_host, meta.getAddress().c_str())) {
+
+                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected downstream client; contact ip: " << 
+                        sip->sip_contact->m_url->url_host << " differs from recv address: " << meta.getAddress().c_str();
                     nat = true;
                 }
                 else if (theOneAndOnlyController->isAggressiveNatEnabled() && sipMsgHasNatEqualsYes(sip, true, true)) {
