@@ -1276,8 +1276,8 @@ namespace drachtio {
                     assert(0) ;
                 }
 
-                /* if this is a re-INVITE deal with session timers */
-                if( sip_method_invite == sip->sip_request->rq_method ) {
+                /* if this is a re-INVITE or an UPDATE deal with session timers */
+                if( sip_method_invite == sip->sip_request->rq_method || sip_method_update == sip->sip_request->rq_method ) {
                     if( dlg->hasSessionTimer() ) { dlg->cancelSessionTimer() ; }
 
                     /* reject if session timer is too small */
