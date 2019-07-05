@@ -237,7 +237,7 @@ namespace drachtio {
 		void logStorageCount(bool bDetail = false)  ;
 
 		/// IIP helpers 
-		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg ) ;
+		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg, const string& tag ) ;
 		void addOutgoingInviteTransaction( nta_leg_t* leg, nta_outgoing_t* orq, sip_t const *sip, std::shared_ptr<SipDialog> dlg ) ;
 
 		void addIncomingPrackTransaction( const string& transactionId, std::shared_ptr<IIP> p ) {

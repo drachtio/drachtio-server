@@ -146,13 +146,6 @@ namespace {
         }
     } ;
 
-    int defaultLegCallback( nta_leg_magic_t* controller,
-                        nta_leg_t* leg,
-                        nta_incoming_t* irq,
-                        sip_t const *sip) {
-        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", sip->sip_request->rq_method_name}})
-        return controller->processRequestOutsideDialog( leg, irq, sip ) ;
-    }
     int legCallback( nta_leg_magic_t* controller,
                         nta_leg_t* leg,
                         nta_incoming_t* irq,
@@ -1370,7 +1363,7 @@ namespace drachtio {
         return rc ;
     }
 
-    bool DrachtioController::setupLegForIncomingRequest( const string& transactionId ) {
+    bool DrachtioController::setupLegForIncomingRequest( const string& transactionId, const string& tag ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
         std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
         if( !p ) {
@@ -1409,7 +1402,7 @@ namespace drachtio {
             string contactStr ;
             nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
 
-            m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;            
+            m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg, tag ) ;            
         }
         else {
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
@@ -1422,112 +1415,7 @@ namespace drachtio {
         msg_ref_create( msg ) ; // we need to add a reference to the original request message
         return true ;
     }
-    int DrachtioController::processRequestOutsideDialog( nta_leg_t* defaultLeg, nta_incoming_t* irq, sip_t const *sip) {
-        DR_LOG(log_debug) << "processRequestOutsideDialog"  ;
-        assert(0) ;//deprecating this
-        int rc = validateSipMessage( sip ) ;
-        if( 0 != rc ) {
-            return rc ;
-        }
- 
-        switch (sip->sip_request->rq_method ) {
-            case sip_method_invite:
-            {
-                nta_incoming_treply( irq, SIP_100_TRYING, TAG_END() ) ;                
 
-               /* system-wide minimum session-expires is 90 seconds */
-                if( sip->sip_session_expires && sip->sip_session_expires->x_delta < 90 ) {
-                    STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "422"}})
-                    nta_incoming_treply( irq, SIP_422_SESSION_TIMER_TOO_SMALL, 
-                        SIPTAG_MIN_SE_STR("90"),
-                        TAG_END() ) ; 
-                      return 0;
-                } 
- 
-                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
-                if( !client ) {
-                    DR_LOG(log_error) << "No providers available for invite"  ;
-                    return 503 ;                    
-                }
-                string transactionId ;
-                generateUuid( transactionId ) ;
-
-                string encodedMessage ;
-                EncodeStackMessage( sip, encodedMessage ) ;
-                msg_t* msg = nta_incoming_getrequest( irq ) ;
-                SipMsgData_t meta( msg, irq ) ;
-
-                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
-                m_pClientController->getIOService().post( std::bind(fn, client, transactionId, encodedMessage, meta)) ;
-                
-                m_pClientController->addNetTransaction( client, transactionId ) ;
-
-                nta_leg_t* leg = nta_leg_tcreate(m_nta, legCallback, this,
-                                                   SIPTAG_CALL_ID(sip->sip_call_id),
-                                                   SIPTAG_CSEQ(sip->sip_cseq),
-                                                   SIPTAG_TO(sip->sip_from),
-                                                   SIPTAG_FROM(sip->sip_to),
-                                                   TAG_END());
-                if( NULL == leg ) {
-                    DR_LOG(log_error) << "Error creating a leg for  origination"  ;
-                    //TODO: we got a client out there with a dead INVITE now...
-                    return 500 ;
-                }
-                std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( leg, irq, sip, msg ) ;
-                dlg->setTransactionId( transactionId ) ;
-
-                nta_leg_server_route( leg, sip->sip_record_route, sip->sip_contact ) ;
-
-                m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg ) ;
-
-            }
-            break ;
-
-            case sip_method_ack:
-
-                /* success case: call has been established */
-                nta_incoming_destroy( irq ) ;
-                return 0 ;               
-            case sip_method_register:
-            case sip_method_message:
-            case sip_method_options:
-            case sip_method_info:
-            case sip_method_notify:
-            {
-                string transactionId ;
-                generateUuid( transactionId ) ;
-
-                client_ptr client = m_pClientController->selectClientForRequestOutsideDialog( sip->sip_request->rq_method_name ) ;
-                if( !client ) {
-                    DR_LOG(log_error) << "No providers available for invite"  ;
-                    return 503 ;                    
-                }
-                msg_t* msg = nta_incoming_getrequest( irq ) ;
-                string encodedMessage ;
-                EncodeStackMessage( sip, encodedMessage ) ;
-                SipMsgData_t meta( msg, irq ) ;
-
-                void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
-                m_pClientController->getIOService().post( std::bind(fn, client, transactionId, encodedMessage, meta)) ;
-                m_pClientController->addNetTransaction( client, transactionId ) ;
-                m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
-                return 0 ;
-            }
-            
-            case sip_method_bye:
-            case sip_method_cancel:
-                DR_LOG(log_error) << "Received BYE or CANCEL for unknown dialog: " << sip->sip_call_id->i_id  ;
-                return 481 ;
-                
-            default:
-                DR_LOG(log_error) << "DrachtioController::processRequestOutsideDialog - unsupported method type: " << sip->sip_request->rq_method_name << ": " << sip->sip_call_id->i_id  ;
-                return 501 ;
-                break ;
-                
-        }
-        
-        return 0 ;
-    }
     int DrachtioController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
         DR_LOG(log_debug) << "DrachtioController::processRequestInsideDialog"  ;
 
