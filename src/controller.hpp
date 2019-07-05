@@ -119,13 +119,12 @@ namespace drachtio {
     enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
 
     /* network --> client messages */
-    int processRequestOutsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
     int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
     /* stateless callback for messages not associated with a leg */
     int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
 
-    bool setupLegForIncomingRequest( const string& transactionId ) ;
+    bool setupLegForIncomingRequest( const string& transactionId, const string& tag ) ;
 
     /* callback from http outbound requests for route selection */
     void httpCallRoutingComplete(const string& transactionId, long response_code, const string& response) ;

@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 #include <algorithm>
+#include <regex>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/find.hpp>
@@ -265,7 +266,7 @@ namespace drachtio {
             else {
                 string contact ;
                 bool addContact = false ;
-                if( (method == sip_method_invite || method == sip_method_subscribe) && !searchForHeader( tags, siptag_contact_str, contact ) ) {
+                if( (method == sip_method_invite || method == sip_method_subscribe || method == sip_method_refer) && !searchForHeader( tags, siptag_contact_str, contact ) ) {
                     //TODO: should get this from dlg->m_tp I think....half the time the below is incorrect in that it refers to the remote end
                     contact = "<" ;
                     contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
@@ -835,7 +836,19 @@ namespace drachtio {
         if( !irq ) {
              if( !findIIPByTransactionId( transactionId, iip ) ) {
                 /* could be a new incoming request that hasn't been responded to yet */
-                if( m_pController->setupLegForIncomingRequest( transactionId ) ) {
+                
+                /* we allow the app to set the local tag (ie tag on the To) */
+                string toValue;
+                string tag;
+                if (GetValueForHeader( headers, "to", toValue)) {
+                    std::regex re("tag=(.*)");
+                    std::smatch mr;
+                    if (std::regex_search(toValue, mr, re) && mr.size() > 1) {
+                        tag = mr[1] ;
+                    }
+                }
+
+                if( m_pController->setupLegForIncomingRequest( transactionId, tag ) ) {
                     if( !findIIPByTransactionId( transactionId, iip ) ) {
                         irq = findAndRemoveTransactionIdForIncomingRequest( transactionId )  ;
                     }
@@ -1613,8 +1626,8 @@ namespace drachtio {
         }
         return false ;
     }
-    void SipDialogController::addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg ) {
-        const char* a_tag = nta_incoming_tag( irq, NULL) ;
+    void SipDialogController::addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg, const string& tag ) {
+        const char* a_tag = nta_incoming_tag( irq, tag.length() == 0 ? NULL : tag.c_str()) ;
         nta_leg_tag( leg, a_tag ) ;
         dlg->setLocalTag( a_tag ) ;
 
