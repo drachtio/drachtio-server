@@ -840,7 +840,7 @@ namespace drachtio {
                 /* we allow the app to set the local tag (ie tag on the To) */
                 string toValue;
                 string tag;
-                if (GetValueForHeader( headers, "To", toValue)) {
+                if (GetValueForHeader( headers, "to", toValue)) {
                     std::regex re("tag=(.*)");
                     std::smatch mr;
                     if (std::regex_search(toValue, mr, re) && mr.size() > 1) {

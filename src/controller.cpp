@@ -1393,7 +1393,7 @@ namespace drachtio {
             }
 
             DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - created leg: " << hex << leg << ", irq: " << irq << 
-                ", for transactionId: " << transactionId;
+                ", for transactionId: " << transactionId << ", tag: " << tag;
 
 
             std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>( leg, irq, sip, msg ) ;
