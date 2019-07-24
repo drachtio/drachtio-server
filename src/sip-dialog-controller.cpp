@@ -1289,6 +1289,10 @@ namespace drachtio {
                     assert(0) ;
                 }
 
+                if (sip_method_invite == sip->sip_request->rq_method) {
+                    nta_incoming_treply(irq, SIP_100_TRYING, TAG_END());
+                }
+
                 /* if this is a re-INVITE or an UPDATE deal with session timers */
                 if( sip_method_invite == sip->sip_request->rq_method || sip_method_update == sip->sip_request->rq_method ) {
                     if( dlg->hasSessionTimer() ) { dlg->cancelSessionTimer() ; }
