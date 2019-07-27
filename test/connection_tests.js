@@ -264,12 +264,35 @@ test('outbound connections using POST', (t) => {
       return t.ok(uas1.calls === 2 && uas2.calls == 1, 'third call routed correctly');
     })
     .then(() => {
-      return stop();
+     return stop();
     })
     .catch((err) => {
       t.fail(`failed with error ${err}`);
       if (uas1) uas1.disconnect();
       if (uas2) uas2.disconnect();
+      stop();
+    });
+});
+
+test('outbound direct tcp connections', (t) => {
+  let uas;
+  return start('./drachtio.conf8.xml')
+
+    .then(() => {
+      uas = new Uas();
+      return Promise.all([uas.listen(3041)]);
+    })
+    .then(() => {
+      uas.accept();
+      return execCmd('sipp -sf ./uac-outbound-3041.xml 127.0.0.1:5091 -m 1 -sleep 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      t.ok(uas.calls === 1, 'direct tcp connection worked');
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas) uas1.disconnect();
       stop();
     });
 });
@@ -361,6 +384,38 @@ test('tls outbound connections', (t) => {
     })
     .then(() => {
       return t.ok(uas1.calls === 2 && uas2.calls == 1, 'third call routed correctly');
+    })
+    .then(() => {
+      debug('stopping testbed');
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas1) uas1.disconnect();
+      if (uas2) uas2.disconnect();
+      stop();
+    });
+});
+
+test('tls direct outbound connections', (t) => {
+  let uas;
+  const tlsOpts = {
+    key: fs.readFileSync('./tls/server.key'),
+    cert: fs.readFileSync('./tls/server.crt'),
+    rejectUnauthorized: false
+  };
+  return start('./drachtio.conf9.xml', [], true)
+
+    .then(() => {
+      uas = new Uas();
+      return uas.listenTls(3044, tlsOpts);
+    })
+    .then(() => {
+      uas.accept();
+      return execCmd('sipp -sf ./uac-outbound-3034.xml 127.0.0.1:5092 -m 1 -sleep 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return t.pass('direct tls worked');
     })
     .then(() => {
       debug('stopping testbed');

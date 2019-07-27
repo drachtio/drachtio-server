@@ -1,0 +1,58 @@
+<drachtio>
+
+    <!-- udp port to listen on for client connections (default 8022), and shared secret used to authenticate clients -->
+    <admin port="9022" secret="cymru">127.0.0.1</admin>
+ 
+     <request-handlers>
+       <request-handler sip-method="INVITE">tcp://127.0.0.1:3041</request-handler>
+    </request-handlers>
+
+    <!-- sip configuration -->
+    <sip>
+        <!-- local sip address to bind to.  Default: 'sip:*', which means listens on port 5060 on all interfaces and transports -->
+        <!--
+                Other examples:
+                    sip:192.168.1.100      
+                    sip:*;transport=tcp   
+                    sip:*:5061          
+        -->
+        <contacts>
+            <contact>sip:127.0.0.1:5091;transport=udp,tcp</contact>
+        </contacts>
+
+        <spammers action="reject" tcp-action="discard">
+            <header name="User-Agent">
+                <value>sip-cli</value>
+                <value>sipcli</value>
+                <value>friendly-scanner</value>
+            </header>
+            <header>
+                <value>sipvicious</value>
+            </header>
+        </spammers>
+
+    </sip>
+
+    <cdrs>true</cdrs>
+            
+    <!-- logging configuration -->
+    <logging>
+
+        <console/>
+
+        <file>
+            <name>/tmp/drachtio.log</name>
+            <archive>/tmp/archive</archive>
+            <maxSize>5120</maxSize> 
+            <minSize>10240</minSize>
+            <auto-flush>true</auto-flush>
+        </file>
+
+        <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
+        <sofia-loglevel>9</sofia-loglevel>
+        
+        <!-- notice, warning, error, info, debug.  Default: info -->
+        <loglevel>debug</loglevel>
+    </logging>
+        
+</drachtio>

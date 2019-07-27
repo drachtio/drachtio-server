@@ -106,66 +106,69 @@ namespace drachtio {
     p->setMeta(meta); 
     p->setEncodedMsg(encodedMessage);
 
-    if( !httpUrl.empty() ) {
-      // using outbound connection for this call
-      
-      vector< pair<string, string> > v;
-      v.push_back( make_pair("method", sip->sip_request->rq_method_name )) ;
-      v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host )) ;
-      v.push_back( make_pair("protocol", meta.getProtocol() )) ;
-      v.push_back( make_pair("source_address", meta.getAddress() )) ;
-      v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user ? sip->sip_from->a_url->url_user : "" )) ;
-      v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user ? sip->sip_to->a_url->url_user : ""  )) ;
-      v.push_back( make_pair("uriUser", sip->sip_request->rq_url->url_user ? sip->sip_request->rq_url->url_user : ""  )) ;
-
-      // add content-type
-      string ct = "";
-      if (sip->sip_content_type && sip->sip_content_type->c_type) {
-        ct = sip->sip_content_type->c_type;
-      }
-      v.push_back( make_pair("contentType", ct)) ;
-
-      // uri
-      char buf[4096];
-      url_e(buf, 4096, sip->sip_request->rq_url);
-      v.push_back( make_pair("uri", buf)) ;
-
-      // add request uri params to the querystring as well
-      if (sip->sip_request->rq_url->url_params) {
-        string paramString(sip->sip_request->rq_url->url_params);
-        vector<string> strs;
-        boost::split(strs, paramString, boost::is_any_of(";"));
-        for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
-          vector<string> kv ;
-          boost::split(kv, *it, boost::is_any_of("="));
-          v.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
-        }
-      }
-
-      //tmp!!
-      httpUrl.append("/");
-      int i = 0 ;
-      pair<string,string> p;
-      BOOST_FOREACH(p, v) {
-          if( i++ > 0 ) {
-              httpUrl.append("&") ;
-          }
-          else {
-            httpUrl.append("?");
-          }
-          httpUrl.append(p.first) ;
-          httpUrl.append("=") ;
-          httpUrl.append(urlencode(p.second));
-      }
-
-      std::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
-      pHandler->makeRequestForRoute(transactionId, httpMethod, httpUrl, encodedMessage) ;
-    }
-    else {
+    if( httpUrl.empty() ) {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
       void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
       m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta ) ) ;
+    }
+    else {
+      // using outbound connection for this call
+
+      // if we have tcp:// or tls:// scheme, then we are connecting directly, without an http query first
+      if (0 != httpUrl.find("tcp:") && 0 != httpUrl.find("tls:")) {
+        vector< pair<string, string> > v;
+        v.push_back( make_pair("method", sip->sip_request->rq_method_name )) ;
+        v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host )) ;
+        v.push_back( make_pair("protocol", meta.getProtocol() )) ;
+        v.push_back( make_pair("source_address", meta.getAddress() )) ;
+        v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user ? sip->sip_from->a_url->url_user : "" )) ;
+        v.push_back( make_pair("toUser", sip->sip_to->a_url->url_user ? sip->sip_to->a_url->url_user : ""  )) ;
+        v.push_back( make_pair("uriUser", sip->sip_request->rq_url->url_user ? sip->sip_request->rq_url->url_user : ""  )) ;
+
+        // add content-type
+        string ct = "";
+        if (sip->sip_content_type && sip->sip_content_type->c_type) {
+          ct = sip->sip_content_type->c_type;
+        }
+        v.push_back( make_pair("contentType", ct)) ;
+
+        // uri
+        char buf[4096];
+        url_e(buf, 4096, sip->sip_request->rq_url);
+        v.push_back( make_pair("uri", buf)) ;
+
+        // add request uri params to the querystring as well
+        if (sip->sip_request->rq_url->url_params) {
+          string paramString(sip->sip_request->rq_url->url_params);
+          vector<string> strs;
+          boost::split(strs, paramString, boost::is_any_of(";"));
+          for (vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+            vector<string> kv ;
+            boost::split(kv, *it, boost::is_any_of("="));
+            v.push_back(pair<string,string>(kv[0], kv.size() == 2 ? kv[1] : ""));
+          }
+        }
+
+        //tmp!!
+        httpUrl.append("/");
+        int i = 0 ;
+        pair<string,string> p;
+        BOOST_FOREACH(p, v) {
+            if( i++ > 0 ) {
+                httpUrl.append("&") ;
+            }
+            else {
+              httpUrl.append("?");
+            }
+            httpUrl.append(p.first) ;
+            httpUrl.append("=") ;
+            httpUrl.append(urlencode(p.second));
+        }
+      }
+      
+      std::shared_ptr<RequestHandler> pHandler = RequestHandler::getInstance();
+      pHandler->makeRequestForRoute(transactionId, httpMethod, httpUrl, encodedMessage) ;
     }
     return 0 ;
   }

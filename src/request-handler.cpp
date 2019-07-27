@@ -461,6 +461,18 @@ namespace drachtio {
     RequestHandler::ConnInfo *conn;
     CURLMcode rc;
 
+    if (0 == url.find("tcp://") || 0 == url.find("tls://")) {
+      string json = "{\"action\": \"route\", \"data\": {\"uri\": \"";
+      json.append(url.substr(6));
+      if (0 == url.find("tcp://")) json.append(";transport=tcp");
+      else json.append(";transport=tls");
+      json.append("\"}}");
+      DR_LOG(log_info) << "RequestHandler::startRequest: no web callback required, sending directly to " << url << ":" << json.c_str() ;
+      m_pController->httpCallRoutingComplete(transactionId, 200, json);
+      return;
+    }
+
+
     DR_LOG(log_info) << "RequestHandler::startRequest: sending http " << httpMethod << ": " << url ;
 
     conn = m_pool.malloc() ;
