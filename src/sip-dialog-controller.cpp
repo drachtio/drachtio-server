@@ -819,6 +819,7 @@ namespace drachtio {
         string failMsg ;
         bool bDestroyIrq = false ;
         bool bClearIIP = false ;
+        bool existingDialog = false;
 
         //decode status 
         sip_status_t* sip_status = sip_status_make( m_pController->getHome(), startLine.c_str() ) ;
@@ -855,6 +856,7 @@ namespace drachtio {
                 }
              }
         }
+        else existingDialog = true;
 
         if( irq ) {
 
@@ -1192,6 +1194,9 @@ namespace drachtio {
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;
         }
         else if( sip_method_invite == nta_incoming_method(irq) && code > 200 ) {
+            m_pController->getClientController()->removeNetTransaction( transactionId ) ;            
+        }
+        else if(sip_method_invite == nta_incoming_method(irq) && code == 200 && existingDialog) {
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;            
         }
 
@@ -1689,7 +1694,7 @@ namespace drachtio {
         m_mapTransactionId2IIP.erase( itTransaction ) ;
 
         if( irq ) nta_incoming_destroy( irq ) ;
-        //if( orq ) nta_outgoing_destroy( orq ) ;
+        if( orq ) nta_outgoing_destroy( orq ) ;
 
         if( rel ) {
             mapRel2IIP::iterator itRel = m_mapRel2IIP.find( rel ) ;
@@ -1697,7 +1702,8 @@ namespace drachtio {
                 m_mapRel2IIP.erase( itRel ) ;
             }
             nta_reliable_destroy( rel ) ;
-        }                return dlg ;            
+        }                
+        return dlg ;            
     }
 
     void SipDialogController::clearDialog( const string& strDialogId ) {
