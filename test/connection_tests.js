@@ -280,11 +280,11 @@ test('outbound direct tcp connections', (t) => {
 
     .then(() => {
       uas = new Uas();
-      return Promise.all([uas.listen(3041)]);
+      return uas.listen(3041);
     })
     .then(() => {
       uas.accept();
-      return execCmd('sipp -sf ./uac-outbound-3041.xml 127.0.0.1:5092 -m 1 -sleep 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac-outbound-3041.xml 127.0.0.1:5090 -m 1 -sleep 1', {cwd: './scenarios'});
     })
     .then(() => {
       t.ok(uas.calls === 1, 'direct tcp connection worked');
@@ -292,7 +292,7 @@ test('outbound direct tcp connections', (t) => {
     })
     .catch((err) => {
       t.fail(`failed with error ${err}`);
-      if (uas) uas1.disconnect();
+      if (uas) uas.disconnect();
       stop();
     });
 });
@@ -412,7 +412,7 @@ test('tls direct outbound connections', (t) => {
     })
     .then(() => {
       uas.accept();
-      return execCmd('sipp -sf ./uac-outbound-3034.xml 127.0.0.1:5093 -m 1 -sleep 1', {cwd: './scenarios'});
+      return execCmd('sipp -sf ./uac-outbound-3034.xml 127.0.0.1:5090 -m 1 -sleep 1', {cwd: './scenarios'});
     })
     .then(() => {
       return t.pass('direct tls worked');
