@@ -4,6 +4,7 @@ const parseUri = Srf.parseUri;
 const config = require('./config');
 const debug = require('debug')('drachtio:server-test');
 const fs = require('fs');
+const assert = require('assert');
 
 class App extends Emitter {
   constructor(tags) {
@@ -90,6 +91,9 @@ class App extends Emitter {
 
   accept(sdp, delay) {
     this.srf.invite((req, res) => {
+
+      assert(req.server.address);
+      assert(req.server.hostport);
 
       this.calls++;
       req.on('cancel', () => {
