@@ -89,7 +89,7 @@ before_install:
     - git clone https://github.com/SIPp/sipp.git && cd sipp && git checkout v3.5.1 
     - ./build.sh  --with-rtpstream --with-pcap 
     - sudo make install
-    - if [ $TRAVIS_OS_NAME = linux ]; then sudo curl -sL https://deb.nodesource.com/setup_8.x | sudo bash - ; fi
+    - if [ $TRAVIS_OS_NAME = linux ]; then sudo curl -sL https://deb.nodesource.com/setup_10.x | sudo bash - ; fi
     - if [ $TRAVIS_OS_NAME = linux ]; then sudo apt-get install -y nodejs; fi
     - curl-config --version
     - curl-config --libs 
