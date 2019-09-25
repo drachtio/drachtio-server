@@ -1694,7 +1694,11 @@ namespace drachtio {
         m_mapTransactionId2IIP.erase( itTransaction ) ;
 
         if( irq ) nta_incoming_destroy( irq ) ;
-        if( orq ) nta_outgoing_destroy( orq ) ;
+
+        // DH: tmp commented this out as it appears to cause a crash
+        // https://github.com/davehorton/drachtio-server/issues/76#event-2662761148
+        // this needs investigation, because it also causes a memory leak
+        //if( orq ) nta_outgoing_destroy( orq ) ;
 
         if( rel ) {
             mapRel2IIP::iterator itRel = m_mapRel2IIP.find( rel ) ;
