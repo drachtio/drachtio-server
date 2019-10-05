@@ -1428,7 +1428,8 @@ namespace drachtio {
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
             if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && dlg->getSipStatus() >= 200 ) {
                DR_LOG(log_info) << "DrachtioController::processRequestInsideDialog - received INVITE out of order (still waiting ACK from prev transaction)" ;
-               return this->processMessageStatelessly( nta_incoming_getrequest( irq ), (sip_t *) sip ) ;
+               return 491;
+               //return this->processMessageStatelessly( nta_incoming_getrequest( irq ), (sip_t *) sip ) ;
             }
 
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
