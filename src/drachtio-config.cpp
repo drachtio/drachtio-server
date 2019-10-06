@@ -41,7 +41,8 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false), m_prometheusPort(0), m_prometheusAddress("0.0.0.0") {
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false), 
+        m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -68,6 +69,7 @@ namespace drachtio {
                     m_secret = pt.get<string>("drachtio.admin.<xmlattr>.secret", "admin") ;
                     m_adminAddress = pt.get<string>("drachtio.admin") ;
                     string tlsValue =  pt.get<string>("drachtio.admin.<xmlattr>.tls", "false") ;
+                    m_tcpKeepalive = pt.get<unsigned int>("drachtio.admin.<xmlattr>.tcp-keepalive", 45);
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                     cerr << "XML tag <admin> not found; this is required to provide admin socket details" << endl ;
                     return ;
@@ -391,6 +393,10 @@ namespace drachtio {
             return true;
         }
 
+        unsigned int getTcpKeepalive() {
+            return m_tcpKeepalive;
+        }
+
  
     private:
         
@@ -445,6 +451,7 @@ namespace drachtio {
         bool m_bAggressiveNatDetection;
         string m_prometheusAddress;
         unsigned int m_prometheusPort;
+        unsigned int m_tcpKeepalive;
   } ;
     
     /*
@@ -531,4 +538,8 @@ namespace drachtio {
         return m_pimpl->getPrometheusAddress(address, port);
     }
   
+    unsigned int DrachtioConfig::getTcpKeepalive() const {
+        return m_pimpl->getTcpKeepalive();
+    }
+
 }

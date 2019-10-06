@@ -20,6 +20,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 //
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
 #include <iostream>
 
 #include <functional>
@@ -33,12 +38,44 @@ THE SOFTWARE.
 #include "client.hpp"
 #include "controller.hpp"
 
+#if !defined(SOL_TCP) && defined(IPPROTO_TCP)
+#define SOL_TCP IPPROTO_TCP
+#endif
+#if !defined(TCP_KEEPIDLE) && defined(TCP_KEEPALIVE)
+#define TCP_KEEPIDLE TCP_KEEPALIVE
+#endif
+
 namespace drachtio {
     std::size_t hash_value( BaseClient const &c ) {
         std::size_t seed = 0 ;
         boost::hash_combine(seed, c.endpoint_address()) ;
         boost::hash_combine(seed, c.endpoint_port()) ;
         return seed ;
+    }
+
+    void setTcpKeepAlive(int s) {
+        int optval = 1 ;
+        socklen_t optlen = sizeof(optval);
+
+        unsigned int seconds = theOneAndOnlyController->getTcpKeepaliveInterval();
+        if (seconds == 0) {
+            return;
+        }
+
+        if (setsockopt(s, SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen) < 0) {
+            DR_LOG(log_error) << "Client::start - error enabling tcp keepalive option";
+            return;
+        }
+        optval = 1;
+        if (setsockopt(s, SOL_TCP, TCP_KEEPIDLE, &optval, optlen) < 0) {
+            DR_LOG(log_error) << "Client::start - error enabling tcp keepalive";
+            return;
+        }
+        optval = seconds;
+        if (setsockopt(s, SOL_TCP, TCP_KEEPINTVL, &optval, optlen) < 0) {
+            DR_LOG(log_error) << "Client::start - error setting tcp keepalive interval";
+            return;
+        }
     }
 
     // BaseClient
@@ -53,7 +90,6 @@ namespace drachtio {
         m_controller( controller ), 
         m_transactionId(transactionId), m_host(host), m_port(port),
         m_state(initial), m_buffer(12228), m_nMessageLength(0) {
-
 
     }
 
@@ -394,9 +430,6 @@ read_again:
     Client<socket_t>::Client(boost::asio::io_context& io_context, ClientController& controller) :
         BaseClient(controller),
         m_sock(io_context) {
-        int optval = 1 ;
-        socklen_t optlen = sizeof(optval);
-        setsockopt(m_sock.native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen);
     }
 
     template<>
@@ -415,6 +448,8 @@ read_again:
         m_nRemotePort = m_sock.remote_endpoint().port();
 
         DR_LOG(log_debug) << "Client::start - Received connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
+
+        setTcpKeepAlive(m_sock.native_handle());
 
         m_controller.join( shared_from_this() ) ;
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
@@ -438,6 +473,9 @@ read_again:
             endpoint_address() << ":" << endpoint_port() ;
 
         m_controller.join( shared_from_this() ) ;
+
+        setTcpKeepAlive(m_sock.native_handle());
+
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
             std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1, 
             std::placeholders::_2 ) ) ;
@@ -465,9 +503,6 @@ read_again:
     Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client(boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller) :
         BaseClient(controller),
         m_sock(io_context, context) {
-        int optval = 1 ;
-        socklen_t optlen = sizeof(optval);
-        setsockopt(m_sock.lowest_layer().native_handle(), SOL_SOCKET,  SO_KEEPALIVE, &optval, optlen);
     }
 
     template<>
@@ -485,7 +520,7 @@ read_again:
         m_strRemoteAddress = m_sock.lowest_layer().remote_endpoint().address().to_string();
         m_nRemotePort = m_sock.lowest_layer().remote_endpoint().port();
 
-        DR_LOG(log_debug) << "Client::start - Received tls connection from client at " << m_strRemoteAddress << ":" << m_nRemotePort ;
+        setTcpKeepAlive(m_sock.lowest_layer().native_handle());
 
         m_sock.async_handshake(boost::asio::ssl::stream_base::server,
             std::bind(&BaseClient::handle_handshake, shared_from_this(),

@@ -263,7 +263,7 @@ namespace drachtio {
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
-        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0") {
+        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX) {
 
         getEnv();
 
@@ -391,6 +391,7 @@ namespace drachtio {
                 {"aggressive-nat-detection", no_argument, 0, 'I'},
                 {"prometheus-scrape-port", required_argument, 0, 'J'},
                 {"memory-debug", no_argument, 0, 'K'},
+                {"tcp-keepalive-interval", required_argument, 0, 'L'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -581,6 +582,10 @@ namespace drachtio {
                     m_bMemoryDebug = true;
                     break;
 
+                case 'L':
+                    m_tcpKeepaliveSecs = ::atoi(optarg);
+                    break;
+
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -651,6 +656,7 @@ namespace drachtio {
         cerr << "    --sofia-loglevel               Log level of internal sip stack (choices: 0-9)" << endl ;
         cerr << "    --external-ip                  External IP address to use in SIP messaging" << endl ;
         cerr << "    --stdout                       Log to standard output as well as any configured log destinations" << endl ;
+        cerr << "    --tcp-keepalive-interval       tcp keepalive in seconds (0=no keepalive)" << endl ;
         cerr << "-v  --version                      Print version and exit" << endl ;
     }
     void DrachtioController::getEnv(void) {
@@ -697,6 +703,8 @@ namespace drachtio {
         if (p && ::atoi(p) > 0 && ::atoi(p) <= 9) m_nSofiaLoglevel = ::atoi(p);
         p = std::getenv("DRACHTIO_UDP_MTU");
         if (p && ::atoi(p) > 0) m_mtu = ::atoi(p);
+        p = std::getenv("DRACHTIO_TCP_KEEPALIVE_INTERVAL");
+        if (p && ::atoi(p) >= 0) m_tcpKeepaliveSecs = ::atoi(p);
         p = std::getenv("DRACHTIO_SECRET");
         if (p) m_secret = p;
         p = std::getenv("DRACHTIO_CONSOLE_LOGGING");
@@ -1010,6 +1018,17 @@ namespace drachtio {
             DR_LOG(log_notice) << "Prometheus support disabled";
         }
         initStats();
+
+        // tcp keepalive
+        if (UINT16_MAX == m_tcpKeepaliveSecs) {
+            m_tcpKeepaliveSecs = m_Config->getTcpKeepalive();
+        }
+        if (0 == m_tcpKeepaliveSecs) {
+            DR_LOG(log_notice) << "tcp keep alives have been disabled ";
+        }
+        else {
+            DR_LOG(log_notice) << "tcp keep alives will be sent to clients every " << m_tcpKeepaliveSecs << " seconds";
+        }
 
         int rv = su_init() ;
         if( rv < 0 ) {

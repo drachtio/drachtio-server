@@ -163,7 +163,9 @@ namespace drachtio {
     void makeConnectionForTag(const string& transactionId, const string& tag);
     void selectInboundConnectionForTag(const string& transactionId, const string& tag);
 
-    bool isAggressiveNatEnabled(void) { return m_bAggressiveNatDetection; }    
+    bool isAggressiveNatEnabled(void) { return m_bAggressiveNatDetection; }
+
+    unsigned int getTcpKeepaliveInterval() { return m_tcpKeepaliveSecs; }
 
 	private:
 
@@ -256,6 +258,7 @@ namespace drachtio {
     unsigned int m_nPrometheusPort;
 
     bool m_bMemoryDebug;
+    unsigned int m_tcpKeepaliveSecs;
   } ;
 
 } ;

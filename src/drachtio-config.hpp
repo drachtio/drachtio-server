@@ -85,6 +85,8 @@ namespace drachtio {
 
         bool getPrometheusAddress( string& address, unsigned int& port ) const ;
 
+        unsigned int getTcpKeepalive() const;
+
         void Log() const ;
         
     private:
