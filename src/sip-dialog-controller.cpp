@@ -629,7 +629,8 @@ namespace drachtio {
         std::shared_ptr<IIP> iip ;
 
         if( findIIPByTransactionId( transactionId, iip ) ) {
-            nta_outgoing_t *cancel = nta_outgoing_tcancel(iip->orq(), NULL, NULL, TAG_NULL());
+            tagi_t* tags = makeSafeTags( pData->getHeaders()) ;
+            nta_outgoing_t *cancel = nta_outgoing_tcancel(iip->orq(), NULL, NULL, TAG_NEXT(tags));
             if( NULL != cancel ) {
                 msg_t* m = nta_outgoing_getrequest(cancel) ;    // adds a reference
                 sip_t* sip = sip_object( m ) ;
@@ -655,6 +656,7 @@ namespace drachtio {
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", 
                     string("internal server error canceling transaction id: ") + transactionId ) ; 
             }
+            if (tags) deleteTags(tags);
         }
         else {
             DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - unknown transaction id " << transactionId ;

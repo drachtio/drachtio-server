@@ -175,6 +175,7 @@ namespace drachtio {
 	bool GetValueForHeader( const string& headers, const char *szHeaderName, string& headerValue ) ;
 
 	tagi_t* makeTags( const string& hdrs, const string& transport, const char* szExternalIP = NULL ) ;
+	tagi_t* makeSafeTags( const string& hdrs) ;
 	void deleteTags( tagi_t* tags ) ;
 
 	int ackResponse( msg_t* msg ) ;

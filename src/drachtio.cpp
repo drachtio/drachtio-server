@@ -635,6 +635,94 @@ namespace drachtio {
         delete [] tags ; 
     }
 
+    tagi_t* makeSafeTags( const string&  hdrs) {
+        vector<string> vec ;
+        
+        splitLines( hdrs, vec ) ;
+        int nHdrs = vec.size() ;
+        tagi_t *tags = new tagi_t[nHdrs+1] ;
+        int i = 0; 
+        for( std::vector<string>::const_iterator it = vec.begin(); it != vec.end(); ++it )  {
+            tags[i].t_tag = tag_skip ;
+            tags[i].t_value = (tag_value_t) 0 ;                     
+            bool bValid = true ;
+            string hdrName, hdrValue ;
+
+            //parse header name and value
+            size_t pos = (*it).find_first_of(":") ;
+            if( string::npos == pos ) {
+                bValid = false ;
+            }
+            else {
+                hdrName = (*it).substr(0,pos) ;
+                boost::trim( hdrName );
+                if( string::npos != hdrName.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
+                    bValid = false ;
+                }
+                else {
+                    hdrValue = (*it).substr(pos+1) ;
+                    boost::trim( hdrValue ) ;
+                }
+            }
+            if( !bValid ) {
+                DR_LOG(log_error) << "makeTags - invalid header: '" << *it << "'"  ;
+                i++ ;
+                continue ;
+            }
+            else if( string::npos != hdrValue.find(DR_CRLF) ) {
+                DR_LOG(log_error) << "SipDialogController::makeTags - client supplied invalid custom header value (contains CR or LF) for header '" << hdrName << "'" ;
+                i++ ;
+                continue ;
+            }
+
+            //treat well-known headers differently than custom headers 
+            tag_type_t tt ;
+            string hdr = boost::to_lower_copy( boost::replace_all_copy( hdrName, "-", "_" ) );
+            if( isImmutableHdr( hdr ) ) {
+                if( 0 != hdr.compare("content_length") ) {
+                    DR_LOG(log_debug) << "makeTags - discarding header because client is not allowed to set dialog-level headers: '" << hdrName  ;
+                }
+            }
+            else if( getTagTypeForHdr( hdr, tt ) ) {
+                //well-known header
+                
+                //replace 'localhost' in certain headers with actual sip address:port
+                if( 0 == hdr.compare("from") || 
+                    0 == hdr.compare("contact") ||
+                    0 == hdr.compare("to") ||
+                    0 == hdr.compare("p_asserted_identity") ) {
+
+                    DR_LOG(log_debug) << "makeSafeTags - hdr '" << hdrName << "' can not be modified";
+                }
+                else {
+                    int len = hdrValue.length() ;
+                    char *p = new char[len+1] ;
+                    memset(p, '\0', len+1) ;
+                    strncpy( p, hdrValue.c_str(), len ) ;
+                    tags[i].t_tag = tt;
+                    tags[i].t_value = (tag_value_t) p ;
+                    DR_LOG(log_debug) << "makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
+                }
+            }
+            else {
+                //custom header
+                int len = (*it).length() ;                  
+                char *p = new char[len+1] ;
+                memset(p, '\0', len+1) ;
+                strncpy( p, (*it).c_str(), len) ;
+
+                tags[i].t_tag = siptag_unknown_str ;
+                tags[i].t_value = (tag_value_t) p ;
+                DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
+            }
+            i++ ;
+        }
+        tags[nHdrs].t_tag = tag_null ;
+        tags[nHdrs].t_value = (tag_value_t) 0 ;       
+
+        return tags ;   //NB: caller responsible to delete after use to free memory      
+    }
+
     tagi_t* makeTags( const string&  hdrs, const string& transport, const char* szExternalIP ) {
         vector<string> vec ;
         string proto, host, port, myHostport ;

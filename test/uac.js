@@ -133,3 +133,37 @@ test('retransmit INVITE', (t) => {
     });
 });
 
+test('cancel INVITE', (t) => {
+  let uac;
+  return start('./drachtio.conf4.xml', ['--memory-debug'])
+    .then(() => {
+      uac = new Uac();
+      return uac.connect();
+    })
+    .then(() => {
+      execCmd('sipp -sf ./uas-cancel.xml -i 127.0.0.1 -p 5092 -m 1', {cwd: './scenarios'});
+      return;
+    })
+    .then(() => {
+      return uac.call('sip:127.0.0.1:5092', {cancelAfter: 1000});
+    })
+    .then(() => {
+      return new Promise((resolve) => {
+        uac.on('fail', (err) => {
+          if (err.status === 487) return resolve();
+          reject(err);
+        });
+      })
+    })
+    .then(() => {
+      t.pass('successfully canceled invite');
+      uac.disconnect();
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uac) uac.disconnect();
+      stop();
+    });
+});
+
