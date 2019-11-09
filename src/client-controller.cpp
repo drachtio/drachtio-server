@@ -54,9 +54,9 @@ namespace drachtio {
     ClientController::ClientController( DrachtioController* pController, string& address, unsigned int tcpPort, unsigned int tlsPort, 
         const string& chainFile, const string& certFile, const string& keyFile, const string& dhFile ) :
         m_pController( pController ),
-        m_endpoint_tcp(boost::asio::ip::tcp::v4(), tcpPort),
+        m_endpoint_tcp(boost::asio::ip::make_address(address.c_str()), tcpPort),
         m_acceptor_tcp(m_ioservice, m_endpoint_tcp), 
-        m_endpoint_tls(boost::asio::ip::tcp::v4(), tlsPort),
+        m_endpoint_tls(boost::asio::ip::make_address(address.c_str()), tlsPort),
         m_acceptor_tls(m_ioservice, m_endpoint_tls), 
         m_context(boost::asio::ssl::context::sslv23),
         m_tcpPort(tcpPort), m_tlsPort(tlsPort) {
