@@ -81,7 +81,8 @@ git:
 
 before_install:
     - eval "${MATRIX_EVAL}"
-    - if [ $TRAVIS_OS_NAME = osx ]; then nvm install "v8.11.3"; brew install ruby; brew link --overwrite ruby; fi
+    - if [ $TRAVIS_OS_NAME = osx ]; then /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"; fi
+    - if [ $TRAVIS_OS_NAME = osx ]; then nvm install "v8.11.3"; fi
     - if [ $TRAVIS_OS_NAME = linux ]; then sudo apt-get install -y curl libz-dev ncurses-dev libpcap-dev libtool libcurl4-openssl-dev nodejs; else brew install curl ncurses libpcap libtool openssl gnu-sed; fi 
     - if [ $TRAVIS_OS_NAME = osx ]; then sudo ln -s /usr/local/opt/openssl/include/openssl /usr/local/include; fi
     - sudo mkdir -p /usr/local/src && sudo chmod 0777 /usr/local/src 
