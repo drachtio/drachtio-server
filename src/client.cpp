@@ -279,8 +279,18 @@ namespace drachtio {
         string strUuid, s ;
         generateUuid( strUuid ) ;
         meta.toMessageFormat(s) ;
+        string strMsg = strUuid + "|sip|" + s + "|" + transactionId + "||" ;
+        if (meta.getDestAddress().length() > 0) {
+            strMsg += meta.getDestAddress();
+            strMsg += "|";
+            strMsg += meta.getDestPort();
+            strMsg += "|";
+        }
+        strMsg += DR_CRLF;
+        strMsg += rawSipMsg;
 
-        send(strUuid + "|sip|" + s + "|" + transactionId + "|" + DR_CRLF + rawSipMsg) ;
+        //send(strUuid + "|sip|" + s + "|" + transactionId + "||" + DR_CRLF + rawSipMsg) ;
+        send(strMsg) ;
     }
 
     void BaseClient::sendCdrToClient( const string& rawSipMsg, const string& meta ) {

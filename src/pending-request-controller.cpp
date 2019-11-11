@@ -100,9 +100,15 @@ namespace drachtio {
 
     msg_destroy( msg ) ;  //our PendingRequest_t is now the holder of the message
 
+    const tp_name_t* tpn = tport_name( tport_parent( tp_incoming ) );
+    string host = tpn->tpn_host ;
+    string port = tpn->tpn_port ;
     string encodedMessage ;
     EncodeStackMessage( sip, encodedMessage ) ;
     SipMsgData_t meta( msg ) ;
+    meta.setDestAddress(host);
+    meta.setDestPort(port);
+
     p->setMeta(meta); 
     p->setEncodedMsg(encodedMessage);
 

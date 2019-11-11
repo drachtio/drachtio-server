@@ -207,6 +207,11 @@ namespace drachtio {
 		const string& getPort() const { return m_port; }
 		const string& getTime() const { return m_time; }
 		const string& getSource() const { return m_source; }
+		const string& getDestAddress() const { return m_destAddress;}
+		const string& getDestPort() const { return m_destPort;}
+
+		void setDestAddress(string& dest) { m_destAddress = dest;}
+		void setDestPort(string& dest) { m_destPort = dest;}
 
 		void toMessageFormat(string& s) const {
 			s = getSource() + "|" + getBytes() + "|" + getProtocol() + "|" + getAddress() + 
@@ -222,7 +227,8 @@ namespace drachtio {
 		string 		m_port ;
 		string 		m_time ;
 		string 		m_source ;
-
+		string		m_destAddress;
+		string		m_destPort;
 	} ;
  }
 
