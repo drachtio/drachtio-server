@@ -160,6 +160,40 @@ class App extends Emitter {
 
     return this;
   }
+  handleReinviteScenario(sdp, useBody) {
+    return new Promise((resolve, reject) => {
+      this.srf.invite((req, res) => {
+
+        const localSdp = sdp || req.body.replace(/m=audio\s+(\d+)/, 'm=audio 15000');
+  
+        const opts = {};
+        if (useBody) Object.assign(opts, {body: localSdp});
+        else Object.assign(opts, {localSdp});
+  
+        this.srf.createUAS(req, res, opts)
+          .then((uas) => {
+            this.emit('connected', uas);
+            uas.on('modify', (req, res) => {
+              debug('re-invite received');
+              res.send(200, {
+                body: localSdp
+                }, (err, response) => {
+                  debug(`response sent: ${response}`);
+                }, (ack) => {
+                  debug(`received ack with body: ${ack.body}`);
+                  uas.destroy();
+                  resolve();
+                }
+              );
+            });
+          })
+          .catch((err) => {
+            console.error(`Uas: failed to connect: ${err}`);
+            this.emit('error', err);
+          });
+      });
+    });
+  }
 
   disconnect() {
     this.srf.disconnect();
