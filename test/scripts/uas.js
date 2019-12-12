@@ -180,7 +180,7 @@ class App extends Emitter {
                 }, (err, response) => {
                   debug(`response sent: ${response}`);
                 }, (ack) => {
-                  debug(`received ack with body: ${ack.body}`);
+                  debug('received ack');
                   uas.destroy();
                   resolve();
                 }
