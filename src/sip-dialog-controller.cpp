@@ -858,7 +858,9 @@ namespace drachtio {
                 }
              }
         }
-        else existingDialog = true;
+        else {
+            existingDialog = true;
+        }
 
         if( irq ) {
 
@@ -953,6 +955,17 @@ namespace drachtio {
                             bSentOK = false ;
                             failMsg = "connection error: remote side may have closed socket";
                         }
+                    }
+                }
+            }
+
+            if (existingDialog) {
+                nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
+                if (leg) {
+                    std::shared_ptr<SipDialog> dlg ;
+                    if(findDialogByLeg( leg, dlg )) {
+                        dialogId = dlg->getDialogId();
+                        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest retrieved dialog id for existing dialog " << dialogId  ;
                     }
                 }
             }
