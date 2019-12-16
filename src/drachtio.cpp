@@ -824,7 +824,14 @@ namespace drachtio {
         tokenizer tok(str, sep) ;
         vector<int> vec;
         for (tokenizer::iterator it = tok.begin(); it != tok.end(); it++) {
-            vec.push_back(boost::lexical_cast<int>(*it));
+            try {
+                vec.push_back(boost::lexical_cast<int>(*it));
+            }
+            catch (boost::bad_lexical_cast &e) {
+                // host name was not dot decimal
+                DR_LOG(log_debug) << "isRfc1918: hostname '" << szHost << "' is not dot decimal: " << e.what();
+                return false;
+            }
         }
         if (vec.size() == 4) {
 
