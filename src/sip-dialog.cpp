@@ -54,7 +54,7 @@ namespace drachtio {
 	SipDialog::SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t* msg ) : m_type(we_are_uas), m_recentSipStatus(100), 
 		m_startTime(time(NULL)), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ), 
-    m_leg( leg ), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL),
+    m_leg( leg ), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL), m_orqAck(nullptr), m_orq(nullptr),
 		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false), 
 		m_timeArrive(std::chrono::steady_clock::now())
 	{
@@ -115,7 +115,7 @@ namespace drachtio {
 	SipDialog::SipDialog( const string& transactionId, nta_leg_t* leg, 
 		nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport) : m_type(we_are_uac), m_recentSipStatus(0), 
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
-		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(NULL), m_leg(leg), 
+		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(NULL), m_leg(leg), m_orqAck(nullptr), m_orq(orq),
     m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL),
 		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false),
 		m_timeArrive(std::chrono::steady_clock::now())
@@ -192,6 +192,16 @@ namespace drachtio {
     if( NULL != m_tp ) {
       tport_unref( m_tp ) ;
     }
+
+		if (m_orqAck) {
+			DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying orq from original (uac) ACK " << std::hex << (void *) m_orqAck ;
+			nta_outgoing_destroy(m_orqAck);
+		}
+		if (m_orq) {
+			DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying orq from original (uac) INVITE " << std::hex << (void *) m_orqAck ;
+			nta_outgoing_destroy(m_orq);
+		}
+
 	}
   void SipDialog::setTport(tport_t* tp) {
     m_tp = tp ;
@@ -201,6 +211,21 @@ namespace drachtio {
     m_transportPort = tpn->tpn_port ;
     m_protocol = tpn->tpn_proto ;      
   }
+	tport_t* SipDialog::getTport(void) { 
+		tport_t* tp = nullptr;
+		if (m_tp) tp = m_tp ;
+		else if (m_orqAck) {
+			tp = nta_outgoing_transport( m_orqAck );
+			if (tp) {
+				DR_LOG(log_debug) << "SipDialog::getTport: retrieving tport from delayed orq " << std::hex << (void *) m_orqAck << ": " << (void *) tp;
+				nta_outgoing_destroy(m_orqAck);
+				m_tp = tp;
+				m_orqAck = nullptr; 
+			}
+		}
+		return tp;
+	}
+
 	void SipDialog::setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) {
 		assert( NULL == m_timerSessionRefresh ) ;
 		m_refresher = whoIsResponsible ;

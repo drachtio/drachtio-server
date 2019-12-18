@@ -138,8 +138,9 @@ namespace drachtio {
 		unsigned long getMinSE(void) { return m_nMinSE; }
 		void setMinSE(unsigned long secs) { m_nMinSE = secs;}
 
-		tport_t* getTport(void) { return m_tp ;}
+		tport_t* getTport(void);
 		void setTport(tport_t* tp) ;
+		void setOrqAck(nta_outgoing_t* orq) { m_orqAck = orq; }
 
 		nta_leg_t* getNtaLeg(void) { return m_leg; }
 		void setTimerG(TimerEventHandle& handle) { 
@@ -211,7 +212,9 @@ namespace drachtio {
 		string      m_protocol ;
 
 		nta_leg_t* 	m_leg; 
-		tport_t* 	m_tp ;
+		tport_t* 	m_tp;
+		nta_outgoing_t* m_orq;
+		nta_outgoing_t* m_orqAck;
 
 		string 		m_routeUri;
 
