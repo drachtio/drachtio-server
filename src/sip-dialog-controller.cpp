@@ -246,9 +246,16 @@ namespace drachtio {
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),
                         TAG_NEXT(tags) ) ;
-                    if (tport_is_dgram(nta_outgoing_transport( orq ))) m_timerDHandler.addAck(orq);
-                    else destroyOrq = true;
-                    dlg->setTport( nta_outgoing_transport( orq ) ) ;
+                    
+                    tport_t* orq_tp = nta_outgoing_transport( orq );
+                    if (tport_is_dgram(orq_tp)) m_timerDHandler.addAck(orq);
+                    else if (orq_tp) destroyOrq = true;
+                    if (orq_tp) dlg->setTport(orq_tp) ;
+                    else {
+                        DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending ACK but nta_outgoing_transport is null, delayed for DNS resolver";
+                        dlg->setOrqAck(orq);
+                        destroyOrq = false;
+                    }
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
                     this->clearIIP( leg ) ;     
                 }
@@ -763,7 +770,7 @@ namespace drachtio {
 
                 addDialog( dlg ) ;
             }
-            if (sip->sip_status->st_status == 200) {
+            if (sip->sip_status->st_status == 200 && tport_is_dgram(nta_outgoing_transport(orq))) {
                 // for successful uac invites, we need to handle retransmits
                 m_timerDHandler.addInvite(orq);
             }
@@ -1714,6 +1721,8 @@ namespace drachtio {
         // https://github.com/davehorton/drachtio-server/issues/76#event-2662761148
         // this needs investigation, because it also causes a memory leak
         //if( orq ) nta_outgoing_destroy( orq ) ;
+        //
+        // later note: the orq of the uac INVITE (as well as orq of uac ACK) is destroyed in SipDialog destructor
 
         if( rel ) {
             mapRel2IIP::iterator itRel = m_mapRel2IIP.find( rel ) ;
