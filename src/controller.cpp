@@ -851,9 +851,9 @@ namespace drachtio {
 
                 //initialize text file sink, of configured
                 string name, archiveDirectory ;
-                unsigned int rotationSize, maxSize, minSize ;
+                unsigned int rotationSize, maxSize, minSize, maxFiles ;
                 bool autoFlush ;
-                if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ) {
+                if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize, maxFiles ) ) {
 
                     m_sinkTextFile.reset(
                         new sinks::synchronous_sink< sinks::text_file_backend >(
@@ -878,7 +878,8 @@ namespace drachtio {
                     m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
                         keywords::target = archiveDirectory,                      
                         keywords::max_size = maxSize * 1024 * 1024,          
-                        keywords::min_free_space = minSize * 1024 * 1024   
+                        keywords::min_free_space = minSize * 1024 * 1024,
+                        keywords::max_files = maxFiles
                     ));
                                
                     logging::core::get()->add_sink(m_sinkTextFile);

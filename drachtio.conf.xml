@@ -183,8 +183,8 @@
         <file>
             <name>/var/log/drachtio/drachtio.log</name>
             <archive>/var/log/drachtio/archive</archive>
-            <maxSize>5120</maxSize> 
-            <minSize>10240</minSize>
+            <size>100</size>
+            <maxFiles>20</maxFiles>
             <auto-flush>true</auto-flush>
         </file>
 

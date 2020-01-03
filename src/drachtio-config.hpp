@@ -55,7 +55,7 @@ namespace drachtio {
         bool getSyslogTarget( string& address, unsigned short& port ) const ;
         bool getSyslogFacility( sinks::syslog::facility& facility ) const ;
 
-        bool getFileLogTarget( string& fileName, string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) ;
+        bool getFileLogTarget( string& fileName, string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, unsigned int& maxSize, unsigned int& minSize, unsigned int& maxFiles ) ;
 
         bool getConsoleLogTarget() ;
 

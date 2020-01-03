@@ -192,10 +192,11 @@ namespace drachtio {
                 try {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
-                    m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 5) ;
-                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 16 * 1000 * 1000) ; //max size of stored files: 16M default
-                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.c", 2 * 1000 * 1000 * 1000) ;//min free space on disk: 2G default
+                    m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 50) ; // default: 50M
+                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 0) ;
+                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.minSize", 0) ;
                     m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
+                    m_maxFiles = pt.get<unsigned int>("drachtio.logging.file.maxFiles", 10);   // number of rotated files to keep
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
 
@@ -277,12 +278,13 @@ namespace drachtio {
             return false ;
         }
         bool getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, bool& autoFlush, 
-            unsigned int& maxSize, unsigned int& minSize ) {
+            unsigned int& maxSize, unsigned int& minSize, unsigned int& maxFiles ) {
             if( m_logFileName.length() > 0 ) {
                 fileName = m_logFileName ;
                 archiveDirectory = m_logArchiveDirectory ;
                 rotationSize = m_rotationSize ;
                 autoFlush = m_bAutoFlush;
+                maxFiles = m_maxFiles;
                 return true ;
             }
             return false ;
@@ -426,6 +428,7 @@ namespace drachtio {
         unsigned int m_rotationSize ;
         unsigned int m_maxSize ;
         unsigned int m_minSize ;
+        unsigned int m_maxFiles;
         unsigned short m_sysLogPort ;
         string m_syslogFacility ;
         severity_levels m_loglevel ;
@@ -478,8 +481,8 @@ namespace drachtio {
         return m_pimpl->getSyslogFacility( facility ) ;
     }
     bool DrachtioConfig::getFileLogTarget( std::string& fileName, std::string& archiveDirectory, unsigned int& rotationSize, 
-        bool& autoFlush, unsigned int& maxSize, unsigned int& minSize ) {
-        return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush, maxSize, minSize ) ;
+        bool& autoFlush, unsigned int& maxSize, unsigned int& minSize, unsigned int& maxFiles ) {
+        return m_pimpl->getFileLogTarget( fileName, archiveDirectory, rotationSize, autoFlush, maxSize, minSize, maxFiles ) ;
     }
     bool DrachtioConfig::getConsoleLogTarget() {
         return m_pimpl->getConsoleLogTarget() ;
