@@ -45,6 +45,8 @@ git:
     submodules: false
 
 before_install:
+    - openssl version
+    - which openssl
     - eval "${MATRIX_EVAL}"
     - if [ $TRAVIS_OS_NAME = osx ]; then /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"; fi
     - if [ $TRAVIS_OS_NAME = osx ]; then nvm install "v8.11.3"; fi
@@ -69,5 +71,3 @@ before_install:
     - ./drachtio --version 
     - node --version
     - npm --version
-    - openssl version
-    - which openssl
