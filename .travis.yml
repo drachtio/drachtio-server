@@ -6,50 +6,6 @@ matrix:
     - os: osx
 
     - os: linux
-      dist: trusty
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-4.9
-      env:
-         - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
-
-    - os: linux
-      dist: trusty
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-5
-      env:
-         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
-
-    - os: linux
-      dist: trusty
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-6
-      env:
-        - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
-
-    - os: linux
-      dist: trusty
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-7
-      env:
-        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
-
-    - os: linux
       dist: xenial
       compiler: gcc
       addons:
@@ -61,6 +17,15 @@ matrix:
     - os: linux
       dist: xenial
       compiler: clang
+      addons:
+        apt:
+          update: true
+          packages:
+            - libtool-bin
+
+    - os: linux
+      dist: bionic
+      compiler: gcc
       addons:
         apt:
           update: true
@@ -104,3 +69,5 @@ before_install:
     - ./drachtio --version 
     - node --version
     - npm --version
+    - openssl version
+    - which openssl
