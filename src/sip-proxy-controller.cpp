@@ -576,31 +576,68 @@ namespace drachtio {
         }
 
         string record_route, transport;
-        std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
 
-        // try with tcp if the first lookup failed, and there is no explicit transport param in the uri
-        if (!p && string::npos == m_target.find("transport=")) p = SipTransport::findAppropriateTransport(m_target.c_str(), "tcp");
+        bool forceTport = false ;
+        const tport_t* tp = NULL ;
+        DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest checking for cached tport for " << sip->sip_request->rq_url->url_user << " " << sip->sip_request->rq_url->url_host;
+        std::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
+        if (pData) {
+            tp = pData->getTport() ;
+            forceTport = true ;
 
-        // if we still don't have an appropriate transfer, return failure
-        if (!p) {
-            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - no transports found, returning failure: " << route ;            
-            return false;
+            const tp_name_t* tpn = tport_name(tp) ;
+            char name[255] ;
+            sprintf(name, "%s/%s:%s", tpn->tpn_proto, tpn->tpn_host, tpn->tpn_port) ;
+            transport.assign( name ) ;            
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest found cached tport for client " << name << " " << std::hex << (void *) tp ;
+
+            if(pCore->shouldAddRecordRoute() ) {    
+                tport_t* tp_incoming = nta_incoming_transport(NTA, NULL, msg );
+                tport_t* tpMe = tport_parent( tp_incoming ) ;
+                const tp_name_t* tpnMe = tport_name( tp );
+                string record_route = 0 == (strcmp("ws", tpnMe->tpn_proto) || strcmp("wss", tpnMe->tpn_proto) || strcmp("tls", tpnMe->tpn_proto)) ?
+                    "<sips:":
+                    "<sip:";
+                record_route += tpnMe->tpn_host;
+                record_route += ":";
+                record_route += tpnMe->tpn_proto;
+                if (0 != strcmp("udp", tpnMe->tpn_proto)) {
+                    record_route += ";transport=";
+                    record_route += tpnMe->tpn_proto;
+                }
+                record_route += ">";
+                DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest adding Record-Route " << record_route ;
+            }
         }
-        assert(p) ;
-        p->getDescription(transport);
+        else {
+            std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(m_target.c_str());
 
-        if(pCore->shouldAddRecordRoute() ) {            
-            p->getContactUri(record_route) ;
-            record_route = "<" + record_route + ";lr>";
-            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
+            // try with tcp if the first lookup failed, and there is no explicit transport param in the uri
+            if (!p && string::npos == m_target.find("transport=")) p = SipTransport::findAppropriateTransport(m_target.c_str(), "tcp");
+
+            // if we still don't have an appropriate transfer, return failure
+            if (!p) {
+                DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - no transports found, returning failure: " << route ;            
+                return false;
+            }
+            assert(p) ;
+            p->getDescription(transport);
+            if(pCore->shouldAddRecordRoute() ) {
+                p->getContactUri(record_route) ;
+                record_route = "<" + record_route + ";lr>";
+                DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
+            }
+
+            tp = p->getTport();
+
         }
-
         tagi_t* tags = makeTags( headers, transport ) ;
+
 
         int rc = nta_msg_tsend( NTA, 
             msg_ref_create(msg), 
             URL_STRING_MAKE(route.c_str()), 
-            NTATAG_TPORT(p->getTport()),
+            NTATAG_TPORT(tp),
             NTATAG_BRANCH_KEY(m_branch.c_str()),
             TAG_IF(pCore->shouldAddRecordRoute() && sip_method_register != sip->sip_request->rq_method, 
                 SIPTAG_RECORD_ROUTE_STR( record_route.c_str())),
@@ -1351,10 +1388,7 @@ namespace drachtio {
         sip_route_remove( msg, sip) ;
 
         //generate cdrs on BYE
-        if( sip_method_bye == sip->sip_request->rq_method ) {
-
-            Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
-        }
+        if( sip_method_bye == sip->sip_request->rq_method ) Cdr::postCdr(std::make_shared<CdrStop>(msg, "network", Cdr::normal_release ));
 
         if( sip_method_prack == sip->sip_request->rq_method ) {
             std::shared_ptr<ProxyCore> p = getProxyByCallId( sip ) ;
@@ -1368,16 +1402,18 @@ namespace drachtio {
             return true ;
         }
 
-        //If the request-uri has the '.invalid' domain, then we need to look up the transport to use
-        // on a successful SUBSCRIBE / 202 Accepted transaction, the transport desc should have been stored
         bool forceTport = false ;
         const tport_t* tp = NULL ;
-        if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
+        if( NULL != sip->sip_request && (sip_method_invite == sip->sip_request->rq_method || 
+                sip_method_options == sip->sip_request->rq_method ||
+                sip_method_notify == sip->sip_request->rq_method ||
+                sip_method_message == sip->sip_request->rq_method) && 
+                !tport_is_dgram(tp) ) {
             std::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
             if( NULL != pData ) {
                 tp = pData->getTport() ;
                 forceTport = true ;
-                DR_LOG(log_debug) << "SipProxyController::processRequestWithRouteHeader forcing tport to reach .invalid domain " << std::hex << (void *) tp ;
+                DR_LOG(log_debug) << "SipProxyController::processRequestWithRouteHeader forcing tport to reach client registered over non-udp " << std::hex << (void *) tp ;
            }
         }
         

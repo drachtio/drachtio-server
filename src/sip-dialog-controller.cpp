@@ -886,8 +886,6 @@ namespace drachtio {
             contact = "<" + contact + ">" ;
 
             pSelectedTransport->getDescription(transportDesc);
-
-            tport_unref( tp ) ;
     
             //create tags for headers
             tagi_t* tags = makeTags( headers, transportDesc ) ;
@@ -909,6 +907,7 @@ namespace drachtio {
             if( 0 != rc ) {
                 bSentOK = false ;
                 failMsg = "Unknown server error sending response" ;
+                tport_unref( tp ) ;
                 assert(false) ;
             }
 
@@ -976,7 +975,7 @@ namespace drachtio {
                     }
                 }
             }
-
+            tport_unref( tp ) ;
             msg_destroy( msg ); //release the reference
 
             /* we must explicitly delete an object allocated with placement new */
