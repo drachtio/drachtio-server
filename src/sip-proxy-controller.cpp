@@ -572,14 +572,18 @@ namespace drachtio {
         if((url_sip == type || url_sips == type) && isLocalSipUri(urlBuf)) {
             DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - replacing request uri because incoming request uri is local: " << urlBuf ;
             sip_request_t *rq = sip_request_format(msg_home(msg), "%s %s SIP/2.0", sip->sip_request->rq_method_name, m_target.c_str() ) ;
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - formated new request with " << m_target.c_str() ;
             msg_header_replace(msg, NULL, (msg_header_t *)sip->sip_request, (msg_header_t *) rq) ;
+            DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest -   replaced header" ;
         }
 
         string record_route, transport;
 
         bool forceTport = false ;
         const tport_t* tp = NULL ;
-        DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest checking for cached tport for " << sip->sip_request->rq_url->url_user << " " << sip->sip_request->rq_url->url_host;
+        DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest checking for cached tport for " << 
+            (sip->sip_request->rq_url->url_user ? sip->sip_request->rq_url->url_user : "(null)") << 
+            " " << sip->sip_request->rq_url->url_host;
         std::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
         if (pData) {
             tp = pData->getTport() ;
