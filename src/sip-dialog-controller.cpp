@@ -391,6 +391,7 @@ namespace drachtio {
         tport_t* tp = NULL ;
         std::shared_ptr<SipTransport> pSelectedTransport ;
         bool forceTport = false ;
+        bool isSendingInLocalNet = false;
         string host, port, proto, contact, desc ;
 
         try {
@@ -445,25 +446,27 @@ namespace drachtio {
                }
             }
             if( NULL == tp ) {
+                const char* szTarget = useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str();
                 pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str()) ;
                 if (!pSelectedTransport) {
                     throw std::runtime_error(string("requested protocol/transport not available"));
                 }
 
+                isSendingInLocalNet = pSelectedTransport->isInNetwork(szTarget);
                 pSelectedTransport->getDescription(desc);
-                pSelectedTransport->getContactUri( contact, true ) ;
+                pSelectedTransport->getContactUri( contact, !isSendingInLocalNet ) ;
                 contact = "<" + contact + ">" ;
                 host = pSelectedTransport->getHost() ;
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp << desc ;
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp << " " << desc ;
                 forceTport = true ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
             tagi_t* tags; 
-            if (pSelectedTransport && pSelectedTransport->hasExternalIp()) {
+            if (pSelectedTransport && pSelectedTransport->hasExternalIp() && !isSendingInLocalNet) {
                 tags = makeTags( pData->getHeaders(), desc, pSelectedTransport->getExternalIp().c_str()) ;
             }
             else {

@@ -120,10 +120,19 @@ namespace drachtio {
   }
 
   bool SipTransport::isInNetwork(const char* address) const {
+    string scheme, userpart, hostpart, port ;
+    vector< pair<string,string> > vecParam ;
+
     if (!m_netmask) return false;
 
+    string host = address ;
+
+    if( parseSipUri(address, scheme, userpart, hostpart, port, vecParam) ) {
+      host = hostpart ;
+    }
+
     struct sockaddr_in addr;
-    inet_pton(AF_INET, address, &(addr.sin_addr));
+    inet_pton(AF_INET, host.c_str(), &(addr.sin_addr));
 
     uint32_t ip = htonl(addr.sin_addr.s_addr) ;
 
@@ -459,11 +468,20 @@ namespace drachtio {
 
 
     sort(candidates.begin(), candidates.end(), [host](const std::shared_ptr<SipTransport>& pA, const std::shared_ptr<SipTransport>& pB) {
+      string descA, descB;
+      pA->getDescription(descA);
+      pB->getDescription(descB);
 
       if (pA->isInNetwork(host.c_str())) {
+#ifdef DEBUG 
+        DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - destination is local to pA " << descA << " preferring that one";
+#endif
         return true;
       }
       if (pB->isInNetwork(host.c_str())) {
+#ifdef DEBUG 
+        DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - destination is local to pB " << descB << " preferring that one";
+#endif
         return false;
       }
 
