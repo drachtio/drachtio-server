@@ -35,6 +35,15 @@
 
         <console/>
         
+        <!-- file-based logging -->
+        <file>
+            <name>/var/log/drachtio/drachtio.log</name>
+            <archive>/var/log/drachtio/archive</archive>
+            <maxSize>5120</maxSize> 
+            <minSize>10240</minSize>
+            <auto-flush>true</auto-flush>
+        </file>
+        
         <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
         <sofia-loglevel>9</sofia-loglevel>
         
