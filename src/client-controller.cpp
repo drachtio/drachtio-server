@@ -388,7 +388,7 @@ namespace drachtio {
         mapId2Client::iterator it = m_mapNetTransactions.find( transactionId ) ;
         if( m_mapNetTransactions.end() != it ) {
             m_mapDialogs.insert( mapId2Client::value_type(dialogId, it->second ) ) ;
-            DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog (uas), now tracking: " << 
+            DR_LOG(log_info) << "ClientController::addDialogForTransaction - added dialog (uas), now tracking: " << 
                 m_mapDialogs.size() << " dialogs and " << m_mapNetTransactions.size() << " net transactions"  ;
          }
         else {
@@ -398,7 +398,7 @@ namespace drachtio {
                 mapId2Client::iterator itApp = m_mapAppTransactions.find( transactionId ) ;
                 if( m_mapAppTransactions.end() != itApp ) {
                     m_mapDialogs.insert( mapId2Client::value_type(dialogId, itApp->second ) ) ;
-                    DR_LOG(log_warning) << "ClientController::addDialogForTransaction - added dialog (uac), now tracking: " << 
+                    DR_LOG(log_info) << "ClientController::addDialogForTransaction - added dialog (uac), now tracking: " << 
                         m_mapDialogs.size() << " dialogs and " << m_mapAppTransactions.size() << " app transactions"  ;
                 }
                 else {
