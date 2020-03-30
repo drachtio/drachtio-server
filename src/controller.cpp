@@ -1389,6 +1389,10 @@ namespace drachtio {
         if( !p ) {
             return false ;
         }
+        if (p->isCanceled()) {
+            DR_LOG(log_notice) << "DrachtioController::setupLegForIncomingRequest - app provided a response but INVITE has already been canceled" ;
+            return false;
+        }
         sip_t* sip = p->getSipObject() ;
         msg_t* msg = p->getMsg() ;
         tport_t* tp = p->getTport() ;
