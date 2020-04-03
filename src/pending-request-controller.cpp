@@ -125,7 +125,7 @@ namespace drachtio {
       if (0 != httpUrl.find("tcp:") && 0 != httpUrl.find("tls:")) {
         vector< pair<string, string> > v;
         v.push_back( make_pair("method", sip->sip_request->rq_method_name )) ;
-        v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host )) ;
+        v.push_back( make_pair("domain", sip->sip_request->rq_url->url_host ? sip->sip_request->rq_url->url_host : "" )) ;
         v.push_back( make_pair("protocol", meta.getProtocol() )) ;
         v.push_back( make_pair("source_address", meta.getAddress() )) ;
         v.push_back( make_pair("fromUser", sip->sip_from->a_url->url_user ? sip->sip_from->a_url->url_user : "" )) ;
