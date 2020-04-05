@@ -74,20 +74,20 @@ const string STATS_GAUGE_REGISTERED_ENDPOINTS = "drachtio_registered_endpoints";
 const string STATS_GAUGE_CLIENT_APP_CONNECTIONS = "drachtio_app_connections";
 
 // sofia status
-const string STATS_GAUGE_SOFIA_SERVER_HASH_SIZE = "sofia_server_txn_hash_size";
-const string STATS_GAUGE_SOFIA_CLIENT_HASH_SIZE = "sofia_client_txn_hash_size";
-const string STATS_GAUGE_SOFIA_DIALOG_HASH_SIZE = "sofia_dialog_hash_size";
-const string STATS_GAUGE_SOFIA_NUM_SERVER_TXNS = "sofia_server_txns_total";
-const string STATS_GAUGE_SOFIA_NUM_CLIENT_TXNS = "sofia_client_txns_total";
-const string STATS_GAUGE_SOFIA_NUM_DIALOGS = "sofia_dialogs_total";
-const string STATS_GAUGE_SOFIA_MSG_RECV = "sofia_msgs_recv_total";
-const string STATS_GAUGE_SOFIA_MSG_SENT = "sofia_msgs_sent_total";
-const string STATS_GAUGE_SOFIA_REQ_RECV = "sofia_requests_recv_total";
-const string STATS_GAUGE_SOFIA_REQ_SENT = "sofia_requests_sent_total";
-const string STATS_GAUGE_SOFIA_BAD_MSGS = "sofia_bad_msgs_recv_total";
-const string STATS_GAUGE_SOFIA_BAD_REQS = "sofia_bad_reqs_recv_total";
-const string STATS_GAUGE_SOFIA_RETRANS_REQ = "sofia_retransmitted_requests_total";
-const string STATS_GAUGE_SOFIA_RETRANS_RES = "sofia_retransmitted_responses_total";
+const string STATS_GAUGE_SOFIA_SERVER_HASH_SIZE = "drachtio_sofia_server_txn_hash_size";
+const string STATS_GAUGE_SOFIA_CLIENT_HASH_SIZE = "drachtio_sofia_client_txn_hash_size";
+const string STATS_GAUGE_SOFIA_DIALOG_HASH_SIZE = "drachtio_sofia_dialog_hash_size";
+const string STATS_GAUGE_SOFIA_NUM_SERVER_TXNS = "drachtio_sofia_server_txns";
+const string STATS_GAUGE_SOFIA_NUM_CLIENT_TXNS = "drachtio_sofia_client_txns";
+const string STATS_GAUGE_SOFIA_NUM_DIALOGS = "drachtio_sofia_dialogs";
+const string STATS_GAUGE_SOFIA_MSG_RECV = "drachtio_sofia_msgs_recv";
+const string STATS_GAUGE_SOFIA_MSG_SENT = "drachtio_sofia_msgs_sent";
+const string STATS_GAUGE_SOFIA_REQ_RECV = "drachtio_sofia_requests_recv_total";
+const string STATS_GAUGE_SOFIA_REQ_SENT = "drachtio_sofia_requests_sent";
+const string STATS_GAUGE_SOFIA_BAD_MSGS = "drachtio_sofia_bad_msgs_recv";
+const string STATS_GAUGE_SOFIA_BAD_REQS = "drachtio_sofia_bad_reqs_recv";
+const string STATS_GAUGE_SOFIA_RETRANS_REQ = "drachtio_sofia_retransmitted_requests";
+const string STATS_GAUGE_SOFIA_RETRANS_RES = "drachtio_sofia_retransmitted_responses";
 
 const string STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN = "drachtio_call_answer_seconds_in";
 const string STATS_HISTOGRAM_INVITE_RESPONSE_TIME_OUT = "drachtio_call_answer_seconds_out";
