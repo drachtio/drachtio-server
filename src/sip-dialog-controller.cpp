@@ -193,11 +193,18 @@ namespace drachtio {
             }
 
             const sip_contact_t *target ;
-            if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
+            const sip_route_t *route;
+            if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, &route, &target ) >=0 ) {
                 char buffer[256];
                 url_e( buffer, 255, target->m_url ) ;
                 requestUri = buffer ;
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - defaulting request uri to " << requestUri  ;
+
+                if (route) {
+                    char buf[255];
+                    url_e(buf, 255, route->r_url);
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - this leg has a Route header " << buf  ;
+                }
 
                 // we need to check if there was a mid-call network handoff, where this client jumped networks
                 std::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
@@ -738,7 +745,7 @@ namespace drachtio {
                 DR_LOG(log_info) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
                 nta_leg_t* leg = iip->leg() ;
                 nta_leg_rtag( leg, sip->sip_to->a_tag) ;
-                nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, false );
+                nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, TRUE );
 
                 bool nat = false;
                 const sip_route_t* route = NULL;
