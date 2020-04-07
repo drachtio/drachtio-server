@@ -738,7 +738,7 @@ namespace drachtio {
                 DR_LOG(log_info) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
                 nta_leg_t* leg = iip->leg() ;
                 nta_leg_rtag( leg, sip->sip_to->a_tag) ;
-                nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, false );
+                nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, 1 );
 
                 bool nat = false;
                 const sip_route_t* route = NULL;
