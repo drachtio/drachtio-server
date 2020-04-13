@@ -74,7 +74,10 @@ namespace drachtio {
   }
 
   int PendingRequestController::processNewRequest(  msg_t* msg, sip_t* sip, tport_t* tp_incoming, string& transactionId ) {
-    assert(sip->sip_request->rq_method != sip_method_invite || NULL == sip->sip_to->a_tag ) ; //new INVITEs only
+    if (sip->sip_request->rq_method == sip_method_invite && NULL != sip->sip_to->a_tag ) {
+        DR_LOG(log_error) << "processNewRequest - received new INVITE with a to tag that we are not tracking: " << sip->sip_call_id->i_id  ;
+        return 481;
+    }
 
     client_ptr client ;
     RequestRouter& router = m_pController->getRequestRouter() ;
