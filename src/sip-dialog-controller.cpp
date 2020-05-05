@@ -332,7 +332,7 @@ namespace drachtio {
                 else {
                     bool clearDialogOnResponse = false ;
                     if( sip_method_bye == method || 
-                        ( sip_method_notify == method && NULL != sip->sip_subscription_state && NULL != sip->sip_subscription_state->ss_substate &&
+                        ( !dlg->isInviteDialog() && sip_method_notify == method && NULL != sip->sip_subscription_state && NULL != sip->sip_subscription_state->ss_substate &&
                             NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") ) ) {
                         clearDialogOnResponse = true ;
                     }
