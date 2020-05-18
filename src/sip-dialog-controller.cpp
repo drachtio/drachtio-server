@@ -1057,13 +1057,36 @@ namespace drachtio {
                  }
 
                  /* set session timer if required */
+                 sip_session_expires_t *sessionExpires = nullptr;
                  if( 200 == code && sip->sip_request->rq_method == sip_method_invite ) {
                     string strSessionExpires ;
                     if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
                         sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
+                        unsigned long interval = std::max((unsigned long) 90, se->x_delta);
+                        SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
 
-                        dlg->setSessionTimer( std::max((unsigned long) 90, se->x_delta), !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher ) ;
+                        if (who == SipDialog::we_are_refresher) {
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app we are refresher, interval will be " << interval  ;
+                        }
+                        else {
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app UAC is refresher, interval will be " << interval  ;
+                        }
+                        dlg->setSessionTimer(interval, who) ;
                         su_free( m_pController->getHome(), se ) ;
+                    }
+                    else if (sip->sip_session_expires && sip->sip_session_expires->x_refresher) {
+                        sip_session_expires_t* se = sip->sip_session_expires;
+                        sessionExpires = sip_session_expires_copy(m_pController->getHome(), se);
+                        unsigned long interval = std::max((unsigned long) 90, se->x_delta);
+                        SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
+
+                        if (who == SipDialog::we_are_refresher) {
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC asked us to refresh, interval will be " << interval  ;
+                        }
+                        else {
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC is refresher, interval will be " << interval  ;
+                        }
+                        dlg->setSessionTimer(interval, who) ;
                     }
                  }
 
@@ -1074,6 +1097,7 @@ namespace drachtio {
                         ,TAG_IF( !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
                         ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                         ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                        ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
                         ,TAG_NEXT(tags)
                         ,TAG_END() ) ;
 
@@ -1094,6 +1118,7 @@ namespace drachtio {
                         ,TAG_IF( code >= 200 && code < 300 && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
                         ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                         ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                        ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
                         ,TAG_NEXT(tags)
                         ,TAG_END() ) ; 
                     if( 0 != rc ) {
@@ -1151,6 +1176,8 @@ namespace drachtio {
                 }
 
                 msg_destroy( msg ); //release the reference
+
+                if (sessionExpires) su_free(m_pController->getHome(), sessionExpires);
 
                 /* we must explicitly delete an object allocated with placement new */
                 if( tags ) deleteTags( tags );
