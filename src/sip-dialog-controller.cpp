@@ -921,30 +921,30 @@ namespace drachtio {
                 if( contact ) {
                     if( !tport_is_dgram(tp) /*&& NULL != strstr( contact->m_url->url_host, ".invalid") */) {
                         bool add = true ;
-                        int expires = 0 ;
+                        unsigned long expires = 0 ;
 
                         msg_t *msgResponse = nta_incoming_getresponse( irq ) ;    // adds a reference
                         if (msg) {
                             sip_t *sipResponse = sip_object( msgResponse ) ;
                             if (sipResponse) {
                                 if( sip->sip_request->rq_method == sip_method_subscribe ) {
-                                    if(  NULL != strstr( sipResponse->sip_subscription_state->ss_substate, "terminated" ) ) {
-                                        add = false ;
+                                    if (sipResponse->sip_expires && sipResponse->sip_expires->ex_delta) {
+                                        expires = sipResponse->sip_expires->ex_delta;
                                     }
                                     else {
-                                        expires = ::atoi( sipResponse->sip_subscription_state->ss_expires ) ;
-                                    }                        
+                                        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - 200-class response to SUBSCRIBE must include expires (rfc3265 3.1.1)"  ;
+                                    }
                                 }
                                 else {
                                     if( NULL != sipResponse->sip_contact && NULL != sipResponse->sip_contact->m_expires ) {
                                         expires = ::atoi( sipResponse->sip_contact->m_expires ) ;
-                                    }        
-                                    else {
-                                        expires = 0 ;
                                     }
-                                    add = expires > 0 ;
+                                    else if (NULL != sipResponse->sip_contact && sipResponse->sip_expires->ex_delta) {
+                                        expires = sipResponse->sip_expires->ex_delta;
+                                    }  
                                 }
                                 
+                                add = expires > 0 ;
                                 if( add ) {
                                     theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
                                 }
