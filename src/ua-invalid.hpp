@@ -15,7 +15,9 @@ namespace drachtio {
   class UaInvalidData {
     public: 
       UaInvalidData(const char* szUser, const char* szHost, int expires, tport_t* tp ) : m_tp(tp) {
-        strncpy( m_szUser, szUser, URI_LEN - 1) ;
+        memset(m_szUser, 0, URI_LEN);
+        memset(m_szHost, 0, URI_LEN);
+        if (szUser) strncpy( m_szUser, szUser, URI_LEN - 1) ;
         strncpy( m_szHost, szHost, URI_LEN - 1) ;
         time(&m_expires) ;
         m_expires += expires ;
@@ -26,8 +28,10 @@ namespace drachtio {
         tport_unref(m_tp) ;
       }
       UaInvalidData& operator=( const UaInvalidData& ua ) {
-        strncpy( m_szUser, ua.m_szUser, URI_LEN - 1) ;
-        strncpy( m_szHost, ua.m_szHost, URI_LEN - 1) ;
+        memset(m_szUser, 0, URI_LEN);
+        memset(m_szHost, 0, URI_LEN);
+        if (::strlen(ua.m_szUser)) strcpy(m_szUser, ua.m_szUser) ;
+        strcpy(m_szHost, ua.m_szHost) ;
         m_expires = ua.m_expires ;
         tport_ref(m_tp) ;   
         return *this ;       
@@ -35,8 +39,10 @@ namespace drachtio {
 
       void getUri( string& uri ) {
         uri = "" ;
-        uri.append( m_szUser ) ;
-        uri.append( "@" ) ;
+        if (::strlen(m_szUser)) {
+          uri.append( m_szUser ) ;
+          uri.append( "@" ) ;
+        }
         uri.append( m_szHost ) ;
       }
       tport_t* getTport(void) { return m_tp; }
