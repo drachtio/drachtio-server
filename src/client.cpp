@@ -357,13 +357,14 @@ namespace drachtio {
 
         /* while we have at least one full message, process it */
         while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
-            string msgResponse ;
+            //string msgResponse ;
+            m_msgResponse = "";
             string in ;
             bool bContinue = true ;
             try {
                 in.assign(m_buffer.begin(), m_buffer.begin() + m_nMessageLength);
                 DR_LOG(log_debug) << "Client::read_handler read: " << in << endl ;
-                bContinue = processClientMessage( in, msgResponse ) ;
+                bContinue = processClientMessage( in, m_msgResponse ) ;
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
                 m_controller.leave( shared_from_this() ) ;
@@ -371,10 +372,10 @@ namespace drachtio {
             }
 
             /* send response if indicated */
-            if( !msgResponse.empty() ) {
-                msgResponse.insert(0, boost::lexical_cast<string>(msgResponse.length()) + "#") ;
-                DR_LOG(log_debug) << "Sending response: " << msgResponse << endl ;
-                boost::asio::async_write( m_sock, boost::asio::buffer( msgResponse ), 
+            if( !m_msgResponse.empty() ) {
+               m_msgResponse.insert(0, boost::lexical_cast<string>(m_msgResponse.length()) + "#") ;
+                DR_LOG(log_debug) << "Sending response: " << m_msgResponse << endl ;
+                boost::asio::async_write( m_sock, boost::asio::buffer( m_msgResponse ), 
                     std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
             }
             if( !bContinue ) {
@@ -428,8 +429,10 @@ read_again:
         ostringstream o ;
 
         o << len << "#" << str ;
+
+        m_msgToSend = o.str();
        
-        boost::asio::async_write( m_sock, boost::asio::buffer( o.str() ), 
+        boost::asio::async_write( m_sock, boost::asio::buffer( m_msgToSend ), 
             std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
         //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
     }

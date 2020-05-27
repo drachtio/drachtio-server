@@ -101,6 +101,9 @@ namespace drachtio {
 
         string m_strRemoteAddress;
         unsigned int m_nRemotePort;
+
+        string m_msgResponse;
+        string m_msgToSend;
     };
 
 	template <typename T, typename S = T> 
