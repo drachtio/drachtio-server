@@ -1537,8 +1537,10 @@ namespace drachtio {
     }
     void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
         string uri = "" ;
-        uri.append(user) ;
-        uri.append("@") ;
+        if (user) {
+            uri.append(user) ;
+            uri.append("@") ;
+        }
         uri.append(host) ;
 
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
@@ -1551,12 +1553,12 @@ namespace drachtio {
         std::shared_ptr<UaInvalidData> p ;
         string uri = "" ;
 
-        if( !user ) {
-            return p ;
+        if (user) {
+            uri.append(user) ;
+            uri.append("@") ;
         }
-        uri.append(user) ;
-        uri.append("@") ;
         uri.append(host) ;
+
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
         if( m_mapUri2InvalidData.end() != it ) {
             p = it->second ;
