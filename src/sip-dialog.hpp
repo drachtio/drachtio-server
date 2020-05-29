@@ -105,7 +105,8 @@ namespace drachtio {
 		void setLocalSignalingPort( unsigned int port ) { m_localEndpoint.m_signalingPort = port; }
 		const string& getLocalSignalingAddress(void) { return m_localEndpoint.m_strSignalingAddress; }
 		unsigned int getLocalSignalingPort(void) { return m_localEndpoint.m_signalingPort; }
-
+		void setLocalContactHeader(const char* szContact) { m_strLocalContact = szContact;}
+		const string& getLocalContactHeader(void) { return m_strLocalContact; }
 		const string& getTransportAddress(void) const { return m_transportAddress; }
 		const string& getTransportPort(void) const { return m_transportPort; }
 		const string& getProtocol(void) const { return m_protocol; }
@@ -199,6 +200,8 @@ namespace drachtio {
 		string 			m_transportAddress ;
 		string 			m_transportPort ;
 		string 			m_transportProtocol ;
+
+		string			m_strLocalContact;
 
     /* session timer */
     unsigned long 	m_nSessionExpiresSecs ;

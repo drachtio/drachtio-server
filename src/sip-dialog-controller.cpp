@@ -562,6 +562,10 @@ namespace drachtio {
             if( method == sip_method_invite || method == sip_method_subscribe ) {
                 std::shared_ptr<SipDialog> dlg = std::make_shared<SipDialog>(pData->getTransactionId(), 
                     leg, orq, sip, m, desc) ;
+                string customContact ;
+                bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
+                dlg->setLocalContactHeader(hasCustomContact ? customContact.c_str() : contact.c_str());
+
                 addOutgoingInviteTransaction( leg, orq, sip, dlg ) ;
                 if (method == sip_method_invite) {
                   Cdr::postCdr( std::make_shared<CdrAttempt>(m, "application"));
@@ -1021,6 +1025,8 @@ namespace drachtio {
                 if( hasCustomContact ) {
                     DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - client provided contact header so we wont include our internally-generated one"  ;
                 }
+
+                dlg->setLocalContactHeader(hasCustomContact ? customContact.c_str() : contact.c_str());
 
                 dialogId = dlg->getDialogId() ;
 
@@ -1623,23 +1629,13 @@ namespace drachtio {
             o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
             v << dlg->getMinSE() ;
 
-            string contact ;
-            contact = "<" ;
-            contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
-            contact.append( dlg->getTransportAddress() ) ;
-            contact.append( ":" ) ;
-            contact.append( dlg->getTransportPort() ) ;
-            contact.append( ";transport=" ) ;
-            contact.append( dlg->getProtocol() ) ;
-            contact.append(">") ;
-
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
                                             NULL,
                                             SIP_METHOD_INVITE,
                                             NULL,
                                             SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
                                             SIPTAG_MIN_SE_STR(v.str().c_str()),
-                                            SIPTAG_CONTACT_STR( contact.c_str() ),
+                                            SIPTAG_CONTACT_STR( dlg->getLocalContactHeader().c_str() ),
                                             SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
                                             SIPTAG_PAYLOAD_STR(strSdp.c_str()),
                                             TAG_END() ) ;
