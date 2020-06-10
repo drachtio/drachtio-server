@@ -55,7 +55,7 @@ namespace drachtio {
 		m_startTime(time(NULL)), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ), 
     m_leg( leg ), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL), m_orqAck(nullptr), m_orq(nullptr),
-		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false), 
+		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false), m_nSessionTimerDuration(0),
 		m_timeArrive(std::chrono::steady_clock::now())
 	{
     const tp_name_t* tpn = tport_name( m_tp );
@@ -116,7 +116,7 @@ namespace drachtio {
 		nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport) : m_type(we_are_uac), m_recentSipStatus(0), 
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(NULL), m_leg(leg), m_orqAck(nullptr), m_orq(orq),
-    m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL),
+    m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL), m_nSessionTimerDuration(0),
 		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false),
 		m_timeArrive(std::chrono::steady_clock::now())
 	{
@@ -229,21 +229,21 @@ namespace drachtio {
 	void SipDialog::setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) {
 		assert( NULL == m_timerSessionRefresh ) ;
 		m_refresher = whoIsResponsible ;
-		su_duration_t nMilliseconds = nSecs * 1000  ;
+		m_nSessionTimerDuration = nSecs * 1000  ;
 		m_nSessionExpiresSecs = nSecs ;
 
 		DR_LOG(log_info) << "SipDialog::setSessionTimer: Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them")  ;
 
 		/* if we are the refresher, then we want the timer to go off halfway through the interval */
-		if( areWeRefresher() ) nMilliseconds /= 2 ;
-		m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), nMilliseconds ) ;
+		if( areWeRefresher() ) m_nSessionTimerDuration /= 2 ;
+		m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), m_nSessionTimerDuration ) ;
 
 		m_ppSelf = new std::weak_ptr<SipDialog>( shared_from_this() ) ;
 		su_timer_set(m_timerSessionRefresh, session_timer_handler, (su_timer_arg_t *) m_ppSelf );
 	}
 	void SipDialog::cancelSessionTimer() {
 		assert( NULL != m_timerSessionRefresh ) ;
-		su_timer_destroy( m_timerSessionRefresh ) ;
+		if (m_timerSessionRefresh) su_timer_destroy( m_timerSessionRefresh ) ;
 		m_timerSessionRefresh = NULL ;
 		m_refresher = no_refresher ;
 		m_nSessionExpiresSecs = 0 ;
@@ -255,6 +255,11 @@ namespace drachtio {
 			//TODO: send a refreshing reINVITE, and notify the client
 			DR_LOG(log_info) << "SipDialog::doSessionTimerHandling - sending refreshing re-INVITE with call-id " << getCallId()  ; 
 			theOneAndOnlyController->getDialogController()->notifyRefreshDialog( shared_from_this() ) ;
+
+			su_timer_destroy( m_timerSessionRefresh ) ;
+			m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), m_nSessionTimerDuration ) ;
+			su_timer_set(m_timerSessionRefresh, session_timer_handler, (su_timer_arg_t *) m_ppSelf );
+			return;
 		}
 		else {
 			//TODO: tear down the leg, and notify the client

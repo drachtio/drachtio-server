@@ -231,6 +231,8 @@ namespace drachtio {
 		chrono::time_point<chrono::steady_clock> m_timeArrive;
 		bool m_bAlerting;
 
+		su_duration_t 		m_nSessionTimerDuration;
+
 	}  ;
 
 }
