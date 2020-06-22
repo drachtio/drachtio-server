@@ -1290,8 +1290,9 @@ namespace drachtio {
                             m_pProxyController->isRetransmission( sip ) ) {
                         
                             DR_LOG(log_info) << "discarding retransmitted request: " << sip->sip_call_id->i_id  ;
+                            int ret = sip_method_invite == sip->sip_request->rq_method ? 100 : -1 ;
                             nta_msg_discard(m_nta, msg) ;  
-                            return sip_method_invite == sip->sip_request->rq_method ? 100 : -1 ;
+                            return ret ;
                         }
 
                         if( sip_method_invite == sip->sip_request->rq_method ) {
