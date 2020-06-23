@@ -25,6 +25,7 @@ THE SOFTWARE.
 #include <functional>
 #include <thread>
 #include <string>
+#include <mutex>
 #include <sofia-sip/su_wait.h>
 
 namespace drachtio {
@@ -50,7 +51,7 @@ namespace drachtio {
   public:
     
 
-    TimerQueue(su_root_t* root, const char*szName = NULL) ;
+    TimerQueue(su_root_t* root, const char*szName = NULL, bool locking = false) ;
     TimerQueue( const TimerQueue& ) = delete;
     ~TimerQueue() ;
 
@@ -74,7 +75,8 @@ namespace drachtio {
     queueEntry_t* m_tail ;
     int           m_length ;
     unsigned      m_in_timer:1; /**< Set when executing timers */
-
+    std::mutex 		m_mutex ;
+    bool          m_locking;
    } ;    
 }
 
