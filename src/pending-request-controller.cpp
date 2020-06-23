@@ -57,7 +57,7 @@ namespace drachtio {
 
   PendingRequestController::PendingRequestController( DrachtioController* pController) : m_pController(pController), 
     m_agent(pController->getAgent()), m_pClientController(pController->getClientController()), 
-    m_timerQueue(pController->getRoot(), "pending-request", true) {
+    m_timerQueue(pController->getRoot(), "pending-request") {
 
     assert(m_agent) ;
  

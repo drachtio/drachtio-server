@@ -23,8 +23,8 @@ namespace drachtio {
     m_function = f ;
   }
 
-  TimerQueue::TimerQueue(su_root_t* root, const char* szName, bool locking) : m_root(root), m_head(NULL), m_tail(NULL), 
-    m_length(0), m_in_timer(0), m_locking(locking) {
+  TimerQueue::TimerQueue(su_root_t* root, const char* szName) : m_root(root), m_head(NULL), m_tail(NULL), 
+    m_length(0), m_in_timer(0) {
     m_name.assign( szName ? szName : "timer") ;
     m_timer = su_timer_create(su_root_task(m_root), NTA_SIP_T1 / 8 ) ;
   }
@@ -44,7 +44,6 @@ namespace drachtio {
   }
 
   TimerEventHandle TimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
-    if (m_locking) m_mutex.lock();
     //self check
     /*
     assert( m_length == numberOfElements()) ;
@@ -117,8 +116,7 @@ namespace drachtio {
     else {
       //DR_LOG(log_error) << "Error allocating queue entry" ;
       //std::cerr << "Error allocating queue entry" << std::endl ;
-      handle = NULL ;
-      goto done;
+      return NULL ;
     }
 
     //only need to set the timer if we added to the front
@@ -127,7 +125,6 @@ namespace drachtio {
       assert( 0 == rc ) ;
     }
 
-done:
 
      //self check
      /*
@@ -138,13 +135,11 @@ done:
     assert( !(NULL == m_head && NULL != m_tail)) ;
     assert( !(NULL == m_tail && NULL != m_head)) ;
     */
-    if (m_locking) m_mutex.unlock();
 
     return handle ;
 
   }
   void TimerQueue::remove( TimerEventHandle entry) {
-    if (m_locking) m_mutex.lock();
 
 #ifndef TEST
         DR_LOG(log_debug) << m_name << ": removing entry, prior to removal length: " << dec << m_length;
@@ -195,22 +190,16 @@ done:
     //std::cout << "timer remove: queue length is now " << queueLength << std::endl;
 
     delete entry ;
-
-    if (m_locking) m_mutex.unlock();
   }
 
   void TimerQueue::doTimer(su_timer_t* timer) {
-    if (m_locking) m_mutex.lock();
 
 #ifndef TEST
     DR_LOG(log_debug) << m_name << ": running timer function" ;
 #endif
     //std::cout << "doTimer: running timer function with " << m_length << " timers queued " << std::endl;
 
-    if( m_in_timer ) {
-      if (m_locking) m_mutex.unlock();
-      return ;
-    }
+    if( m_in_timer ) return ;
     m_in_timer = 1 ;
 
     queueEntry_t* expired = NULL ;
@@ -263,34 +252,27 @@ done:
       expired = expired->m_next ;
       delete p ;
     }    
-
-    if (m_locking) m_mutex.unlock();
   }
 
   int TimerQueue::positionOf(TimerEventHandle handle) {
     int pos = 0 ;
-    if (m_locking) m_mutex.lock();
     queueEntry_t* ptr = m_head ;
     while( ptr ) {
       if( ptr == handle ) {
-        if (m_locking) m_mutex.unlock();
         return pos ;
       }
       pos++ ;
       ptr = ptr->m_next ;
     }
-    if (m_locking) m_mutex.unlock();
     return -1 ;
   }
   int TimerQueue::numberOfElements() {
     int len = 0 ;
-    if (m_locking) m_mutex.lock();
     queueEntry_t* ptr = m_head ;
     while( ptr ) {
       len++ ;
       ptr = ptr->m_next ;
     }
-    if (m_locking) m_mutex.unlock();
     return len ;
   }
 }

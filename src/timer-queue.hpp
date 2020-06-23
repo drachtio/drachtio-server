@@ -30,7 +30,7 @@ THE SOFTWARE.
 
 namespace drachtio {
 
-  class TimerQueue ;
+  class TimerQueue;
 
   typedef std::function<void (void*)> TimerFunc ;
 
@@ -47,23 +47,23 @@ namespace drachtio {
 
   typedef queueEntry_t * TimerEventHandle ;
  
-  class TimerQueue  {
+  class TimerQueue {
   public:
     
 
-    TimerQueue(su_root_t* root, const char*szName = NULL, bool locking = false) ;
+    TimerQueue(su_root_t* root, const char*szName = NULL) ;
     TimerQueue( const TimerQueue& ) = delete;
     ~TimerQueue() ;
 
-    TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
-    TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) ;
-    void remove( TimerEventHandle handle) ;
+    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
+    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) ;
+    virtual void remove( TimerEventHandle handle) ;
 
-    bool isEmpty(void) { return 0 == m_length; }
-    int size(void) { return m_length; }
-    int positionOf(TimerEventHandle handle) ;
+    virtual bool isEmpty(void) { return 0 == m_length; }
+    virtual int size(void) { return m_length; }
+    virtual int positionOf(TimerEventHandle handle) ;
 
-    void doTimer(su_timer_t* timer) ;      
+    virtual void doTimer(su_timer_t* timer) ;      
 
   protected:
     int          numberOfElements(void) ;
@@ -75,9 +75,48 @@ namespace drachtio {
     queueEntry_t* m_tail ;
     int           m_length ;
     unsigned      m_in_timer:1; /**< Set when executing timers */
-    std::mutex 		m_mutex ;
-    bool          m_locking;
-   } ;    
+   } ;
+
+   class LockingTimerQueue: public TimerQueue {
+     public:
+  
+     using TimerQueue::TimerQueue;
+
+    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::add(f, functionArgs, milliseconds);
+    }
+    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::add(f, functionArgs, milliseconds, now);
+    }
+    virtual void remove( TimerEventHandle handle) {
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::remove(handle);
+    }
+
+    virtual bool isEmpty(void) { 
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::isEmpty();
+     }
+    virtual int size(void) { 
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::size();
+     }
+    virtual int positionOf(TimerEventHandle handle) {
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::positionOf(handle);
+    }
+
+    virtual void doTimer(su_timer_t* timer) {
+      std::lock_guard<std::mutex> guard(m_mutex);
+      return TimerQueue::doTimer(timer);
+    }    
+
+  protected:
+    std::mutex    m_mutex;
+   } ;
+
 }
 
 #endif
