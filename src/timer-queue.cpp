@@ -40,18 +40,20 @@ namespace drachtio {
   }
 
   TimerEventHandle TimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
-    return add( f, functionArgs, milliseconds, su_now() ) ;
+    return TimerQueue::add( f, functionArgs, milliseconds, su_now() ) ;
   }
 
   TimerEventHandle TimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
     //self check
+    /*
     assert( m_length == numberOfElements()) ;
     assert( 0 != m_length || (NULL == m_head && NULL == m_tail) ) ;
     assert( 1 != m_length || (m_head == m_tail)) ;
     assert( m_length < 2 || (m_head != m_tail)) ;
     assert( !(NULL == m_head && NULL != m_tail)) ;
     assert( !(NULL == m_tail && NULL != m_head)) ;
-
+    */
+  
     su_time_t when = su_time_add(now, milliseconds) ;
     queueEntry_t* entry = new queueEntry_t(this, f, functionArgs, when) ;
     TimerEventHandle handle = entry ;
@@ -108,17 +110,6 @@ namespace drachtio {
           idx++ ;
         } while( NULL != (ptr = ptr->m_next) ) ;
         assert( NULL != ptr ) ;
-/*
-        if( NULL == ptr ) {
-#ifndef TEST
-          DR_LOG(log_debug) << m_name << ": Adding entry to the tail of the queue: length " << dec << m_length+1;
-#endif
-          //std::cout << "Adding entry to the tail of the queue" << std::endl ;
-          entry->m_prev = m_tail ;
-          m_tail->m_next = entry ;
-          m_tail = entry ;
-        }
-*/
       }
       queueLength = ++m_length ;
     }
@@ -130,38 +121,29 @@ namespace drachtio {
 
     //only need to set the timer if we added to the front
     if( m_head == entry ) {
-      //DR_LOG(log_debug) << "timer add: Setting timer for " << milliseconds  << "ms" ;
-      //std::cout << "timer add: Setting timer for " << milliseconds  << "ms" << std::endl;
       int rc = su_timer_set_at(m_timer, timer_function, this, when);
       assert( 0 == rc ) ;
     }
 
-    //DR_LOG(log_debug) << "timer add: queue length is now " << queueLength ;
-    //std::cout << "timer add: queue length is now " << queueLength << std::endl;
 
      //self check
+     /*
     assert( m_length == numberOfElements()) ;
     assert( 0 != m_length || (NULL == m_head && NULL == m_tail) ) ;
     assert( 1 != m_length || (m_head == m_tail)) ;
     assert( m_length < 2 || (m_head != m_tail)) ;
     assert( !(NULL == m_head && NULL != m_tail)) ;
     assert( !(NULL == m_tail && NULL != m_head)) ;
+    */
 
     return handle ;
 
   }
   void TimerQueue::remove( TimerEventHandle entry) {
+
 #ifndef TEST
         DR_LOG(log_debug) << m_name << ": removing entry, prior to removal length: " << dec << m_length;
 #endif
-    //self check
-    assert( m_length == numberOfElements()) ;
-    assert( 0 != m_length || (NULL == m_head && NULL == m_tail) ) ;
-    assert( 1 != m_length || (m_head == m_tail)) ;
-    assert( m_length < 2 || (m_head != m_tail)) ;
-    assert( !(NULL == m_head && NULL != m_tail)) ;
-    assert( !(NULL == m_tail && NULL != m_head)) ;
-    assert( m_head && m_length >= 1 ) ;
 
     int queueLength ;
     {
@@ -208,24 +190,9 @@ namespace drachtio {
     //std::cout << "timer remove: queue length is now " << queueLength << std::endl;
 
     delete entry ;
-
-    //self check
-    assert( m_length == numberOfElements()) ;
-    assert( 0 != m_length || (NULL == m_head && NULL == m_tail) ) ;
-    assert( 1 != m_length || (m_head == m_tail)) ;
-    assert( m_length < 2 || (m_head != m_tail)) ;
-    assert( !(NULL == m_head && NULL != m_tail)) ;
-    assert( !(NULL == m_tail && NULL != m_head)) ;
   }
 
   void TimerQueue::doTimer(su_timer_t* timer) {
-    //self check
-    assert( m_length == numberOfElements()) ;
-    assert( 0 != m_length || (NULL == m_head && NULL == m_tail) ) ;
-    assert( 1 != m_length || (m_head == m_tail)) ;
-    assert( m_length < 2 || (m_head != m_tail)) ;
-    assert( !(NULL == m_head && NULL != m_tail)) ;
-    assert( !(NULL == m_tail && NULL != m_head)) ;
 
 #ifndef TEST
     DR_LOG(log_debug) << m_name << ": running timer function" ;
@@ -266,11 +233,9 @@ namespace drachtio {
 #ifndef TEST
       DR_LOG(log_debug) << m_name << ": timer not set (queue is empty after processing expired timers), length: " << dec << m_length ;
 #endif
-      //std::cout << "doTimer: timer not set (queue is empty after processing expired timers)" << std::endl;
       assert( 0 == m_length ) ;
     }
     else {
-      //std::cout << "doTimer: Setting timer for " << su_duration( m_head->m_when, su_now() )  << "ms after processing expired timers" << std::endl;
 #ifndef TEST
       DR_LOG(log_debug) << m_name << ": Setting timer for " << su_duration( m_head->m_when, su_now() )  << 
         "ms after processing expired timers, length: "  << dec << m_length ;
@@ -285,20 +250,15 @@ namespace drachtio {
       expired = expired->m_next ;
       delete p ;
     }    
+  }
 
-    //self check
-    assert( m_length == numberOfElements()) ;
-    assert( 0 != m_length || (NULL == m_head && NULL == m_tail) ) ;
-    assert( 1 != m_length || (m_head == m_tail)) ;
-    assert( m_length < 2 || (m_head != m_tail)) ;
-    assert( !(NULL == m_head && NULL != m_tail)) ;
-    assert( !(NULL == m_tail && NULL != m_head)) ;
-  }    
   int TimerQueue::positionOf(TimerEventHandle handle) {
     int pos = 0 ;
     queueEntry_t* ptr = m_head ;
     while( ptr ) {
-      if( ptr == handle ) return pos ;
+      if( ptr == handle ) {
+        return pos ;
+      }
       pos++ ;
       ptr = ptr->m_next ;
     }
@@ -313,4 +273,34 @@ namespace drachtio {
     }
     return len ;
   }
+
+  // LockingTimerQueue
+   TimerEventHandle LockingTimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
+    return add(f, functionArgs, milliseconds,  su_now());
+  }
+  TimerEventHandle LockingTimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::add(f, functionArgs, milliseconds, now);
+  }
+  void LockingTimerQueue::remove( TimerEventHandle handle) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::remove(handle);
+  }
+  bool LockingTimerQueue::isEmpty(void) { 
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::isEmpty();
+  }
+  int LockingTimerQueue::size(void) { 
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::size();
+  }
+  int LockingTimerQueue::positionOf(TimerEventHandle handle) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::positionOf(handle);
+  }
+  void LockingTimerQueue::doTimer(su_timer_t* timer) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::doTimer(timer);
+  }    
+
 }

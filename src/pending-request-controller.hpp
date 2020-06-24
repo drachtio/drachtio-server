@@ -145,7 +145,7 @@ namespace drachtio {
     typedef std::unordered_map<string, std::shared_ptr<PendingRequest_t> > mapTxnId2Invite ;
     mapTxnId2Invite m_mapTxnId2Invite ;
 
-    TimerQueue      m_timerQueue ;
+    LockingTimerQueue      m_timerQueue ;
 
   } ;
 
