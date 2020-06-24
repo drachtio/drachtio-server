@@ -40,7 +40,7 @@ namespace drachtio {
   }
 
   TimerEventHandle TimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
-    return add( f, functionArgs, milliseconds, su_now() ) ;
+    return TimerQueue::add( f, functionArgs, milliseconds, su_now() ) ;
   }
 
   TimerEventHandle TimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
@@ -233,11 +233,9 @@ namespace drachtio {
 #ifndef TEST
       DR_LOG(log_debug) << m_name << ": timer not set (queue is empty after processing expired timers), length: " << dec << m_length ;
 #endif
-      //std::cout << "doTimer: timer not set (queue is empty after processing expired timers)" << std::endl;
       assert( 0 == m_length ) ;
     }
     else {
-      //std::cout << "doTimer: Setting timer for " << su_duration( m_head->m_when, su_now() )  << "ms after processing expired timers" << std::endl;
 #ifndef TEST
       DR_LOG(log_debug) << m_name << ": Setting timer for " << su_duration( m_head->m_when, su_now() )  << 
         "ms after processing expired timers, length: "  << dec << m_length ;
@@ -275,4 +273,34 @@ namespace drachtio {
     }
     return len ;
   }
+
+  // LockingTimerQueue
+   TimerEventHandle LockingTimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
+    return add(f, functionArgs, milliseconds,  su_now());
+  }
+  TimerEventHandle LockingTimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::add(f, functionArgs, milliseconds, now);
+  }
+  void LockingTimerQueue::remove( TimerEventHandle handle) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::remove(handle);
+  }
+  bool LockingTimerQueue::isEmpty(void) { 
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::isEmpty();
+  }
+  int LockingTimerQueue::size(void) { 
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::size();
+  }
+  int LockingTimerQueue::positionOf(TimerEventHandle handle) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::positionOf(handle);
+  }
+  void LockingTimerQueue::doTimer(su_timer_t* timer) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return TimerQueue::doTimer(timer);
+  }    
+
 }

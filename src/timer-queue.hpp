@@ -53,7 +53,7 @@ namespace drachtio {
 
     TimerQueue(su_root_t* root, const char*szName = NULL) ;
     TimerQueue( const TimerQueue& ) = delete;
-    ~TimerQueue() ;
+    virtual ~TimerQueue() ;
 
     virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
     virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) ;
@@ -82,38 +82,15 @@ namespace drachtio {
   
      using TimerQueue::TimerQueue;
 
-    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::add(f, functionArgs, milliseconds);
-    }
-    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) {
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::add(f, functionArgs, milliseconds, now);
-    }
-    virtual void remove( TimerEventHandle handle) {
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::remove(handle);
-    }
+    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) ;
+    virtual TimerEventHandle add( TimerFunc f, void* functionArgs, uint32_t milliseconds, su_time_t now ) ;
+    virtual void remove( TimerEventHandle handle) ;
+    virtual bool isEmpty(void);
+    virtual int size(void) ;
+    virtual int positionOf(TimerEventHandle handle) ;
+    virtual void doTimer(su_timer_t* timer) ;   
 
-    virtual bool isEmpty(void) { 
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::isEmpty();
-     }
-    virtual int size(void) { 
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::size();
-     }
-    virtual int positionOf(TimerEventHandle handle) {
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::positionOf(handle);
-    }
-
-    virtual void doTimer(su_timer_t* timer) {
-      std::lock_guard<std::mutex> guard(m_mutex);
-      return TimerQueue::doTimer(timer);
-    }    
-
-  protected:
+    protected:
     std::mutex    m_mutex;
    } ;
 
