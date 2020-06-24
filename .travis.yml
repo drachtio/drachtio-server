@@ -46,6 +46,7 @@ git:
 
 before_install:
     - eval "${MATRIX_EVAL}"
+    - echo $TRAVIS_OS_NAME
     - if [ $TRAVIS_OS_NAME = osx ]; then /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"; fi
     - if [ $TRAVIS_OS_NAME = osx ]; then nvm install "v8.11.3"; fi
     - if [ $TRAVIS_OS_NAME = osx ]; then export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"; fi
