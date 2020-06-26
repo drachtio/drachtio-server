@@ -252,7 +252,7 @@ namespace drachtio {
 		bool bWeAreRefresher = areWeRefresher()  ;
 		
 		if( bWeAreRefresher ) {
-			//TODO: send a refreshing reINVITE, and notify the client
+			//send a refreshing reINVITE, and notify the client
 			DR_LOG(log_info) << "SipDialog::doSessionTimerHandling - sending refreshing re-INVITE with call-id " << getCallId()  ; 
 			theOneAndOnlyController->getDialogController()->notifyRefreshDialog( shared_from_this() ) ;
 
@@ -262,7 +262,7 @@ namespace drachtio {
 			return;
 		}
 		else {
-			//TODO: tear down the leg, and notify the client
+			//tear down the leg, and notify the client
 			DR_LOG(log_info) << "SipDialog::doSessionTimerHandling - tearing down sip dialog with call-id " << getCallId() 
 				<< " because remote peer did not refresh the session within the specified interval"  ; 
 			theOneAndOnlyController->getDialogController()->notifyTerminateStaleDialog( shared_from_this() ) ;

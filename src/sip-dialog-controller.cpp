@@ -1381,7 +1381,7 @@ namespace drachtio {
                     }
                     if( sip->sip_session_expires ) {
                         dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
-                            (!sip->sip_session_expires->x_refresher && weAreRefresher) || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? 
+                            (!sip->sip_session_expires->x_refresher && weAreRefresher) ||(sip->sip_session_expires->x_refresher && 0 == strcmp( sip->sip_session_expires->x_refresher, "uac")) ? 
                             SipDialog::they_are_refresher : 
                             SipDialog::we_are_refresher) ;
                     }
