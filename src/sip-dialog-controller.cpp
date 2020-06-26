@@ -774,9 +774,17 @@ namespace drachtio {
 
                 addDialog( dlg ) ;
             }
-            if (sip->sip_status->st_status == 200 && tport_is_dgram(nta_outgoing_transport(orq))) {
+            if (sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status == 200 && tport_is_dgram(nta_outgoing_transport(orq))) {
                 // for successful uac invites, we need to handle retransmits
                 m_timerDHandler.addInvite(orq);
+            }
+
+            if (sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status == 200 && sip->sip_session_expires) {
+                DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected session timer header: ";
+                dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
+                    !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? 
+                    SipDialog::we_are_refresher : 
+                    SipDialog::they_are_refresher) ;
             }
             else if( sip->sip_status->st_status > 200 ){
                 clearIIP(iip->leg()) ;
@@ -1355,7 +1363,12 @@ namespace drachtio {
 
                 /* if this is a re-INVITE or an UPDATE deal with session timers */
                 if( sip_method_invite == sip->sip_request->rq_method || sip_method_update == sip->sip_request->rq_method ) {
-                    if( dlg->hasSessionTimer() ) { dlg->cancelSessionTimer() ; }
+                    bool weAreRefresher = false;
+                    if( dlg->hasSessionTimer() ) { 
+                        DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - canceling session expires timer due to re-invite"  ;
+                        weAreRefresher = dlg->areWeRefresher();
+                        dlg->cancelSessionTimer() ;
+                    }
 
                     /* reject if session timer is too small */
                     if( sip->sip_session_expires && sip->sip_session_expires->x_delta < dlg->getMinSE() ) {
@@ -1368,7 +1381,7 @@ namespace drachtio {
                     }
                     if( sip->sip_session_expires ) {
                         dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
-                            !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? 
+                            (!sip->sip_session_expires->x_refresher && weAreRefresher) || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? 
                             SipDialog::they_are_refresher : 
                             SipDialog::we_are_refresher) ;
                     }
