@@ -255,10 +255,6 @@ namespace drachtio {
 			//send a refreshing reINVITE, and notify the client
 			DR_LOG(log_info) << "SipDialog::doSessionTimerHandling - sending refreshing re-INVITE with call-id " << getCallId()  ; 
 			theOneAndOnlyController->getDialogController()->notifyRefreshDialog( shared_from_this() ) ;
-
-			//su_timer_destroy( m_timerSessionRefresh ) ;
-			//m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), m_nSessionTimerDuration ) ;
-			//su_timer_set(m_timerSessionRefresh, session_timer_handler, (su_timer_arg_t *) m_ppSelf );
 			return;
 		}
 		else {
