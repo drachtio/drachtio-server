@@ -230,6 +230,7 @@ namespace drachtio {
             if( sip_method_invite == method && body.length() && 0 == contentType.compare("application/sdp")) {
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - updating local sdp to " << body ;
                 dlg->setLocalSdp( body.c_str() ) ;
+                dlg->setLocalContentType(contentType);
             }
 
             if (dlg->getRouteUri(routeUri)) {
@@ -1493,6 +1494,23 @@ namespace drachtio {
             assert(0) ;
         }
         if( findRIPByOrq( orq, rip ) ) {
+
+            if( sip->sip_status->st_status != 200 ) {
+                DR_LOG(log_info) << "SipDialogController::processResponseToRefreshingReinvite: reinvite failed "  ;
+                //TODO: notify client that call has failed, send BYE
+            }
+            else {
+                /* reset session expires timer, if provided */
+                sip_session_expires_t* se = sip_session_expires(sip) ;
+                if( se ) {                
+                    //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
+                    dlg->setSessionTimer( se->x_delta, 
+                        !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? 
+                            SipDialog::we_are_refresher : 
+                            SipDialog::they_are_refresher ) ;
+                }
+             }
+
             clearRIP( orq ) ;          
 
             nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
@@ -1503,18 +1521,6 @@ namespace drachtio {
             nta_outgoing_destroy( ack_request ) ;
 
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "ACK"}})
-
-            if( sip->sip_status->st_status != 200 ) {
-                //TODO: notify client that call has failed, send BYE
-            }
-            else {
-                /* reset session expires timer, if provided */
-                sip_session_expires_t* se = sip_session_expires(sip) ;
-                if( se ) {                
-                    //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
-                    dlg->setSessionTimer( se->x_delta, !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::we_are_refresher : SipDialog::they_are_refresher ) ;
-                }
-             }
         }
         nta_outgoing_destroy( orq ) ;
         
