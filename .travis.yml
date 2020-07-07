@@ -3,7 +3,6 @@ sudo: required
 
 matrix:
   include:
-    - os: osx
 
     - os: linux
       dist: xenial

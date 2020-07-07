@@ -986,6 +986,10 @@ namespace drachtio {
                     if(findDialogByLeg( leg, dlg )) {
                         dialogId = dlg->getDialogId();
                         DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest retrieved dialog id for existing dialog " << dialogId  ;
+                        if (sip->sip_request->rq_method == sip_method_invite && body.length()) {
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest updating local sdp for dialog " << dialogId  ;
+                            dlg->setLocalSdp( body.c_str() ) ;
+                        }
                     }
                 }
             }
@@ -1511,19 +1515,18 @@ namespace drachtio {
                 }
              }
 
-            clearRIP( orq ) ;          
-
             nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
                    SIP_METHOD_ACK,
                    (url_string_t*) sip->sip_contact->m_url ,
                    TAG_END());
 
             nta_outgoing_destroy( ack_request ) ;
+            clearRIP( orq ) ;          
 
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "ACK"}})
+            return 0;
         }
         nta_outgoing_destroy( orq ) ;
-        
         return 0 ;
         
     }
