@@ -232,7 +232,7 @@ namespace drachtio {
 		m_nSessionTimerDuration = nSecs * 1000  ;
 		m_nSessionExpiresSecs = nSecs ;
 
-		DR_LOG(log_info) << "SipDialog::setSessionTimer: Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them")  ;
+		DR_LOG(log_info) << "SipDialog::setSessionTimer: " << getCallId() << " Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them")  ;
 
 		/* if we are the refresher, then we want the timer to go off halfway through the interval */
 		if( areWeRefresher() ) m_nSessionTimerDuration /= 2 ;
@@ -252,17 +252,12 @@ namespace drachtio {
 		bool bWeAreRefresher = areWeRefresher()  ;
 		
 		if( bWeAreRefresher ) {
-			//TODO: send a refreshing reINVITE, and notify the client
+			//send a refreshing reINVITE, and notify the client
 			DR_LOG(log_info) << "SipDialog::doSessionTimerHandling - sending refreshing re-INVITE with call-id " << getCallId()  ; 
 			theOneAndOnlyController->getDialogController()->notifyRefreshDialog( shared_from_this() ) ;
-
-			su_timer_destroy( m_timerSessionRefresh ) ;
-			m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), m_nSessionTimerDuration ) ;
-			su_timer_set(m_timerSessionRefresh, session_timer_handler, (su_timer_arg_t *) m_ppSelf );
-			return;
 		}
 		else {
-			//TODO: tear down the leg, and notify the client
+			//tear down the leg, and notify the client
 			DR_LOG(log_info) << "SipDialog::doSessionTimerHandling - tearing down sip dialog with call-id " << getCallId() 
 				<< " because remote peer did not refresh the session within the specified interval"  ; 
 			theOneAndOnlyController->getDialogController()->notifyTerminateStaleDialog( shared_from_this() ) ;
