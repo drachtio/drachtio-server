@@ -641,8 +641,20 @@ namespace drachtio {
         std::shared_ptr<IIP> iip ;
 
         if( findIIPByTransactionId( transactionId, iip ) ) {
+            bool forceTport = false;
+            tport_t* tp = NULL;
             tagi_t* tags = makeSafeTags( pData->getHeaders()) ;
-            nta_outgoing_t *cancel = nta_outgoing_tcancel(iip->orq(), NULL, NULL, TAG_NEXT(tags));
+            std::shared_ptr<SipDialog> dlg = iip->dlg() ;
+            if (dlg) {
+                tp = dlg->getTport() ; 
+                forceTport = NULL != tp && !tport_is_dgram(tp);  
+            }
+            nta_outgoing_t *cancel = nta_outgoing_tcancel(iip->orq(), 
+                NULL, 
+                NULL, 
+                TAG_IF(forceTport, NTATAG_TPORT(tp)),
+                TAG_NEXT(tags));
+
             if( NULL != cancel ) {
                 msg_t* m = nta_outgoing_getrequest(cancel) ;    // adds a reference
                 sip_t* sip = sip_object( m ) ;
