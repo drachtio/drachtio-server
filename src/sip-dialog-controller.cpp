@@ -645,9 +645,10 @@ namespace drachtio {
             tport_t* tp = NULL;
             tagi_t* tags = makeSafeTags( pData->getHeaders()) ;
             std::shared_ptr<SipDialog> dlg = iip->dlg() ;
-            if (dlg) {
-                tp = dlg->getTport() ; 
-                forceTport = NULL != tp && !tport_is_dgram(tp);  
+            if (!tport_is_dgram(nta_outgoing_transport(iip->orq()))) {
+                forceTport = true;
+                tp = nta_outgoing_transport(iip->orq());
+                DR_LOG(log_debug) << "SipDialogController::doSendCancelRequest - sending CANCEL over existing transport " << std::hex << (void*) tp ;
             }
             nta_outgoing_t *cancel = nta_outgoing_tcancel(iip->orq(), 
                 NULL, 
