@@ -350,7 +350,8 @@ namespace drachtio {
             (sip_method_notify == sip->sip_request->rq_method && 
             NULL != sip->sip_subscription_state && 
             NULL != sip->sip_subscription_state->ss_substate &&
-            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated"))) {
+            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
+            (NULL == sip->sip_event || (0 != std::strncmp("refer", sip->sip_event->o_type, 5))))) {
 
             removeDialog( dialogId ) ;
         }
