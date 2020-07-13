@@ -351,7 +351,13 @@ namespace drachtio {
             NULL != sip->sip_subscription_state && 
             NULL != sip->sip_subscription_state->ss_substate &&
             NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
-            (NULL == sip->sip_event || (0 != std::strncmp("refer", sip->sip_event->o_type, 5))))) {
+            (NULL == sip->sip_event || 
+                (sip->sip_event->o_type && 
+                (0 != std::strcmp("refer", sip->sip_event->o_type) || 
+                0 != std::strcmp("REFER", sip->sip_event->o_type))
+                )
+            )
+        )) {
 
             removeDialog( dialogId ) ;
         }
