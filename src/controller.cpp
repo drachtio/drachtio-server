@@ -1319,7 +1319,6 @@ namespace drachtio {
                                 Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;
-                            nta_msg_discard(m_nta, msg) ;  
                             return 0;
                         }
                     }
