@@ -1305,8 +1305,8 @@ namespace drachtio {
                         //reject message if necessary, write stop record
                         if( status > 0  ) {
                             if( sip->sip_request->rq_method != sip_method_invite ) {
-                                nta_msg_discard(m_nta, msg) ;  
-                                return status;
+                                nta_msg_treply( m_nta, msg, status, NULL, TAG_END() ) ;
+                                return 0 ;
                             }
 
                             // invite: we need to write cdrs
