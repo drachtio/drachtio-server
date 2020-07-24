@@ -922,13 +922,12 @@ namespace drachtio {
             if( 0 != rc ) {
                 bSentOK = false ;
                 failMsg = "Unknown server error sending response" ;
-                assert(false) ;
             }
 
             //  we need to cache source address / port / transport for successful REGISTER or SUBSCRIBE requests from webrtc clients so we can 
             //  later send INVITEs and NOTIFYs
-            if( (sip->sip_request->rq_method == sip_method_subscribe && (202 == code || 200 ==code) ) ||
-                (sip->sip_request->rq_method == sip_method_register && 200 == code) ) {
+            if( bSentOK && ((sip->sip_request->rq_method == sip_method_subscribe && (202 == code || 200 ==code) ) ||
+                (sip->sip_request->rq_method == sip_method_register && 200 == code) ) ) {
 
                 sip_contact_t* contact = sip->sip_contact ;
                 if( contact ) {
@@ -979,7 +978,7 @@ namespace drachtio {
                 }
             }
 
-            if (existingDialog) {
+            if (existingDialog && bSentOK) {
                 nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
                 if (leg) {
                     std::shared_ptr<SipDialog> dlg ;
