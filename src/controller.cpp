@@ -1302,15 +1302,13 @@ namespace drachtio {
                         string transactionId ;
                         int status = m_pPendingRequestController->processNewRequest( msg, sip, tp_incoming, transactionId ) ;
 
+                        //write attempt record	
+                        if( status >= 0 && sip->sip_request->rq_method == sip_method_invite ) {	
+                            Cdr::postCdr( std::make_shared<CdrAttempt>( msg, "network" ) );	
+                        }
+                        
                         //reject message if necessary, write stop record
                         if( status > 0  ) {
-                            if( sip->sip_request->rq_method != sip_method_invite ) {
-                                nta_msg_treply( m_nta, msg, status, NULL, TAG_END() ) ;
-                                return 0 ;
-                            }
-
-                            // invite: we need to write cdrs
-                            Cdr::postCdr( std::make_shared<CdrAttempt>( msg, "network" ) );
                             msg_t* reply = nta_msg_create(m_nta, 0) ;
                             msg_ref_create(reply) ;
                             nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
@@ -1319,6 +1317,7 @@ namespace drachtio {
                                 Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;
+
                             return 0;
                         }
                     }
