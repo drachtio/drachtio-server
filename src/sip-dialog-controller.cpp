@@ -1568,6 +1568,7 @@ namespace drachtio {
             msg_t* msg = nta_incoming_getrequest( irq ) ;   // adds a reference
             EncodeStackMessage( sip, encodedMessage ) ;
             SipMsgData_t meta( msg, irq ) ;
+            Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::call_canceled ) );
             msg_destroy(msg);                               // releases reference
 
             m_pClientController->route_request_inside_invite( encodedMessage, meta, irq, sip, iip->getTransactionId(), dlg->getDialogId() ) ;
