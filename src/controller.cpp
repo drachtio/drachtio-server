@@ -263,7 +263,7 @@ namespace drachtio {
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
-        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX) {
+        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false) {
 
         getEnv();
 
@@ -319,7 +319,7 @@ namespace drachtio {
     }
     void DrachtioController::handleSigTerm( int signal ) {
         DR_LOG(log_notice) << "Received SIGTERM; exiting after dumping stats.."  ;
-        this->printStats() ;
+        this->printStats(m_bMemoryDebug || m_bDumpMemory) ;
         m_pDialogController->logStorageCount() ;
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
@@ -330,7 +330,8 @@ namespace drachtio {
     }
 
     void DrachtioController::handleSigHup( int signal ) {
-        
+        m_bDumpMemory = true;
+        DR_LOG(log_notice) << "SIGHUP handled - next storage printout will include detailed logging"  ;
         if( !m_ConfigNew ) {
             DR_LOG(log_notice) << "Re-reading configuration file"  ;
             m_ConfigNew.reset( new DrachtioConfig( m_configFilename.c_str() ) ) ;
@@ -1809,7 +1810,7 @@ namespace drachtio {
     selectInboundConnectionForTag(transactionId, val);
   }
 
-    void DrachtioController::printStats() {
+    void DrachtioController::printStats(bool bDetail) {
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
        usize_t irq_used = -1, orq_used = -1, leg_used = -1 ;
        usize_t recv_msg = -1, sent_msg = -1;
@@ -1823,7 +1824,7 @@ namespace drachtio {
        usize_t sent_request = -1, sent_response = -1;
        usize_t retry_request = -1, retry_response = -1, recv_retry = -1;
        usize_t tout_request = -1, tout_response = -1;
-
+       sip_time_t now = sip_now();
        nta_agent_get_stats(m_nta,
                                 NTATAG_S_IRQ_HASH_REF(irq_hash),
                                 NTATAG_S_ORQ_HASH_REF(orq_hash),
@@ -1863,32 +1864,51 @@ namespace drachtio {
        DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash  ;
        DR_LOG(log_info) << "size of hash table for dialogs                                   " << leg_hash  ;
        DR_LOG(log_info) << "number of server-side transactions in the hash table             " << irq_used  ;
-       if (m_bMemoryDebug && irq_used > 0) {
+       if (bDetail && irq_used > 0) {
            nta_incoming_t* irq = NULL;
+           std::deque<nta_incoming_t*> aged;
            do {
                irq = nta_get_next_server_txn_from_hash(m_nta, irq);
                if (irq) {
-                   DR_LOG(log_info) << "    nta_incoming_t*: " << std::hex << (void *) irq  ;
+                   const char* method = nta_incoming_method_name(irq);
+                   const char* tag = nta_incoming_gettag(irq);
+                   uint32_t seq = nta_incoming_cseq(irq);
+                   sip_time_t secsSinceReceived = now - nta_incoming_received(irq, NULL);
+                   if (secsSinceReceived > 3600) aged.push_back(irq);
+                   DR_LOG(log_info) << "    nta_incoming_t*: " << std::hex << (void *) irq  <<
+                    " " << method << " " << std::dec << seq << " remote tag: " << tag << 
+                    " alive " << secsSinceReceived << " secs";
                }
            } while (irq) ;
+           std::for_each(aged.begin(), aged.end(), [](nta_incoming_t* irq) {
+               DR_LOG(log_info) << "        destroying very old nta_incoming_t*: " <<  std::hex << (void *) irq ;
+               nta_incoming_destroy(irq);
+           });
        }
        DR_LOG(log_info) << "number of client-side transactions in the hash table             " << orq_used  ;
-       if (m_bMemoryDebug && orq_used > 0) {
+       if (bDetail && orq_used > 0) {
            nta_outgoing_t* orq = NULL;
            do {
                orq = nta_get_next_client_txn_from_hash(m_nta, orq);
                if (orq) {
-                   DR_LOG(log_info) << "    nta_outgoing_t*: " << std::hex << (void *) orq  ;
+                   const char* method = nta_outgoing_method_name(orq);
+                   const char* callId = nta_outgoing_call_id(orq);
+                   uint32_t seq = nta_outgoing_cseq(orq);
+                   DR_LOG(log_info) << "    nta_outgoing_t*: " << std::hex << (void *) orq  <<
+                    " " << method << " " << callId << " " << seq;
                }
            } while (orq) ;
        }
        DR_LOG(log_info) << "number of dialogs in the hash table                              " << leg_used  ;
-       if (m_bMemoryDebug && leg_used > 0) {
+       if (bDetail && leg_used > 0) {
            nta_leg_t* leg = NULL;
            do {
                leg = nta_get_next_dialog_from_hash(m_nta, leg);
                if (leg) {
-                   DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) leg  ;
+                   const char* localTag = nta_leg_get_tag(leg);
+                   const char* remoteTag = nta_leg_get_rtag(leg);
+                   DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) leg  << 
+                    " local tag: " << localTag << " remote tag: " << remoteTag;
                }
            } while (leg) ;
        }
@@ -1952,11 +1972,13 @@ namespace drachtio {
             }
         }
 
-        this->printStats() ;
-        m_pDialogController->logStorageCount(m_bMemoryDebug) ;
-        m_pClientController->logStorageCount(m_bMemoryDebug) ;
-        m_pPendingRequestController->logStorageCount(m_bMemoryDebug) ;
-        m_pProxyController->logStorageCount(m_bMemoryDebug) ;
+        bool bMemoryDebug = m_bMemoryDebug || m_bDumpMemory;
+        this->printStats(bMemoryDebug) ;
+        m_pDialogController->logStorageCount(bMemoryDebug) ;
+        m_pClientController->logStorageCount(bMemoryDebug) ;
+        m_pPendingRequestController->logStorageCount(bMemoryDebug) ;
+        m_pProxyController->logStorageCount(bMemoryDebug) ;
+        m_bDumpMemory = false;
 
         DR_LOG(log_info) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
 

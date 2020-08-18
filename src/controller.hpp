@@ -140,7 +140,7 @@ namespace drachtio {
 
     bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
 
-    void printStats(void) ;
+    void printStats(bool bDetail) ;
     void processWatchdogTimer(void) ;
 
     const tport_t* getTportForProtocol( const string& remoteHost, const char* proto ) ;
@@ -259,6 +259,8 @@ namespace drachtio {
 
     bool m_bMemoryDebug;
     unsigned int m_tcpKeepaliveSecs;
+
+    bool m_bDumpMemory;
   } ;
 
 } ;
