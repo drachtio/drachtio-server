@@ -665,14 +665,14 @@ namespace drachtio {
             }
             else {
                 DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - internal server error canceling transaction id " << transactionId ;
-                m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", 
+                m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
                     string("internal server error canceling transaction id: ") + transactionId ) ; 
             }
             if (tags) deleteTags(tags);
         }
         else {
             DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - unknown transaction id " << transactionId ;
-            m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", 
+            m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
                 string("unable to cancel unknown transaction id: ") + transactionId ) ; 
         }
 
