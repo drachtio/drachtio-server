@@ -64,7 +64,7 @@
   <recv response="480" rtd="true" rrs="true">
   </recv>
 
-  <pause milliseconds="34000">
+  <pause milliseconds="34000"/>
   
 </scenario>
 

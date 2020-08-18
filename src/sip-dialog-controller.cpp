@@ -656,7 +656,7 @@ namespace drachtio {
                 string s ;
                 meta.toMessageFormat(s) ;
                 string data = s + "|" + cancelTransactionId + "|Msg sent:|" + DR_CRLF + encodedMessage ;
-                msg_destroy(m) ;
+                msg_destroy(m) ;    // releases reference
 
                 //Note: not adding an RIP because the 200 OK to the CANCEL is not passed up to us
 
@@ -1306,7 +1306,7 @@ namespace drachtio {
                 msg_t* msg = nta_incoming_getrequest( irq ) ; // adds a reference
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta( msg, irq ) ;
-                msg_destroy(msg) ;
+                msg_destroy(msg) ;      // releases the reference
 
                 m_pController->getClientController()->route_ack_request_inside_dialog(  encodedMessage, meta, irq, sip, transactionId, dlg->getTransactionId(), dlg->getDialogId() ) ;
 
@@ -1348,9 +1348,12 @@ namespace drachtio {
                 meta.toMessageFormat(s) ;
 
                 m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, "unsolicited", dlg->getDialogId() ) ;
+                msg_destroy(m);      // releases the reference
 
                 nta_outgoing_destroy(orq) ;
                 this->clearDialog( leg ) ;
+
+
             }
             default:
             {
@@ -1875,6 +1878,7 @@ namespace drachtio {
         clearIIP(leg);
 
         // we never got the ACK, so now we should tear down the call by sending a BYE
+        // TODO: also need to remove dialog from hash table
         nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
                                 NULL,
                                 SIP_METHOD_BYE,
@@ -1895,7 +1899,10 @@ namespace drachtio {
 
         m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, "unsolicited", dlg->getDialogId() ) ;
 
+        msg_destroy( m ); // release the reference
+
         nta_outgoing_destroy(orq) ;
+        this->clearDialog(leg);
     }
     void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
         DR_LOG(log_error) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
