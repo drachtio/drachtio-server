@@ -1906,9 +1906,8 @@ namespace drachtio {
                leg = nta_get_next_dialog_from_hash(m_nta, leg);
                if (leg) {
                    const char* localTag = nta_leg_get_tag(leg);
-                   const char* remoteTag = nta_leg_get_rtag(leg);
                    DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) leg  << 
-                    " local tag: " << localTag << " remote tag: " << remoteTag;
+                    " local tag: " << localTag ;
                }
            } while (leg) ;
        }

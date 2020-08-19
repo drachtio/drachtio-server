@@ -2022,53 +2022,53 @@ namespace drachtio {
     void SipDialogController::logStorageCount(bool bDetail)  {
         std::lock_guard<std::mutex> lock(m_mutex) ;
 
-        DR_LOG(log_debug) << "SipDialogController storage counts"  ;
-        DR_LOG(log_debug) << "----------------------------------"  ;
-        DR_LOG(log_debug) << "m_mapIrq2IIP size:                                               " << m_mapIrq2IIP.size()  ;
+        DR_LOG(log_info) << "SipDialogController storage counts"  ;
+        DR_LOG(log_info) << "----------------------------------"  ;
+        DR_LOG(log_info) << "m_mapIrq2IIP size:                                               " << m_mapIrq2IIP.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapIrq2IIP) {
                 shared_ptr<IIP> p = kv.second;
-                DR_LOG(log_debug) << "    nta_leg_t*: " << std::hex << (void *) p->leg() << ", transaction id: " << p->getTransactionId().c_str();
+                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) p->leg() << ", transaction id: " << p->getTransactionId().c_str();
             }
         }
 
-        DR_LOG(log_debug) << "m_mapOrq2IIP size:                                               " << m_mapOrq2IIP.size()  ;
+        DR_LOG(log_info) << "m_mapOrq2IIP size:                                               " << m_mapOrq2IIP.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapOrq2IIP) {
                 shared_ptr<IIP> p = kv.second;
-                DR_LOG(log_debug) << "    nta_leg_t*: " << std::hex << (void *) p->leg() << ", transaction id: " << p->getTransactionId().c_str();
+                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) p->leg() << ", transaction id: " << p->getTransactionId().c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapTransactionId2IIP size:                                     " << m_mapTransactionId2IIP.size()  ;
+        DR_LOG(log_info) << "m_mapTransactionId2IIP size:                                     " << m_mapTransactionId2IIP.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapTransactionId2IIP) {
                 shared_ptr<IIP> p = kv.second;
-                DR_LOG(log_debug) << "    nta_leg_t*: " << std::hex << (void *) p->leg() << ", transaction id: " << p->getTransactionId().c_str();
+                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) p->leg() << ", transaction id: " << p->getTransactionId().c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapLeg2Dialog size:                                            " << m_mapLeg2Dialog.size()  ;
+        DR_LOG(log_info) << "m_mapLeg2Dialog size:                                            " << m_mapLeg2Dialog.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapLeg2Dialog) {
                 shared_ptr<SipDialog> p = kv.second;
-                DR_LOG(log_debug) << "    nta_leg_t*: " << std::hex << (void *) kv.first << ", call-id: " << p->getCallId().c_str();
+                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) kv.first << ", call-id: " << p->getCallId().c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size()  ;
+        DR_LOG(log_info) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapId2Dialog) {
                 shared_ptr<SipDialog> p = kv.second;
-                DR_LOG(log_debug) << "    call-id: " << p->getCallId().c_str();
+                DR_LOG(log_info) << "    call-id: " << p->getCallId().c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;
+        DR_LOG(log_info) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapOrq2RIP) {
                 shared_ptr<RIP> p = kv.second;
-                DR_LOG(log_debug) << "    nta_outgoing_t*: " << std::hex << (void *) kv.first << ", transaction id: " << p->getTransactionId().c_str();
+                DR_LOG(log_info) << "    nta_outgoing_t*: " << std::hex << (void *) kv.first << ", transaction id: " << p->getTransactionId().c_str();
             }
         }
-        DR_LOG(log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
-        DR_LOG(log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
+        DR_LOG(log_info) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
+        DR_LOG(log_info) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
         m_pTQM->logQueueSizes() ;
 
         // stats

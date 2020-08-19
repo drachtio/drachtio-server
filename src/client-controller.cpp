@@ -604,41 +604,41 @@ namespace drachtio {
     void ClientController::logStorageCount(bool bDetail) {
         std::lock_guard<std::mutex> lock(m_lock) ;
 
-        DR_LOG(log_debug) << "ClientController storage counts"  ;
-        DR_LOG(log_debug) << "----------------------------------"  ;
-        DR_LOG(log_debug) << "m_clients size:                                                  " << m_clients.size()  ;
-        DR_LOG(log_debug) << "m_services size:                                                 " << m_services.size()  ;
-        DR_LOG(log_debug) << "m_request_types size:                                            " << m_request_types.size()  ;
-        DR_LOG(log_debug) << "m_map_of_request_type_offsets size:                              " << m_map_of_request_type_offsets.size()  ;
-        DR_LOG(log_debug) << "m_mapDialogs size:                                               " << m_mapDialogs.size()  ;
+        DR_LOG(log_info) << "ClientController storage counts"  ;
+        DR_LOG(log_info) << "----------------------------------"  ;
+        DR_LOG(log_info) << "m_clients size:                                                  " << m_clients.size()  ;
+        DR_LOG(log_info) << "m_services size:                                                 " << m_services.size()  ;
+        DR_LOG(log_info) << "m_request_types size:                                            " << m_request_types.size()  ;
+        DR_LOG(log_info) << "m_map_of_request_type_offsets size:                              " << m_map_of_request_type_offsets.size()  ;
+        DR_LOG(log_info) << "m_mapDialogs size:                                               " << m_mapDialogs.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapDialogs) {
-                DR_LOG(log_debug) << "    dialog id: " << std::hex << (kv.first).c_str();
+                DR_LOG(log_info) << "    dialog id: " << std::hex << (kv.first).c_str();
             }
         }
 
-        DR_LOG(log_debug) << "m_mapNetTransactions size:                                       " << m_mapNetTransactions.size()  ;
+        DR_LOG(log_info) << "m_mapNetTransactions size:                                       " << m_mapNetTransactions.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapNetTransactions) {
-                DR_LOG(log_debug) << "    transaction id: " << std::hex << (kv.first).c_str();
+                DR_LOG(log_info) << "    transaction id: " << std::hex << (kv.first).c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapAppTransactions size:                                       " << m_mapAppTransactions.size()  ;
+        DR_LOG(log_info) << "m_mapAppTransactions size:                                       " << m_mapAppTransactions.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapAppTransactions) {
-                DR_LOG(log_debug) << "    transaction id: " << std::hex << (kv.first).c_str();
+                DR_LOG(log_info) << "    transaction id: " << std::hex << (kv.first).c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapApiRequests size:                                           " << m_mapApiRequests.size()  ;
+        DR_LOG(log_info) << "m_mapApiRequests size:                                           " << m_mapApiRequests.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapApiRequests) {
-                DR_LOG(log_debug) << "    client msg id: " << std::hex << (kv.first).c_str();
+                DR_LOG(log_info) << "    client msg id: " << std::hex << (kv.first).c_str();
             }
         }
-        DR_LOG(log_debug) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size()  ;
+        DR_LOG(log_info) << "m_mapDialogId2Appname size:                                      " << m_mapDialogId2Appname.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapDialogId2Appname) {
-                DR_LOG(log_debug) << "    dialog id: " << std::hex << (kv.first).c_str();
+                DR_LOG(log_info) << "    dialog id: " << std::hex << (kv.first).c_str();
             }
         }
 
