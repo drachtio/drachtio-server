@@ -60,6 +60,7 @@ namespace drachtio {
             call_canceled,
             normal_release,
             session_expired,
+            ackbye,
             system_initiated_termination,
             system_error_initiated_termination
         } ;

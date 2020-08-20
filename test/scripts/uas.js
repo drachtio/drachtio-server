@@ -131,6 +131,34 @@ class App extends Emitter {
 
     return this;
   }
+  handleSessionExpired(sdp, delay) {
+    this.srf.invite((req, res) => {
+
+      req.on('cancel', () => {
+        req.canceled = true;
+      });
+      const localSdp = sdp || req.body.replace(/m=audio\s+(\d+)/, 'm=audio 15000');
+
+      setTimeout(() => {
+        if (req.canceled) return;
+
+        this.srf.createUAS(req, res, {localSdp})
+          .then((uas) => {
+            this.emit('connected');
+
+            uas.on('destroy', (bye, reason) => {
+              assert(reason === 'Session timer expired');
+            });
+            return;
+          })
+          .catch((err) => {
+            console.error(`Uas: failed to connect: ${err}`);
+          });
+      }, delay || 1);
+    });
+
+    return this;
+  }
 
   handleReinvite(sdp, delay) {
     this.srf.invite((req, res) => {

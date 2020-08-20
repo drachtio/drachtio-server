@@ -51,10 +51,10 @@ namespace drachtio {
 	class IIP {
 	public:
 		IIP( nta_leg_t* leg, nta_incoming_t* irq, const string& transactionId, std::shared_ptr<SipDialog> dlg ) : 
-			m_leg(leg), m_irq(irq), m_orq(NULL), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role),m_rel(NULL) {}
+			m_leg(leg), m_irq(irq), m_orq(NULL), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uas_role),m_rel(NULL), m_bCanceled(false) {}
 
 		IIP( nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, std::shared_ptr<SipDialog> dlg ) : 
-			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role),m_rel(NULL) {}
+			m_leg(leg), m_irq(NULL), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),m_role(uac_role),m_rel(NULL), m_bCanceled(false) {}
 
 		~IIP() {
 		}
@@ -73,6 +73,9 @@ namespace drachtio {
 		const string& getTransactionId(void) { return m_strTransactionId; }
 		std::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
 
+		void setCanceled(void) { m_bCanceled = true; }
+		bool isCanceled(void) { return m_bCanceled; }
+
 	private:
 		string 			m_strTransactionId ;
 		nta_leg_t* 		m_leg ;
@@ -81,6 +84,7 @@ namespace drachtio {
 		nta_reliable_t*	m_rel ;
 		std::shared_ptr<SipDialog> 	m_dlg ;
 		agent_role		m_role ;
+		bool 					m_bCanceled;
 	} ;
 
 	/* requests in progress (sent by application, may be inside or outside a dialog) */
@@ -228,7 +232,7 @@ namespace drachtio {
     int processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) ;
 
     void notifyRefreshDialog( std::shared_ptr<SipDialog> dlg ) ;
-    void notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg ) ;
+    void notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg, bool ackbye = false ) ;
 
     bool isManagingTransaction( const string& transactionId ) {
     	return m_mapTransactionId2IIP.end() != m_mapTransactionId2IIP.find( transactionId ) ;

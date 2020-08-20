@@ -185,7 +185,6 @@ namespace drachtio {
                 }
             } 
 
-            //nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
             nta_leg_t *leg = dlg->getNtaLeg();
             if( !leg ) {
                 assert( leg ) ;
@@ -352,6 +351,10 @@ namespace drachtio {
                 msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ; 
                 deleteTags( tags ) ;
+            }
+
+            if (sip_method_ack == method && dlg->getSipStatus() == 200 && dlg->isAckBye()) {
+                this->notifyTerminateStaleDialog(dlg, true);
             }
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << "SipDialogController::doSendRequestInsideDialog - Error: " << err.what() ;
@@ -641,6 +644,7 @@ namespace drachtio {
         std::shared_ptr<IIP> iip ;
 
         if( findIIPByTransactionId( transactionId, iip ) ) {
+            iip->setCanceled();
             tagi_t* tags = makeSafeTags( pData->getHeaders()) ;
             nta_outgoing_t *cancel = nta_outgoing_tcancel(iip->orq(), NULL, NULL, TAG_NEXT(tags));
             if( NULL != cancel ) {
@@ -772,7 +776,10 @@ namespace drachtio {
                 else {
                     dlg->clearRouteUri();
                 }
-
+                if (iip->isCanceled()) {
+                    DR_LOG(log_info) << "SipDialogController::processResponse - ACK/BYE race condition - received 200 OK to INVITE that was previously CANCELED";
+                    dlg->doAckBye();
+                }
                 addDialog( dlg ) ;
             }
             if (sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status == 200 && tport_is_dgram(nta_outgoing_transport(orq))) {
@@ -1676,15 +1683,34 @@ namespace drachtio {
             //m_pClientController->route_event_inside_dialog( "{\"eventName\": \"refresh\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
         }
     }
-    void SipDialogController::notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg ) {
-        nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
+    void SipDialogController::notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg, bool ackbye ) {
+        nta_leg_t* leg = dlg->getNtaLeg() ;
+        const char* reason = ackbye ? "SIP ;cause=200 ;text=\"ACK-BYE due to cancel race condition\"" : "SIP ;cause=200 ;text=\"Session timer expired\"";
         if( leg ) {
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
                                             NULL,
                                             SIP_METHOD_BYE,
                                             NULL,
-                                            SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"Session timer expired\""),
+                                            SIPTAG_REASON_STR(reason),
                                             TAG_END() ) ;
+            msg_t* m = nta_outgoing_getrequest(orq) ;    // adds a reference
+            sip_t* sip = sip_object( m ) ;
+
+            string byeTransactionId  = "unsolicited";
+
+            string encodedMessage ;
+            EncodeStackMessage( sip, encodedMessage ) ;
+            SipMsgData_t meta(m, orq) ;
+            string s ;
+            meta.toMessageFormat(s) ;
+            string data = s + "|" + byeTransactionId + "|Msg sent:|" + DR_CRLF + encodedMessage ;
+            msg_destroy(m) ;    // releases reference::process
+
+            // this is slightly inaccurate: we are telling the app we received a BYE when we are in fact generating it
+            // the impact is minimal though, and currently there is no message type to inform the app we generated a BYE on our own
+            bool routed = m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, byeTransactionId, dlg->getDialogId() ) ;
+
+            Cdr::postCdr( std::make_shared<CdrStop>( m, "application", ackbye ? Cdr::ackbye : Cdr::session_expired ) );
             nta_outgoing_destroy(orq) ;
 
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "BYE"}})
@@ -2050,14 +2076,14 @@ namespace drachtio {
         if (bDetail) {
             for (const auto& kv : m_mapLeg2Dialog) {
                 shared_ptr<SipDialog> p = kv.second;
-                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) kv.first << ", call-id: " << p->getCallId().c_str();
+                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) kv.first << ", call-id: " << p->getCallId().c_str() << " alive" << std::dec << p->ageInSecs() << " secs";
             }
         }
         DR_LOG(log_info) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapId2Dialog) {
                 shared_ptr<SipDialog> p = kv.second;
-                DR_LOG(log_info) << "    call-id: " << p->getCallId().c_str();
+                DR_LOG(log_info) << "    call-id: " << p->getCallId().c_str()  << " alive" << std::dec << p->ageInSecs() << " secs";
             }
         }
         DR_LOG(log_info) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;

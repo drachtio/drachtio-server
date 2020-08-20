@@ -127,6 +127,78 @@ test('b2bua multiple provisional responses', (t) => {
     });
 });
 
+test('b2bua CANCEL', (t) => {
+  let uas;
+  return start(null, ['--memory-debug'])
+    .then(() => {
+    uas = new Uas();
+    return uas.connect();
+  })
+  .then(() => {
+    return uas.b2b('127.0.0.1:5095');
+  })
+  .then(() => {
+    execCmd('sipp -sf ./uas-cancel.xml -i 127.0.0.1 -p 5095 -m 1', {cwd: './scenarios'});
+    return;
+  })
+  .then(() => {
+    return execCmd('sipp -sf ./uac-cancel.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+  })
+  .then(() => {
+    t.pass('b2b cancel success');
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        uas.disconnect();
+        resolve();
+      }, 1000);
+    });
+  })
+  .then(() => {
+    return stop();
+  })
+  .catch((err) => {
+    t.fail(`failed with error ${err}`);
+    if (uas) uas.disconnect();
+    stop();
+  });
+});
+
+test('b2bua ack-bye CANCEL race conition', (t) => {
+  let uas;
+  return start(null, ['--memory-debug'])
+    .then(() => {
+    uas = new Uas();
+    return uas.connect();
+  })
+  .then(() => {
+    return uas.b2b('127.0.0.1:5095');
+  })
+  .then(() => {
+    execCmd('sipp -sf ./uas-ackbye.xml -i 127.0.0.1 -p 5095 -m 1', {cwd: './scenarios'});
+    return;
+  })
+  .then(() => {
+    return execCmd('sipp -sf ./uac-cancel.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+  })
+  .then(() => {
+    t.pass('b2b ack-bye success');
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        uas.disconnect();
+        resolve();
+      }, 1000);
+    });
+  })
+  .then(() => {
+    return stop();
+  })
+  .catch((err) => {
+    t.fail(`failed with error ${err}`);
+    if (uas) uas.disconnect();
+    stop();
+  });
+});
+
 test('b2bua timer H', (t) => {
   let uas;
   return start(null, ['--memory-debug'])
@@ -150,29 +222,6 @@ test('b2bua timer H', (t) => {
       });
     })
     .then(() => {
-      uas = new Uas();
-      return uas.connect();
-    })
-    .then(() => {
-      return uas.b2b('127.0.0.1:5095');
-    })
-    .then(() => {
-      execCmd('sipp -sf ./uas-cancel.xml -i 127.0.0.1 -p 5095 -m 1', {cwd: './scenarios'});
-      return;
-    })
-    .then(() => {
-      return execCmd('sipp -sf ./uac-cancel.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
-    })
-    .then(() => {
-      t.pass('b2b cancel success');
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          uas.disconnect();
-          resolve();
-        }, 42000);
-      });
-    })
-    .then(() => {
       return stop();
     })
     .catch((err) => {
@@ -180,5 +229,6 @@ test('b2bua timer H', (t) => {
       if (uas) uas.disconnect();
       stop();
     });
-});
+  });
+
 

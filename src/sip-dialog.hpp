@@ -28,6 +28,11 @@ THE SOFTWARE.
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
 
+#include <sofia-sip/sip_protos.h>
+#include <sofia-sip/sip_util.h>
+#include <sofia-sip/sip_status.h>
+
+
 #include "timer-queue.hpp"
 
 using namespace std ;
@@ -182,6 +187,14 @@ namespace drachtio {
 			m_bAlerting = true;
 		}
 
+		void doAckBye(void) { m_bAckBye = true; }
+		bool isAckBye(void) { return m_bAckBye; }
+
+		sip_time_t ageInSecs(void) {
+			return sip_now() - m_tmArrival;
+		}
+		
+
 	protected:
 		bool 				m_bInviteDialog;
 
@@ -233,6 +246,11 @@ namespace drachtio {
 
 		su_duration_t 		m_nSessionTimerDuration;
 
+		// for race condition of sending CANCEL but getting 200 OK to INVITE
+		bool 							m_bAckBye;
+
+		// arrival time
+		sip_time_t m_tmArrival;
 	}  ;
 
 }
