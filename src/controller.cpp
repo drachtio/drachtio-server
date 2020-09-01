@@ -1159,10 +1159,14 @@ namespace drachtio {
             TAG_END()
         ) ;
     
-        m_proxyTimerC = m_Config->getProxyTimerC();
+        if (0 == m_proxyTimerC) m_proxyTimerC = m_Config->getProxyTimerC();
+
+        if (m_proxyTimerC > 0) {
+            DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  std::this_thread::get_id()  ;
+        }
 
         /* sofia event loop */
-        DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  std::this_thread::get_id()  ;
+        DR_LOG(log_notice) << "DrachtioController::run proxy timer C has been set to: " <<  std::dec << m_proxyTimerC  << " secs";
 
         /* start a timer */
         m_timer = su_timer_create( su_root_task(m_root), 30000) ;

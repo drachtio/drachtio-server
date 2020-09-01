@@ -140,7 +140,7 @@ namespace drachtio {
                 }
 
                 try {
-                    m_proxyTimerC = pt.get<unsigned int>("drachtio.sip.proxy-timerc", 0) ;
+                    m_proxyTimerC = pt.get<unsigned int>("drachtio.sip.proxy-timer-c", 0) ;
                 } catch( boost::property_tree::ptree_bad_path& e) {
                 }
 
