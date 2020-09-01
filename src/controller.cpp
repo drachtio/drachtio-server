@@ -393,6 +393,7 @@ namespace drachtio {
                 {"prometheus-scrape-port", required_argument, 0, 'J'},
                 {"memory-debug", no_argument, 0, 'K'},
                 {"tcp-keepalive-interval", required_argument, 0, 'L'},
+                {"proxy-timer-c", required_argument, 0, 'M'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -587,6 +588,10 @@ namespace drachtio {
                     m_tcpKeepaliveSecs = ::atoi(optarg);
                     break;
 
+                case 'M':
+                    m_proxyTimerC = ::atoi(optarg);
+                    break;
+
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -658,6 +663,7 @@ namespace drachtio {
         cerr << "    --external-ip                  External IP address to use in SIP messaging" << endl ;
         cerr << "    --stdout                       Log to standard output as well as any configured log destinations" << endl ;
         cerr << "    --tcp-keepalive-interval       tcp keepalive in seconds (0=no keepalive)" << endl ;
+        cerr << "    --proxy-timer-c                timer C value in seconds for proxy processing" << endl ;
         cerr << "-v  --version                      Print version and exit" << endl ;
     }
     void DrachtioController::getEnv(void) {
@@ -706,6 +712,8 @@ namespace drachtio {
         if (p && ::atoi(p) > 0) m_mtu = ::atoi(p);
         p = std::getenv("DRACHTIO_TCP_KEEPALIVE_INTERVAL");
         if (p && ::atoi(p) >= 0) m_tcpKeepaliveSecs = ::atoi(p);
+        p = std::getenv("DRACHTIO_PROXY_TIMER_C");
+        if (p && ::atoi(p) >= 0) m_proxyTimerC = ::atoi(p);
         p = std::getenv("DRACHTIO_SECRET");
         if (p) m_secret = p;
         p = std::getenv("DRACHTIO_CONSOLE_LOGGING");
@@ -1151,6 +1159,8 @@ namespace drachtio {
             TAG_END()
         ) ;
     
+        m_proxyTimerC = m_Config->getProxyTimerC();
+
         /* sofia event loop */
         DR_LOG(log_notice) << "Starting sofia event loop in main thread: " <<  std::this_thread::get_id()  ;
 
@@ -1358,8 +1368,13 @@ namespace drachtio {
                     break ;
 
                     case sip_method_bye:
+                    {
+                        nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
                         STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "481"}})
-                        nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   
+                        //nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;
+                        nta_incoming_treply( irq, 481, NULL, TAG_END() ) ;
+                        nta_incoming_destroy(irq) ;
+                    }
                         break;                           
 
 

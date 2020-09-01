@@ -17,6 +17,7 @@ const execCmd = (cmd, opts) => {
     }, 750);
   });
 };
+
 test('reads config from ENV', (t) => {
   let uac;
   return start('./drachtio.conf4.xml', ['--memory-debug'], false, 500, {
@@ -70,7 +71,41 @@ test('requested protocol not available', (t) => {
       stop();
     });
 });
-
+/*
+test('handle uas sending BYE instead of final response', (t) => {
+  let uac;
+  return start('./drachtio.conf4.xml', ['--memory-debug'])
+    .then(() => {
+      uac = new Uac();
+      return uac.connect();
+    })
+    .then(() => {
+      execCmd('sipp -sf ./uas-bad-bye.xml -i 127.0.0.1 -p 5091 -m 1', {cwd: './scenarios'});
+      return;
+    })
+    .then(() => {
+      return uac.invite('sip:127.0.0.1:5091');
+    })
+    .then((req) => {
+      return new Promise((resolve) => {
+        req.on('response', (res) => {
+          debug(`got response ${res.status} waiting..`);
+          setTimeout(() => resolve(), 300000);
+        });
+      })
+    })
+    .then(() => {
+      t.pass('successfully handled delayed response');
+      uac.disconnect();
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uac) uac.disconnect();
+      stop();
+    });
+});
+*/
 test('retransmit OPTIONS', (t) => {
   let uac;
   return start('./drachtio.conf4.xml', ['--memory-debug'])

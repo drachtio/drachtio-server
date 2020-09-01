@@ -87,6 +87,8 @@ namespace drachtio {
 
         unsigned int getTcpKeepalive() const;
 
+        unsigned int getProxyTimerC() const;
+
         void Log() const ;
         
     private:

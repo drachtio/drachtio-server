@@ -167,6 +167,10 @@ namespace drachtio {
 
     unsigned int getTcpKeepaliveInterval() { return m_tcpKeepaliveSecs; }
 
+    unsigned int getProxyTimerC() {
+      return m_proxyTimerC > 180 ? m_proxyTimerC * 1000 : TIMER_C_MSECS;
+    }
+
 	private:
 
   	DrachtioController() ;
@@ -205,6 +209,7 @@ namespace drachtio {
     unsigned int m_adminTlsPort; 
     string m_tlsKeyFile, m_tlsCertFile, m_tlsChainFile, m_dhParam;
     unsigned int m_mtu;
+    unsigned int m_proxyTimerC;
 
     string m_publicAddress ;
 

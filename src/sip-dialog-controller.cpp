@@ -1438,7 +1438,9 @@ namespace drachtio {
                     //clear dialog when we send a 200 OK response to BYE
                     this->clearDialog( leg ) ;
                     if( !routed ) {
-                        nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;                
+                        nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;       
+                        nta_incoming_destroy(irq) ;         
+                        findAndRemoveTransactionIdForIncomingRequest(transactionId);
                     }
                 }
 
@@ -2076,14 +2078,14 @@ namespace drachtio {
         if (bDetail) {
             for (const auto& kv : m_mapLeg2Dialog) {
                 shared_ptr<SipDialog> p = kv.second;
-                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) kv.first << ", call-id: " << p->getCallId().c_str() << " alive" << std::dec << p->ageInSecs() << " secs";
+                DR_LOG(log_info) << "    nta_leg_t*: " << std::hex << (void *) kv.first << ", call-id: " << p->getCallId().c_str() << " alive " << std::dec << p->ageInSecs() << " secs";
             }
         }
         DR_LOG(log_info) << "m_mapId2Dialog size:                                             " << m_mapId2Dialog.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapId2Dialog) {
                 shared_ptr<SipDialog> p = kv.second;
-                DR_LOG(log_info) << "    call-id: " << p->getCallId().c_str()  << " alive" << std::dec << p->ageInSecs() << " secs";
+                DR_LOG(log_info) << "    call-id: " << p->getCallId().c_str()  << " alive " << std::dec << p->ageInSecs() << " secs";
             }
         }
         DR_LOG(log_info) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;

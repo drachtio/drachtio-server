@@ -392,8 +392,11 @@ namespace drachtio {
                         std::bind(&ProxyCore::timerB, pCore, shared_from_this()), NULL, TIMER_B_MSECS ) ;
                     
                     //timer C - timeout to wait for final response before returning 408 Request Timeout. 
-                    m_timerC = m_pTQM->addTimer("timerC", 
-                        std::bind(&ProxyCore::timerC, pCore, shared_from_this()), NULL, TIMER_C_MSECS ) ;
+                    {
+                        unsigned int timerC = theOneAndOnlyController->getProxyTimerC();
+                        m_timerC = m_pTQM->addTimer("timerC", 
+                            std::bind(&ProxyCore::timerC, pCore, shared_from_this()), NULL, timerC ) ;
+                    }
 
                     if( pCore->getProvisionalTimeout() > 0 ) {
                         m_timerProvisional = m_pTQM->addTimer("timerProvisional", 
@@ -695,10 +698,11 @@ namespace drachtio {
                 setState( proceeding ) ;
 
                 if( 100 != m_sipStatus && this->isInviteTransaction() ) {
+                    unsigned int timerC = theOneAndOnlyController->getProxyTimerC();
                     assert( m_timerC ) ;
                     removeTimer( m_timerC, "timerC" ) ;
                     m_timerC = m_pTQM->addTimer("timerC", std::bind(&ProxyCore::timerC, pCore, shared_from_this()), 
-                        NULL, TIMER_C_MSECS ) ;
+                        NULL, timerC ) ;
 
                     if (theOneAndOnlyController->getStatsCollector().enabled() && !this->hasAlerted()) {
                         this->alerting();

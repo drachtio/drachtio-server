@@ -42,7 +42,7 @@ namespace drachtio {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
         m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false), 
-        m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45) {
+        m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45), m_proxyTimerC(0) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -136,6 +136,11 @@ namespace drachtio {
                          0 == nat.compare("on") || 0 == nat.compare("ON")) {
                         m_bAggressiveNatDetection = true;
                     }
+                } catch( boost::property_tree::ptree_bad_path& e) {
+                }
+
+                try {
+                    m_proxyTimerC = pt.get<unsigned int>("drachtio.sip.proxy-timerc", 0) ;
                 } catch( boost::property_tree::ptree_bad_path& e) {
                 }
 
@@ -399,7 +404,10 @@ namespace drachtio {
             return m_tcpKeepalive;
         }
 
- 
+        unsigned int getProxyTimerC() {
+            return m_proxyTimerC;
+        }
+
     private:
         
         bool getXmlAttribute( ptree::value_type const& v, const string& attrName, string& value ) {
@@ -455,6 +463,7 @@ namespace drachtio {
         string m_prometheusAddress;
         unsigned int m_prometheusPort;
         unsigned int m_tcpKeepalive;
+        unsigned int m_proxyTimerC;
   } ;
     
     /*
@@ -543,6 +552,10 @@ namespace drachtio {
   
     unsigned int DrachtioConfig::getTcpKeepalive() const {
         return m_pimpl->getTcpKeepalive();
+    }
+
+    unsigned int DrachtioConfig::getProxyTimerC() const {
+        return m_pimpl->getProxyTimerC();
     }
 
 }
