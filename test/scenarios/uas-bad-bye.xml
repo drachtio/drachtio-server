@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<scenario name="Basic UAS responder">
+  <recv request="INVITE" crlf="true">
+    <action>
+      <ereg regexp="&lt;(sip:.*)&gt;" search_in="hdr" header="Contact:" assign_to="3,4"/>
+      <ereg regexp=".*" search_in="hdr" header="From:" assign_to="1"/>
+      <ereg regexp=".*" search_in="hdr" header="To:" assign_to="2"/>
+      <log message="Contact hostport is [$3]"/>
+      <log message="Contact hostport is [$4]"/>
+    </action>
+
+  </recv>
+
+  <send>
+    <![CDATA[
+
+      SIP/2.0 100 Trying
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag01[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:[local_ip]:[local_port];transport=[transport]>
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <send>
+    <![CDATA[
+
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag01[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+    ]]>
+  </send>
+
+  <pause milliseconds="4000"/>
+
+  <!-- send BYE instead of final response -->
+  <send retrans="500">
+    <![CDATA[
+
+      BYE sip:127.0.0.1:5090 SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From:[$2];tag=[pid]SIPpTag01[call_number]
+      To:[$1]
+      [last_Call-ID:]
+      CSeq: [cseq] BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <recv response="481">
+  </recv>
+
+
+  <!-- Keep the call open for a while in case the 200 is lost to be     -->
+  <!-- able to retransmit it if we receive the BYE again.               -->
+  <timewait milliseconds="4000"/>
+
+
+  <!-- definition of the response time repartition table (unit is ms)   -->
+  <ResponseTimeRepartition value="10, 20, 30, 40, 50, 100, 150, 200"/>
+
+  <!-- definition of the call length repartition table (unit is ms)     -->
+  <CallLengthRepartition value="10, 50, 100, 500, 1000, 5000, 10000"/>
+
+</scenario>
+

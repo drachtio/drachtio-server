@@ -20,6 +20,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 #include <stdexcept>
+#include <mutex>
+
 #include <boost/functional/hash.hpp>
 
 #include <sofia-sip/msg_addr.h>
@@ -47,6 +49,8 @@ namespace {
     	if( pDialog ) pDialog->doSessionTimerHandling() ;
     	else assert(0) ;
     }
+
+  	std::mutex sd_mutex;
 }
 
 namespace drachtio {
@@ -202,8 +206,18 @@ namespace drachtio {
 			DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying orq from original (uac) INVITE " << std::hex << (void *) m_orqAck ;
 			nta_outgoing_destroy(m_orq);
 		}
-
 	}
+
+	std::ostream& operator<<(std::ostream& os, const SipDialog& dlg) {
+    sip_time_t alive = sip_now() - dlg.m_tmArrival;
+    os << "dialogId:" << dlg.dialogId() << std::dec << 
+      " alive:" << alive << "s" << std::hex << 
+      " callid:" << dlg.getCallId() << 
+      " role:" << (dlg.getRole() == SipDialog::we_are_uac ? "UAC" : "UAS") << 
+      " leg:" << dlg.getNtaLeg() ;
+    return os;
+  }
+
   void SipDialog::setTport(tport_t* tp) {
     m_tp = tp ;
     const tp_name_t* tpn = tport_name( m_tp );
@@ -266,6 +280,85 @@ namespace drachtio {
 
 		assert( m_ppSelf ) ;
 		delete m_ppSelf ; m_ppSelf = NULL ; m_timerSessionRefresh = NULL ; m_refresher = no_refresher ; m_nSessionExpiresSecs = 0 ;
+	}
+
+	void SD_Insert(StableDialogs_t& dialogs, std::shared_ptr<SipDialog>& dlg) {
+    std::lock_guard<std::mutex> lock(sd_mutex) ;
+		auto& idx = dialogs.get<DlgPtrTag>();
+    auto res = idx.insert(dlg);
+		if (!res.second) {
+	    DR_LOG(log_error) << "SD_Insert failed to insert dialog " << *dlg;
+		}
+	}
+
+	bool SD_FindByLeg(const StableDialogs_t& dialogs, nta_leg_t* leg, std::shared_ptr<SipDialog>& dlg) {
+		std::lock_guard<std::mutex> lock(sd_mutex) ;
+    auto &idx = dialogs.get<DlgLegTag>();
+    auto it = idx.find(leg);
+    if (it == idx.end()) return false;
+    dlg = *it;
+    return true;
+	}
+	bool SD_FindByDialogId(const StableDialogs_t& dialogs, const std::string& dialogId, std::shared_ptr<SipDialog>& dlg) {
+		std::lock_guard<std::mutex> lock(sd_mutex) ;
+    auto &idx = dialogs.get<DialogIdTag>();
+    auto it = idx.find(dialogId);
+    if (it == idx.end()) return false;
+    dlg = *it;
+    return true;
+	}
+  void SD_Clear(StableDialogs_t& dialogs, std::shared_ptr<SipDialog>& dlg) {
+    std::lock_guard<std::mutex> lock(sd_mutex) ;
+
+    auto &idx = dialogs.get<DlgPtrTag>();
+    idx.erase(dlg);
+	}
+
+  void SD_Clear(StableDialogs_t& dialogs, const std::string& dialogId) {
+    std::lock_guard<std::mutex> lock(sd_mutex) ;
+
+    auto &idx = dialogs.get<DialogIdTag>();
+    idx.erase(dialogId);
+	}
+
+  void SD_Clear(StableDialogs_t& dialogs, nta_leg_t* leg) {
+    std::lock_guard<std::mutex> lock(sd_mutex) ;
+
+    auto &idx = dialogs.get<DlgLegTag>();
+    idx.erase(leg);
+	}
+
+  size_t SD_Size(const StableDialogs_t& dialogs) {
+    std::lock_guard<std::mutex> lock(sd_mutex) ;
+    auto &idx = dialogs.get<DlgPtrTag>();
+    return idx.size();
+	}
+
+  size_t SD_Size(const StableDialogs_t& dialogs, size_t& nUac, size_t& nUas) {
+    std::lock_guard<std::mutex> lock(sd_mutex) ;
+    auto &idx = dialogs.get<DlgPtrTag>();
+    size_t total = idx.size();
+		auto &idxRole = dialogs.get<DlgRoleTag>();
+		nUac = idxRole.count(SipDialog::we_are_uac);
+		nUas = idxRole.count(SipDialog::we_are_uas);
+		return total;
+	}
+
+  void SD_Log(const StableDialogs_t& dialogs, bool full) {
+		size_t count, nUac, nUas;
+		count = SD_Size(dialogs, nUac, nUas);
+    DR_LOG(log_info) << "StableDialogs total size:                                                " << count;
+    DR_LOG(log_info) << "StableDialogs uac:                                                       " << nUac;
+    DR_LOG(log_info) << "StableDialogs uas:                                                       " << nUas;
+    if (full && count) {
+      std::lock_guard<std::mutex> lock(sd_mutex) ;
+      auto &idx = dialogs.get<DlgTimeTag>();
+      for (auto it = idx.begin(); it != idx.end(); ++it) {
+				std::shared_ptr<SipDialog> p = *it;
+        DR_LOG(log_info) << *p;
+      }
+    }
 
 	}
+
 } 

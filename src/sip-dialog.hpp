@@ -24,6 +24,14 @@ THE SOFTWARE.
 
 #include <sys/time.h>
 #include <chrono>
+#include <iostream>
+
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/key_extractors.hpp>
+#include <boost/multi_index/mem_fun.hpp>
+#include <boost/multi_index/identity.hpp>
 
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
@@ -35,27 +43,37 @@ THE SOFTWARE.
 
 #include "timer-queue.hpp"
 
-using namespace std ;
+using namespace ::boost::multi_index;
 
 namespace drachtio {
+
+  struct DlgPtrTag{};
+  struct DlgTimeTag{};
+  struct DlgLegTag{};
+  struct DialogIdTag{};
+  struct DlgRoleTag{};
 
 	class SipDialog : public std::enable_shared_from_this<SipDialog> {
 	public:
 		SipDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, msg_t *msg  ) ;
-		SipDialog( const string& transactionId, nta_leg_t* leg, 
-			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const string& transport ) ;
+		SipDialog( const std::string& transactionId, nta_leg_t* leg, 
+			nta_outgoing_t* orq, sip_t const *sip, msg_t *msg, const std::string& transport ) ;
 		~SipDialog() ;
+
+		bool operator <(const SipDialog& a) const { return m_tmArrival < a.m_tmArrival; }
+
+    friend std::ostream& operator<<(std::ostream& os, const SipDialog& dlg);
 
 		int processRequest( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip ) ;
 
 		struct Endpoint_t {
 			Endpoint_t() : m_signalingPort(0) {}
 
-			string			m_strSignalingAddress ;
+			std::string			m_strSignalingAddress ;
 			unsigned int 	m_signalingPort ;
-			string			m_strSdp ;
-			string 			m_strContentType ;
-			string			m_strTag ;
+			std::string			m_strSdp ;
+			std::string 			m_strContentType ;
+			std::string			m_strTag ;
 		} ;
 
 		enum DialogType_t {
@@ -81,7 +99,7 @@ namespace drachtio {
 
 		bool isInviteDialog(void) { return m_bInviteDialog; }
 
-		const string& getCallId(void) const { return m_strCallId; }
+		const std::string& getCallId(void) const { return m_strCallId; }
 		const Endpoint_t& getLocalEndpoint(void) const { return m_localEndpoint; }
 		const Endpoint_t& getRemoteEndpoint(void) const { return m_remoteEndpoint; }
 		unsigned int getSipStatus(void) const { return m_recentSipStatus; }
@@ -102,27 +120,27 @@ namespace drachtio {
 		void setLocalSdp(const char* data, unsigned int len) { m_localEndpoint.m_strSdp.assign( data, len );}
 		void setRemoteSdp(const char* sdp) { m_remoteEndpoint.m_strSdp.assign( sdp );}
 		void setRemoteSdp(const char* data, unsigned int len) { m_remoteEndpoint.m_strSdp.assign( data, len );}
-		void setRemoteContentType( string& type ) { m_remoteEndpoint.m_strContentType = type ; }
-		void setLocalContentType( string& type ) { m_localEndpoint.m_strContentType = type ; }
+		void setRemoteContentType( std::string& type ) { m_remoteEndpoint.m_strContentType = type ; }
+		void setLocalContentType( std::string& type ) { m_localEndpoint.m_strContentType = type ; }
 		void setRemoteSignalingAddress( const char* szAddress ) { m_remoteEndpoint.m_strSignalingAddress = szAddress; }
 		void setLocalSignalingAddress( const char* szAddress ) { m_localEndpoint.m_strSignalingAddress = szAddress; }
 		void setRemoteSignalingPort( unsigned int port ) { m_remoteEndpoint.m_signalingPort = port; }
 		void setLocalSignalingPort( unsigned int port ) { m_localEndpoint.m_signalingPort = port; }
-		const string& getLocalSignalingAddress(void) { return m_localEndpoint.m_strSignalingAddress; }
+		const std::string& getLocalSignalingAddress(void) { return m_localEndpoint.m_strSignalingAddress; }
 		unsigned int getLocalSignalingPort(void) { return m_localEndpoint.m_signalingPort; }
 		void setLocalContactHeader(const char* szContact) { m_strLocalContact = szContact;}
-		const string& getLocalContactHeader(void) { return m_strLocalContact; }
-		const string& getTransportAddress(void) const { return m_transportAddress; }
-		const string& getTransportPort(void) const { return m_transportPort; }
-		const string& getProtocol(void) const { return m_protocol; }
-		void getTransportDesc(string desc) const { desc = m_protocol + "/" + m_transportAddress + ":" + m_transportPort; }
+		const std::string& getLocalContactHeader(void) { return m_strLocalContact; }
+		const std::string& getTransportAddress(void) const { return m_transportAddress; }
+		const std::string& getTransportPort(void) const { return m_transportPort; }
+		const std::string& getProtocol(void) const { return m_protocol; }
+		void getTransportDesc(std::string desc) const { desc = m_protocol + "/" + m_transportAddress + ":" + m_transportPort; }
 
-		const string& getSourceAddress(void) const { return m_sourceAddress;}
+		const std::string& getSourceAddress(void) const { return m_sourceAddress;}
 		unsigned int getSourcePort(void) const { return m_sourcePort; }
-		void setSourceAddress( const string& host ) { m_sourceAddress = host; }
+		void setSourceAddress( const std::string& host ) { m_sourceAddress = host; }
 		void setSourcePort( unsigned int port ) { m_sourcePort = port; }
-
-		const string& getDialogId(void) { 
+		const std::string& dialogId(void) const { return m_dialogId; }
+		const std::string& getDialogId(void) { 
 			if (m_dialogId.empty()) {
 				m_dialogId = m_strCallId;
 				m_dialogId.append(";from-tag=");
@@ -130,15 +148,15 @@ namespace drachtio {
 			}
 			return m_dialogId ;
 		}
-		const string& getTransactionId(void) const { return m_transactionId; }
+		const std::string& getTransactionId(void) const { return m_transactionId; }
 
-		void setTransactionId(const string& strValue) { m_transactionId = strValue; }
+		void setTransactionId(const std::string& strValue) { m_transactionId = strValue; }
 
 		void setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) ;
 		bool hasSessionTimer(void) { return NULL != m_timerSessionRefresh; }
 		void cancelSessionTimer(void) ;
 		void doSessionTimerHandling(void) ;
-		DialogType_t getRole(void) { return m_type; }
+		DialogType_t getRole(void) const { return m_type; }
 		bool areWeRefresher(void) { return we_are_refresher == m_refresher; }
 		unsigned long getSessionExpiresSecs(void) { return m_nSessionExpiresSecs; }
 		unsigned long getMinSE(void) { return m_nMinSE; }
@@ -148,7 +166,7 @@ namespace drachtio {
 		void setTport(tport_t* tp) ;
 		void setOrqAck(nta_outgoing_t* orq) { m_orqAck = orq; }
 
-		nta_leg_t* getNtaLeg(void) { return m_leg; }
+		const nta_leg_t* getNtaLeg(void) const { return m_leg; }
 		void setTimerG(TimerEventHandle& handle) { 
 			m_timerG = handle; 
 			if( 0 == m_durationTimerG ) {
@@ -166,9 +184,9 @@ namespace drachtio {
 		TimerEventHandle getTimerH(void) { return m_timerH; }
 		void clearTimerH() { m_timerH = NULL;}
 
-		void setRouteUri(string& routeUri) { m_routeUri = routeUri; }
+		void setRouteUri(std::string& routeUri) { m_routeUri = routeUri; }
 
-		bool getRouteUri(string& routeUri) {
+		bool getRouteUri(std::string& routeUri) {
 			if (!m_routeUri.empty()) {
 				routeUri = m_routeUri;
 				return true;
@@ -177,7 +195,7 @@ namespace drachtio {
 		}
 		void clearRouteUri() { m_routeUri.clear(); }
 
-		chrono::time_point<chrono::steady_clock>& getArrivalTime(void) {
+		std::chrono::time_point<std::chrono::steady_clock>& getArrivalTime(void) {
 			return m_timeArrive;
 		}
 		bool hasAlerted() const {
@@ -198,23 +216,23 @@ namespace drachtio {
 	protected:
 		bool 				m_bInviteDialog;
 
-		string 			m_dialogId ;
-		string 			m_transactionId ;
-		DialogType_t	m_type ;
-		Endpoint_t		m_localEndpoint ;
-		Endpoint_t		m_remoteEndpoint ;
-		string			m_strCallId ;
-		unsigned int	m_recentSipStatus ;
-		time_t			m_startTime ;
-		time_t			m_connectTime ;
-		time_t			m_endTime ;
+		std::string 		m_dialogId ;
+		std::string 		m_transactionId ;
+		DialogType_t		m_type ;
+		Endpoint_t			m_localEndpoint ;
+		Endpoint_t			m_remoteEndpoint ;
+		std::string			m_strCallId ;
+		unsigned int		m_recentSipStatus ;
+		time_t					m_startTime ;
+		time_t					m_connectTime ;
+		time_t					m_endTime ;
 		ReleaseCause_t	m_releaseCause ;
 
-		string 			m_transportAddress ;
-		string 			m_transportPort ;
-		string 			m_transportProtocol ;
+		std::string 			m_transportAddress ;
+		std::string 			m_transportPort ;
+		std::string 			m_transportProtocol ;
 
-		string			m_strLocalContact;
+		std::string			m_strLocalContact;
 
     /* session timer */
     unsigned long 	m_nSessionExpiresSecs ;
@@ -223,16 +241,16 @@ namespace drachtio {
     SessionRefresher_t	m_refresher ;
     std::weak_ptr<SipDialog>* m_ppSelf ;
 
-		string 			m_sourceAddress ;
+		std::string 			m_sourceAddress ;
 		unsigned int 	m_sourcePort ;
-		string      m_protocol ;
+		std::string      m_protocol ;
 
 		nta_leg_t* 	m_leg; 
 		tport_t* 	m_tp;
 		nta_outgoing_t* m_orq;
 		nta_outgoing_t* m_orqAck;
 
-		string 		m_routeUri;
+		std::string 		m_routeUri;
 
 		// sip timers
     TimerEventHandle  m_timerG ;
@@ -241,7 +259,7 @@ namespace drachtio {
     uint32_t					m_countTimerG;
 
 		//timing
-		chrono::time_point<chrono::steady_clock> m_timeArrive;
+		std::chrono::time_point<std::chrono::steady_clock> m_timeArrive;
 		bool m_bAlerting;
 
 		su_duration_t 		m_nSessionTimerDuration;
@@ -252,6 +270,44 @@ namespace drachtio {
 		// arrival time
 		sip_time_t m_tmArrival;
 	}  ;
+
+  typedef multi_index_container<
+    std::shared_ptr<SipDialog>,
+    indexed_by<
+      hashed_unique<
+        boost::multi_index::tag<DlgPtrTag>,
+        boost::multi_index::identity< std::shared_ptr<SipDialog> >
+      >,
+      ordered_non_unique<
+        boost::multi_index::tag<DlgTimeTag>,
+        boost::multi_index::identity<SipDialog> 
+      >,
+      hashed_unique<
+        boost::multi_index::tag<DlgLegTag>,
+        boost::multi_index::const_mem_fun<SipDialog, const nta_leg_t*, &SipDialog::getNtaLeg>
+      >,
+      hashed_unique<
+        boost::multi_index::tag<DialogIdTag>,
+        boost::multi_index::mem_fun<SipDialog, const std::string&, &SipDialog::getDialogId>
+      >,
+      hashed_non_unique<
+        boost::multi_index::tag<DlgRoleTag>,
+        boost::multi_index::const_mem_fun<SipDialog, SipDialog::DialogType_t, &SipDialog::getRole>
+      >
+    >
+  > StableDialogs_t;
+
+	void SD_Insert(StableDialogs_t& dialogs, std::shared_ptr<SipDialog>& dlg);
+
+	bool SD_FindByLeg(const StableDialogs_t& dialogs, nta_leg_t* leg, std::shared_ptr<SipDialog>& dlg);
+	bool SD_FindByDialogId(const StableDialogs_t& dialogs, const std::string& dialogId, std::shared_ptr<SipDialog>& dlg);
+  void SD_Clear(StableDialogs_t& dialogs, std::shared_ptr<SipDialog>& dlg);
+  void SD_Clear(StableDialogs_t& dialogs, const std::string& dialogId);
+  void SD_Clear(StableDialogs_t& dialogs, nta_leg_t* nta);
+  size_t SD_Size(const StableDialogs_t& dialogs);
+  size_t SD_Size(const StableDialogs_t& dialogs, size_t& nUac, size_t& nUas);
+
+  void SD_Log(const StableDialogs_t& dialogs, bool full = false);
 
 }
 

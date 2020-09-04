@@ -17,7 +17,7 @@ namespace drachtio {
 
   class StatsCollector::PromImpl {
   public:
-    using Quantiles = std::vector<detail::CKMSQuantiles::Quantile>;
+    using Quantiles = std::vector<prometheus::detail::CKMSQuantiles::Quantile>;
 
     class HistogramSpec_t {
     public:

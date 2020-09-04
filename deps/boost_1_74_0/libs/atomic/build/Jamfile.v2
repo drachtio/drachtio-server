@@ -1,0 +1,58 @@
+#  Boost.Atomic Library Jamfile
+#
+#  Copyright Helge Bahmann 2011.
+#  Copyright Andrey Semashev 2018, 2020.
+#
+#  Distributed under the Boost Software License, Version 1.0.
+#  (See accompanying file LICENSE_1_0.txt or copy at
+#  http://www.boost.org/LICENSE_1_0.txt)
+
+import common ;
+import project ;
+import configure ;
+
+lib synchronization ;
+explicit synchronization ;
+
+project boost/atomic
+    : requirements
+      <threading>multi
+      <link>shared:<define>BOOST_ATOMIC_DYN_LINK=1
+      <link>static:<define>BOOST_ATOMIC_STATIC_LINK=1
+      <define>BOOST_ATOMIC_SOURCE
+      <target-os>windows:<define>BOOST_USE_WINDOWS_H
+      <toolset>gcc,<target-os>windows:<linkflags>"-lkernel32"
+    : usage-requirements
+      <link>shared:<define>BOOST_ATOMIC_DYN_LINK=1
+      <link>static:<define>BOOST_ATOMIC_STATIC_LINK=1
+    : source-location ../src
+    ;
+
+rule select-platform-specific-sources ( properties * )
+{
+    local result ;
+
+    if <target-os>windows in $(properties)
+    {
+        result += <source>wait_ops_windows.cpp ;
+
+        if [ configure.builds ../config//has_synchronization : $(properties) : "has synchronization.lib" ]
+        {
+            result += <library>synchronization ;
+        }
+    }
+
+#    ECHO Platform sources: $(result) ;
+
+    return $(result) ;
+}
+
+lib boost_atomic
+   : ## sources ##
+     lock_pool.cpp
+   : ## requirements ##
+     <include>../src
+     <conditional>@select-platform-specific-sources
+   ;
+
+boost-install boost_atomic ;
