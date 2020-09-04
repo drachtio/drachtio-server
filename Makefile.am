@@ -48,16 +48,6 @@ test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
 test_asio_curl_LDADD=${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a \
 	-lpthread -lcurl -lssl -lcrypto -lz
 
-multi_SOURCES= src/multi.cpp
-multi_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
-multi_LDADD=${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a \
-	-lpthread -lcurl -lssl -lcrypto -lz
-
-multi2_SOURCES= src/multi2.cpp
-multi2_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
-multi2_LDADD=${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a \
-	-lpthread -lcurl -lssl -lcrypto -lz
-
 if LINUX
 drachtio_LDADD += ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a \
 	${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_log.a \
@@ -67,7 +57,6 @@ drachtio_LDADD += ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a \
 	-lpthread -lssl -lcrypto -lz -lrt
 timer_LDADD += -lrt
 parser_LDADD += -lrt
-multi_LDADD += -lrt
 test_https_LDADD += -lrt -lpthread ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a
 make_BOOST_CMD = cd ${srcdir}/deps/boost_1_74_0 && ./bootstrap.sh --with-libraries=thread,system,log,filesystem && ./b2 link=static variant=release stage
 endif
