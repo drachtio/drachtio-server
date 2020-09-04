@@ -1,0 +1,32 @@
+[/ 
+  (C) Copyright Edward Diener 2011-2015
+  Distributed under the Boost Software License, Version 1.0.
+  (See accompanying file LICENSE_1_0.txt or copy at
+  http://www.boost.org/LICENSE_1_0.txt).
+]
+
+[section:vmd_compilers Compilers]
+
+Tested compilers are:
+
+On Windows:
+gcc versions 4.8 through 9.2.
+VC++ versions 8.0 through 14.2.
+clang targeting gcc versions 3.7 through 9.0
+clang targeting VC++ versions 3.9 through 9.0
+
+In Linux:
+gcc versions 4.4 through 9.2
+clang versions 3.3 through 9.0
+Intel C++ 12.1 throguh 19.0
+
+Not all versions compile all tests successfully.
+
+For VC++ 8.0 the BOOST_VMD_IS_EMPTY and BOOST_VMD_ASSERT_IS_EMPTY macros
+take a single parameter rather than variadic data because this 
+version of VC++ does not accept variadic data which may be empty.
+
+The compilers supported are those which are deemed to offer C99/C++11 
+variadic macro support for Boost PP as represented by the BOOST_PP_VARIADICS macro.
+
+[endsect]
