@@ -276,23 +276,23 @@ namespace drachtio {
     indexed_by<
       hashed_unique<
         boost::multi_index::tag<DlgPtrTag>,
-        identity< std::shared_ptr<SipDialog> >
+        boost::multi_index::identity< std::shared_ptr<SipDialog> >
       >,
       ordered_non_unique<
         boost::multi_index::tag<DlgTimeTag>,
-        identity<SipDialog> 
+        boost::multi_index::identity<SipDialog> 
       >,
       hashed_unique<
         boost::multi_index::tag<DlgLegTag>,
-        const_mem_fun<SipDialog, const nta_leg_t*, &SipDialog::getNtaLeg>
+        boost::multi_index::const_mem_fun<SipDialog, const nta_leg_t*, &SipDialog::getNtaLeg>
       >,
       hashed_unique<
         boost::multi_index::tag<DialogIdTag>,
-        mem_fun<SipDialog, const std::string&, &SipDialog::getDialogId>
+        boost::multi_index::mem_fun<SipDialog, const std::string&, &SipDialog::getDialogId>
       >,
       hashed_non_unique<
         boost::multi_index::tag<DlgRoleTag>,
-        const_mem_fun<SipDialog, SipDialog::DialogType_t, &SipDialog::getRole>
+        boost::multi_index::const_mem_fun<SipDialog, SipDialog::DialogType_t, &SipDialog::getRole>
       >
     >
   > StableDialogs_t;

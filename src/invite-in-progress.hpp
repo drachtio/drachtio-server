@@ -98,31 +98,31 @@ namespace drachtio {
     indexed_by<
       hashed_unique<
         boost::multi_index::tag<PtrTag>,
-        identity< std::shared_ptr<IIP> >
+        boost::multi_index::identity< std::shared_ptr<IIP> >
       >,
       ordered_non_unique<
         boost::multi_index::tag<TimeTag>,
-        identity<IIP> 
+        boost::multi_index::identity<IIP> 
       >,
       hashed_non_unique<
         boost::multi_index::tag<IrqTag>,
-        const_mem_fun<IIP, const nta_incoming_t*, &IIP::irq>
+        boost::multi_index::const_mem_fun<IIP, const nta_incoming_t*, &IIP::irq>
       >,
       hashed_non_unique<
         boost::multi_index::tag<OrqTag>,
-        const_mem_fun<IIP, const nta_outgoing_t*, &IIP::orq>
+        boost::multi_index::const_mem_fun<IIP, const nta_outgoing_t*, &IIP::orq>
       >,
       hashed_non_unique<
         boost::multi_index::tag<LegTag>,
-        const_mem_fun<IIP, const nta_leg_t*, &IIP::leg>
+        boost::multi_index::const_mem_fun<IIP, const nta_leg_t*, &IIP::leg>
       >,
       hashed_non_unique<
         boost::multi_index::tag<RelTag>,
-        const_mem_fun<IIP, const nta_reliable_t*, &IIP::rel>
+        boost::multi_index::const_mem_fun<IIP, const nta_reliable_t*, &IIP::rel>
       >,
       hashed_unique<
         boost::multi_index::tag<TransactionIdTag>,
-        const_mem_fun<IIP, const std::string&, &IIP::getTransactionId>
+        boost::multi_index::const_mem_fun<IIP, const std::string&, &IIP::getTransactionId>
       >
     >
   > InvitesInProgress_t;
