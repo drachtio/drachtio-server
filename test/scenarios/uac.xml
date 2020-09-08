@@ -33,7 +33,7 @@
       CSeq: 1 INVITE
       Contact: sip:sipp@[local_ip]:[local_port]
       Max-Forwards: 70
-      Subject: uac
+      Subject: uac success
       Content-Type: application/sdp
       Content-Length: [len]
 

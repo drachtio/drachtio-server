@@ -246,7 +246,7 @@ namespace drachtio {
     string transport = string("SIP/2.0/") + proto;
     DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << this->getPort() << ", transport " << transport ;
 
-    return sip_via_create(h, host.c_str(), this->getPort(), transport.c_str());
+    return sip_via_create(h, host.c_str(), this->getPort(), transport.c_str(), NULL);
   }
 
 
@@ -412,8 +412,8 @@ namespace drachtio {
       pB->getHostport(desc_B);
 
       // give precedence to a specific requested interface (tie-breaker only)
-      if (requestedHost && std::string::npos != desc_A.find(requestedHost)) score_A++;
-      else if (requestedHost && std::string::npos != desc_B.find(requestedHost)) score_B++;
+      if (requestedHost && std::string::npos != desc_A.find(requestedHost)) score_A = 33; //score_A++;
+      else if (requestedHost && std::string::npos != desc_B.find(requestedHost)) score_B = 33; //score_B++;
 
       DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - scores for routing to " << 
         host << " " << " with request " << (requestedHost ? requestedHost : "(none)") << " - " << 

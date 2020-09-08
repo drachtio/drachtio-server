@@ -406,6 +406,7 @@ namespace drachtio {
 
         try {
             bool useOutboundProxy = false ;
+            sip_via_t* via = nullptr;
             const char *szRouteUrl = pData->getRouteUrl() ;
             if (*szRouteUrl != '\0') {
                 useOutboundProxy = true ;
@@ -476,8 +477,10 @@ namespace drachtio {
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp << desc ;
                 forceTport = true ;
+
+                via = pSelectedTransport->makeVia(m_pController->getHome());
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp  ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
@@ -559,7 +562,11 @@ namespace drachtio {
                 ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_IF( forceTport, NTATAG_TPORT(tp))
+                ,TAG_IF( nullptr != via, SIPTAG_VIA(via))
+                ,TAG_IF( nullptr != via, NTATAG_USER_VIA(1))
                 ,TAG_NEXT(tags) ) ;
+
+            if (via) su_free(m_pController->getHome(), via);
 
             if( NULL == orq ) {
                 throw std::runtime_error("Error creating sip transaction for uac request") ;               

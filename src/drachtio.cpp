@@ -383,6 +383,7 @@ namespace drachtio {
             auto hdrValue = hdr.substr(pos+1) ;
             boost::trim( hdrValue );
 
+            if (0 == boost::to_lower_copy(hdrValue).compare("localhost")) return false;
             {
                 su_home_t* home = theOneAndOnlyController->getHome() ;
                 char *s ;
