@@ -148,6 +148,8 @@ namespace drachtio {
 
 	bool normalizeSipUri( std::string& uri, int brackets ) ;
   
+  bool getRequestedContact(const string& hdrs, std::string& host) ;
+
 	bool replaceHostInUri( std::string& uri, const char* szHost, const char* szPort ) ;
 
 	sip_method_t methodType( const std::string& method ) ;

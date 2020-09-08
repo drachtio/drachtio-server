@@ -456,7 +456,15 @@ namespace drachtio {
                }
             }
             if( NULL == tp ) {
-                pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str()) ;
+                // did user request a specific interface (by supplying a Contact header?)  If so, try to use that one
+                char * szRequestedHost = NULL;
+                std::string s ;
+                if (getRequestedContact(pData->getHeaders(), s)) {
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog user requested Contact address " << s ;
+                    szRequestedHost = const_cast<char *>(s.c_str());
+                }
+
+                pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str(), "udp", szRequestedHost) ;
                 if (!pSelectedTransport) {
                     throw std::runtime_error(string("requested protocol/transport not available"));
                 }

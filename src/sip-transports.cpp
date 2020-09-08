@@ -25,8 +25,6 @@ THE SOFTWARE.
 
 #include <boost/algorithm/string.hpp>
 
-#include <arpa/inet.h>
-
 #include "sip-transports.hpp"
 #include "controller.hpp"
 #include "drachtio.h"
@@ -50,10 +48,10 @@ namespace drachtio {
     m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
-  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL), m_tpName(NULL) {
+  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_strLocalNet("0.0.0.0/0"), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
-  SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport> other) :
+  SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport>& other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
     m_dnsNames(other->m_dnsNames), m_tp(NULL), m_tpName(NULL) {
     init() ;
@@ -82,35 +80,19 @@ namespace drachtio {
       }
     }
 
-    bool hasNetmask = false;
-    string network, bits;
-    uint32_t netbits;
+    assert (!m_strLocalNet.empty() || isIpV6());
+    m_network_v4 = boost::asio::ip::make_network_v4(m_strLocalNet);
+  }
 
-    if( !m_strLocalNet.empty() ) {
-      hasNetmask = true;
+  int SipTransport::routingAbilityScore(const char* szAddress) {
+    if (isIpV6() && NULL != strstr( szAddress, "[") && NULL != strstr( szAddress, "]")) return 64;
+    int len = m_network_v4.prefix_length();
+    if (0 == len) return hasExternalIp() ? 1 : 0;
 
-      try {
-        std::regex re("^([0-9\\.]*)\\/(.*)$");
-        std::smatch mr;
-        if (!std::regex_search(m_strLocalNet, mr, re)) {
-          cerr << "SipTransport::init - invalid format for localNet, must be CIDR format: " << m_strLocalNet << endl ;
-          throw std::runtime_error("SipTransport::init - invalid format for localNet, must be CIDR format");          
-        }
-        network = mr[1] ; 
-        bits = mr[2];
-      } catch (std::regex_error& e) {
-        DR_LOG(log_error) << "SipTransport::init - regex error 2 " << e.what();        
-      }
-    }
+    const auto address = boost::asio::ip::make_address_v4(szAddress);
+    const auto hosts = m_network_v4.hosts();
 
-    if (hasNetmask) {
-      struct sockaddr_in range;
-      inet_pton(AF_INET, network.c_str(), &(range.sin_addr));
-      m_range = htonl(range.sin_addr.s_addr) ;
-
-      uint32_t netbits = ::atoi( bits.c_str() ) ;    
-      m_netmask = ~(~uint32_t(0) >> netbits);    
-    }
+    return hosts.find(address) != hosts.end() ? len : (-len);
   }
 
   bool SipTransport::shouldAdvertisePublic( const char* address ) const {
@@ -120,14 +102,10 @@ namespace drachtio {
   }
 
   bool SipTransport::isInNetwork(const char* address) const {
-    if (!m_netmask) return false;
-
-    struct sockaddr_in addr;
-    inet_pton(AF_INET, address, &(addr.sin_addr));
-
-    uint32_t ip = htonl(addr.sin_addr.s_addr) ;
-
-    return (ip & m_netmask) == (m_range & m_netmask) ;
+    if (isIpV6()) return false;
+    if (0 == m_network_v4.prefix_length()) return true;
+    auto hosts = m_network_v4.hosts();
+    return hosts.find(boost::asio::ip::make_address_v4(address)) != hosts.end();
   }
 
   void SipTransport::getDescription(string& s, bool shortVersion) {
@@ -148,7 +126,7 @@ namespace drachtio {
     s += ", external-ip: " ;
     s += getExternalIp() ;
     s += ", local-net: " ;
-    s += getLocalNet() ;
+    s += m_network_v4.canonical().to_string() ;
     s += ")" ;
 
     if( m_dnsNames.size() ) {
@@ -267,15 +245,15 @@ namespace drachtio {
   }
 
 
-  bool SipTransport::isIpV6(void) {
+  bool SipTransport::isIpV6(void) const {
     return hasTport() && NULL != strstr( getHost(), "[") && NULL != strstr( getHost(), "]") ;
   }
 
-  bool SipTransport::isLocalhost(void) {
+  bool SipTransport::isLocalhost(void) const {
     return hasTport() && (0 == strcmp(getHost(), "127.0.0.1") || 0 == strcmp(getHost(), "[::1]"));
   }
 
-  bool SipTransport::isLocal(const char* szHost) {
+  bool SipTransport::isLocal(const char* szHost) const {
     if( 0 == strcmp(getHost(), szHost) ) {
       return true ;
     }
@@ -291,38 +269,6 @@ namespace drachtio {
       }
     }
     return false ;
-  }
-
-  uint32_t SipTransport::getOctetMatchCount(const string& address) {
-    uint32_t count = 0 ;
-    string them[4], mine[4];
-    try {
-      std::regex re("^(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)");
-      std::smatch mr;
-      if (std::regex_search(address, mr, re) && mr.size() > 1) {
-        them[0] = mr[1] ;
-        them[1] = mr[2] ;
-        them[2] = mr[3] ;
-        them[3] = mr[4] ;
-
-        string host = this->getHost();
-        if (std::regex_search(host, mr, re) && mr.size() > 1) {
-          mine[0] = mr[1] ;
-          mine[1] = mr[2] ;
-          mine[2] = mr[3] ;
-          mine[3] = mr[4] ;
-  
-          for(int i = 0; i < 4; i++) {
-            if(0 != them[i].compare(mine[i])) return count;
-            count++;
-          }          
-        }        
-      }
-    } catch (std::regex_error& e) {
-      DR_LOG(log_error) << "SipTransport::getOctetMatchCount - regex error " << e.what();
-    }
-
-    return count;
   }
 
   /** static methods */
@@ -358,40 +304,33 @@ namespace drachtio {
         DR_LOG(log_info) << "SipTransport::addTransports - creating transport: " << hex << tp << ": " << desc ;
 
         std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>( config ) ;
+        string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();
         p->setTport(tp); 
         p->setTportName(tpn) ;
         m_mapTport2SipTransport.insert(mapTport2SipTransport::value_type(tp, p)) ;
 
-        if (p->getLocalNet().empty()) {
-          string network, bits;
-          string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();
-          if(0 == host.compare("127.0.0.1")) {
-            network = "127.0.0.1";
-            bits = "32";
+        if (tpn->tpn_host && 0 == strcmp(tpn->tpn_host, "127.0.0.1")) {
+          p->setLocalNet("127.0.0.1/32");
+        }
+        else if(!p->hasExternalIp() && tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "192.168.", 8)) {
+          std::string s = tpn->tpn_host;
+          s += "/16";
+          p->setLocalNet(s.c_str());
+        }
+        else if(!p->hasExternalIp() && tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "172.", 4) && strlen(tpn->tpn_host) > 7) {
+          char octet[3];
+          strncpy(octet, tpn->tpn_host + 4, 2);
+          int v = ::atoi(octet);
+          if (v >= 16 && v <= 31) {
+            std::string s = tpn->tpn_host;
+            s += "/12";
+            p->setLocalNet(s.c_str());
           }
-          else if(0 == host.find("192.168.0.")) {
-            network = "192.168.0.0";
-            bits = "24";
-          }
-          else if(0 == host.find("172.16.")) {
-            network = "172.16.0.0";
-            bits = "16";
-          }
-          else if(0 == host.find("10.")) {
-            network = "10.0.0.0";
-            bits = "8";
-          }
-
-          if (!network.empty()) {
-            struct sockaddr_in range;
-            inet_pton(AF_INET, network.c_str(), &(range.sin_addr));
-            p->setRange(htonl(range.sin_addr.s_addr)) ;
-
-            uint32_t netbits = ::atoi( bits.c_str() ) ;    
-            p->setNetmask(~(~uint32_t(0) >> netbits));
-            p->setNetwork(network);
-            p->setLocalNet(network, bits);
-          }
+        }
+        else if(!p->hasExternalIp() && tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "10.", 3)) {
+          std::string s = tpn->tpn_host;
+          s += "/8";
+          p->setLocalNet(s.c_str());
         }
       }
     }
@@ -408,7 +347,7 @@ namespace drachtio {
     return it->second ;
   }
 
-  std::shared_ptr<SipTransport> SipTransport::findAppropriateTransport(const char* remoteHost, const char* proto) {
+  std::shared_ptr<SipTransport> SipTransport::findAppropriateTransport(const char* remoteHost, const char* proto, const char* requestedHost) {
     string scheme, userpart, hostpart, port ;
     vector< pair<string,string> > vecParam ;
     string host = remoteHost ;
@@ -458,27 +397,24 @@ namespace drachtio {
     DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - after filtering for protocol we have " << candidates.size() << " candidates";
 
 
-    sort(candidates.begin(), candidates.end(), [host](const std::shared_ptr<SipTransport>& pA, const std::shared_ptr<SipTransport>& pB) {
+    // sort highest to lowest based on the perceived ability to route to the target subnet
+    sort(candidates.begin(), candidates.end(), [remoteHost, requestedHost](const std::shared_ptr<SipTransport>& pA, const std::shared_ptr<SipTransport>& pB) {
+      std::string desc_A, desc_B; 
+      int score_A = pA->routingAbilityScore(remoteHost);
+      int score_B = pB->routingAbilityScore(remoteHost);
 
-      if (pA->isInNetwork(host.c_str())) {
-        return true;
-      }
-      if (pB->isInNetwork(host.c_str())) {
-        return false;
-      }
+      pA->getHostport(desc_A);
+      pA->getHostport(desc_B);
 
-      uint32_t a = pA->getOctetMatchCount(host);
-      uint32_t b = pB->getOctetMatchCount(host);
-      if (a > b) return true;
-      if (a < b) return false;
+      // give precedence to a specific requested interface (tie-breaker only)
+      if (requestedHost && std::string::npos != desc_A.find(requestedHost)) score_A++;
+      else if (requestedHost && std::string::npos != desc_B.find(requestedHost)) score_B++;
 
-      if (pA->hasExternalIp()) return true;
-      if (pB->hasExternalIp()) return false;
-
-      if (pA->isLocalhost()) return false;
-      if (pB->isLocalhost()) return true;
-
-      return true;
+      DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - scores for routing to " << 
+        remoteHost << " " << desc_A.c_str() << ":" << score_A <<
+        desc_A.c_str() << ":" << score_B;
+      
+      return score_A - score_B;
     });
 
 #ifdef DEBUG 

@@ -24,6 +24,8 @@ THE SOFTWARE.
 
 #include <unordered_map>
 
+#include <boost/asio.hpp>
+
 #include <sofia-sip/nta.h>
 #include <sofia-sip/nta_tport.h>
 #include <sofia-sip/tport.h>
@@ -37,7 +39,7 @@ namespace drachtio {
     SipTransport(const string& contact, const string& localNet, const string& externalIp) ;
     SipTransport(const string& contact, const string& localNet) ;
     SipTransport(const string& contact) ;
-    SipTransport(const std::shared_ptr<drachtio::SipTransport> other) ;
+    SipTransport(const std::shared_ptr<drachtio::SipTransport>& other) ;
 
     ~SipTransport() ;
 
@@ -52,8 +54,6 @@ namespace drachtio {
     bool hasExternalIp(void) const { return !m_strExternalIp.empty() ; }
     const string& getExternalIp(void) const { return m_strExternalIp; }
     const vector<string>& getDnsNames(void) const  { return m_dnsNames; }
-    const string& getLocalNet(void) const { return m_strLocalNet; }    
-    void setLocalNet(const string& network, const string& bits) { m_strLocalNet = network + "/" + bits; }    
     bool shouldAdvertisePublic(const char* address) const ;
     bool isInNetwork(const char* address) const;
     bool hasTport(void) const { return NULL != m_tp; }
@@ -67,27 +67,23 @@ namespace drachtio {
     const char* getHost(void) const { return m_tpName ? m_tpName->tpn_host : "" ; }
     const char* getPort(void) const { return m_tpName ? m_tpName->tpn_port : ""; }
     const char* getProtocol(void) const { return m_tpName ? m_tpName->tpn_proto : ""; }
-    bool isIpV6(void) ;
-    bool isLocalhost(void) ;
-    bool isLocal(const char* szHost) ;
-
-    void setNetwork(const string& network) { m_network = network;}
-    void setNetmask(uint32_t netmask) { m_netmask = netmask;}
-    void setRange(uint32_t range) { m_range = range;}
+    bool isIpV6(void) const ;
+    bool isLocalhost(void) const ;
+    bool isLocal(const char* szHost) const ;
+    void setLocalNet(const char* szLocalNet) { m_network_v4 = boost::asio::ip::make_network_v4(szLocalNet); } 
 
     void getDescription(string& s, bool shortVersion = true) ;
     void getHostport(string& s) ;
 
-    uint32_t getOctetMatchCount(const string& address);
-
     static void addTransports(std::shared_ptr<SipTransport> config, unsigned int mtu);
     static std::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
-    static std::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp") ;
+    static std::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp", const char* requestedHost = NULL) ;
     static void logTransports() ;
     static void getAllHostports( vector<string>& vec ) ;
     static void getAllExternalIps( vector<string>& vec ) ;
     static void getAllExternalContacts( vector< pair<string, string> >& vec ) ;
     static bool isLocalAddress(const char* szHost, tport_t* tp = NULL) ;
+    int routingAbilityScore(const char* szAddress);
     
   protected:
     void init() ;
@@ -102,10 +98,8 @@ namespace drachtio {
     string  m_strExternalIp ;
     string  m_strLocalNet ;
 
-    // these are computed from the above
-    string m_network ;
-    uint32_t  m_netmask ;
-    uint32_t  m_range ;
+    // computed from the above
+    boost::asio::ip::network_v4 m_network_v4;
 
     string m_contactScheme ;
     string m_contactUserpart ;

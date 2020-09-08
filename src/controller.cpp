@@ -349,7 +349,7 @@ namespace drachtio {
         int c ;
         string port ;
         string publicAddress ;
-        string localNet ;
+        string localNet("0.0.0.0/0") ;
         string contact ;
         vector<string> vecDnsNames;
         string httpMethod = "GET";
@@ -496,9 +496,10 @@ namespace drachtio {
                         m_vecTransports.push_back( std::make_shared<SipTransport>(contact, localNet, publicAddress )) ;
                         contact.clear() ;
                         publicAddress.clear() ;
-                        localNet.clear() ;
+                        localNet = "0.0.0.0/0" ;
                     }
                     contact = optarg ;
+                    if (0 == strcmp(optarg, "127.0.0.1")) localNet = "127.0.0.1/32";
                     break;
                                     
                 case 'x': 
@@ -516,10 +517,6 @@ namespace drachtio {
                 case 'n':
                     if( contact.empty() ) {
                         cerr << "'local-net' argument must follow a 'contact'" << endl ;
-                        return false ;
-                    }
-                    if (!localNet.empty() ) {
-                        cerr << "multiple 'local-net' arguments provided for a single contact" << endl ;
                         return false ;
                     }
                     localNet = optarg ;

@@ -92,7 +92,7 @@ namespace drachtio {
                             // v.second is the child tree.
                             if( 0 == v.first.compare("contact") ) {
                                 string external = v.second.get<string>("<xmlattr>.external-ip","") ;            
-                                string localNet = v.second.get<string>("<xmlattr>.local-net","") ;   
+                                string localNet = v.second.get<string>("<xmlattr>.local-net","0.0.0.0/0") ;   
                                 string dnsNames = v.second.get<string>("<xmlattr>.dns-names", "");      
 
                                 std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>(v.second.data(), localNet, external) ;

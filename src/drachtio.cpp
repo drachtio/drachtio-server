@@ -370,6 +370,51 @@ namespace drachtio {
         return true ;
     }
 
+    bool getRequestedContact(const string& hdrs, std::string& host) {
+        vector<string> vec ;
+        splitLines( hdrs, vec ) ;
+        for (auto hdr : vec) {
+            size_t pos = hdr.find_first_of(":") ;
+            if( string::npos == pos ) continue;
+            auto hdrName = hdr.substr(0,pos) ;
+            if (0 == hdrName.compare("Contact")) continue;
+
+            // found contact, parse host from uri
+            auto hdrValue = hdr.substr(pos+1) ;
+            boost::trim( hdrValue );
+
+            {
+                su_home_t* home = theOneAndOnlyController->getHome() ;
+                char *s ;
+                char buf[255];
+                char const *display = NULL;
+                url_t url[1];
+                msg_param_t const *params = NULL;
+                char const *comment = NULL;
+                int rc ;
+
+                // buf gets passed into sip_name_addr_d which puts NULs in various locations so the url_t members can point to their bits
+                s = strncpy( buf, hdrValue.c_str(), 255 ) ;
+
+                // first we decode the string
+                rc = sip_name_addr_d(home, &s, &display, url, &params, &comment) ;
+                if( rc < 0 ) {  
+                    // no go: if we can't decode it then we have an invalid input
+                    return false ;
+                }
+                host = url->url_host;
+
+                // cleanup: free the msg_params if any were allocated        
+                if( params ) {
+                    su_free(home, (void *) params) ;
+                }
+
+                return true;
+            }
+
+        }
+        return false;
+    }
     bool replaceHostInUri( std::string& uri, const char* szHost, const char* szPort ) {
         su_home_t* home = theOneAndOnlyController->getHome() ;
         char *s ;
