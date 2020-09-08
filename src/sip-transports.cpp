@@ -89,10 +89,15 @@ namespace drachtio {
     int len = m_network_v4.prefix_length();
     if (0 == len) return hasExternalIp() ? 1 : 0;
 
-    const auto address = boost::asio::ip::make_address_v4(szAddress);
-    const auto hosts = m_network_v4.hosts();
+    try {
+      const auto address = boost::asio::ip::make_address_v4(szAddress);
+      const auto hosts = m_network_v4.hosts();
 
-    return hosts.find(address) != hosts.end() ? len : (-len);
+      return hosts.find(address) != hosts.end() ? len : (-len);
+    } catch (std::exception& e) {
+        DR_LOG(log_error) << "routingAbilityScore - error checking routing for " << szAddress << ": " << e.what();
+        return 0;
+    }	
   }
 
   bool SipTransport::shouldAdvertisePublic( const char* address ) const {
@@ -398,23 +403,24 @@ namespace drachtio {
 
 
     // sort highest to lowest based on the perceived ability to route to the target subnet
-    sort(candidates.begin(), candidates.end(), [remoteHost, requestedHost](const std::shared_ptr<SipTransport>& pA, const std::shared_ptr<SipTransport>& pB) {
+    sort(candidates.begin(), candidates.end(), [host, requestedHost](const std::shared_ptr<SipTransport>& pA, const std::shared_ptr<SipTransport>& pB) {
       std::string desc_A, desc_B; 
-      int score_A = pA->routingAbilityScore(remoteHost);
-      int score_B = pB->routingAbilityScore(remoteHost);
+      int score_A = pA->routingAbilityScore(host.c_str());
+      int score_B = pB->routingAbilityScore(host.c_str());
 
       pA->getHostport(desc_A);
-      pA->getHostport(desc_B);
+      pB->getHostport(desc_B);
 
       // give precedence to a specific requested interface (tie-breaker only)
       if (requestedHost && std::string::npos != desc_A.find(requestedHost)) score_A++;
       else if (requestedHost && std::string::npos != desc_B.find(requestedHost)) score_B++;
 
       DR_LOG(log_debug) <<  "SipTransport::findAppropriateTransport - scores for routing to " << 
-        remoteHost << " " << desc_A.c_str() << ":" << score_A <<
-        desc_A.c_str() << ":" << score_B;
+        host << " " << " with request " << (requestedHost ? requestedHost : "(none)") << " - " << 
+        desc_A.c_str() << " = " << score_A << "; " << 
+        desc_B.c_str() << " = " << score_B;
       
-      return score_A - score_B;
+      return score_A > score_B;
     });
 
 #ifdef DEBUG 

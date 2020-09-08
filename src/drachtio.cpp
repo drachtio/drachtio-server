@@ -377,7 +377,7 @@ namespace drachtio {
             size_t pos = hdr.find_first_of(":") ;
             if( string::npos == pos ) continue;
             auto hdrName = hdr.substr(0,pos) ;
-            if (0 == hdrName.compare("Contact")) continue;
+            if (0 != boost::to_lower_copy(hdrName).compare("contact")) continue;
 
             // found contact, parse host from uri
             auto hdrValue = hdr.substr(pos+1) ;
