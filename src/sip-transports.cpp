@@ -306,7 +306,7 @@ namespace drachtio {
 
       mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
       if (it == m_mapTport2SipTransport.end()) {
-        DR_LOG(log_info) << "SipTransport::addTransports - creating transport: " << hex << tp << ": " << desc ;
+        DR_LOG(log_info) << "SipTransport::addTransports - creating transport: " << std::hex << tp << ": " << desc << " socket(" << std::dec << tport_socket(tp) << ")";
 
         std::shared_ptr<SipTransport> p = std::make_shared<SipTransport>( config ) ;
         string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();

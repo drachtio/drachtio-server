@@ -478,8 +478,7 @@ namespace drachtio {
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
                 forceTport = true ;
-
-                via = pSelectedTransport->makeVia(m_pController->getHome());
+                via = (sip_via_t *) tport_magic(tp);
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp  ;
             }
             su_free( m_pController->getHome(), sip_request ) ;
@@ -565,8 +564,6 @@ namespace drachtio {
                 ,TAG_IF( nullptr != via, SIPTAG_VIA(via))
                 ,TAG_IF( nullptr != via, NTATAG_USER_VIA(1))
                 ,TAG_NEXT(tags) ) ;
-
-            if (via) su_free(m_pController->getHome(), via);
 
             if( NULL == orq ) {
                 throw std::runtime_error("Error creating sip transaction for uac request") ;               
