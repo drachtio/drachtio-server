@@ -1283,6 +1283,7 @@ namespace drachtio {
                     case sip_method_notify:
                     case sip_method_subscribe:
                     case sip_method_publish:
+                    case sip_method_bye:
                     {
                         if( m_pPendingRequestController->isRetransmission( sip ) ||
                             m_pProxyController->isRetransmission( sip ) ) {
@@ -1354,10 +1355,12 @@ namespace drachtio {
                     }
                     break ;
 
+#if 0
                     case sip_method_bye:
                         STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "481"}})
                         nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   
                         break;                           
+#endif
 
 
                     default:
