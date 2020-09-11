@@ -144,6 +144,7 @@ namespace drachtio {
         string routeUri;
         bool destroyOrq = false;
         sip_via_t* via = nullptr;
+        string contact ;
 
         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog dialog id: " << pData->getDialogId()  ;
 
@@ -239,7 +240,8 @@ namespace drachtio {
 
             if (forceTport) {
                 if (pSelectedTransport) {
-                    via = pSelectedTransport->makeVia(m_pController->getHome(), routeUri.empty() ? requestUri.c_str() : routeUri.c_str());
+                    pSelectedTransport->getContactAndVia(routeUri.empty() ? requestUri.c_str() : routeUri.c_str(), 
+                        contact, &via);
                 }
             }
 
@@ -280,14 +282,13 @@ namespace drachtio {
                     NULL, TAG_NEXT(tags) ) ;
             }
             else {
-                string contact ;
                 bool addContact = false ;
                 if( (method == sip_method_invite || method == sip_method_subscribe || method == sip_method_refer) && !searchForHeader( tags, siptag_contact_str, contact ) ) {
-                    if (pSelectedTransport) {
-                        pSelectedTransport->getContactUri( contact, routeUri.empty()  ? requestUri.c_str() : routeUri.c_str() ) ;
-                        contact = "<" + contact + ">" ;
+                    if (pSelectedTransport && contact.empty()) {
+                        pSelectedTransport->getContactAndVia(routeUri.empty() ? requestUri.c_str() : routeUri.c_str(), 
+                            contact, &via);
                     }
-                    else {
+                    else if (contact.empty()) {
                         contact = "<" ;
                         contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
                         contact.append( dlg->getTransportAddress() ) ;
@@ -489,14 +490,11 @@ namespace drachtio {
                 }
 
                 pSelectedTransport->getDescription(desc);
-                useExternalIp = pSelectedTransport->getContactUri( contact, useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str() ) ;
-                contact = "<" + contact + ">" ;
-                host = pSelectedTransport->getHost() ;
-                port = pSelectedTransport->getPort() ;
+                useExternalIp = pSelectedTransport->getContactAndVia(useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str(), 
+                        contact, &via);
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
                 forceTport = true ;
-                via = pSelectedTransport->makeVia(m_pController->getHome(), useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str());
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp  << " with via " << via->v_host;
             }
             su_free( m_pController->getHome(), sip_request ) ;
@@ -939,8 +937,7 @@ namespace drachtio {
             std::string address;
         	bool found = getNearestRecordRouteOrContact( sip, address );
             const char* szAddress = found ? address.c_str() : nullptr;
-            pSelectedTransport->getContactUri(contact, szAddress);
-            contact = "<" + contact + ">" ;
+            pSelectedTransport->getContactAndVia(szAddress, contact);
 
             pSelectedTransport->getDescription(transportDesc);
 
@@ -1070,7 +1067,7 @@ namespace drachtio {
                 std::string address;
                 bool found = getNearestRecordRouteOrContact( sip, address );
                 const char* szAddress = found ? address.c_str() : nullptr;
-                pSelectedTransport->getContactUri(contact, szAddress);
+                pSelectedTransport->getContactAndVia(szAddress, contact);
 
                 contact = "<" + contact + ">" ;
 

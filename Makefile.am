@@ -20,31 +20,31 @@ drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=de
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
-timer_CPPFLAGS=-D_REENTRANT -DTEST
+timer_CPPFLAGS=-D_REENTRANT -DTEST -Wno-unknown-warning-option
 timer_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a \
 	${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a -lpthread
 
 parser_SOURCES= src/test_parser.cpp
-parser_CPPFLAGS=-D_REENTRANT -DTEST
+parser_CPPFLAGS=-D_REENTRANT -DTEST -Wno-unknown-warning-option
 parser_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a \
 	${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_log.a \
 	${srcdir}/deps/boost_1_74_0/stage/lib/libboost_filesystem.a -lpthread -lssl -lcrypto -lz
 
 uri_test_SOURCES= src/test_uri_parser.cpp
-uri_test_CPPFLAGS=-D_REENTRANT -DTEST
+uri_test_CPPFLAGS=-D_REENTRANT -DTEST -Wno-unknown-warning-option
 uri_test_LDADD=${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a \
 	${srcdir}/deps/boost_1_74_0/stage/lib/libboost_filesystem.a -lpthread -lz
 
 ssltest_SOURCES= src/ssltest.cpp
-ssltest_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+ssltest_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0 -Wno-unknown-warning-option
 ssltest_LDADD= -lssl -lcrypto -lz
 
 test_https_SOURCES= src/test_https.cpp
-test_https_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+test_https_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0 -Wno-unknown-warning-option
 test_https_LDADD= -lssl -lcrypto -lz
 
 test_asio_curl_SOURCES= src/test_asio_curl.cpp
-test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0 -Wno-unknown-warning-option
 test_asio_curl_LDADD=${srcdir}/deps/boost_1_74_0/stage/lib/libboost_thread.a ${srcdir}/deps/boost_1_74_0/stage/lib/libboost_system.a \
 	-lpthread -lcurl -lssl -lcrypto -lz
 

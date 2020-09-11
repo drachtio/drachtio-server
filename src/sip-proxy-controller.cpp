@@ -501,8 +501,8 @@ namespace drachtio {
                 std::shared_ptr<SipTransport> p = SipTransport::findTransport(tp) ;
                 assert(p) ;
 
-                p->getContactUri(record_route, sip->sip_route->r_url->url_host);
-                record_route = "<" + record_route + ";lr>";
+                p->getContactAndVia(sip->sip_route->r_url->url_host, record_route);
+
                 DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardPrack - record route will be " << record_route ;
             }
         }
@@ -589,8 +589,8 @@ namespace drachtio {
         assert(p) ;
         p->getDescription(transport);
 
-        if(pCore->shouldAddRecordRoute() ) {            
-            p->getContactUri(record_route, sip->sip_request->rq_url->url_host) ;
+        if(pCore->shouldAddRecordRoute() ) {     
+            p->getContactAndVia(sip->sip_request->rq_url->url_host, record_route);
             record_route = "<" + record_route + ";lr>";
             DR_LOG(log_debug) << "ProxyCore::ClientTransaction::forwardRequest - record route will be " << record_route ;
         }

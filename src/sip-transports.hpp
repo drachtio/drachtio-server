@@ -45,10 +45,8 @@ namespace drachtio {
 
     void addDnsName(const string& name) { m_dnsNames.push_back(name); }
 
-    bool getContactUri(string& contact, const char* szAddress) ;
+    bool getContactAndVia(const char* szAddress, std::string& contact, sip_via_t** pvia= nullptr) const ;
     void getBindableContactUri(string& contact) ;
-
-    sip_via_t* makeVia(su_home_t * home, const char* szRemoteHost = NULL) ;
 
     const string& getContact(void) { return m_strContact; }
     bool hasExternalIp(void) const { return !m_strExternalIp.empty() ; }
@@ -59,10 +57,7 @@ namespace drachtio {
     bool hasTport(void) const { return NULL != m_tp; }
     bool hasTportAndTpname(void) const { return NULL != m_tp && NULL != m_tpName; }
     const tport_t* getTport(void) const { return m_tp; }
-    void setTport(tport_t* tp) { 
-      assert(!m_tp);
-      m_tp = tp ;
-    }
+    void setTport(tport_t* tp) ;
     void setTportName(const tp_name_t* tpn) { m_tpName = tpn; }
     const char* getHost(void) const { return m_tpName ? m_tpName->tpn_host : "" ; }
     const char* getPort(void) const { return m_tpName ? m_tpName->tpn_port : ""; }
@@ -111,6 +106,11 @@ namespace drachtio {
     // these are given when we actually create a transport with the info above
     tport_t* m_tp;
     const tp_name_t*  m_tpName ;
+
+    // via headers to use
+    sip_via_t* m_viaPrivate;
+    sip_via_t* m_viaPublic;
+
   }  ;
 
 }

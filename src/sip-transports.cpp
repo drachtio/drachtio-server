@@ -41,19 +41,19 @@ namespace {
 namespace drachtio {
   
   SipTransport::SipTransport(const string& contact, const string& localNet, const string& externalIp) :
-    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
+    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL), m_viaPrivate(nullptr), m_viaPublic(nullptr) {
     init() ;
   }
   SipTransport::SipTransport(const string& contact, const string& localNet) :
     m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
     init() ;
   }
-  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_strLocalNet("0.0.0.0/0"), m_tp(NULL), m_tpName(NULL) {
+  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_strLocalNet("0.0.0.0/0"), m_tp(NULL), m_tpName(NULL), m_viaPrivate(nullptr), m_viaPublic(nullptr)  {
     init() ;
   }
   SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport>& other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
-    m_dnsNames(other->m_dnsNames), m_tp(NULL), m_tpName(NULL) {
+    m_dnsNames(other->m_dnsNames), m_tp(other->m_tp), m_tpName(other->m_tpName) {
     init() ;
   }
 
@@ -82,6 +82,28 @@ namespace drachtio {
 
     assert (!m_strLocalNet.empty() || isIpV6());
     m_network_v4 = boost::asio::ip::make_network_v4(m_strLocalNet);
+  }
+
+  void SipTransport::setTport(tport_t* tp) { 
+    assert(!m_tp);
+    assert(!m_viaPrivate);
+    assert(!m_viaPublic);
+
+    m_tp = tp ;
+
+    if (m_strExternalIp.empty()) {
+      m_viaPrivate = (sip_via_t*) tport_magic(tp);
+    }
+    else {
+      m_viaPublic = (sip_via_t*) tport_magic(tp);
+
+      string host = getHost();
+      string proto = getProtocol();
+      if (0 == proto.length()) proto = "UDP";
+      boost::to_upper(proto);
+      string transport = string("SIP/2.0/") + proto;
+      m_viaPrivate = sip_via_create(theOneAndOnlyController->getHome(), getHost(), getPort(), transport.c_str(), NULL);
+    }
   }
 
   int SipTransport::routingAbilityScore(const char* szAddress) {
@@ -192,6 +214,79 @@ namespace drachtio {
     }
     DR_LOG(log_debug) << "SipTransport::getBindableContactUri: " << contact;
   }
+  
+  bool SipTransport::getContactAndVia(const char* szAddress, std::string& contact, sip_via_t** pvia) const {
+    // first determine whether to use the private or public ip (if we have one), based on where we are sending
+    bool useExternalIp = false;
+    if (!m_strExternalIp.empty()) {
+      if (!szAddress) useExternalIp = true;
+      else if (0 == strncmp("sip:", szAddress, 4) || 0 == strncmp("sips:", szAddress, 5) || 0 == strncmp("tel:", szAddress, 4)) {
+        std::string scheme, userpart, hostpart, port ;
+        std::vector< pair<string,string> > vecParam ;
+        std::string host = szAddress ;
+
+        if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
+          useExternalIp = !this->isInNetwork(hostpart.c_str());
+          DR_LOG(log_debug) << "SipTransport::getContactUri " << (useExternalIp ? "using" : "not using") << 
+            " public address based on ability to reach destination address " << szAddress << " from local address " << getHost();
+        }
+        else useExternalIp = true;
+      }
+      else {
+        useExternalIp = !this->isInNetwork(szAddress);
+      }
+    }
+
+    // set the via accordingly
+    if (pvia != nullptr) {
+      *pvia = useExternalIp ? m_viaPublic : m_viaPrivate;
+      assert(*pvia);
+    }
+
+    // set the Contact accordingly
+    contact = m_contactScheme ;
+    contact.append(":");
+    if( !m_contactUserpart.empty() ) {
+      contact.append(m_contactUserpart) ;
+      contact.append("@") ;
+    }
+    if( m_tp ) {
+      contact.append(useExternalIp ? m_strExternalIp : getHost()) ;
+      const char* szPort = getPort() ;
+      const char* szProto = getProtocol() ;
+      if( szPort && strlen(szPort) > 0 ) {
+        contact.append(":") ;
+        contact.append(szPort);
+      }
+      if (szProto && strlen(szProto) > 0 && 0 != strcmp(szProto, "udp")) {
+        contact.append(";transport=");
+        contact.append(szProto);
+      }
+    }
+    else {
+      contact.append(useExternalIp ? m_strExternalIp : m_contactHostpart) ;
+      if( !m_contactPort.empty() ) {
+        contact.append(":") ;
+        contact.append(m_contactPort);
+      }
+      if( m_contactParams.size() > 0 ) {
+        for (vector< pair<string,string> >::const_iterator it = m_contactParams.begin(); it != m_contactParams.end(); ++it) {
+          pair<string,string> kv = *it ;
+          contact.append(";") ;
+          contact.append(kv.first);
+          if( !kv.second.empty() ) {
+            contact.append("=") ;
+            contact.append(kv.second) ;
+          }
+        }
+      }
+    }
+
+    DR_LOG(log_debug) << "SipTransport::getContactAndVia - created Contact header: " << contact;
+    return useExternalIp;
+  }
+
+/*
 
   bool SipTransport::getContactUri(string& contact, const char* szAddress) {
     bool useExternalIp = false;
@@ -283,7 +378,7 @@ namespace drachtio {
 
     return sip_via_create(h, host.c_str(), this->getPort(), transport.c_str(), NULL);
   }
-
+*/
 
   bool SipTransport::isIpV6(void) const {
     return hasTport() && NULL != strstr( getHost(), "[") && NULL != strstr( getHost(), "]") ;
