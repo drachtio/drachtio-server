@@ -23,7 +23,7 @@ THE SOFTWARE.
 #define __REQUEST_HANDLER_H__
 
 #include <thread>
-#include <unordered_set>
+#include <deque>
 
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>

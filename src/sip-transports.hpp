@@ -45,7 +45,7 @@ namespace drachtio {
 
     void addDnsName(const string& name) { m_dnsNames.push_back(name); }
 
-    void getContactUri(string& contact, bool useExternalIp = true) ;
+    bool getContactUri(string& contact, const char* szAddress) ;
     void getBindableContactUri(string& contact) ;
 
     sip_via_t* makeVia(su_home_t * home, const char* szRemoteHost = NULL) ;
@@ -73,7 +73,7 @@ namespace drachtio {
     void setLocalNet(const char* szLocalNet) { m_network_v4 = boost::asio::ip::make_network_v4(szLocalNet); } 
 
     void getDescription(string& s, bool shortVersion = true) ;
-    void getHostport(string& s) ;
+    bool getHostport(string& s, bool external = true ) ;
 
     static void addTransports(std::shared_ptr<SipTransport> config, unsigned int mtu);
     static std::shared_ptr<SipTransport> findTransport(tport_t* tp) ;

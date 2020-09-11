@@ -223,6 +223,25 @@ namespace drachtio {
 
     }	
 
+	bool getNearestRecordRouteOrContact( const sip_t *sip, std::string& address ) {
+        assert(sip->sip_request);
+
+        if (sip->sip_record_route) {
+            sip_record_route_t *r = sip->sip_record_route;
+            address = r->r_url->url_host;
+            DR_LOG(log_debug) << "getNearestRecordRouteOrContact - record route: " << address;
+            return true;
+        }
+        else if (sip->sip_contact) {
+            sip_contact_t* c = sip->sip_contact;
+            address = c->m_url->url_host;
+            DR_LOG(log_debug) << "getNearestRecordRouteOrContact - contact: " << address;
+            return true;
+        }
+        DR_LOG(log_debug) << "getNearestRecordRouteOrContact - neither rr nor contact found";
+        return false;
+    }
+
     void getTransportDescription( const tport_t* tp, string& desc ) {
         if( tp ) {
             const tp_name_t* tn = tport_name(tp) ;

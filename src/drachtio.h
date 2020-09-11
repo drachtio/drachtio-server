@@ -156,6 +156,8 @@ namespace drachtio {
 
 	bool isLocalSipUri( const std::string& uri ) ;
 
+	bool getNearestRecordRouteOrContact( const sip_t *sip, std::string& address );
+
 	void* my_json_malloc( size_t bytes ) ;
 
 	void my_json_free( void* ptr ) ;

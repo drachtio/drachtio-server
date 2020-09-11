@@ -108,7 +108,7 @@ namespace drachtio {
 
   bool SipTransport::isInNetwork(const char* address) const {
     if (isIpV6()) return false;
-    if (0 == m_network_v4.prefix_length()) return true;
+    if (0 == m_network_v4.prefix_length()) return false;
     auto hosts = m_network_v4.hosts();
     return hosts.find(boost::asio::ip::make_address_v4(address)) != hosts.end();
   }
@@ -146,14 +146,16 @@ namespace drachtio {
     }
   }
 
-  void SipTransport::getHostport(string& s) {
+  bool SipTransport::getHostport(string& s, bool external) {
     assert(hasTport()) ;
+    if (external && !hasExternalIp()) return false;
     s = "" ;
     s += getProtocol() ;
     s += "/" ;
-    s += hasExternalIp() ? getExternalIp() : getHost() ;
+    s += external ? getExternalIp() : getHost() ;
     s += ":" ;
     s += getPort() ;
+    return true;
   }
 
   void SipTransport::getBindableContactUri(string& contact) {
@@ -191,7 +193,28 @@ namespace drachtio {
     DR_LOG(log_debug) << "SipTransport::getBindableContactUri: " << contact;
   }
 
-  void SipTransport::getContactUri(string& contact, bool useExternalIp) {
+  bool SipTransport::getContactUri(string& contact, const char* szAddress) {
+    bool useExternalIp = false;
+  
+    if (szAddress) DR_LOG(log_debug) << "SipTransport::getContactUri searching for contact to use to reach dest " << szAddress;
+    if (!m_strExternalIp.empty()) {
+      if (!szAddress) useExternalIp = true;
+      else {
+        string scheme, userpart, hostpart, port ;
+        vector< pair<string,string> > vecParam ;
+        string host = szAddress ;
+
+        if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
+          useExternalIp = !this->isInNetwork(hostpart.c_str());
+          DR_LOG(log_debug) << "SipTransport::getContactUri " << (useExternalIp ? "using" : "not using") << 
+            " public address based on ability to reach destination address " << szAddress << " from local address " << getHost();
+        }
+        else {
+          useExternalIp = !this->isInNetwork(host.c_str());
+        }
+      }
+    }
+    
     contact = m_contactScheme ;
     contact.append(":");
     if( !m_contactUserpart.empty() ) {
@@ -231,9 +254,21 @@ namespace drachtio {
     }
 
     DR_LOG(log_debug) << "SipTransport::getContactUri - created Contact header: " << contact;
+    return useExternalIp;
   }
-  sip_via_t* SipTransport::makeVia(su_home_t * h, const char* szRemoteHost) {
-    bool isInSubnet = szRemoteHost ? this->isInNetwork(szRemoteHost) : false;
+
+  sip_via_t* SipTransport::makeVia(su_home_t * h, const char* szRemoteUri) {
+    bool isInSubnet = false;
+    if (szRemoteUri) {
+      string scheme, userpart, hostpart, port ;
+      vector< pair<string,string> > vecParam ;
+      string host = szRemoteUri ;
+
+      if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
+        isInSubnet = this->isInNetwork(hostpart.c_str());
+      }
+    }
+
     string host = this->getHost();
     if (this->hasExternalIp() && !isInSubnet) {
       host = this->getExternalIp();
@@ -317,12 +352,12 @@ namespace drachtio {
         if (tpn->tpn_host && 0 == strcmp(tpn->tpn_host, "127.0.0.1")) {
           p->setLocalNet("127.0.0.1/32");
         }
-        else if(!p->hasExternalIp() && tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "192.168.", 8)) {
+        else if(/*!p->hasExternalIp() && */tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "192.168.", 8)) {
           std::string s = tpn->tpn_host;
           s += "/16";
           p->setLocalNet(s.c_str());
         }
-        else if(!p->hasExternalIp() && tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "172.", 4) && strlen(tpn->tpn_host) > 7) {
+        else if(/*!p->hasExternalIp() && */tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "172.", 4) && strlen(tpn->tpn_host) > 7) {
           char octet[3];
           strncpy(octet, tpn->tpn_host + 4, 2);
           int v = ::atoi(octet);
@@ -332,7 +367,7 @@ namespace drachtio {
             p->setLocalNet(s.c_str());
           }
         }
-        else if(!p->hasExternalIp() && tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "10.", 3)) {
+        else if(/*!p->hasExternalIp() && */tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "10.", 3)) {
           std::string s = tpn->tpn_host;
           s += "/8";
           p->setLocalNet(s.c_str());
@@ -408,8 +443,8 @@ namespace drachtio {
       int score_A = pA->routingAbilityScore(host.c_str());
       int score_B = pB->routingAbilityScore(host.c_str());
 
-      pA->getHostport(desc_A);
-      pB->getHostport(desc_B);
+      pA->getHostport(desc_A, false);
+      pB->getHostport(desc_B, false);
 
       // give precedence to a specific requested interface (tie-breaker only)
       if (requestedHost && std::string::npos != desc_A.find(requestedHost)) score_A = 33; //score_A++;
@@ -476,8 +511,13 @@ namespace drachtio {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       std::shared_ptr<SipTransport> p = it->second ;
       string desc ;
-      p->getHostport(desc);
+      p->getHostport(desc, false);
       vec.push_back(desc) ;
+
+      // push external ip as well, if one exists
+      if (p->getHostport(desc, true)) {
+        vec.push_back(desc);
+      }
     }
   }
 

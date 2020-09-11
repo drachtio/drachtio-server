@@ -143,6 +143,7 @@ namespace drachtio {
         string name ;
         string routeUri;
         bool destroyOrq = false;
+        sip_via_t* via = nullptr;
 
         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog dialog id: " << pData->getDialogId()  ;
 
@@ -170,6 +171,7 @@ namespace drachtio {
 
             tport_t* tp = dlg->getTport() ; 
             bool forceTport = NULL != tp ;  
+            std::shared_ptr<SipTransport> pSelectedTransport = SipTransport::findTransport(tp);
 
             //if user supplied all or part of the Contact in a REFER request use it
             string contact ;
@@ -235,6 +237,12 @@ namespace drachtio {
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending request to nat'ed address using route " << routeUri ;
             }
 
+            if (forceTport) {
+                if (pSelectedTransport) {
+                    via = pSelectedTransport->makeVia(m_pController->getHome(), routeUri.empty() ? requestUri.c_str() : routeUri.c_str());
+                }
+            }
+
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
                     orq = nta_outgoing_tcreate(leg, NULL, NULL, 
@@ -243,7 +251,9 @@ namespace drachtio {
                         URL_STRING_MAKE(requestUri.c_str()),
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
-                        TAG_IF(forceTport, NTATAG_TPORT(tp)),
+                        TAG_IF( forceTport, NTATAG_TPORT(tp)),
+                        TAG_IF( nullptr != via, SIPTAG_VIA(via)),
+                        TAG_IF( nullptr != via, NTATAG_USER_VIA(1)),
                         TAG_NEXT(tags) ) ;
                     
                     tport_t* orq_tp = nta_outgoing_transport( orq );
@@ -273,17 +283,22 @@ namespace drachtio {
                 string contact ;
                 bool addContact = false ;
                 if( (method == sip_method_invite || method == sip_method_subscribe || method == sip_method_refer) && !searchForHeader( tags, siptag_contact_str, contact ) ) {
-                    //TODO: should get this from dlg->m_tp I think....half the time the below is incorrect in that it refers to the remote end
-                    contact = "<" ;
-                    contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
-                    contact.append( dlg->getTransportAddress() ) ;
-                    contact.append( ":" ) ;
-                    contact.append( dlg->getTransportPort() ) ;
-                    contact.append( ";transport=" ) ;
-                    contact.append( dlg->getProtocol() ) ;
-                    contact.append(">") ;
-                    addContact = true ;
+                    if (pSelectedTransport) {
+                        pSelectedTransport->getContactUri( contact, routeUri.empty()  ? requestUri.c_str() : routeUri.c_str() ) ;
+                        contact = "<" + contact + ">" ;
+                    }
+                    else {
+                        contact = "<" ;
+                        contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
+                        contact.append( dlg->getTransportAddress() ) ;
+                        contact.append( ":" ) ;
+                        contact.append( dlg->getTransportPort() ) ;
+                        contact.append( ";transport=" ) ;
+                        contact.append( dlg->getProtocol() ) ;
+                        contact.append(">") ;
 
+                    }
+                     addContact = true ;
                 }
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
@@ -292,7 +307,9 @@ namespace drachtio {
                     ,TAG_IF( addContact, SIPTAG_CONTACT_STR( contact.c_str() ) )
                     ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
-                    ,TAG_IF(forceTport, NTATAG_TPORT(tp))
+                    ,TAG_IF( forceTport, NTATAG_TPORT(tp))
+                    ,TAG_IF( nullptr != via, SIPTAG_VIA(via))
+                    ,TAG_IF( nullptr != via, NTATAG_USER_VIA(1))
                     ,TAG_NEXT(tags) ) ;
 
                 if( orq ) {
@@ -406,6 +423,7 @@ namespace drachtio {
 
         try {
             bool useOutboundProxy = false ;
+            bool useExternalIp = false;
             sip_via_t* via = nullptr;
             const char *szRouteUrl = pData->getRouteUrl() ;
             if (*szRouteUrl != '\0') {
@@ -471,20 +489,20 @@ namespace drachtio {
                 }
 
                 pSelectedTransport->getDescription(desc);
-                pSelectedTransport->getContactUri( contact, true ) ;
+                useExternalIp = pSelectedTransport->getContactUri( contact, useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str() ) ;
                 contact = "<" + contact + ">" ;
                 host = pSelectedTransport->getHost() ;
                 port = pSelectedTransport->getPort() ;
 
                 tp = (tport_t *) pSelectedTransport->getTport() ;
                 forceTport = true ;
-                via = (sip_via_t *) tport_magic(tp);
-                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp  ;
+                via = pSelectedTransport->makeVia(m_pController->getHome(), useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str());
+                DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog selected transport " << std::hex << (void*)tp  << " with via " << via->v_host;
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
             tagi_t* tags; 
-            if (pSelectedTransport && pSelectedTransport->hasExternalIp()) {
+            if (pSelectedTransport && pSelectedTransport->hasExternalIp() && useExternalIp) {
                 tags = makeTags( pData->getHeaders(), desc, pSelectedTransport->getExternalIp().c_str()) ;
             }
             else {
@@ -564,6 +582,11 @@ namespace drachtio {
                 ,TAG_IF( nullptr != via, SIPTAG_VIA(via))
                 ,TAG_IF( nullptr != via, NTATAG_USER_VIA(1))
                 ,TAG_NEXT(tags) ) ;
+
+            if (via) {
+                su_free( m_pController->getHome(), via ) ;
+                via = nullptr;
+            }
 
             if( NULL == orq ) {
                 throw std::runtime_error("Error creating sip transaction for uac request") ;               
@@ -913,7 +936,10 @@ namespace drachtio {
             pSelectedTransport = SipTransport::findTransport( tport ) ;
             assert(pSelectedTransport); 
 
-            pSelectedTransport->getContactUri(contact, true);
+            std::string address;
+        	bool found = getNearestRecordRouteOrContact( sip, address );
+            const char* szAddress = found ? address.c_str() : nullptr;
+            pSelectedTransport->getContactUri(contact, szAddress);
             contact = "<" + contact + ">" ;
 
             pSelectedTransport->getDescription(transportDesc);
@@ -1041,7 +1067,11 @@ namespace drachtio {
                 pSelectedTransport = SipTransport::findTransport( tport ) ;
                 assert(pSelectedTransport); 
 
-                pSelectedTransport->getContactUri(contact, true);
+                std::string address;
+                bool found = getNearestRecordRouteOrContact( sip, address );
+                const char* szAddress = found ? address.c_str() : nullptr;
+                pSelectedTransport->getContactUri(contact, szAddress);
+
                 contact = "<" + contact + ">" ;
 
                 pSelectedTransport->getDescription(transportDesc);

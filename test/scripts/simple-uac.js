@@ -8,9 +8,10 @@ srf.connect({
 })
   .on('connect', async(err, hp) => {
     console.log(`connected to ${hp}`);
-    const dlg = await srf.createUAC('22.33.44.55', {
+    const dlg = await srf.createUAC('sip:jambonz.us', {
+      proxy: 'sip:8.8.8.8',
       headers: {
-        'Contact': 'sip:127.94.0.2'
+        'Contact': 'sip:192.168.1.179'
       }
     });
     //const dlg = await srf.createUAC(`127.0.0.1:5062`, {});
