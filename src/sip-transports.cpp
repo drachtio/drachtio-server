@@ -129,10 +129,14 @@ namespace drachtio {
   }
 
   bool SipTransport::isInNetwork(const char* address) const {
+    boost::system::error_code ec;
+    auto hosts = m_network_v4.hosts();
+    auto addr = boost::asio::ip::make_address_v4(address, ec);
+    
     if (isIpV6()) return false;
     if (0 == m_network_v4.prefix_length()) return false;
-    auto hosts = m_network_v4.hosts();
-    return hosts.find(boost::asio::ip::make_address_v4(address)) != hosts.end();
+    if (ec) return false; // probably not a dot decimal address
+    return hosts.find(addr) != hosts.end();
   }
 
   void SipTransport::getDescription(string& s, bool shortVersion) {
@@ -227,7 +231,7 @@ namespace drachtio {
 
         if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
           useExternalIp = !this->isInNetwork(hostpart.c_str());
-          DR_LOG(log_debug) << "SipTransport::getContactUri " << (useExternalIp ? "using" : "not using") << 
+          DR_LOG(log_debug) << "SipTransport::getContactAndVia " << (useExternalIp ? "using" : "not using") << 
             " public address based on ability to reach destination address " << szAddress << " from local address " << getHost();
         }
         else useExternalIp = true;

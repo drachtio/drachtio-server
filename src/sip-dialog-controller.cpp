@@ -581,11 +581,6 @@ namespace drachtio {
                 ,TAG_IF( nullptr != via, NTATAG_USER_VIA(1))
                 ,TAG_NEXT(tags) ) ;
 
-            if (via) {
-                su_free( m_pController->getHome(), via ) ;
-                via = nullptr;
-            }
-
             if( NULL == orq ) {
                 throw std::runtime_error("Error creating sip transaction for uac request") ;               
             }
