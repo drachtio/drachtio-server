@@ -45,7 +45,7 @@ namespace drachtio {
     init() ;
   }
   SipTransport::SipTransport(const string& contact, const string& localNet) :
-    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
+    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL), m_viaPrivate(nullptr), m_viaPublic(nullptr) {
     init() ;
   }
   SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_strLocalNet("0.0.0.0/0"), m_tp(NULL), m_tpName(NULL), m_viaPrivate(nullptr), m_viaPublic(nullptr)  {
@@ -53,7 +53,7 @@ namespace drachtio {
   }
   SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport>& other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
-    m_dnsNames(other->m_dnsNames), m_tp(other->m_tp), m_tpName(other->m_tpName) {
+    m_dnsNames(other->m_dnsNames), m_tp(other->m_tp), m_tpName(other->m_tpName), m_viaPrivate(nullptr), m_viaPublic(nullptr) {
     init() ;
   }
 
@@ -109,17 +109,21 @@ namespace drachtio {
   int SipTransport::routingAbilityScore(const char* szAddress) {
     if (isIpV6() && NULL != strstr( szAddress, "[") && NULL != strstr( szAddress, "]")) return 64;
     int len = m_network_v4.prefix_length();
-    if (0 == len) return hasExternalIp() ? 1 : 0;
+    if (0 == len) return -99; // never select
 
-    try {
-      const auto address = boost::asio::ip::make_address_v4(szAddress);
-      const auto hosts = m_network_v4.hosts();
-
-      return hosts.find(address) != hosts.end() ? len : (-len);
-    } catch (std::exception& e) {
-        DR_LOG(log_error) << "routingAbilityScore - error checking routing for " << szAddress << ": " << e.what();
-        return 0;
-    }	
+    boost::system::error_code ec;
+    const auto hosts = m_network_v4.hosts();
+    const auto address = boost::asio::ip::make_address_v4(0 == strcmp(szAddress, "localhost") ? "127.0.0.1" : szAddress, ec);
+    if (ec) {
+      if (ec.value() == boost::system::errc::invalid_argument) {
+        // szAddress is a dns name, not a dot decimal
+        if (hasExternalIp()) return 1;  // assuming here the dns name may be on the internet
+        auto first = *hosts.begin();
+        return first.is_loopback() ? -1 : 0;
+      }
+      return 0;
+    }
+    return hosts.find(address) != hosts.end() ? len : (-len);
   }
 
   bool SipTransport::shouldAdvertisePublic( const char* address ) const {
