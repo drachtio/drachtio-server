@@ -36,6 +36,12 @@ namespace {
         boost::hash_combine(seed, d.getTport());
         return seed;
     }
+
+    enum {
+      WONT_WORK = -1,
+      MIGHT_WORK = 0,
+      SHOULD_WORK = 1
+    };
 }
 
 namespace drachtio {
@@ -92,10 +98,13 @@ namespace drachtio {
     m_tp = tp ;
 
     if (m_strExternalIp.empty()) {
-      m_viaPrivate = (sip_via_t*) tport_magic(tp);
+      auto via = (sip_via_t*) tport_magic(tp);
+      if (via) m_viaPrivate = sip_via_dup(theOneAndOnlyController->getHome(), via);
+      DR_LOG(log_debug) << "SipTransport::init - adding via: " << hex << m_viaPrivate << " for tp " <<  tp ;
     }
     else {
-      m_viaPublic = (sip_via_t*) tport_magic(tp);
+      auto via = (sip_via_t*) tport_magic(tp);
+      if (via) m_viaPublic = sip_via_dup(theOneAndOnlyController->getHome(), via);
 
       string host = getHost();
       string proto = getProtocol();
@@ -103,27 +112,51 @@ namespace drachtio {
       boost::to_upper(proto);
       string transport = string("SIP/2.0/") + proto;
       m_viaPrivate = sip_via_create(theOneAndOnlyController->getHome(), getHost(), getPort(), transport.c_str(), NULL);
+
+      assert(m_viaPrivate && m_viaPrivate->v_host);
+      assert(m_viaPublic && m_viaPublic->v_host);
     }
   }
 
+  /**
+   * routing scores:
+   * - if destination is ipV6 and we are ipV6: 1
+   * - if destination is localhost and we are loopback: 1
+   * - if we have a subnet specifier and destination is in our subnet: 1
+   * - if the destination is a dns name and our subnet is 0.0.0.0/0 and we have an external ip: 1
+   * - if the destination is a dns name and our subnet is 0.0.0.0/0 and we dont have an external ip: 0
+   * - if the destination is a dns name and we have a subnet: -1
+   * - if the destination is localhost and we are not loopback: -1
+  */
   int SipTransport::routingAbilityScore(const char* szAddress) {
-    if (isIpV6() && NULL != strstr( szAddress, "[") && NULL != strstr( szAddress, "]")) return 64;
-    int len = m_network_v4.prefix_length();
-    if (0 == len) return -99; // never select
+    const auto hosts = m_network_v4.hosts();
+
+    // take care of IPV6 first
+    if (isIpV6() && NULL != strstr( szAddress, "[") && NULL != strstr( szAddress, "]")) return SHOULD_WORK;
+
+    // shouldn't happen but just in case
+    if (hosts.begin() == hosts.end()) return WONT_WORK;
+    auto first = *hosts.begin();
+
+    // loopback?
+    if (first.is_loopback()) {
+      return (0 == strcmp(szAddress, "localhost") || 0 == strcmp(szAddress, "127.0.0.1")) ? SHOULD_WORK : WONT_WORK;
+    }    
 
     boost::system::error_code ec;
-    const auto hosts = m_network_v4.hosts();
-    const auto address = boost::asio::ip::make_address_v4(0 == strcmp(szAddress, "localhost") ? "127.0.0.1" : szAddress, ec);
+    const auto address = boost::asio::ip::make_address_v4(szAddress, ec);
     if (ec) {
-      if (ec.value() == boost::system::errc::invalid_argument) {
-        // szAddress is a dns name, not a dot decimal
-        if (hasExternalIp()) return 1;  // assuming here the dns name may be on the internet
-        auto first = *hosts.begin();
-        return first.is_loopback() ? -1 : 0;
-      }
-      return 0;
+      // dns name
+      return hasExternalIp() ? SHOULD_WORK : MIGHT_WORK; 
     }
-    return hosts.find(address) != hosts.end() ? len : (-len);
+
+    // in our subnet?
+    if (0 != m_strLocalNet.compare("0.0.0.0/0")) {
+      return hosts.find(address) != hosts.end() ? SHOULD_WORK : WONT_WORK;
+    }
+
+    // we are 0.0.0.0/0 without an external IP
+    return MIGHT_WORK;
   }
 
   bool SipTransport::shouldAdvertisePublic( const char* address ) const {
