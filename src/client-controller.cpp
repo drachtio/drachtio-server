@@ -409,8 +409,9 @@ namespace drachtio {
                         m_mapDialogs.size() << " dialogs and " << m_mapAppTransactions.size() << " app transactions"  ;
                 }
                 else {
-                   DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << " not found"  ;
-                    assert(false) ;                           
+                   DR_LOG(log_error) << "ClientController::addDialogForTransaction - transaction id " << transactionId << 
+                    " not found; possible race condition where BYE received during INVITE transaction"  ;
+                   return;
                 }
             }
         }
