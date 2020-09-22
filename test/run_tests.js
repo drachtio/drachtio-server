@@ -2,7 +2,7 @@ const test = require('tape');
 const execCmd = require('./utils/exec');
 const delay = require('./utils/delay');
 const {start, stop } = require('./testbed');
-const logger = require('pino')({level: 'info'});
+const logger = require('pino')({level: 'debug'});
 let configFile, drachtio;
 const manageServer = !process.env.NOSERVER;
 
