@@ -1,0 +1,148 @@
+[
+  {
+    "server": {
+      "config": "drachtio.conf.xml",
+      "args": ["--memory-debug"],
+      "env": {
+        "DRACHTIO_SECRET": "foobar"
+      }
+    },
+    "script": {
+      "name": "uac",
+      "connectArgs": {
+        "host": "127.0.0.1",
+        "port": 9022,
+        "secret": "foobar"
+      }
+    },
+    "message": "config: env vars used to specify connection params"
+  },
+  {
+    "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
+    "script": {
+      "name": "uac",
+      "function": "options",
+      "args": "sip:192.168.100.53;transport=tcp",
+      "error": "requested protocol/transport not available"
+    },
+    "message": "uac: fails when requested protocol not available"
+  },
+  {
+    "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uac", "function": "options", "args": "sip:127.0.0.1:5091"},
+    "uas": {"name": "uas-options-delay.xml", "port": 5091},
+    "message": "uac: handled delayed OPTIONS response"
+  },
+  {
+    "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uac", "function": "invite", "args": "sip:127.0.0.1:5092"},
+    "uas": {"name": "uas-invite-delay.xml", "port": 5092},
+    "message": "uac: handled delayed INVITE response"
+  },
+  {
+    "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uac", "function": "invite", "args": "sip:127.0.0.1:5092"},
+    "uas": {"name": "uas-invite-delay.xml", "port": 5092},
+    "message": "uac: handled delayed INVITE response"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
+    "uas": {"name": "uas-success.xml", "port": 5094},
+    "uac": {"name": "uac-utf8.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: handles utf8 chars in Contact"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
+    "uas": {"name": "uas-183-180-200.xml", "port": 5095},
+    "uac": {"name": "uac.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: multiple provisional responses"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
+    "uas": {"name": "uas-cancel.xml", "port": 5095},
+    "uac": {"name": "uac-cancel.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: cancels B when receive cancel from A"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "reject", "args": 480},
+    "uac": {"name": "uac-no-ack.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: timerH",
+    "timeout": 60000
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
+    "uas": {"name": "uas-ackbye.xml", "port": 5095},
+    "uac": {"name": "uac-cancel.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: ACK-BYE to B when A CANCELS in race condition as we send 200 OK",
+    "timeout": 60000
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "proxy"},
+    "uas": {"name": "uas-fail-486.xml", "port": 5095},
+    "uac": {"name": "uac-expect-486.xml", "target": "127.0.0.1:5090"},
+    "message": "proxy: proxy failure"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "proxy"},
+    "uas": {"name": "uas-success.xml", "port": 5095},
+    "uac": {"name": "uac.xml", "target": "127.0.0.1:5090"},
+    "message": "proxy: proxy success"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "proxy"},
+    "uas": {"name": "uas-success.xml", "port": 5095},
+    "uac": {"name": "uac-preloaded-route.xml", "target": "127.0.0.1:5090"},
+    "message": "proxy: remove preloaded Route header"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "proxy", "args": "sip:127.0.0.1:5095;transport=tcp"},
+    "uas": {"name": "uas-success.xml", "port": 5095, "transport": "tcp"},
+    "uac": {"name": "uac.xml", "target": "127.0.0.1:5090", "transport": "tcp"},
+    "message": "proxy: use tcp when specified"
+  },
+  {
+    "server": {"config": "drachtio.conf5.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "proxy", "args": "sip:127.0.0.1:5095"},
+    "uas": {"name": "uas-success.xml", "port": 5095, "transport": "tcp"},
+    "uac": {"name": "uac.xml", "target": "127.0.0.1:5090", "transport": "tcp"},
+    "message": "proxy: use tcp when the server has no udp"
+  },
+  {
+    "server": {"config": "drachtio.conf6.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "proxy", "args": "sip:127.0.0.1:5095;transport=udp"},
+    "uac": {"name": "uac-expect-500.xml", "target": "127.0.0.1:5090", "transport": "tcp"},
+    "message": "proxy: return 500 if call cannot be proxied due to lack of appropriate tport"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "handleReinviteScenario"},
+    "uac": {"name": "uac-send-reinvite-no-sdp.xml", "target": "127.0.0.1:5090"},
+    "message": "reinvite: null sdp"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "handleSessionExpired"},
+    "uac": {"name": "uac-session-expires.xml", "target": "127.0.0.1:5090"},
+    "message": "reinvite: tear down session if UAC does not refresh as agreed",
+    "timeout": 100000
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "uac": {"name": "uac-expect-503.xml", "target": "127.0.0.1:5090"},
+    "message": "connection tests: send 503 when no apps connected"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "uac": {"name": "uac-spammer-expect-603.xml", "target": "127.0.0.1:5090"},
+    "message": "connection tests: send 603 spammer detected"
+  }
+]

@@ -88,7 +88,7 @@ test('retransmit OPTIONS', (t) => {
     .then((req) => {
       return new Promise((resolve) => {
         req.on('response', () => resolve());
-      })
+      });
     })
     .then(() => {
       t.pass('successfully handled delayed response');

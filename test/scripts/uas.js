@@ -5,6 +5,7 @@ const config = require('./config');
 const debug = require('debug')('drachtio:server-test');
 const fs = require('fs');
 const assert = require('assert');
+const { RSA_NO_PADDING } = require('constants');
 
 class App extends Emitter {
   constructor(tags) {
@@ -84,7 +85,30 @@ class App extends Emitter {
           uas.on('destroy', () => end(this.srf, uac));
         })
         .catch((err) => {
-          if (487 !== err.status) console.error(`Uas: failed to connect: ${err}`);
+          if (487 !== err.status) console.log(`Uas: failed to connect: ${err}`);
+        });
+    });
+  }
+
+  b2bdisconnect(dest) {
+    this.srf.invite((req, res) => {
+      function end(srf, dlg) {
+        dlg.destroy();
+        srf.endSession(req);
+      }
+      this.srf.createB2BUA(req, res, dest, {}, {
+        cbRequest: () => {
+          // deliberately drop the connection here
+          this.srf.disconnect();
+        }
+      })
+        .then(({uas, uac}) => {
+          this.emit('connected');
+          uac.on('destroy', () => end(this.srf, uas));
+          uas.on('destroy', () => end(this.srf, uac));
+        })
+        .catch((err) => {
+          if (487 !== err.status) console.log(`Uas: failed to connect: ${err}`);
         });
     });
   }
@@ -201,6 +225,7 @@ class App extends Emitter {
         this.srf.createUAS(req, res, opts)
           .then((uas) => {
             this.emit('connected', uas);
+            
             uas.on('modify', (req, res) => {
               debug('re-invite received');
               res.send(200, {
@@ -219,6 +244,27 @@ class App extends Emitter {
             console.error(`Uas: failed to connect: ${err}`);
             this.emit('error', err);
           });
+      });
+    });
+  }
+
+  handleReinviteByeRace(dest) {
+    return new Promise((resolve) => {
+      this.srf.invite(async(req, res) => {
+        function end(srf, dlg) {
+          dlg.destroy();
+          //srf.endSession(req);
+        }
+
+        const {uas, uac} = await this.srf.createB2BUA(req, res, dest);
+        [uas, uac].forEach((dlg) => dlg.on('destroy', () => end(this.srf, dlg.other), 300));
+
+        uas.on('modify', (req, res) => {
+          setTimeout(async() => {
+            const sdp = await uac.modify(req.body);
+            res.send(200, {body: sdp});
+          }, 100);
+        });
       });
     });
   }

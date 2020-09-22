@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node ./index.js | ./node_modules/.bin/tap-spec"
+    "test": "node ./index.js | ./node_modules/.bin/tap-spec && node ./connection_tests.js | ./node_modules/.bin/tap-spec"
   },
   "author": "Dave Horton",
   "license": "MIT",
@@ -13,11 +13,12 @@
     "blue-tape": "^1.0.0",
     "body-parser": "^1.18.3",
     "debug": "^3.1.0",
-    "drachtio-srf": "^4.4.24",
+    "drachtio-srf": "^4.4.38",
     "express": "4.16.3",
     "minimist": "^1.2.0",
+    "pino": "^6.6.1",
     "tap-dot": "^1.0.5",
     "tap-spec": "^5.0.0",
-    "tape": "^4.9.1"
+    "tape": "^4.13.3"
   }
 }
