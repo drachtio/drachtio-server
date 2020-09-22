@@ -41,14 +41,14 @@ function runFixture(f) {
             logger.debug('starting new server');
             configFile = f.server.config;
             const obj = f.server;
-  
+
             if (drachtio) {
               logger.debug('stopping drachtio server');
               await stop();
             }
             logger.debug({obj}, 'starting new drachtio server');
             drachtio = await start(obj.config, obj.args, obj.tls || false, obj.waitDelay || 1000, obj.env || {});
-          }  
+          }
         }
 
         /**
@@ -66,6 +66,7 @@ function runFixture(f) {
           if (f.uas.transport === 'tcp') cmd += ' -t t1';
           logger.debug(`starting UAS scenario: ${cmd}`);
           uasPromise = execCmd(cmd, {cwd: './scenarios'});
+          await delay(1000);
         }
         if (f.script) {
           logger.debug({script: f.script}, 'starting node.js script');
@@ -75,6 +76,7 @@ function runFixture(f) {
           if (f.script.function) {
             const args = f.script.args || (f.uas ? `127.0.0.1:${f.uas.port}` : undefined);
             scriptPromise = script[f.script.function](args);
+            await delay(750);
           }
         }
         if (f.uac) {
