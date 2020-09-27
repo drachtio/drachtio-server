@@ -1880,10 +1880,12 @@ namespace drachtio {
                     " alive " << secsSinceReceived << " secs";
                }
            } while (irq) ;
+           /*
            std::for_each(aged.begin(), aged.end(), [](nta_incoming_t* irq) {
                DR_LOG(log_info) << "        destroying very old nta_incoming_t*: " <<  std::hex << (void *) irq ;
                nta_incoming_destroy(irq);
            });
+           */
        }
        DR_LOG(log_info) << "number of client-side transactions in the hash table             " << orq_used  ;
        if (bDetail && orq_used > 0) {
