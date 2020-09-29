@@ -39,6 +39,7 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 #include "client.hpp"
+#include "dns-resolver.hpp"
 
 using namespace std ;
 
@@ -92,12 +93,17 @@ namespace drachtio {
     void selectClientForTag(const string& transactionId, const string& tag);
 
     bool sendRequestInsideDialog( client_ptr client, const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) ;
-    bool sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId, string& routeUrl ) ;
+    bool sendRequestOutsideDialog( client_ptr client, const string& clientMsgId, const string& startLine, const string& headers, const string& body, 
+      string& transactionId, string& dialogId, string& routeUrl ) ;
     bool respondToSipRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;      
     bool sendCancelRequest( client_ptr client, const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
     bool proxyRequest( client_ptr client, const string& clientMsgId, const string& transactionId, bool recordRoute, bool fullResponse,
       bool followRedirects, bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, 
       const vector<string>& vecDestination, const string& headers ) ;
+
+    // forward the client request to send a new SIP request once DNS resolution has been performed on the remote uri 
+    void finalSendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, 
+      string& transactionId, string& dialogId, string& routeUrl ) ;
 
     //this sends the client a response to the request it made to send a sip message
     bool route_api_response( const string& clientMsgId, const string& responseText, const string& additionalResponseData ) ;
@@ -180,6 +186,8 @@ namespace drachtio {
 
     typedef std::unordered_map<string,string> mapDialogId2Appname ;
     mapDialogId2Appname m_mapDialogId2Appname ;
+
+    std::shared_ptr<DnsResolver> m_pDnsResolver;
       
   } ;
 

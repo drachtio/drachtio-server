@@ -42,6 +42,12 @@ namespace {
       MIGHT_WORK = 0,
       SHOULD_WORK = 1
     };
+
+    bool startsWith(const char *pre, const char *str) {
+      size_t lenpre = strlen(pre),
+            lenstr = strlen(str);
+      return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
+    }
 }
 
 namespace drachtio {
@@ -64,6 +70,10 @@ namespace drachtio {
   }
 
   SipTransport::~SipTransport() {
+  }
+
+  bool SipTransport::isLoopback(void) {
+    return startsWith("127.", m_strLocalNet.c_str());
   }
 
   void SipTransport::init() {
@@ -152,8 +162,12 @@ namespace drachtio {
 
     // in our subnet?
     if (0 != m_strLocalNet.compare("0.0.0.0/0")) {
-      return hosts.find(address) != hosts.end() ? SHOULD_WORK : WONT_WORK;
+      return hosts.find(address) != hosts.end() ?
+      SHOULD_WORK :
+      (this->isLoopback() ? WONT_WORK : MIGHT_WORK);
     }
+
+    if (isLoopback()) return WONT_WORK;
 
     // we are 0.0.0.0/0 without an external IP
     return MIGHT_WORK;
@@ -485,28 +499,33 @@ namespace drachtio {
         p->setTportName(tpn) ;
         m_mapTport2SipTransport.insert(mapTport2SipTransport::value_type(tp, p)) ;
 
-        if (tpn->tpn_host && 0 == strcmp(tpn->tpn_host, "127.0.0.1")) {
-          p->setLocalNet("127.0.0.1/32");
-        }
-        else if(/*!p->hasExternalIp() && */tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "192.168.", 8)) {
-          std::string s = tpn->tpn_host;
-          s += "/16";
-          p->setLocalNet(s.c_str());
-        }
-        else if(/*!p->hasExternalIp() && */tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "172.", 4) && strlen(tpn->tpn_host) > 7) {
-          char octet[3];
-          strncpy(octet, tpn->tpn_host + 4, 2);
-          int v = ::atoi(octet);
-          if (v >= 16 && v <= 31) {
+        if (!p->hasLocalNet()) {
+          if (tpn->tpn_host && 0 == strcmp(tpn->tpn_host, "127.0.0.1")) {
+            p->setLocalNet("127.0.0.1/32");
+          }
+          if (tpn->tpn_host && startsWith("127.94", tpn->tpn_host)) {
+            p->setLocalNet("127.94.0.0/16");
+          }
+          else if(tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "192.168.", 8)) {
             std::string s = tpn->tpn_host;
-            s += "/12";
+            s += "/16";
             p->setLocalNet(s.c_str());
           }
-        }
-        else if(/*!p->hasExternalIp() && */tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "10.", 3)) {
-          std::string s = tpn->tpn_host;
-          s += "/8";
-          p->setLocalNet(s.c_str());
+          else if(tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "172.", 4) && strlen(tpn->tpn_host) > 7) {
+            char octet[3];
+            strncpy(octet, tpn->tpn_host + 4, 2);
+            int v = ::atoi(octet);
+            if (v >= 16 && v <= 31) {
+              std::string s = tpn->tpn_host;
+              s += "/12";
+              p->setLocalNet(s.c_str());
+            }
+          }
+          else if(tpn->tpn_host && 0 == strncmp(tpn->tpn_host, "10.", 3)) {
+            std::string s = tpn->tpn_host;
+            s += "/8";
+            p->setLocalNet(s.c_str());
+          }
         }
       }
     }

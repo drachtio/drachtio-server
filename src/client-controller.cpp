@@ -92,6 +92,9 @@ namespace drachtio {
 
     void ClientController::start() {
         DR_LOG(log_debug) << "Client controller thread id: " << std::this_thread::get_id()  ;
+        m_pDnsResolver = std::make_shared<DnsResolver>(shared_from_this());
+        m_pDnsResolver->start();
+
         srand (time(NULL));    
         std::thread t(&ClientController::threadFunc, this) ;
         m_thread.swap( t ) ;
@@ -454,9 +457,18 @@ namespace drachtio {
         }
 
         addApiRequest( client, clientMsgId )  ;
-        bool rc = m_pController->getDialogController()->sendRequestOutsideDialog( clientMsgId, startLine, headers, body, transactionId, dialogId, routeUrl) ;
-        return rc ;        
+
+        if (!m_pDnsResolver->resolve(clientMsgId, startLine, headers, body, transactionId, dialogId, routeUrl)) {
+            return m_pController->getDialogController()->sendRequestOutsideDialog( 
+                clientMsgId, startLine, headers, body, transactionId, dialogId, routeUrl);
+        }
+        return true;
     }
+    void ClientController::finalSendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, 
+      string& transactionId, string& dialogId, string& routeUrl ) {
+        m_pController->getDialogController()->sendRequestOutsideDialog( clientMsgId, startLine, headers, body, transactionId, dialogId, routeUrl) ;
+    }
+
     bool ClientController::respondToSipRequest( client_ptr client, const string& clientMsgId, const string& transactionId, const string& startLine, const string& headers, 
         const string& body ) {
 

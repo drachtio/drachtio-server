@@ -65,7 +65,12 @@ namespace drachtio {
     bool isIpV6(void) const ;
     bool isLocalhost(void) const ;
     bool isLocal(const char* szHost) const ;
-    void setLocalNet(const char* szLocalNet) { m_network_v4 = boost::asio::ip::make_network_v4(szLocalNet); } 
+    bool hasLocalNet(void) { return !m_strLocalNet.empty() && 0 != m_strLocalNet.compare("0.0.0.0/0"); }
+    void setLocalNet(const char* szLocalNet) { 
+      m_strLocalNet = szLocalNet;
+      m_network_v4 = boost::asio::ip::make_network_v4(szLocalNet);
+    } 
+    bool isLoopback(void);
 
     void getDescription(string& s, bool shortVersion = true) ;
     bool getHostport(string& s, bool external = true ) ;
