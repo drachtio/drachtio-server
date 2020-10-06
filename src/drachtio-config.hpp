@@ -87,6 +87,8 @@ namespace drachtio {
 
         unsigned int getTcpKeepalive() const;
 
+        bool getMinTlsVersion(float& minTlsVersion) const;
+
         void Log() const ;
         
     private:

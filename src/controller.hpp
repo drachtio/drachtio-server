@@ -261,6 +261,8 @@ namespace drachtio {
     unsigned int m_tcpKeepaliveSecs;
 
     bool m_bDumpMemory;
+
+    float m_minTlsVersion;
   } ;
 
 } ;

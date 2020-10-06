@@ -263,7 +263,8 @@ namespace drachtio {
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
-        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false) {
+        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
+        m_minTlsVersion(0) {
 
         getEnv();
 
@@ -393,6 +394,7 @@ namespace drachtio {
                 {"prometheus-scrape-port", required_argument, 0, 'J'},
                 {"memory-debug", no_argument, 0, 'K'},
                 {"tcp-keepalive-interval", required_argument, 0, 'L'},
+                {"min-tls-version", required_argument, 0, 'M'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -587,6 +589,10 @@ namespace drachtio {
                     m_tcpKeepaliveSecs = ::atoi(optarg);
                     break;
 
+                case 'M':
+                    m_minTlsVersion = ::atof(optarg);
+                    break;
+
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -658,6 +664,7 @@ namespace drachtio {
         cerr << "    --external-ip                  External IP address to use in SIP messaging" << endl ;
         cerr << "    --stdout                       Log to standard output as well as any configured log destinations" << endl ;
         cerr << "    --tcp-keepalive-interval       tcp keepalive in seconds (0=no keepalive)" << endl ;
+        cerr << "    --min-tls-version              minimum allowed TLS version for connecting clients (default: 1.0)" << endl ;
         cerr << "-v  --version                      Print version and exit" << endl ;
     }
     void DrachtioController::getEnv(void) {
@@ -721,6 +728,11 @@ namespace drachtio {
             else {
                 m_nPrometheusPort = boost::lexical_cast<uint32_t>(p); 
             }            
+        }
+        p = std::getenv("DRACHTIO_MIN_TLS_VERSION");
+        if (p) {
+            float min = ::atof(p);
+            if (min >= 1.0 && min <= 1.3) m_minTlsVersion = min;
         }
     }
 
@@ -941,12 +953,23 @@ namespace drachtio {
 
         // tls files
         string tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ;
+        int tlsVersionTagValue = TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2;
         bool hasTlsFiles = m_Config->getTlsFiles( tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ) ;
         if (!m_tlsKeyFile.empty()) tlsKeyFile = m_tlsKeyFile;
         if (!m_tlsCertFile.empty()) tlsCertFile = m_tlsCertFile;
         if (!m_tlsChainFile.empty()) tlsChainFile = m_tlsChainFile;
         if (!m_dhParam.empty()) dhParam = m_dhParam;
         if (!hasTlsFiles && !tlsKeyFile.empty() && !tlsCertFile.empty()) hasTlsFiles = true;
+        if (m_minTlsVersion >= 1.0 || (m_Config->getMinTlsVersion(m_minTlsVersion) && m_minTlsVersion > 1.0)) {
+            if (m_minTlsVersion >= 1.2) {
+                DR_LOG(log_notice) << "DrachtioController::run: minTls version 1.2";
+                tlsVersionTagValue = TPTLS_VERSION_TLSv1_2;
+            }
+            else if (m_minTlsVersion >= 1.1) {
+                DR_LOG(log_notice) << "DrachtioController::run: minTls version 1.1" ;
+                tlsVersionTagValue = TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2;
+            }
+        }
 
         if (hasTlsFiles) {
             DR_LOG(log_notice) << "DrachtioController::run tls key file:         " << tlsKeyFile;
@@ -1087,7 +1110,7 @@ namespace drachtio {
          TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
          TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
          TAG_IF( tlsTransport &&hasTlsFiles, 
-            TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+            TPTAG_TLS_VERSION( tlsVersionTagValue )),
          NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
          NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
          TAG_NULL(),
@@ -1122,7 +1145,7 @@ namespace drachtio {
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles && !tlsChainFile.empty(), TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                  TAG_IF( tlsTransport &&hasTlsFiles, 
-                    TPTAG_TLS_VERSION( TPTLS_VERSION_TLSv1 | TPTLS_VERSION_TLSv1_1 | TPTLS_VERSION_TLSv1_2 )),
+                    TPTAG_TLS_VERSION( tlsVersionTagValue )),
                  TAG_NULL(),
                  TAG_END() ) ;
 

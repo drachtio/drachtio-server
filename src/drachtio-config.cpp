@@ -42,7 +42,7 @@ namespace drachtio {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
         m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false), 
-        m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45) {
+        m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45), m_minTlsVersion(0) {
 
             // default timers
             m_nTimerT1 = 500 ;
@@ -139,6 +139,7 @@ namespace drachtio {
                 } catch( boost::property_tree::ptree_bad_path& e) {
                 }
 
+                m_minTlsVersion = pt.get<float>("drachtio.sip.tls.min-tls-version", 0);
                 m_tlsKeyFile = pt.get<string>("drachtio.sip.tls.key-file", "") ;
                 m_tlsCertFile = pt.get<string>("drachtio.sip.tls.cert-file", "") ;
                 m_tlsChainFile = pt.get<string>("drachtio.sip.tls.chain-file", "") ;
@@ -399,6 +400,15 @@ namespace drachtio {
             return m_tcpKeepalive;
         }
 
+        bool getMinTlsVersion(float& minTlsVersion) {
+            if (m_minTlsVersion > 0) {
+                minTlsVersion = m_minTlsVersion;
+                return true;
+            }
+            return false;
+        }
+
+
  
     private:
         
@@ -455,6 +465,7 @@ namespace drachtio {
         string m_prometheusAddress;
         unsigned int m_prometheusPort;
         unsigned int m_tcpKeepalive;
+        float m_minTlsVersion;
   } ;
     
     /*
@@ -543,6 +554,10 @@ namespace drachtio {
   
     unsigned int DrachtioConfig::getTcpKeepalive() const {
         return m_pimpl->getTcpKeepalive();
+    }
+        
+    bool DrachtioConfig::getMinTlsVersion(float& minTlsVersion) const {
+        return m_pimpl->getMinTlsVersion(minTlsVersion);
     }
 
 }
