@@ -10,16 +10,6 @@
 # History:
 # --------
 #  2020-10.06 create first debian package 
-SVN_REVISION:=$(shell cat debian/.revision 2> /dev/null)
-DEB_VERSION:=$(shell head -n 1 debian/changelog | sed -e 's/^[^(]*(\([^)]*\)).*/\1/')
-UPSTREAM_VERSION:=$(shell echo "${DEB_VERSION}" | cut -d'-' -f 1)
-MAINT_VERSION:=$(shell echo "${DEB_VERSION}" | cut -d'-' -f 2)
-DRACHTIO_VERSION_BASE:=${UPSTREAM_VERSION}
-DRACHTIO_VERSION_MAINT:=$(shell echo "${MAINT_VERSION}" | sed -e 's/^\(P[0-9]\+\(+[0-9]\+\)\?\)~vox/\1/' -e 's/+/\#/' -e 's/~trunk/ trunk/' -e 's/~branch~\([^~]\+\)/ branch \1/' -e "s/\(.*\)/\1 (svn:${SVN_REVISION})/")
-DRACHTIO_VERSION:=${DRACHTIO_VERSION_BASE} -- ${DRACHTIO_VERSION_MAINT}
-VOXBONE_REV:=${DRACHTIO_VERSION}
-
-
 
 # Uncomment this to turn on verbose mode.
 export DH_VERBOSE = 1
@@ -68,7 +58,6 @@ build-stamp: configure-stamp
 	USE_SPANDSP=yes LONG_DEBUG_MESSAGE=yes CPPFLAGS="$(CPPFLAGS)"; \
 	mkdir build; \
        	cd build; \
-	echo -n "$(DRACHTIO_VERSION)" > .version; \
 	../configure --prefix=/usr CPPFLAGS='-DNDEBUG';  \
 	$(MAKE) 
 	
