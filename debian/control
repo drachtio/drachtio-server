@@ -17,7 +17,8 @@ Homepage: https://github.com/tsearle/drachtio-server.git
 
 Package: drachtio-server
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         adduser
 Description: Drachtio SIP Server and media server 
  drachtio, SIP ans media server.
  
