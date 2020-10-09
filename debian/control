@@ -1,5 +1,5 @@
 Source: drachtio-server
-Section: unknown
+Section: net
 Priority: optional
 Maintainer: rnd <rnd@voxbone.com>
 Build-Depends: debhelper (>= 9.20160709~) || dh-systemd,
