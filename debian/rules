@@ -112,7 +112,9 @@ binary-common:
 	dh_testdir
 	dh_testroot
 	dh_installdebconf
-	dh_installinit  -r --no-start
+	dh_systemd_enable
+	dh_installinit -a --name=drachtio
+	dh_systemd_start --no-start --name=drachtio
 	dh_lintian
 	dh_installinfo
 	dh_link
