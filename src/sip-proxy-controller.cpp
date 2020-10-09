@@ -1392,7 +1392,10 @@ namespace drachtio {
             }
 
             std::shared_ptr<SipTransport> p = SipTransport::findAppropriateTransport(buffer);
-            assert(p) ;
+            if (!p) {
+                DR_LOG(log_error) << "SipProxyController::processRequestWithRouteHeader no transport found for next hop " << buffer ;
+                return false;
+            }
 
             tp = p->getTport();
             forceTport = true ;
