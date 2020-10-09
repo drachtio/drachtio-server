@@ -20,7 +20,7 @@ set -e
 
 case "$1" in
     configure)
-	    adduser --system drachtio --group
+	    adduser --system drachtio --group --no-create-home
 	    chown -R drachtio:drachtio /var/log/drachtio
     ;;
 
