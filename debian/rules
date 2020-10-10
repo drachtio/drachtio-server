@@ -111,6 +111,8 @@ install: build
 binary-common: 
 	dh_testdir
 	dh_testroot
+	dh_installchangelogs ChangeLog
+	dh_installdocs
 	dh_installdebconf
 	dh_systemd_enable
 	dh_installinit -a --name=drachtio
