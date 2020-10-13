@@ -56,7 +56,7 @@ obj.start = (confPath, extraArgs, tls = false, waitDelay = 500, env = {}) => {
 };
 
 obj.stop = () => {
-  assert(drachtio);
+  if (!process.env.NOSERVER) assert(drachtio);
   assert(router);
 
   return new Promise((resolve, reject) => {

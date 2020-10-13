@@ -257,6 +257,9 @@ namespace drachtio {
                     }
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
                     IIP_Clear(m_invitesInProgress, leg);  
+
+                    DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog (ack) - created orq " << std::hex << (void *) orq;
+
                 }
             }
             else if( sip_method_prack == method ) {
@@ -268,6 +271,8 @@ namespace drachtio {
                     //NULL, 
                     routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                     NULL, TAG_NEXT(tags) ) ;
+                DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog (prack) - created orq " << std::hex << (void *) orq;
+
             }
             else {
                 string contact ;
@@ -296,7 +301,7 @@ namespace drachtio {
                     ,TAG_NEXT(tags) ) ;
 
                 if( orq ) {
-                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+                    DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
                 }
             }
 
@@ -559,6 +564,9 @@ namespace drachtio {
 
             msg_t* m = nta_outgoing_getrequest(orq) ; //adds a reference
             sip_t* sip = sip_object( m ) ;
+
+            DR_LOG(log_info) << "SipDialogController::doSendRequestOutsideDialog - created orq " << std::hex << (void *) orq  <<
+                " call-id " << sip->sip_call_id->i_id;
 
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", sip->sip_request->rq_method_name}})
 
@@ -1172,12 +1180,11 @@ namespace drachtio {
                             TimerEventHandle t = m_pTQM->addTimer("timerG",
                                 std::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
                             dlg->setTimerG(t) ;
-
-                            // set timer H, which sets the time to stop these retransmissions
-                            t = m_pTQM->addTimer("timerH",
-                                std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
-                            dlg->setTimerH(t) ;
                         }
+                        // set timer H, which sets the time to stop these retransmissions
+                        TimerEventHandle t = m_pTQM->addTimer("timerH",
+                            std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
+                        dlg->setTimerH(t) ;
                     }
 
                     // stats
@@ -1348,6 +1355,9 @@ namespace drachtio {
                 msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
                 sip_t* sip = sip_object( m ) ;
 
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - (cancel) created orq " << std::hex << (void *) orq  <<
+                    " call-id " << sip->sip_call_id->i_id;
+
                 string encodedMessage ;
                 EncodeStackMessage( sip, encodedMessage ) ;
                 SipMsgData_t meta(m, orq) ;
@@ -1359,7 +1369,6 @@ namespace drachtio {
 
                 nta_outgoing_destroy(orq) ;
                 SD_Clear(m_dialogs, leg ) ;
-
 
             }
             default:
@@ -1678,6 +1687,8 @@ namespace drachtio {
             std::shared_ptr<RIP> p = std::make_shared<RIP>( transactionId ) ; 
             addRIP( orq, p ) ;
 
+            DR_LOG(log_info) << "SipDialogController::notifyRefreshDialog - created orq " << std::hex << (void *) orq;
+
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "INVITE"}})
 
             //m_pClientController->route_event_inside_dialog( "{\"eventName\": \"refresh\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
@@ -1695,6 +1706,8 @@ namespace drachtio {
                                             TAG_END() ) ;
             msg_t* m = nta_outgoing_getrequest(orq) ;    // adds a reference
             sip_t* sip = sip_object( m ) ;
+
+            DR_LOG(log_info) << "SipDialogController::notifyTerminateStaleDialog - created orq " << std::hex << (void *) orq;
 
             string byeTransactionId  = "unsolicited";
 
@@ -1810,6 +1823,9 @@ namespace drachtio {
 
         msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
         sip_t* sip = sip_object( m ) ;
+
+        DR_LOG(log_info) << "SipDialogController::endRetransmitFinalResponse - created orq " << std::hex << (void *) orq 
+            << " for BYE on leg " << (void *)leg;
 
         STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "BYE"}})
 
