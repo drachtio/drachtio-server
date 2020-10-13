@@ -902,40 +902,47 @@ namespace drachtio {
 
             msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
             sip_t *sip = sip_object( msg );
+            tagi_t* tags = nullptr;
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
             tport_t *tport = tport_parent( tp ) ;
 
             pSelectedTransport = SipTransport::findTransport( tport ) ;
-            assert(pSelectedTransport); 
-
-            pSelectedTransport->getContactUri(contact, true);
-            contact = "<" + contact + ">" ;
-
-            pSelectedTransport->getDescription(transportDesc);
-
-            tport_unref( tp ) ;
-    
-            //create tags for headers
-            tagi_t* tags = makeTags( headers, transportDesc ) ;
-
-            if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
-                if( 0 == body.find("v=0") ) {
-                    contentType = "application/sdp" ;
-                    DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - automatically detecting content-type as application/sdp"  ;
-                }
+            if (!pSelectedTransport) {
+                bSentOK = false;
+                failMsg = "Unable to find transport for transaction";
+                DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to find transport for response to "
+                    << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
             }
+            else {
+                pSelectedTransport->getContactUri(contact, true);
+                contact = "<" + contact + ">" ;
 
-            rc = nta_incoming_treply( irq, code, status
-                ,TAG_IF( (sip_method_invite == sip->sip_request->rq_method || sip->sip_request->rq_method == sip_method_subscribe) &&
-                    !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR(contact.c_str()) )
-                ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
-                ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
-                ,TAG_NEXT(tags)
-                ,TAG_END() ) ;
-            if( 0 != rc ) {
-                bSentOK = false ;
-                failMsg = "Unknown server error sending response" ;
+                pSelectedTransport->getDescription(transportDesc);
+
+                tport_unref( tp ) ;
+        
+                //create tags for headers
+                tags = makeTags( headers, transportDesc ) ;
+
+                if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
+                    if( 0 == body.find("v=0") ) {
+                        contentType = "application/sdp" ;
+                        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - automatically detecting content-type as application/sdp"  ;
+                    }
+                }
+
+                rc = nta_incoming_treply( irq, code, status
+                    ,TAG_IF( (sip_method_invite == sip->sip_request->rq_method || sip->sip_request->rq_method == sip_method_subscribe) &&
+                        !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR(contact.c_str()) )
+                    ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
+                    ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                    ,TAG_NEXT(tags)
+                    ,TAG_END() ) ;
+                if( 0 != rc ) {
+                    bSentOK = false ;
+                    failMsg = "Unknown server error sending response" ;
+                }
             }
 
             //  we need to cache source address / port / transport for successful REGISTER or SUBSCRIBE requests from webrtc clients so we can 
