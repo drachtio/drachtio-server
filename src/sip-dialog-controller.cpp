@@ -1896,6 +1896,7 @@ namespace drachtio {
     // when we get a 200 OK to an INVITE we sent, call this to prepare handling timerD
     void TimerDHandler::addInvite(nta_outgoing_t* invite) {
         string callIdAndCSeq = nta_outgoing_call_id(invite);
+        callIdAndCSeq.append(" ");
         callIdAndCSeq.append(boost::lexical_cast<std::string>(nta_outgoing_cseq(invite)));
         
         // should never see this twice
