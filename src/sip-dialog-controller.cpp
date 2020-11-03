@@ -171,19 +171,6 @@ namespace drachtio {
             tport_t* tp = dlg->getTport() ; 
             bool forceTport = NULL != tp ;  
 
-            //if user supplied all or part of the Contact in a REFER request use it
-            string contact ;
-            if( sip_method_refer == method && forceTport && searchForHeader( tags, siptag_contact_str, contact ) ) {
-                if( string::npos != contact.find("localhost") ) {
-            	    const tp_name_t* tpn = tport_name( tport_parent( tp ) );
-                    string host = tpn->tpn_host ;
-                    string port = tpn->tpn_port ;
-                    if( !replaceHostInUri( contact, host.c_str(), port.c_str() ) ) {
-                        throw std::runtime_error(string("invalid contact value provided by client: ") + contact ) ;
-                    }                    
-                }
-            } 
-
             nta_leg_t *leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
             if( !leg ) {
                 assert( leg ) ;
@@ -278,17 +265,8 @@ namespace drachtio {
                 string contact ;
                 bool addContact = false ;
                 if( (method == sip_method_invite || method == sip_method_subscribe || method == sip_method_refer) && !searchForHeader( tags, siptag_contact_str, contact ) ) {
-                    //TODO: should get this from dlg->m_tp I think....half the time the below is incorrect in that it refers to the remote end
-                    contact = "<" ;
-                    contact.append( ( 0 == dlg->getProtocol().compare("tls") ? "sips:" : "sip:") ) ;
-                    contact.append( dlg->getTransportAddress() ) ;
-                    contact.append( ":" ) ;
-                    contact.append( dlg->getTransportPort() ) ;
-                    contact.append( ";transport=" ) ;
-                    contact.append( dlg->getProtocol() ) ;
-                    contact.append(">") ;
+                    contact = dlg->getLocalContactHeader();
                     addContact = true ;
-
                 }
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
