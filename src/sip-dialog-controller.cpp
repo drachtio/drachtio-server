@@ -1915,6 +1915,7 @@ namespace drachtio {
         }
         else if (m_mapCallIdAndCSeq2Invite.size() > 0) {
             string callIdAndCSeq = nta_outgoing_call_id(invite);
+            callIdAndCSeq.append(" ");
             callIdAndCSeq.append(boost::lexical_cast<std::string>(nta_outgoing_cseq(invite)));
             if (m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq) != m_mapCallIdAndCSeq2Invite.end()) {
                 DR_LOG(log_error) << "TimerDHandler::resendIfNeeded - cannot retransmit ACK because app has not yet provided it " << nta_outgoing_call_id(invite);
