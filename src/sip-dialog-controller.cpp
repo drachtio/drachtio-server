@@ -40,6 +40,14 @@ namespace drachtio {
 #include "sip-transports.hpp"
 
 namespace {
+
+    std::string combineCallIdAndCSeq(nta_outgoing_t* orq) {
+        string callIdAndCSeq = nta_outgoing_call_id(orq);
+        callIdAndCSeq.append(" ");
+        callIdAndCSeq.append(boost::lexical_cast<std::string>(nta_outgoing_cseq(orq)));
+        return callIdAndCSeq;
+    }
+
     void cloneRespondToSipRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
@@ -1873,9 +1881,7 @@ namespace drachtio {
 
     // when we get a 200 OK to an INVITE we sent, call this to prepare handling timerD
     void TimerDHandler::addInvite(nta_outgoing_t* invite) {
-        string callIdAndCSeq = nta_outgoing_call_id(invite);
-        callIdAndCSeq.append(" ");
-        callIdAndCSeq.append(boost::lexical_cast<std::string>(nta_outgoing_cseq(invite)));
+        string callIdAndCSeq = combineCallIdAndCSeq(invite);
         
         // should never see this twice
         assert(m_mapCallIdAndCSeq2Invite.end() == m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq));
@@ -1892,8 +1898,7 @@ namespace drachtio {
 
     // ..then, when the app gives us the ACK to send out, call this to save for possible retransmits
     void TimerDHandler::addAck(nta_outgoing_t* ack) {
-        string callIdAndCSeq = nta_outgoing_call_id(ack);
-        callIdAndCSeq.append(boost::lexical_cast<std::string>(nta_outgoing_cseq(ack)));
+        string callIdAndCSeq = combineCallIdAndCSeq(ack);
 
         mapCallIdAndCSeq2Invite::const_iterator it = m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq);
         if (m_mapCallIdAndCSeq2Invite.end() != it) {
@@ -1914,9 +1919,7 @@ namespace drachtio {
             return true;
         }
         else if (m_mapCallIdAndCSeq2Invite.size() > 0) {
-            string callIdAndCSeq = nta_outgoing_call_id(invite);
-            callIdAndCSeq.append(" ");
-            callIdAndCSeq.append(boost::lexical_cast<std::string>(nta_outgoing_cseq(invite)));
+            string callIdAndCSeq = combineCallIdAndCSeq(invite);
             if (m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq) != m_mapCallIdAndCSeq2Invite.end()) {
                 DR_LOG(log_error) << "TimerDHandler::resendIfNeeded - cannot retransmit ACK because app has not yet provided it " << nta_outgoing_call_id(invite);
                 return true;
