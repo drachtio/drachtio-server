@@ -1146,53 +1146,54 @@ namespace drachtio {
                         ,TAG_NEXT(tags)
                         ,TAG_END() ) ; 
                     if( 0 != rc ) {
-                        DR_LOG(log_error) << "Error " << dec << rc << " sending response on irq " << hex << irq  ;
+                        DR_LOG(log_error) << "Error " << dec << rc << " sending response on irq " << hex << irq <<
+                            " - this is usually because the application provided a syntactically-invalid header";
                         bSentOK = false ;
                         failMsg = "Unknown server error sending response" ;
-                        assert(false) ;
                     }
+                    else {
+                        if( sip_method_subscribe == nta_incoming_method(irq) ) {
+                            bClearIIP = true ;
 
-                    if( sip_method_subscribe == nta_incoming_method(irq) ) {
-                        bClearIIP = true ;
-
-                        // add dialog for SUBSCRIBE dialogs
-                        if( 202 == code || 200 == code ) {
-                          DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
-                          this->addDialog( dlg ) ;
-                        }
-                    }
-
-                    // sofia handles retransmits for us for final failures, but not for success
-                    // TODO: figure out why this is
-                    if( sip_method_invite == nta_incoming_method(irq) && code == 200 ) {
-                        
-                        this->addDialog( dlg ) ;
-
-                        if (tport_is_dgram(tp)) {
-                            // set timer G to retransmit 200 OK if we don't get ack
-                            TimerEventHandle t = m_pTQM->addTimer("timerG",
-                                std::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
-                            dlg->setTimerG(t) ;
-                        }
-                        // set timer H, which sets the time to stop these retransmissions
-                        TimerEventHandle t = m_pTQM->addTimer("timerH",
-                            std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
-                        dlg->setTimerH(t) ;
-                    }
-
-                    // stats
-                    if (theOneAndOnlyController->getStatsCollector().enabled()) {
-    
-                        // response time to incoming INVITE request
-                        if (sip_method_invite == nta_incoming_method(irq) && code <= 200) {
-                            auto now = std::chrono::steady_clock::now();
-                            std::chrono::duration<double> diff = now - dlg->getArrivalTime();
-                            if (!dlg->hasAlerted()) {
-                                dlg->alerting();
-                                STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_PDD_IN, diff.count())
+                            // add dialog for SUBSCRIBE dialogs
+                            if( 202 == code || 200 == code ) {
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
+                            this->addDialog( dlg ) ;
                             }
-                            if (code == 200) {
-                                STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN, diff.count())
+                        }
+
+                        // sofia handles retransmits for us for final failures, but not for success
+                        // TODO: figure out why this is
+                        if( sip_method_invite == nta_incoming_method(irq) && code == 200 ) {
+                            
+                            this->addDialog( dlg ) ;
+
+                            if (tport_is_dgram(tp)) {
+                                // set timer G to retransmit 200 OK if we don't get ack
+                                TimerEventHandle t = m_pTQM->addTimer("timerG",
+                                    std::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
+                                dlg->setTimerG(t) ;
+                            }
+                            // set timer H, which sets the time to stop these retransmissions
+                            TimerEventHandle t = m_pTQM->addTimer("timerH",
+                                std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
+                            dlg->setTimerH(t) ;
+                        }
+
+                        // stats
+                        if (theOneAndOnlyController->getStatsCollector().enabled()) {
+        
+                            // response time to incoming INVITE request
+                            if (sip_method_invite == nta_incoming_method(irq) && code <= 200) {
+                                auto now = std::chrono::steady_clock::now();
+                                std::chrono::duration<double> diff = now - dlg->getArrivalTime();
+                                if (!dlg->hasAlerted()) {
+                                    dlg->alerting();
+                                    STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_PDD_IN, diff.count())
+                                }
+                                if (code == 200) {
+                                    STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN, diff.count())
+                                }
                             }
                         }
                     }
