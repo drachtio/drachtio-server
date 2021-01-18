@@ -13,7 +13,7 @@ jobs:
         with:
           submodules: recursive
       - name: install build dependencies
-        run: apt-get update && apt-get install -y libtool libtool-bin
+        run: sudo apt-get update && sudo apt-get install -y libtool libtool-bin
       - name: setup build
         run: ./autogen.sh && mkdir -p build && cd $_ && ../configure && make && cd ..
       - name: install nodejs 
@@ -23,12 +23,12 @@ jobs:
       - name: build sipp
         run: |
           pwd
-          chmod a+w /usr/local/src/
+          sudo chmod a+w /usr/local/src/
           cd /usr/local/src/
           git clone https://github.com/SIPp/sipp.git -b v3.5.1
           cd sipp
-          .build.sh --with-rtpstream --with-pcap
-          make install
+          ./build.sh --with-rtpstream --with-pcap
+          sudo make install
       - name: run ci tests
         run: cd test && npm test
 
