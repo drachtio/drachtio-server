@@ -13,7 +13,7 @@ jobs:
         with:
           submodules: recursive
       - name: install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libtool libtool-bin
+        run: sudo apt-get update && sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev
       - name: setup build
         run: ./autogen.sh && mkdir -p build && cd $_ && ../configure && make && cd ..
       - name: install nodejs 
