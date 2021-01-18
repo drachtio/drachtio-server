@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: setup build
+        run: ./autogen.sh && mkdir -p build && cd $_ && ../configure && make
+      - name: install nodejs 
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - name: run ci tests
+        run: cd test && npm test
+
+ 

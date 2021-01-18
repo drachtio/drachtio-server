@@ -151,6 +151,7 @@ namespace drachtio {
         string name ;
         string routeUri;
         bool destroyOrq = false;
+        tagi_t* tags = nullptr;
 
         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog dialog id: " << pData->getDialogId()  ;
 
@@ -174,7 +175,7 @@ namespace drachtio {
 
             string transport ;
             dlg->getTransportDesc(transport) ;
-            tagi_t* tags = makeTags( pData->getHeaders(), transport) ;
+            tags = makeTags( pData->getHeaders(), transport) ;
 
             tport_t* tp = dlg->getTport() ; 
             bool forceTport = NULL != tp ;  
@@ -340,7 +341,6 @@ namespace drachtio {
      
                 msg_destroy(m) ; //releases reference
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ; 
-                deleteTags( tags ) ;
             }
 
             if (sip_method_ack == method && dlg->getSipStatus() == 200 && dlg->isAckBye()) {
@@ -355,9 +355,8 @@ namespace drachtio {
 
         /* we must explicitly delete an object allocated with placement new */
         pData->~SipMessageData() ;
-
         if (orq && destroyOrq) nta_outgoing_destroy(orq);
-
+        deleteTags( tags ) ;
     }
 
 //send request outside dialog
@@ -394,6 +393,7 @@ namespace drachtio {
         std::shared_ptr<SipTransport> pSelectedTransport ;
         bool forceTport = false ;
         string host, port, proto, contact, desc ;
+        tagi_t* tags = nullptr;
 
         try {
             bool useOutboundProxy = false ;
@@ -464,7 +464,6 @@ namespace drachtio {
             }
             su_free( m_pController->getHome(), sip_request ) ;
 
-            tagi_t* tags; 
             if (pSelectedTransport && pSelectedTransport->hasExternalIp()) {
                 tags = makeTags( pData->getHeaders(), desc, pSelectedTransport->getExternalIp().c_str()) ;
             }
@@ -584,8 +583,6 @@ namespace drachtio {
             string data = s + "|" + pData->getTransactionId() + "|Msg sent:|" + DR_CRLF + encodedMessage ;
 
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;
-            deleteTags( tags ) ;
-
  
         } catch( std::runtime_error& err ) {
             DR_LOG(log_error) << "SipDialogController::doSendRequestOutsideDialog - " << err.what() ;
@@ -594,7 +591,9 @@ namespace drachtio {
         }                       
 
         //N.B.: we must explicitly call the destructor of an object allocated with placement new
-        pData->~SipMessageData() ; 
+        pData->~SipMessageData() ;
+
+        deleteTags(tags);
     }
 
     bool SipDialogController::sendCancelRequest( const string& clientMsgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) {
@@ -635,10 +634,11 @@ namespace drachtio {
     void SipDialogController::doSendCancelRequest( SipMessageData* pData ) {
         string transactionId( pData->getTransactionId() ) ;
         std::shared_ptr<IIP> iip ;
+        tagi_t* tags = nullptr;
 
         if (IIP_FindByTransactionId(m_invitesInProgress, transactionId, iip)) {
             iip->setCanceled();
-            tagi_t* tags = makeSafeTags( pData->getHeaders()) ;
+            tags = makeSafeTags( pData->getHeaders()) ;
             nta_outgoing_t *cancel = nta_outgoing_tcancel(const_cast<nta_outgoing_t *>(iip->orq()), NULL, NULL, TAG_NEXT(tags));
             if( NULL != cancel ) {
                 msg_t* m = nta_outgoing_getrequest(cancel) ;    // adds a reference
@@ -658,6 +658,7 @@ namespace drachtio {
                 //Note: not adding an RIP because the 200 OK to the CANCEL is not passed up to us
 
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "OK", data ) ;     
+                deleteTags(tags);
                 return ;           
             }
             else {
@@ -665,15 +666,14 @@ namespace drachtio {
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
                     string("internal server error canceling transaction id: ") + transactionId ) ; 
             }
-            if (tags) deleteTags(tags);
         }
         else {
             DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - unknown transaction id " << transactionId ;
             m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
                 string("unable to cancel unknown transaction id: ") + transactionId ) ; 
         }
-
         pData->~SipMessageData() ;
+        deleteTags(tags);
    }
 
     int SipDialogController::processResponseOutsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
@@ -693,13 +693,16 @@ namespace drachtio {
 
             //check for retransmission 
             if (sip->sip_cseq->cs_method == sip_method_invite && m_timerDHandler.resendIfNeeded(orq)) {
-                DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - retransmitted ACK for callid: " << sip->sip_call_id->i_id  ;
+                DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - retransmitted ACK for callid: " << sip->sip_call_id->i_id  <<
+                    " for invite with orq: " << std::hex << (void *) orq;
+                msg_destroy( msg ) ; 
                 return 0;
             }
 
             if (!IIP_FindByOrq(m_invitesInProgress, orq, iip)) {
                 DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - unable to match invite response with callid: " << sip->sip_call_id->i_id  ;
                 //TODO: do I need to destroy this transaction?
+                msg_destroy( msg ) ; 
                 return -1 ; //TODO: check meaning of return value           
             }      
             transactionId = iip->getTransactionId() ;   
@@ -842,6 +845,7 @@ namespace drachtio {
         bool bDestroyIrq = false ;
         bool bClearIIP = false ;
         bool existingDialog = false;
+        tagi_t* tags = nullptr;
 
         //decode status 
         sip_status_t* sip_status = sip_status_make( m_pController->getHome(), startLine.c_str() ) ;
@@ -888,7 +892,6 @@ namespace drachtio {
 
             msg_t* msg = nta_incoming_getrequest( irq ) ;   //adds a reference
             sip_t *sip = sip_object( msg );
-            tagi_t* tags = nullptr;
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
             tport_t *tport = tport_parent( tp ) ;
@@ -1002,9 +1005,6 @@ namespace drachtio {
 
             msg_destroy( msg ); //release the reference
 
-            /* we must explicitly delete an object allocated with placement new */
-            if( tags ) deleteTags( tags );
-
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
             bDestroyIrq = true ;                        
         }
@@ -1038,7 +1038,7 @@ namespace drachtio {
                 tport_unref( tp ) ;
         
                 //create tags for headers
-                tagi_t* tags = makeTags( headers, transportDesc ) ;
+                tags = makeTags( headers, transportDesc ) ;
                 string customContact ;
                 bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
                 if( hasCustomContact ) {
@@ -1202,9 +1202,6 @@ namespace drachtio {
                 msg_destroy( msg ); //release the reference
 
                 if (sessionExpires) su_free(m_pController->getHome(), sessionExpires);
-
-                /* we must explicitly delete an object allocated with placement new */
-                if( tags ) deleteTags( tags );
             }
         }
         else {
@@ -1280,6 +1277,8 @@ namespace drachtio {
         if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
 
         pData->~SipMessageData() ;
+
+        deleteTags( tags );
     }
 
     int SipDialogController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
@@ -1893,7 +1892,7 @@ namespace drachtio {
         // start timerD
         TimerEventHandle t = m_pTQM->addTimer("timerD", std::bind(&TimerDHandler::timerD, this, invite, callIdAndCSeq), NULL, TIMER_D_MSECS ) ;
 
-        DR_LOG(log_debug) << "TimerDHandler::addInvite " << hex << (void *)invite << ", " << callIdAndCSeq;
+        DR_LOG(log_debug) << "TimerDHandler::addInvite orq " << hex << (void *)invite << ", " << callIdAndCSeq;
 
     }
 
