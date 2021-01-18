@@ -1,6 +1,4 @@
-# drachtio-server [![Build Status](https://secure.travis-ci.org/davehorton/drachtio-server.png)](http://travis-ci.org/davehorton/drachtio-server)
-
-![drachtio logo](http://davehorton.github.io/drachtio-srf/img/definition-only-cropped.png)
+# drachtio-server [![Build Status](https://github.com/drachtio/drachtio-server/workflows/CI/badge.svg)
 
 drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt) server that is built on the [sofia SIP stack](https://github.com/davehorton/sofia-sip).  It provides a high-performance SIP engine that can be controlled by client applications written in pure Javascript running on [node.js](https://nodejs.org) .  
 
