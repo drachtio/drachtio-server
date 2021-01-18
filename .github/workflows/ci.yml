@@ -14,12 +14,10 @@ jobs:
           submodules: recursive
       - name: build dependencies
         run: |
-          pwd
           sudo apt-get update
           sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev
       - name: build sipp
         run: |
-          pwd
           sudo chmod a+w /usr/local/src/
           cd /usr/local/src/
           git clone https://github.com/SIPp/sipp.git -b v3.5.1
@@ -38,6 +36,9 @@ jobs:
         with:
           node-version: 12
       - name: run ci tests
-        run: cd test && npm test
+        run: |
+          cd test
+          npm install 
+          npm test
 
  
