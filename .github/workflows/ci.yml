@@ -27,6 +27,7 @@ jobs:
           ./build.sh --with-rtpstream --with-pcap
           sudo make install
       - name: build drachtio
+        run: |
           ./autogen.sh
           mkdir -p build && cd $_
           ../configure
