@@ -12,14 +12,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: recursive
-      - name: install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev
-      - name: setup build
-        run: ./autogen.sh && mkdir -p build && cd $_ && ../configure && make && cd ..
-      - name: install nodejs 
-        uses: actions/setup-node@v1
-        with:
-          node-version: 12
+      - name: build dependencies
+        run: |
+          pwd
+          sudo apt-get update
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev
       - name: build sipp
         run: |
           pwd
@@ -29,6 +26,16 @@ jobs:
           cd sipp
           ./build.sh --with-rtpstream --with-pcap
           sudo make install
+      - name: build drachtio
+          ./autogen.sh
+          mkdir -p build && cd $_
+          ../configure
+          make
+          sudo make install
+      - name: install nodejs 
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12
       - name: run ci tests
         run: cd test && npm test
 
