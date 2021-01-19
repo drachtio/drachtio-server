@@ -164,7 +164,10 @@ namespace drachtio {
 
 		tport_t* getTport(void);
 		void setTport(tport_t* tp) ;
-		void setOrqAck(nta_outgoing_t* orq) { m_orqAck = orq; }
+		void setOrqAck(nta_outgoing_t* orq, bool destroyAckOnClose) { 
+			m_orqAck = orq; 
+			m_bDestroyAckOnClose = destroyAckOnClose;
+		}
 
 		const nta_leg_t* getNtaLeg(void) const { return m_leg; }
 		void setTimerG(TimerEventHandle& handle) { 
@@ -249,6 +252,7 @@ namespace drachtio {
 		tport_t* 	m_tp;
 		nta_outgoing_t* m_orq;
 		nta_outgoing_t* m_orqAck;
+		bool 		m_bDestroyAckOnClose;
 
 		std::string 		m_routeUri;
 

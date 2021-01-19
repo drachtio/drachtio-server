@@ -248,7 +248,7 @@ namespace drachtio {
                     if (orq_tp) dlg->setTport(orq_tp) ;
                     else {
                         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending ACK but nta_outgoing_transport is null, delayed for DNS resolver";
-                        dlg->setOrqAck(orq);
+                        dlg->setOrqAck(orq, !tport_is_dgram(orq_tp));
                         destroyOrq = false;
                     }
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
@@ -1481,7 +1481,6 @@ namespace drachtio {
                 if( dialogId.length() > 0 ) {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
                     SD_Clear(m_dialogs, dialogId ) ;
-                     m_pController->getClientController()->removeDialog( dialogId ) ;
                 }
                 else {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: got 200 OK to BYE but don't have dialog id"  ;
@@ -1877,6 +1876,10 @@ namespace drachtio {
         }
     }
 
+    bool SipDialogController::stopTimerD(nta_outgoing_t* invite) {
+        return m_timerDHandler.clearTimerD(invite);
+    }
+
     // TimerDHandler
 
     // when we get a 200 OK to an INVITE we sent, call this to prepare handling timerD
@@ -1892,7 +1895,7 @@ namespace drachtio {
         // start timerD
         TimerEventHandle t = m_pTQM->addTimer("timerD", std::bind(&TimerDHandler::timerD, this, invite, callIdAndCSeq), NULL, TIMER_D_MSECS ) ;
 
-        DR_LOG(log_debug) << "TimerDHandler::addInvite orq " << hex << (void *)invite << ", " << callIdAndCSeq;
+        DR_LOG(log_info) << "TimerDHandler::addInvite orq " << hex << (void *)invite << ", " << callIdAndCSeq;
 
     }
 
@@ -1904,7 +1907,7 @@ namespace drachtio {
         if (m_mapCallIdAndCSeq2Invite.end() != it) {
             m_mapInvite2Ack.insert(mapInvite2Ack::value_type(it->second, ack));
             m_mapCallIdAndCSeq2Invite.erase(it);
-            DR_LOG(log_debug) << "TimerDHandler::addAck " << hex << (void *)ack << ", " << callIdAndCSeq;
+            DR_LOG(log_info) << "TimerDHandler::addAck " << hex << (void *)ack << ", " << callIdAndCSeq;
         }
         else {
             DR_LOG(log_error) << "TimerDHandler::addAck - failed to find outbound invite we sent for callid " << nta_outgoing_call_id(ack);
@@ -1938,12 +1941,33 @@ namespace drachtio {
         else {
             mapInvite2Ack::const_iterator it = m_mapInvite2Ack.find(invite);
             if (it != m_mapInvite2Ack.end()) {
-                DR_LOG(log_debug) << "TimerDHandler::timerD - freeing ACK orq " << hex << (void *) it->second <<
+                DR_LOG(log_info) << "TimerDHandler::timerD - freeing ACK orq " << hex << (void *) it->second <<
                     " associated with invite orq " << invite << " for call-id/cseq " << callIdAndCSeq;
                 nta_outgoing_destroy(it->second);
                 m_mapInvite2Ack.erase(it);
             }
         }
+    }
+
+    bool TimerDHandler::clearTimerD(nta_outgoing_t* invite) {
+        bool success = false;
+        string callIdAndCSeq = combineCallIdAndCSeq(invite);
+        mapCallIdAndCSeq2Invite::const_iterator it = m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq);
+        if (it != m_mapCallIdAndCSeq2Invite.end()) {
+            DR_LOG(log_error) << "TimerDHandler::clearTimerD - app never sent ACK for successful uac INVITE"  ;
+            m_mapCallIdAndCSeq2Invite.erase(it);
+        }
+        else {
+            mapInvite2Ack::const_iterator it = m_mapInvite2Ack.find(invite);
+            if (it != m_mapInvite2Ack.end()) {
+                DR_LOG(log_info) << "TimerDHandler::clearTimerD - freeing ACK orq " << hex << (void *) it->second <<
+                    " associated with invite orq " << invite << " for call-id/cseq " << callIdAndCSeq;
+                nta_outgoing_destroy(it->second);
+                m_mapInvite2Ack.erase(it);
+                success = true;
+            }
+        }
+        return success;
     }
 
     // logging / metrics

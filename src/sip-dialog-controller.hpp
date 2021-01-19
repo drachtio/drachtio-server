@@ -87,6 +87,7 @@ namespace drachtio {
 		void addInvite(nta_outgoing_t* invite);
 		void addAck(nta_outgoing_t*	ack);
 		bool resendIfNeeded(nta_outgoing_t* invite);
+		bool clearTimerD(nta_outgoing_t* invite);
 		size_t countTimerD() { return m_mapInvite2Ack.size();}
 		size_t countPending() { return m_mapCallIdAndCSeq2Invite.size();}
 
@@ -247,6 +248,7 @@ namespace drachtio {
 
 		// timers
 		void clearSipTimers(std::shared_ptr<SipDialog>& dlg);
+		bool stopTimerD(nta_outgoing_t* invite);
 
 	protected:
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
