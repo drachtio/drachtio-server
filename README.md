@@ -9,7 +9,7 @@ The nodejs module that you can use to create applications controlling the server
 ## Docker
 A docker image [can be found here](https://cloud.docker.com/swarm/drachtio/repository/docker/drachtio/drachtio-server/general).
 
-The `drachtio/drachtio-server:latest` tagged image is kept current with the tip of the `develop` branch, which is probably what you want.
+The `drachtio/drachtio-server:latest` tagged image is kept current with the tip of the `main` branch, which is probably what you want.
 
 ## Ansible
 An ansible role can be found [here](https://github.com/davehorton/ansible-role-drachtio) for building drachtio using ansible.
@@ -20,7 +20,7 @@ An ansible role can be found [here](https://github.com/davehorton/ansible-role-d
 
 After installing libcurl, do as follows:
 ```
-git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+git clone --depth=50 --branch=main git://github.com/davehorton/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
 ./autogen.sh
 mkdir build && cd $_
@@ -32,9 +32,9 @@ sudo make install
 ## Platform support and dependencies
 
 drachtio-server has been most heavily deployed on debian jesse (8) but has undergone at least some level of testing on the following platforms:
-* Debian 8, 9
+* Debian 8, 9, 10
 * Centos 6.x
-* Ubuntu
+* Ubuntu 10, 20
 * Fedora 20
 * Linux Mint
 * Mac OSX (10.9.2+)

@@ -1,9 +1,9 @@
-FROM debian:stretch-slim
+FROM debian:buster-slim
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
   && apt-get install -y --no-install-recommends ca-certificates gcc g++ make build-essential cmake git autoconf automake  curl libtool libtool-bin libssl-dev libcurl4-openssl-dev zlib1g-dev \
-  && git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git /usr/local/src/drachtio-server \
+  && git clone --depth=50 --branch=main git://github.com/davehorton/drachtio-server.git /usr/local/src/drachtio-server \
   && cd /usr/local/src/drachtio-server \
   && git submodule update --init --recursive \
   && ./bootstrap.sh \
@@ -12,7 +12,7 @@ RUN apt-get update \
   && ../configure CPPFLAGS='-DNDEBUG' CXXFLAGS='-O0' \
   && make \
   && make install \
-  && apt-get purge -y --quiet --force-yes --auto-remove gcc g++ make cmake build-essential git autoconf automake libtool libtool-bin \
+  && apt-get purge -y --quiet --auto-remove gcc g++ make cmake build-essential git autoconf automake libtool libtool-bin \
   && rm -rf /var/lib/apt/* \
   && rm -rf /var/lib/dpkg/* \
   && rm -rf /var/lib/cache/* \
