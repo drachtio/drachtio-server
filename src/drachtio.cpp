@@ -624,6 +624,7 @@ namespace drachtio {
         return false ;
     }
     void deleteTags( tagi_t* tags ) {
+        if (!tags) return;
         int i = 0 ;
         while( tags[i].t_tag != tag_null ) {
             if( tags[i].t_value ) {

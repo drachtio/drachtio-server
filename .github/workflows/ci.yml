@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev
+      - name: build sipp
+        run: |
+          sudo chmod a+w /usr/local/src/
+          cd /usr/local/src/
+          git clone https://github.com/SIPp/sipp.git -b v3.5.1
+          cd sipp
+          ./build.sh --with-rtpstream --with-pcap
+          sudo make install
+      - name: build drachtio
+        run: |
+          ./autogen.sh
+          mkdir -p build && cd $_
+          ../configure
+          make
+          sudo make install
+      - name: install nodejs 
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - name: run ci tests
+        run: |
+          cd test
+          npm install 
+          npm test
+
+ 

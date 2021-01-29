@@ -1920,7 +1920,7 @@ namespace drachtio {
                    const char* callId = nta_outgoing_call_id(orq);
                    uint32_t seq = nta_outgoing_cseq(orq);
                    DR_LOG(log_info) << "    nta_outgoing_t*: " << std::hex << (void *) orq  <<
-                    " " << method << " " << callId << " CSeq: " << seq;
+                    " " << method << " " << callId << std::dec << " CSeq: " << seq;
                }
            } while (orq) ;
        }
