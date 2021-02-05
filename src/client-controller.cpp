@@ -651,9 +651,18 @@ namespace drachtio {
     }
 
     void ClientController::stop() {
+
         m_acceptor_tcp.cancel() ;
         m_acceptor_tls.cancel() ;
         m_ioservice.stop() ;
+
+        m_map_of_request_type_offsets.clear();
+        m_mapDialogs.clear();
+        m_mapAppTransactions.clear();
+        m_mapNetTransactions.clear();
+        m_mapApiRequests.clear();
+        m_mapDialogId2Appname.clear();
+
         m_thread.join() ;
     }
 

@@ -37,6 +37,10 @@ namespace drachtio {
       m_length-- ;
       m_head = ptr ;
     }
+    if (m_timer) {
+      su_timer_destroy(m_timer);
+      m_timer = nullptr;
+    }
   }
 
   TimerEventHandle TimerQueue::add( TimerFunc f, void* functionArgs, uint32_t milliseconds ) {

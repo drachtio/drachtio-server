@@ -326,8 +326,17 @@ namespace drachtio {
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
 
+        DR_LOG(log_notice) << "finished dumping stats, destroying sofia agent.."  ;
         nta_agent_destroy(m_nta);
-        exit(0);
+
+#ifdef SOFIA_MSG_DEBUG_TRACE
+        stop_sofia_msg_counting();
+#endif
+        su_root_break(m_root);
+
+        DR_LOG(log_notice) << "exiting.."  ;
+
+        //exit(0);
     }
 
     void DrachtioController::handleSigHup( int signal ) {
@@ -984,11 +993,11 @@ namespace drachtio {
             }
         }
 
-        if (m_adminTcpPort && !m_adminTlsPort) {
+        if (adminTcpPort && !adminTlsPort) {
             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " only";
             m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort));
         }
-        else if (!m_adminTcpPort && m_adminTlsPort) {
+        else if (!adminTcpPort && adminTlsPort) {
             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tls port " << adminTlsPort << " only";
             m_pClientController.reset(new ClientController(this, adminAddress, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
@@ -996,7 +1005,6 @@ namespace drachtio {
              DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " and tls port " << adminTlsPort ;
            m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
-        m_pClientController->start();
         
         // mtu
         if (!m_mtu) m_mtu = m_Config->getMtu();
@@ -1181,6 +1189,9 @@ namespace drachtio {
         m_timer = su_timer_create( su_root_task(m_root), 30000) ;
         su_timer_set_for_ever(m_timer, watchdogTimerHandler, this) ;
  
+        /* now start taking connetions */
+        m_pClientController->start();
+
         su_root_run( m_root ) ;
         DR_LOG(log_notice) << "Sofia event loop ended"  ;
         
@@ -1190,6 +1201,10 @@ namespace drachtio {
         su_deinit() ;
 
         m_Config.reset();
+        m_pClientController.reset();
+        m_pDialogController.reset();
+        m_pProxyController.reset();
+
         this->deinitializeLogging() ;
 
         
@@ -1335,12 +1350,14 @@ namespace drachtio {
                         if( status > 0  ) {
                             msg_t* reply = nta_msg_create(m_nta, 0) ;
                             msg_ref_create(reply) ;
+                            msg_ref_create(msg) ;
                             nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
 
                             if( sip->sip_request->rq_method == sip_method_invite ) {
                                 Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;
+                            msg_destroy(msg) ;
 
                             return 0;
                         }
@@ -2008,6 +2025,7 @@ namespace drachtio {
 
 #ifdef SOFIA_MSG_DEBUG_TRACE
         DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
+        sofia_dump_msgs();
 #endif
     }
 

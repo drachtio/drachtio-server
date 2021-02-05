@@ -45,6 +45,7 @@ int main( int argc, char *argv[] ) {
     signal( SIGTERM, handleSigTerm ) ;
     signal( SIGPIPE, handleSigPipe ) ;
 		theOneAndOnlyController->run() ;
+		delete theOneAndOnlyController;
 	} catch( std::runtime_error& err ) {
 		cerr << "Uncaught exception: " << err.what() << endl ;
 	}

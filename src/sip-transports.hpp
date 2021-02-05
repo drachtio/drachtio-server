@@ -37,7 +37,7 @@ namespace drachtio {
     SipTransport(const string& contact, const string& localNet, const string& externalIp) ;
     SipTransport(const string& contact, const string& localNet) ;
     SipTransport(const string& contact) ;
-    SipTransport(const std::shared_ptr<drachtio::SipTransport> other) ;
+    SipTransport(const std::shared_ptr<drachtio::SipTransport>& other) ;
 
     ~SipTransport() ;
 

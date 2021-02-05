@@ -43,19 +43,19 @@ namespace {
 namespace drachtio {
   
   SipTransport::SipTransport(const string& contact, const string& localNet, const string& externalIp) :
-    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
+    m_strContact(contact), m_strExternalIp(externalIp), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL), m_netmask(0) {
     init() ;
   }
   SipTransport::SipTransport(const string& contact, const string& localNet) :
-    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL) {
+    m_strContact(contact), m_strLocalNet(localNet), m_tp(NULL), m_tpName(NULL), m_netmask(0) {
     init() ;
   }
-  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL), m_tpName(NULL) {
+  SipTransport::SipTransport(const string& contact) : m_strContact(contact), m_tp(NULL), m_tpName(NULL), m_netmask(0) {
     init() ;
   }
-  SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport> other) :
+  SipTransport::SipTransport(const std::shared_ptr<drachtio::SipTransport>& other) :
     m_strContact(other->m_strContact), m_strLocalNet(other->m_strLocalNet), m_strExternalIp(other->m_strExternalIp), 
-    m_dnsNames(other->m_dnsNames), m_tp(NULL), m_tpName(NULL) {
+    m_dnsNames(other->m_dnsNames), m_tp(NULL), m_tpName(NULL), m_netmask(other->m_netmask) {
     init() ;
   }
 

@@ -1002,7 +1002,6 @@ namespace drachtio {
                     }
                 }
             }
-
             msg_destroy( msg ); //release the reference
 
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
@@ -1275,6 +1274,8 @@ namespace drachtio {
         }
 
         if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
+
+        msg_header_free(m_pController->getHome(), (msg_header_t *) sip_status);
 
         pData->~SipMessageData() ;
 
