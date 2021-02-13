@@ -164,6 +164,7 @@ namespace drachtio {
     void selectInboundConnectionForTag(const string& transactionId, const string& tag);
 
     bool isAggressiveNatEnabled(void) { return m_bAggressiveNatDetection; }
+    bool isNatDetectionDisabled(void) { return m_bDisableNatDetection; }
 
     unsigned int getTcpKeepaliveInterval() { return m_tcpKeepaliveSecs; }
 
@@ -263,6 +264,7 @@ namespace drachtio {
     bool m_bDumpMemory;
 
     float m_minTlsVersion;
+    bool m_bDisableNatDetection;
   } ;
 
 } ;

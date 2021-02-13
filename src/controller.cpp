@@ -264,7 +264,7 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
-        m_minTlsVersion(0) {
+        m_minTlsVersion(0), m_bDisableNatDetection(false) {
 
         getEnv();
 
@@ -395,6 +395,7 @@ namespace drachtio {
                 {"memory-debug", no_argument, 0, 'K'},
                 {"tcp-keepalive-interval", required_argument, 0, 'L'},
                 {"min-tls-version", required_argument, 0, 'M'},
+                {"disable-nat-detection", no_argument, 0, 'N'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -591,6 +592,10 @@ namespace drachtio {
 
                 case 'M':
                     m_minTlsVersion = ::atof(optarg);
+                    break;
+
+                case 'N':
+                    m_bDisableNatDetection = true;
                     break;
 
                 case 'v':
