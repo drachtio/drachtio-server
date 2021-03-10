@@ -1259,20 +1259,26 @@ namespace drachtio {
                     }
                 } catch( runtime_error& err ) {
                     nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+                    if (sip->sip_request->rq_method != sip_method_ack) {
+                        const char* remote_host = nta_incoming_remote_host(irq);
+                        const char *remote_port = nta_incoming_remote_port(irq);
+                        const char* what = err.what();
+                        if (remote_host && remote_port && what) {
+                            DR_LOG(log_notice) << "DrachtioController::processMessageStatelessly: detected potential spammer from " <<
+                                nta_incoming_remote_host(irq) << ":" << nta_incoming_remote_port(irq)  << 
+                                " due to header value: " << err.what()  ;
+                        }
+                        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "603"}})
+                        nta_incoming_treply( irq, 603, "Decline", TAG_END() ) ;
+                        nta_incoming_destroy(irq) ;   
 
-                    DR_LOG(log_notice) << "DrachtioController::processMessageStatelessly: detected potential spammer from " <<
-                        nta_incoming_remote_host(irq) << ":" << nta_incoming_remote_port(irq)  << 
-                        " due to header value: " << err.what()  ;
-                    STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "603"}})
-                    nta_incoming_treply( irq, 603, "Decline", TAG_END() ) ;
-                    nta_incoming_destroy(irq) ;   
-
-                    /*
-                    if( 0 == action.compare("reject") ) {
-                        nta_msg_treply( m_nta, msg, 603, NULL, TAG_END() ) ;
+                        /*
+                        if( 0 == action.compare("reject") ) {
+                            nta_msg_treply( m_nta, msg, 603, NULL, TAG_END() ) ;
+                        }
+                        */
+                        return -1 ;
                     }
-                    */
-                    return -1 ;
                 }
             }
 
