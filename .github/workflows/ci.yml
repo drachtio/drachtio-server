@@ -22,7 +22,7 @@ jobs:
           cd /usr/local/src/
           git clone https://github.com/SIPp/sipp.git -b v3.6.1
           cd sipp
-          ./build.sh --with-rtpstream --with-pcap
+          ./build.sh --common
           sudo make install
       - name: build drachtio
         run: |
