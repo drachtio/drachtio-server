@@ -56,6 +56,16 @@ namespace drachtio {
     void setTcpKeepAlive(int s) {
         int optval = 1 ;
         socklen_t optlen = sizeof(optval);
+        int yes = 1;
+        int result = setsockopt(s,
+                                IPPROTO_TCP,
+                                TCP_NODELAY,
+                                (char *) &yes,
+                                sizeof(int));
+        if (result < 0) {
+            DR_LOG(log_error) << "Client::start - error setting tcp nodelay";
+            return;
+        }
 
         unsigned int seconds = theOneAndOnlyController->getTcpKeepaliveInterval();
         if (seconds == 0) {
