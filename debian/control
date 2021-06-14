@@ -1,0 +1,30 @@
+Source: drachtio-server
+Section: net
+Priority: optional
+Maintainer: rnd <rnd@voxbone.com>
+Build-Depends: debhelper (>= 9.20160709~),
+               autotools-dev,
+               libtool,
+               libtool-bin,
+               libssl-dev,
+               zlib1g-dev,
+               cmake,
+               libcurl4-openssl-dev
+Standards-Version: 3.9.8
+Homepage: https://github.com/tsearle/drachtio-server.git
+#Vcs-Git: https://anonscm.debian.org/collab-maint/drachtio.git
+#Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/drachtio.git
+
+Package: drachtio-server
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         adduser
+Description: Drachtio SIP Server and media server 
+ drachtio, SIP ans media server.
+ 
+Package: drachtio-server-dbg
+Section: devel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Debugging symbols for drachtio 
+ drachtio, SIP ans media server.

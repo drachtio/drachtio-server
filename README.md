@@ -29,6 +29,13 @@ make
 sudo make install
 ```
 
+## Building Debian Packages
+```
+git clone --depth=50 --branch=develop git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+sudo apt-get install debhelper autotools-dev libtool libtool-bin libssl-dev zlib1g-dev cmake libcurl4-openssl-dev git-buildpackage
+cd drachtio-server
+gbp buildpackage --git-debian-branch=develop --git-submodule --git-export-dir=../build-area/ -uc -us
+```
 ## Platform support and dependencies
 
 drachtio-server has been most heavily deployed on debian jesse (8) but has undergone at least some level of testing on the following platforms:
