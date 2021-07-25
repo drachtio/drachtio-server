@@ -22,7 +22,7 @@ THE SOFTWARE.
 #include <iostream>
 #include <iomanip>
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/foreach.hpp>
 #include <boost/asio.hpp>
@@ -127,26 +127,26 @@ namespace drachtio {
       if(oldact != CURL_POLL_IN && oldact != CURL_POLL_INOUT) {
         tcp_socket->async_read_some(boost::asio::null_buffers(),
                                     boost::bind(&event_cb, g, s,
-                                                CURL_POLL_IN, _1, fdp));
+                                                CURL_POLL_IN, boost::placeholders::_1, fdp));
       }
     }
     else if(act == CURL_POLL_OUT) {
       if(oldact != CURL_POLL_OUT && oldact != CURL_POLL_INOUT) {
         tcp_socket->async_write_some(boost::asio::null_buffers(),
                                      boost::bind(&event_cb, g, s,
-                                                 CURL_POLL_OUT, _1, fdp));
+                                                 CURL_POLL_OUT, boost::placeholders::_1, fdp));
       }
     }
     else if(act == CURL_POLL_INOUT) {
       if(oldact != CURL_POLL_IN && oldact != CURL_POLL_INOUT) {
         tcp_socket->async_read_some(boost::asio::null_buffers(),
                                     boost::bind(&event_cb, g, s,
-                                                CURL_POLL_IN, _1, fdp));
+                                                CURL_POLL_IN, boost::placeholders::_1, fdp));
       }
       if(oldact != CURL_POLL_OUT && oldact != CURL_POLL_INOUT) {
         tcp_socket->async_write_some(boost::asio::null_buffers(),
                                      boost::bind(&event_cb, g, s,
-                                                 CURL_POLL_OUT, _1, fdp));
+                                                 CURL_POLL_OUT, boost::placeholders::_1, fdp));
       }
     }
   }
@@ -161,7 +161,7 @@ namespace drachtio {
     if(timeout_ms > 0) {
       /* update timer */
       timer.expires_from_now(boost::posix_time::millisec(timeout_ms));
-      timer.async_wait(boost::bind(&timer_cb, _1, g));
+      timer.async_wait(boost::bind(&timer_cb, boost::placeholders::_1, g));
     }
     else if(timeout_ms == 0) {
       /* call timeout function immediately */
@@ -300,12 +300,12 @@ namespace drachtio {
         if(action == CURL_POLL_IN) {
           tcp_socket->async_read_some(boost::asio::null_buffers(),
                                       boost::bind(&event_cb, g, s,
-                                                  action, _1, fdp));
+                                                  action, boost::placeholders::_1, fdp));
         }
         if(action == CURL_POLL_OUT) {
           tcp_socket->async_write_some(boost::asio::null_buffers(),
                                        boost::bind(&event_cb, g, s,
-                                                   action, _1, fdp));
+                                                   action, boost::placeholders::_1, fdp));
         } 
       }
     }

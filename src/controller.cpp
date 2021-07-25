@@ -33,6 +33,11 @@ THE SOFTWARE.
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wunknown-warning-option"
+#endif
+
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/algorithm/string.hpp>
@@ -63,6 +68,10 @@ THE SOFTWARE.
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 
 #include <jansson.h>
 
@@ -1390,7 +1399,8 @@ namespace drachtio {
                         }
                     }
                     break ;
-
+                    
+                    case sip_method_update:
                     case sip_method_bye:
                         STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "481"}})
                         nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   

@@ -126,11 +126,11 @@ namespace drachtio {
     void ClientController::join( client_ptr client ) {
         m_clients.insert( client ) ;
         client_weak_ptr p( client ) ;
-        DR_LOG(log_debug) << "ClientController::join - Added client, count of connected clients is now: " << m_clients.size()  ;       
+        DR_LOG(log_info) << "ClientController::join - Added client, count of connected clients is now: " << m_clients.size()  ;       
     }
     void ClientController::leave( client_ptr client ) {
         m_clients.erase( client ) ;
-        DR_LOG(log_debug) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
+        DR_LOG(log_info) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
     }
     void ClientController::outboundFailed( const string& transactionId ) {
       string headers, body;
@@ -371,6 +371,7 @@ namespace drachtio {
         client_ptr client = this->findClientForAppTransaction( transactionId );
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId  ;
+            removeAppTransaction( transactionId ) ;
             return false ;
         }
 

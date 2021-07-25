@@ -47,12 +47,22 @@ THE SOFTWARE.
 #include <unordered_set>
 #include <mutex>
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wunknown-warning-option"
+#endif
+
+
 #include <boost/log/common.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/syslog_backend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sources/severity_logger.hpp>
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 
 #include "drachtio.h"
 #include "drachtio-config.hpp"

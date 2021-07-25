@@ -33,6 +33,11 @@ THE SOFTWARE.
 #include <unordered_map>
 #include <chrono>
 
+#if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wunknown-warning-option"
+#endif
+
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/attributes.hpp>
@@ -52,6 +57,10 @@ THE SOFTWARE.
 #include <sofia-sip/sip_extra.h>
 #include <sofia-sip/msg_types.h>
 #include <sofia-sip/nta.h>
+
+#if defined(__clang__)
+    #pragma clang diagnostic pop
+#endif
 
 #include "sip-transports.hpp"
 

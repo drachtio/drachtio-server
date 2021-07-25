@@ -551,7 +551,7 @@ namespace drachtio {
             sip_t* sip = sip_object( m ) ;
 
             DR_LOG(log_info) << "SipDialogController::doSendRequestOutsideDialog - created orq " << std::hex << (void *) orq  <<
-                " call-id " << sip->sip_call_id->i_id;
+                " call-id " << sip->sip_call_id->i_id << " / transaction id: " << pData->getTransactionId();
 
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", sip->sip_request->rq_method_name}})
 
@@ -662,7 +662,8 @@ namespace drachtio {
                 return ;           
             }
             else {
-                DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - internal server error canceling transaction id " << transactionId ;
+                DR_LOG(log_error) << "SipDialogController::doSendCancelRequest - internal server error canceling transaction id " << 
+                    transactionId << " / orq: " << std::hex << (void *) iip->orq();
                 m_pController->getClientController()->route_api_response( pData->getClientMsgId(), "NOK", 
                     string("internal server error canceling transaction id: ") + transactionId ) ; 
             }
