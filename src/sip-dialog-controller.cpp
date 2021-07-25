@@ -764,6 +764,10 @@ namespace drachtio {
                     nat = true;
                 }
 
+                if (nat && theOneAndOnlyController->isNatDetectionDisabled()) {
+                    nat = false;
+                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client, but ignoring because disable-nat-detection is on";
+                }
                 if (nat) {
                     url_t const * url = nta_outgoing_route_uri(orq);
                     string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
