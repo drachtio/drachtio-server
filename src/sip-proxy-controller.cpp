@@ -684,7 +684,9 @@ namespace drachtio {
 
             //retransmission of final response?
             if( (completed == m_state || terminated == m_state) && sip->sip_status->st_status >= 200 ) {
-                ackResponse( msg ) ;
+                if( this->isInviteTransaction() ) {
+                    ackResponse( msg ) ;
+		}
                 nta_msg_discard( NTA, msg ) ;
                 return true ;               
             }
