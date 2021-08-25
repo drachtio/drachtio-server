@@ -1,0 +1,12 @@
+[
+  {
+    "server": {"config": "drachtio.conf7.xml", "args": ["--memory-debug"]},
+    "script": {
+      "name": "uac",
+      "function": "call5secs",
+      "args": "sip:127.0.0.1:5092;transport=tcp"
+    },
+    "uas": {"name": "uas-tcp.xml", "port": 5092, "transport": "tcp"},
+    "message": "uac: sending over tcp"
+  }
+]

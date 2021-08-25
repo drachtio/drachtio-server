@@ -75,7 +75,7 @@ function runFixture(f) {
           await script.connect(f.script.connectArgs);
           if (f.script.function) {
             const args = f.script.args || (f.uas ? `127.0.0.1:${f.uas.port}` : undefined);
-            scriptPromise = script[f.script.function](args);
+            scriptPromise = script[f.script.function](args, f.script.opts || {});
             await delay(750);
           }
         }
@@ -97,7 +97,7 @@ function runFixture(f) {
         }
 
         try {
-          await delay(100);
+          await delay(10000);
           logger.debug('waiting for script to finish');
           if (script) await script.disconnect();
           logger.debug('waiting sipp UAS to finish');
