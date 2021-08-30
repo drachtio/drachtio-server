@@ -1,4 +1,4 @@
-const test = require('blue-tape');
+const test = require('tape');
 const {start, stop } = require('./testbed');
 const { exec } = require('child_process');
 const Uac = require('./scripts/uac');
@@ -17,31 +17,22 @@ const execCmd = (cmd, opts) => {
     }, 750);
   });
 };
-test('reads config from ENV', (t) => {
-  let uac;
-  return start('./drachtio.conf4.xml', ['--memory-debug'], false, 500, {
-    'DRACHTIO_SECRET': 'foobar'
-  })
-    .then(() => {
-      uac = new Uac();
-      return uac.connect({
-        "host": "127.0.0.1",
-        "port": 9022,
-        "secret": "foobar"
-      });
-    })
-    .then(() => {
-      t.pass('successfully used environment variable');
-      uac.disconnect();
-      return stop();
-    })
-    .catch((err) => {
-      t.fail(`failed with error ${err}`);
-      if (uac) uac.disconnect();
-      stop();
-    });
+/*
+test('reads config from ENV', async(t) => {
+  const uac = new Uac();
+  try {
+    await start('./drachtio.conf4.xml', ['--memory-debug'], false, 500, {'DRACHTIO_SECRET': 'foobar'});
+    await uac.connect({host: '127.0.0.1', 'port': 9022, secret: 'foobar'});
+    debug('successfully used environment variable');
+    t.pass('successfully used environment variable');
+    uac.disconnect();
+  } catch (err) {
+    t.fail(`failed with error ${err}`);
+    if (uac) uac.disconnect();
+    stop();
+  }
 });
-
+*/
 test('requested protocol not available', (t) => {
   let uac;
   return start('./drachtio.conf4.xml', ['--memory-debug'])

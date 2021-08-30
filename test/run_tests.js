@@ -73,6 +73,7 @@ function runFixture(f) {
           const Script = require(`./scripts/${f.script.name}`);
           script = new Script();
           await script.connect(f.script.connectArgs);
+          logger.debug('connected ok');
           if (f.script.function) {
             const args = f.script.args || (f.uas ? `127.0.0.1:${f.uas.port}` : undefined);
             scriptPromise = script[f.script.function](args, f.script.opts || {});
@@ -97,15 +98,15 @@ function runFixture(f) {
         }
 
         try {
-          await delay(10000);
-          logger.debug('waiting for script to finish');
-          if (script) await script.disconnect();
-          logger.debug('waiting sipp UAS to finish');
+          if (script) script.disconnect();
+          //logger.debug('waiting 10 secs..');
+          //await delay(10000);
+          //logger.debug('waiting sipp UAS to finish');
           if (uasPromise) await uasPromise;
-          logger.debug('waiting sipp UAC to finish');
+          //logger.debug('waiting sipp UAC to finish');
           if (uacPromise) await uacPromise;
         } catch (err) {
-          logger.info(err, 'ignoring error');
+          logger.info(err, 'ignoring error');  
         }
         logger.debug({f}, 'completed test');
         t.pass(`${f.message}`);
