@@ -13,7 +13,7 @@
                     sip:*:5061          
         -->
         <contacts>
-            <contact>sip:10.0.1.5;transport=udp,tcp</contact>
+            <contact>sip:192.168.1.179;transport=udp,tcp</contact>
         </contacts>
 
         <spammers action="reject" tcp-action="discard">

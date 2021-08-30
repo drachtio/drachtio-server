@@ -37,12 +37,13 @@ class App extends Emitter {
   }
 
   connect(opts) {
-    this.srf.connect(opts || config.drachtio.connectOpts);
     return new Promise((resolve, reject) => {
-      this.srf.on('connect', (err) => {
+      this.srf.on('connect', (err, hp) => {
+        debug(`Uac: connected to ${hp}`);
         if (err) return reject(err);
         resolve();
       });
+      this.srf.connect(opts || config.drachtio.connectOpts);
     });
   }
 
@@ -158,7 +159,12 @@ class App extends Emitter {
   }
 
   disconnect() {
-    this.srf.disconnect();
+    try {
+      this.srf.disconnect();
+    } catch (err) {
+      console.log('got error');
+      console.error(err);
+    }
     return this;
   }
 }
