@@ -334,7 +334,6 @@ namespace drachtio {
         m_pClientController->logStorageCount() ;
         m_pPendingRequestController->logStorageCount() ;
         m_pProxyController->logStorageCount() ;
-
         nta_agent_destroy(m_nta);
         exit(0);
     }
@@ -1214,6 +1213,11 @@ namespace drachtio {
         DR_LOG(log_debug) << "processMessageStatelessly - incoming message with call-id " << sip->sip_call_id->i_id <<
             " does not match an existing call leg, processed in thread " << std::this_thread::get_id()  ;
 
+        tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
+        tport_t* tp = tport_parent( tp_incoming ) ;
+        const tp_name_t* tpn = tport_name( tp );
+        tport_unref( tp_incoming ) ;
+
         if( sip->sip_request ) {
             
             // sofia sanity check on message format
@@ -1224,9 +1228,8 @@ namespace drachtio {
                 return -1 ;
             }
 
-            tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
-            tport_t* tp = tport_parent( tp_incoming ) ;
-            const tp_name_t* tpn = tport_name( tp );
+            DR_LOG(log_debug) << "processMessageStatelessly- called nta_incoming_transport ";
+
 
             // spammer check
             string action, tcpAction ;
@@ -1303,7 +1306,6 @@ namespace drachtio {
                   (!tpn->tpn_port && 0 == strcmp(sip->sip_route->r_url->url_port, "5060")) ||
                   (!sip->sip_route->r_url->url_port && 0 == strcmp(tpn->tpn_port, "5060")) ;
 
-                tport_unref( tp_incoming ) ;
 
                 if( /*hostMatch && portMatch && */ SipTransport::isLocalAddress(sip->sip_route->r_url->url_host)) {
                     //request within an established dialog in which we are a stateful proxy
@@ -1361,8 +1363,7 @@ namespace drachtio {
                                 Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;
-
-                            return 0;
+                           return 0;
                         }
                     }
                     break ;

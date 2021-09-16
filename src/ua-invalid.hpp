@@ -1,6 +1,8 @@
 #ifndef __UA_INVALID_DATA_HPP__
 #define __UA_INVALID_DATA_HPP__
 
+#include <algorithm>
+
 #include <time.h>
 
 #include <sofia-sip/nta.h>
@@ -17,8 +19,8 @@ namespace drachtio {
       UaInvalidData(const char* szUser, const char* szHost, int expires, tport_t* tp ) : m_tp(tp) {
         memset(m_szUser, 0, URI_LEN);
         memset(m_szHost, 0, URI_LEN);
-        if (szUser) strncpy( m_szUser, szUser, URI_LEN - 1) ;
-        strncpy( m_szHost, szHost, URI_LEN - 1) ;
+        if (szUser) memcpy( m_szUser, szUser, std::min(URI_LEN - 1, (int) strlen(szUser))) ;
+        if (szHost) memcpy( m_szHost, szHost, std::min(URI_LEN - 1, (int) strlen(szHost))) ;
         time(&m_expires) ;
         m_expires += expires ;
         tport_ref(m_tp) ;

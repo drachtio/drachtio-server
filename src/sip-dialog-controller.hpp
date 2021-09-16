@@ -25,6 +25,7 @@ THE SOFTWARE.
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <algorithm>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/nta.h>
@@ -120,25 +121,25 @@ namespace drachtio {
 				memset(m_szRouteUrl, 0, sizeof(m_szRouteUrl) ) ;
 			}
 			SipMessageData(const string& clientMsgId, const string& transactionId, const string& requestId, const string& dialogId,
-				const string& startLine, const string& headers, const string& body ) {
-				strncpy( m_szClientMsgId, clientMsgId.c_str(), MSG_ID_LEN ) ;
-				if( !transactionId.empty() ) strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
-				if( !requestId.empty() ) strncpy( m_szRequestId, requestId.c_str(), MSG_ID_LEN ) ;
-				if( !dialogId.empty() ) strncpy( m_szDialogId, dialogId.c_str(), MSG_ID_LEN ) ;
-				strncpy( m_szStartLine, startLine.c_str(), START_LEN ) ;
-				strncpy( m_szHeaders, headers.c_str(), HDR_LEN ) ;
-				strncpy( m_szBody, body.c_str(), BODY_LEN ) ;
+				const string& startLine, const string& headers, const string& body ) : SipMessageData() {
+				memcpy( m_szClientMsgId, clientMsgId.c_str(), std::min(MSG_ID_LEN, (int) clientMsgId.length()) ) ;
+				if( !transactionId.empty() ) memcpy( m_szTransactionId, transactionId.c_str(), std::min(MSG_ID_LEN, (int) transactionId.length())) ;
+				if( !requestId.empty() ) memcpy( m_szRequestId, requestId.c_str(), std::min(MSG_ID_LEN, (int) requestId.length()));
+				if( !dialogId.empty() )  memcpy( m_szDialogId, dialogId.c_str(), std::min(MSG_ID_LEN, (int) dialogId.length()));
+				memcpy( m_szStartLine, startLine.c_str(), std::min(START_LEN, (int) startLine.length()));
+				memcpy( m_szHeaders, headers.c_str(), std::min(HDR_LEN, (int) headers.length())) ;
+				memcpy( m_szBody, body.c_str(), std::min(BODY_LEN, (int) body.length()));
 			}
 			SipMessageData(const string& clientMsgId, const string& transactionId, const string& requestId, const string& dialogId,
-				const string& startLine, const string& headers, const string& body, const string& routeUrl ) {
-				strncpy( m_szClientMsgId, clientMsgId.c_str(), MSG_ID_LEN ) ;
-				if( !transactionId.empty() ) strncpy( m_szTransactionId, transactionId.c_str(), MSG_ID_LEN ) ;
-				if( !requestId.empty() ) strncpy( m_szRequestId, requestId.c_str(), MSG_ID_LEN ) ;
-				if( !dialogId.empty() ) strncpy( m_szDialogId, dialogId.c_str(), MSG_ID_LEN ) ;
-				strncpy( m_szStartLine, startLine.c_str(), START_LEN ) ;
-				strncpy( m_szHeaders, headers.c_str(), HDR_LEN ) ;
-				strncpy( m_szBody, body.c_str(), BODY_LEN ) ;
-				strncpy( m_szRouteUrl, routeUrl.c_str(), START_LEN ) ;
+				const string& startLine, const string& headers, const string& body, const string& routeUrl )  : SipMessageData() {
+				memcpy( m_szClientMsgId, clientMsgId.c_str(), std::min(MSG_ID_LEN, (int) clientMsgId.length())) ;
+				if( !transactionId.empty() ) memcpy( m_szTransactionId, transactionId.c_str(), std::min(MSG_ID_LEN, (int) transactionId.length())) ;
+				if( !requestId.empty() ) memcpy( m_szRequestId, requestId.c_str(), std::min(MSG_ID_LEN, (int) requestId.length())) ;
+				if( !dialogId.empty() ) memcpy( m_szDialogId, dialogId.c_str(), std::min(MSG_ID_LEN, (int) dialogId.length()) ) ;
+				memcpy( m_szStartLine, startLine.c_str(), std::min(START_LEN, (int) startLine.length()) ) ;
+				memcpy( m_szHeaders, headers.c_str(), std::min(HDR_LEN, (int) headers.length()) ) ;
+				memcpy( m_szBody, body.c_str(), std::min(BODY_LEN, (int) body.length()) ) ;
+				memcpy( m_szRouteUrl, routeUrl.c_str(), std::min(START_LEN, (int) routeUrl.length()) ) ;
 			}
 			~SipMessageData() {}
 			SipMessageData& operator=(const SipMessageData& md) {
@@ -163,14 +164,14 @@ namespace drachtio {
 			const char* getRouteUrl() { return m_szRouteUrl; } 
 
 		private:
-			char	m_szClientMsgId[MSG_ID_LEN];
-			char	m_szTransactionId[MSG_ID_LEN];
-			char	m_szRequestId[MSG_ID_LEN];
-			char	m_szDialogId[MSG_ID_LEN];
-			char	m_szStartLine[START_LEN];
-			char	m_szHeaders[HDR_LEN];
-			char	m_szBody[BODY_LEN];
-			char	m_szRouteUrl[START_LEN];
+			char	m_szClientMsgId[MSG_ID_LEN+1];
+			char	m_szTransactionId[MSG_ID_LEN+1];
+			char	m_szRequestId[MSG_ID_LEN+1];
+			char	m_szDialogId[MSG_ID_LEN+1];
+			char	m_szStartLine[START_LEN+1];
+			char	m_szHeaders[HDR_LEN+1];
+			char	m_szBody[BODY_LEN+1];
+			char	m_szRouteUrl[START_LEN+1];
 		} ;
 
 		//NB: sendXXXX are called when client is sending a message
