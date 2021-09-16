@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo chmod a+w /usr/local/src/
           cd /usr/local/src/
-          git clone https://github.com/SIPp/sipp.git -b v3.6.1
+          git clone https://github.com/SIPp/sipp.git -b v3.6.1 --depth 20
           cd sipp
           ./build.sh --common
           sudo make install
