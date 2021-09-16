@@ -4,3 +4,7 @@
 [submodule "deps/prometheus-cpp"]
 	path = deps/prometheus-cpp
 	url = https://github.com/jupp0r/prometheus-cpp.git
+[submodule "deps/sofia-sip"]
+	path = deps/sofia-sip
+	url = https://github.com/davehorton/sofia-sip.git
+	branch = main
