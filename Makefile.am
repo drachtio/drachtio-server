@@ -1,4 +1,4 @@
-MYVERSION=$(shell git describe)
+MYVERSION=$(shell git describe --always)
 INCLUDES= -I${srcdir}/deps/boost_1_77_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport \
