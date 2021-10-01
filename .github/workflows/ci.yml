@@ -39,6 +39,6 @@ jobs:
         run: |
           cd test
           npm install 
-          npm test
+          npm run test-ci
 
  
