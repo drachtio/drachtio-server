@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node ./index.js | ./node_modules/.bin/tap-spec && node ./connection_tests.js | ./node_modules/.bin/tap-spec"
+    "test-ci": "node ./index.js | ./node_modules/.bin/tap-spec && node ./connection_tests_ci.js | ./node_modules/.bin/tap-spec",
+    "test": "node ./index.js | ./node_modules/.bin/tap-spec && node ./connection_tests_ci.js | ./node_modules/.bin/tap-spec"
   },
   "author": "Dave Horton",
   "license": "MIT",

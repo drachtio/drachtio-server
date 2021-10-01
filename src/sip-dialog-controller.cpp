@@ -1007,7 +1007,6 @@ namespace drachtio {
                     }
                 }
             }
-
             msg_destroy( msg ); //release the reference
 
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
@@ -1284,6 +1283,9 @@ namespace drachtio {
         pData->~SipMessageData() ;
 
         deleteTags( tags );
+
+        su_free(m_pController->getHome(), sip_status);
+
     }
 
     int SipDialogController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
@@ -1984,6 +1986,7 @@ namespace drachtio {
         SD_Log(m_dialogs, bDetail);
 
         std::lock_guard<std::mutex> lock(m_mutex) ;
+        DR_LOG(log_info) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
         DR_LOG(log_info) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
         DR_LOG(log_info) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
         m_pTQM->logQueueSizes() ;

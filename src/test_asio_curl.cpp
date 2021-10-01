@@ -49,6 +49,7 @@
 #include <curl/curl.h>
 #include <boost/asio.hpp>
 #include <iostream>
+#include <map>
 
 #define MSG_OUT stdout /* Send info to stdout, change to stderr if you want */
 
