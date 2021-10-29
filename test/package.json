@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test-ci": "node ./index.js && node ./connection_tests_ci.js",
-    "test": "node ./index.js && node ./connection_tests_ci.js"
+    "test-ci": "NODE_ENV=test node ./index.js",
+    "test": "NODE_ENV=test node ./index.js && node ./connection_tests_ci.js"
   },
   "author": "Dave Horton",
   "license": "MIT",
