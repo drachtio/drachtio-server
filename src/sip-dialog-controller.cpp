@@ -233,10 +233,19 @@ namespace drachtio {
 
             if( sip_method_ack == method ) {
                 if( 200 == dlg->getSipStatus() ) {
+                    char cseq[32];
+                    memset(cseq, 0, 32);
+                    uint32_t seq = dlg->getSeq();
+                    dlg->clearSeq();
+                    if (seq > 0) {
+                        snprintf(cseq, 31, "%u ACK", seq);
+                        DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - setting CSeq to  " << seq ;
+                    }
                     orq = nta_outgoing_tcreate(leg, NULL, NULL, 
                         routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
                         method, name.c_str(),
                         URL_STRING_MAKE(requestUri.c_str()),
+                        TAG_IF( *cseq, SIPTAG_CSEQ_STR(cseq)),
                         TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str())),
                         TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str())),
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),

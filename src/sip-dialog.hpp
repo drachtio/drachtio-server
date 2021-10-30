@@ -214,6 +214,9 @@ namespace drachtio {
 		sip_time_t ageInSecs(void) {
 			return sip_now() - m_tmArrival;
 		}
+
+		uint32_t getSeq(void) { return m_seq; }
+		void clearSeq(void) {m_seq = 0;}
 		
 
 	protected:
@@ -225,6 +228,7 @@ namespace drachtio {
 		Endpoint_t			m_localEndpoint ;
 		Endpoint_t			m_remoteEndpoint ;
 		std::string			m_strCallId ;
+		uint32_t 				m_seq;
 		unsigned int		m_recentSipStatus ;
 		time_t					m_startTime ;
 		time_t					m_connectTime ;
