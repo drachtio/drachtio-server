@@ -74,7 +74,6 @@ namespace drachtio {
 
  
 		/* get remaining values from the headers */
-		m_seq = nta_leg_get_seq(leg);
 		if( sip->sip_call_id->i_id  ) m_strCallId = sip->sip_call_id->i_id ;
 		const char*  rtag = nta_leg_get_rtag( leg )  ;
 		if( rtag ) this->setRemoteTag( rtag ) ;
