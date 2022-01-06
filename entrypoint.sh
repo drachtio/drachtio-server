@@ -30,9 +30,9 @@ if [ "$1" = 'drachtio' ]; then
   while (( "$#" )); do
     case $1 in
     --cloud-deployment)
+      MYARGS+=("--contact")
+      MYARGS+=("sip:${LOCAL_IP}:${DRACHTIO_SIP_PORT:-5060};transport=udp,tcp")
       if [ -n "$PUBLIC_IP" ]; then
-        MYARGS+=("--contact")
-        MYARGS+=("sip:${LOCAL_IP};transport=udp")
         MYARGS+=("--external-ip")
         MYARGS+=("${PUBLIC_IP}")
       fi
@@ -56,4 +56,3 @@ if [ "$1" = 'drachtio' ]; then
 fi
 
 exec "$@"
-

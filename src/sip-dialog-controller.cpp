@@ -251,14 +251,18 @@ namespace drachtio {
                         TAG_IF(forceTport, NTATAG_TPORT(tp)),
                         TAG_NEXT(tags) ) ;
                     
-                    tport_t* orq_tp = nta_outgoing_transport( orq );
+                    tport_t* orq_tp = nta_outgoing_transport( orq );  // takes a reference on the tport
                     if (tport_is_dgram(orq_tp)) m_timerDHandler.addAck(orq);
                     else if (orq_tp) destroyOrq = true;
-                    if (orq_tp) dlg->setTport(orq_tp) ;
+                    if (orq_tp) {
+                        dlg->setTport(orq_tp) ;
+                        // tport reference will be release in SipDialog dtor
+                    }
                     else {
                         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending ACK but nta_outgoing_transport is null, delayed for DNS resolver";
                         dlg->setOrqAck(orq, !tport_is_dgram(orq_tp));
                         destroyOrq = false;
+                        tport_unref(orq_tp);  // release the reference
                     }
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - clearing IIP that we generated as uac" ;
                     IIP_Clear(m_invitesInProgress, leg);  
@@ -750,7 +754,7 @@ namespace drachtio {
                 (sip->sip_cseq->cs_method == sip_method_subscribe && 
                     (202 == sip->sip_status->st_status || 200 == sip->sip_status->st_status) ) )  {
 
-                DR_LOG(log_info) << "SipDialogController::processResponse - adding dialog id: " << dlg->getDialogId()  ;
+                DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - adding dialog id: " << dlg->getDialogId()  ;
                 nta_leg_t* leg = const_cast<nta_leg_t *>(iip->leg()) ;
                 nta_leg_rtag( leg, sip->sip_to->a_tag) ;
                 nta_leg_client_reroute( leg, sip->sip_record_route, sip->sip_contact, 1 );
@@ -758,47 +762,49 @@ namespace drachtio {
                 bool nat = false;
                 const sip_route_t* route = NULL;
                 if (nta_leg_get_route(leg, &route, NULL) >= 0 && route && route->r_url->url_host && isRfc1918(route->r_url->url_host)) {
-                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client at RFC1918 address: " << route->r_url->url_host  ;
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected possible natted downstream client at RFC1918 address: " << route->r_url->url_host  ;
                     nat = true;
                 }
                 else if(sip->sip_cseq->cs_method == sip_method_invite && !route && sip->sip_contact && 
                     0 != strcmp(sip->sip_contact->m_url->url_host, meta.getAddress().c_str())) {
 
-                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected downstream client; contact ip: " << 
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected downstream client; contact ip: " << 
                         sip->sip_contact->m_url->url_host << " differs from recv address: " << meta.getAddress().c_str();
                     nat = true;
                 }
                 else if (theOneAndOnlyController->isAggressiveNatEnabled() && sipMsgHasNatEqualsYes(sip, true, true)) {
-                        DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client advertising nat=yes";
+                        DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected possible natted downstream client advertising nat=yes";
                     nat = true;
                 }
 
                 if (nat && theOneAndOnlyController->isNatDetectionDisabled()) {
                     nat = false;
-                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected possible natted downstream client, but ignoring because disable-nat-detection is on";
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected possible natted downstream client, but ignoring because disable-nat-detection is on";
                 }
                 if (nat) {
                     url_t const * url = nta_outgoing_route_uri(orq);
                     string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
                     dlg->setRouteUri(routeUri);
-                    DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected nat setting route to: " <<   routeUri;
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
                 }
                 else {
                     dlg->clearRouteUri();
                 }
                 if (iip->isCanceled()) {
-                    DR_LOG(log_info) << "SipDialogController::processResponse - ACK/BYE race condition - received 200 OK to INVITE that was previously CANCELED";
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - ACK/BYE race condition - received 200 OK to INVITE that was previously CANCELED";
                     dlg->doAckBye();
                 }
                 addDialog( dlg ) ;
             }
-            if (sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status == 200 && tport_is_dgram(nta_outgoing_transport(orq))) {
+            tport_t* tp = nta_outgoing_transport(orq);
+            if (sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status == 200 && tport_is_dgram(tp)) {
                 // for successful uac invites, we need to handle retransmits
                 m_timerDHandler.addInvite(orq);
             }
+            tport_unref(tp);
 
             if (sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status == 200 && sip->sip_session_expires) {
-                DR_LOG(log_info) << "SipDialogController::processResponse - (UAC) detected session timer header: ";
+                DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected session timer header: ";
                 dlg->setSessionTimer( sip->sip_session_expires->x_delta, 
                     !sip->sip_session_expires->x_refresher || 0 == strcmp( sip->sip_session_expires->x_refresher, "uac") ? 
                     SipDialog::we_are_refresher : 
@@ -811,7 +817,7 @@ namespace drachtio {
         else {
             std::shared_ptr<RIP> rip ;
             if( !findRIPByOrq( orq, rip ) ) {
-                DR_LOG(log_error) << "SipDialogController::processResponse - unable to match response with callid for a non-invite request we sent: " << sip->sip_call_id->i_id  ;
+                DR_LOG(log_error) << "SipDialogController::processResponseOutsideDialog - unable to match response with callid for a non-invite request we sent: " << sip->sip_call_id->i_id  ;
                 //TODO: do I need to destroy this transaction?
                 return -1 ; //TODO: check meaning of return value                           
             }
