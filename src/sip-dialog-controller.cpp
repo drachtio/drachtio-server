@@ -865,6 +865,7 @@ namespace drachtio {
         bool bDestroyIrq = false ;
         bool bClearIIP = false ;
         bool existingDialog = false;
+        bool transportGone = false;
         tagi_t* tags = nullptr;
 
         //decode status 
@@ -914,43 +915,54 @@ namespace drachtio {
             sip_t *sip = sip_object( msg );
 
             tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
-            tport_t *tport = tport_parent( tp ) ;
 
-            pSelectedTransport = SipTransport::findTransport( tport ) ;
-            if (!pSelectedTransport) {
-                bSentOK = false;
-                failMsg = "Unable to find transport for transaction";
-                DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to find transport for response to "
+            if (!tp || tport_is_shutdown(tp)) {
+                failMsg = "transport for response has been shutdown or closed";
+                DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to forward response as transport has been closed or shutdown "
                     << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
+                bSentOK = false;
+                transportGone = true;
+                msg_destroy(msg);
             }
             else {
-                pSelectedTransport->getContactUri(contact, true);
-                contact = "<" + contact + ">" ;
+                tport_t *tport = tport_parent( tp ) ;
 
-                pSelectedTransport->getDescription(transportDesc);
-
-                tport_unref( tp ) ;
-        
-                //create tags for headers
-                tags = makeTags( headers, transportDesc ) ;
-
-                if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
-                    if( 0 == body.find("v=0") ) {
-                        contentType = "application/sdp" ;
-                        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - automatically detecting content-type as application/sdp"  ;
-                    }
+                pSelectedTransport = SipTransport::findTransport( tport ) ;
+                if (!pSelectedTransport) {
+                    bSentOK = false;
+                    failMsg = "Unable to find transport for transaction";
+                    DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to find transport for response to "
+                        << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
                 }
+                else {
+                    pSelectedTransport->getContactUri(contact, true);
+                    contact = "<" + contact + ">" ;
 
-                rc = nta_incoming_treply( irq, code, status
-                    ,TAG_IF( (sip_method_invite == sip->sip_request->rq_method || sip->sip_request->rq_method == sip_method_subscribe) &&
-                        !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR(contact.c_str()) )
-                    ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
-                    ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
-                    ,TAG_NEXT(tags)
-                    ,TAG_END() ) ;
-                if( 0 != rc ) {
-                    bSentOK = false ;
-                    failMsg = "Unknown server error sending response" ;
+                    pSelectedTransport->getDescription(transportDesc);
+
+                    tport_unref( tp ) ;
+            
+                    //create tags for headers
+                    tags = makeTags( headers, transportDesc ) ;
+
+                    if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
+                        if( 0 == body.find("v=0") ) {
+                            contentType = "application/sdp" ;
+                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - automatically detecting content-type as application/sdp"  ;
+                        }
+                    }
+
+                    rc = nta_incoming_treply( irq, code, status
+                        ,TAG_IF( (sip_method_invite == sip->sip_request->rq_method || sip->sip_request->rq_method == sip_method_subscribe) &&
+                            !searchForHeader( tags, siptag_contact_str, contact ), SIPTAG_CONTACT_STR(contact.c_str()) )
+                        ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
+                        ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                        ,TAG_NEXT(tags)
+                        ,TAG_END() ) ;
+                    if( 0 != rc ) {
+                        bSentOK = false ;
+                        failMsg = "Unknown server error sending response" ;
+                    }
                 }
             }
 
@@ -1293,7 +1305,7 @@ namespace drachtio {
             IIP_Clear(m_invitesInProgress, iip);
         }
 
-        if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
+        if( bDestroyIrq && !transportGone) nta_incoming_destroy(irq) ;    
 
         pData->~SipMessageData() ;
 

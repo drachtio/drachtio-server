@@ -9,7 +9,7 @@ RUN apt-get update \
   && ./bootstrap.sh \
   && mkdir /usr/local/src/drachtio-server/build  \
   && cd /usr/local/src/drachtio-server/build  \
-  && ../configure CPPFLAGS='-DNDEBUG' CXXFLAGS='-O0' \
+  && ../configure CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2' \
   && make \
   && make install \
   && apt-get purge -y --quiet --auto-remove gcc g++ make cmake build-essential git autoconf automake libtool libtool-bin \

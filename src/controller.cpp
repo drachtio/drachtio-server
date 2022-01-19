@@ -1443,6 +1443,11 @@ namespace drachtio {
         msg_t* msg = p->getMsg() ;
         tport_t* tp = p->getTport() ;
 
+        if (tport_is_shutdown(tp)) {
+            DR_LOG(log_notice) << "DrachtioController::setupLegForIncomingRequest - tport has been closed: " << std::hex << (void *) tp ;
+            return false;
+        }
+
         if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ) {
 
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
