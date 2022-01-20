@@ -1355,11 +1355,12 @@ namespace drachtio {
                         
                         //reject message if necessary, write stop record
                         if( status > 0  ) {
+                            bool isInvite = sip->sip_request->rq_method == sip_method_invite;
                             msg_t* reply = nta_msg_create(m_nta, 0) ;
                             msg_ref_create(reply) ;
                             nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
 
-                            if( sip->sip_request->rq_method == sip_method_invite ) {
+                            if( isInvite ) {
                                 Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
                             }
                             msg_destroy(reply) ;

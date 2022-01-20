@@ -43,9 +43,11 @@ namespace drachtio {
     
     generateUuid( m_transactionId ) ;   
     msg_ref_create( m_msg ) ; 
+    tport_ref(m_tp);
   }
   PendingRequest_t::~PendingRequest_t()  {
     msg_destroy( m_msg ) ;
+    tport_unref(m_tp);
   }
   msg_t* PendingRequest_t::getMsg() { return m_msg ; }
   sip_t* PendingRequest_t::getSipObject() { return sip_object(m_msg); }
