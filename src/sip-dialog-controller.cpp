@@ -1056,183 +1056,191 @@ namespace drachtio {
                 sip_t *sip = sip_object( msg );
 
                 tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
-                tport_t *tport = tport_parent( tp ) ;
-
-                pSelectedTransport = SipTransport::findTransport( tport ) ;
-                assert(pSelectedTransport); 
-
-                pSelectedTransport->getContactUri(contact, true);
-                contact = "<" + contact + ">" ;
-
-                pSelectedTransport->getDescription(transportDesc);
-
-                tport_unref( tp ) ;
-        
-                //create tags for headers
-                tags = makeTags( headers, transportDesc ) ;
-                string customContact ;
-                bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
-                if( hasCustomContact ) {
-                    DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - client provided contact header so we wont include our internally-generated one"  ;
-                }
-
-                dlg->setLocalContactHeader(hasCustomContact ? customContact.c_str() : contact.c_str());
-
-                dialogId = dlg->getDialogId() ;
-
-                dlg->setSipStatus( code ) ;
-
-                /* if the client included Require: 100rel on a provisional, send it reliably */
-                bool bReliable = false ;
-                if( code > 100 && code < 200 && sip->sip_request->rq_method == sip_method_invite) {
-                    int i = 0 ;
-                    while( tags[i].t_tag != tag_null ) {
-                        if( tags[i].t_tag == siptag_require_str && NULL != strstr( (const char*) tags[i].t_value, "100rel") ) {
-                            bReliable = true ;
-                            break ;
-                        }
-                        i++ ;
-                    }
-                 }
-
-                 /* update local sdp if provided */
-                 string strLocalSdp ;
-                 if( !body.empty()  ) {
-                    dlg->setLocalSdp( body.c_str() ) ;
-                    string strLocalContentType ;
-                    if( searchForHeader( tags, siptag_content_type_str, strLocalContentType ) ) {
-                        dlg->setLocalContentType( strLocalContentType ) ;
-                    }
-                    else {
-                        /* set content-type if we can detect it */
-                        if( 0 == body.find("v=0") ) {
-                            contentType = "application/sdp" ;
-                            dlg->setLocalContentType( contentType ) ;
-                        }
-                    }
-                 }
-
-                 /* set session timer if required */
-                 sip_session_expires_t *sessionExpires = nullptr;
-                 if( 200 == code && sip->sip_request->rq_method == sip_method_invite ) {
-                    string strSessionExpires ;
-                    if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
-                        sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
-                        unsigned long interval = std::max((unsigned long) 90, se->x_delta);
-                        SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
-
-                        if (who == SipDialog::we_are_refresher) {
-                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app we are refresher, interval will be " << interval  ;
-                        }
-                        else {
-                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app UAC is refresher, interval will be " << interval  ;
-                        }
-                        dlg->setSessionTimer(interval, who) ;
-                        su_free( m_pController->getHome(), se ) ;
-                    }
-                    else if (sip->sip_session_expires && sip->sip_session_expires->x_refresher) {
-                        sip_session_expires_t* se = sip->sip_session_expires;
-                        sessionExpires = sip_session_expires_copy(m_pController->getHome(), se);
-                        unsigned long interval = std::max((unsigned long) 90, se->x_delta);
-                        SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
-
-                        if (who == SipDialog::we_are_refresher) {
-                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC asked us to refresh, interval will be " << interval  ;
-                        }
-                        else {
-                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC is refresher, interval will be " << interval  ;
-                        }
-                        dlg->setSessionTimer(interval, who) ;
-                    }
-                 }
-
-                /* iterate through data.opts.headers, adding headers to the response */
-                if( bReliable ) {
-                    DR_LOG(log_debug) << "Sending " << dec << code << " response reliably"  ;
-                    nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status
-                        ,TAG_IF( !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
-                        ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
-                        ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
-                        ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
-                        ,TAG_NEXT(tags)
-                        ,TAG_END() ) ;
-
-                    if( !rel ) {
-                        bSentOK = false ;
-                        failMsg = "Remote endpoint does not support 100rel" ;
-                        DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed sending reliable provisional response; most likely remote endpoint does not support 100rel"  ;
-                    } 
-                    else {
-                        IIP_SetReliable(m_invitesInProgress, iip, rel);
-                    }
-                    //TODO: should probably set timer here
+                if (!tp || tport_is_shutdown(tp)) {
+                    failMsg = "transport for response has been shutdown or closed";
+                    DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to forward response as transport has been closed or shutdown "
+                        << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
+                    bSentOK = false;
+                    transportGone = true;
+                    msg_destroy(msg);
                 }
                 else {
-                    DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
-                    rc = nta_incoming_treply( irq, code, status
-                        ,TAG_IF( code >= 200 && code < 300 && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
-                        ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
-                        ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
-                        ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
-                        ,TAG_NEXT(tags)
-                        ,TAG_END() ) ; 
-                    if( 0 != rc ) {
-                        DR_LOG(log_error) << "Error " << dec << rc << " sending response on irq " << hex << irq <<
-                            " - this is usually because the application provided a syntactically-invalid header";
-                        bSentOK = false ;
-                        failMsg = "Unknown server error sending response" ;
+                    tport_t *tport = tport_parent( tp ) ;
+
+                    pSelectedTransport = SipTransport::findTransport( tport ) ;
+                    assert(pSelectedTransport); 
+
+                    pSelectedTransport->getContactUri(contact, true);
+                    contact = "<" + contact + ">" ;
+
+                    pSelectedTransport->getDescription(transportDesc);
+
+                    tport_unref( tp ) ;
+            
+                    //create tags for headers
+                    tags = makeTags( headers, transportDesc ) ;
+                    string customContact ;
+                    bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
+                    if( hasCustomContact ) {
+                        DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - client provided contact header so we wont include our internally-generated one"  ;
+                    }
+
+                    dlg->setLocalContactHeader(hasCustomContact ? customContact.c_str() : contact.c_str());
+
+                    dialogId = dlg->getDialogId() ;
+
+                    dlg->setSipStatus( code ) ;
+
+                    /* if the client included Require: 100rel on a provisional, send it reliably */
+                    bool bReliable = false ;
+                    if( code > 100 && code < 200 && sip->sip_request->rq_method == sip_method_invite) {
+                        int i = 0 ;
+                        while( tags[i].t_tag != tag_null ) {
+                            if( tags[i].t_tag == siptag_require_str && NULL != strstr( (const char*) tags[i].t_value, "100rel") ) {
+                                bReliable = true ;
+                                break ;
+                            }
+                            i++ ;
+                        }
+                    }
+
+                    /* update local sdp if provided */
+                    string strLocalSdp ;
+                    if( !body.empty()  ) {
+                        dlg->setLocalSdp( body.c_str() ) ;
+                        string strLocalContentType ;
+                        if( searchForHeader( tags, siptag_content_type_str, strLocalContentType ) ) {
+                            dlg->setLocalContentType( strLocalContentType ) ;
+                        }
+                        else {
+                            /* set content-type if we can detect it */
+                            if( 0 == body.find("v=0") ) {
+                                contentType = "application/sdp" ;
+                                dlg->setLocalContentType( contentType ) ;
+                            }
+                        }
+                    }
+
+                    /* set session timer if required */
+                    sip_session_expires_t *sessionExpires = nullptr;
+                    if( 200 == code && sip->sip_request->rq_method == sip_method_invite ) {
+                        string strSessionExpires ;
+                        if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
+                            sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
+                            unsigned long interval = std::max((unsigned long) 90, se->x_delta);
+                            SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
+
+                            if (who == SipDialog::we_are_refresher) {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app we are refresher, interval will be " << interval  ;
+                            }
+                            else {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app UAC is refresher, interval will be " << interval  ;
+                            }
+                            dlg->setSessionTimer(interval, who) ;
+                            su_free( m_pController->getHome(), se ) ;
+                        }
+                        else if (sip->sip_session_expires && sip->sip_session_expires->x_refresher) {
+                            sip_session_expires_t* se = sip->sip_session_expires;
+                            sessionExpires = sip_session_expires_copy(m_pController->getHome(), se);
+                            unsigned long interval = std::max((unsigned long) 90, se->x_delta);
+                            SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
+
+                            if (who == SipDialog::we_are_refresher) {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC asked us to refresh, interval will be " << interval  ;
+                            }
+                            else {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC is refresher, interval will be " << interval  ;
+                            }
+                            dlg->setSessionTimer(interval, who) ;
+                        }
+                    }
+
+                    /* iterate through data.opts.headers, adding headers to the response */
+                    if( bReliable ) {
+                        DR_LOG(log_debug) << "Sending " << dec << code << " response reliably"  ;
+                        nta_reliable_t* rel = nta_reliable_treply( irq, uasPrack, this, code, status
+                            ,TAG_IF( !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
+                            ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
+                            ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                            ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
+                            ,TAG_NEXT(tags)
+                            ,TAG_END() ) ;
+
+                        if( !rel ) {
+                            bSentOK = false ;
+                            failMsg = "Remote endpoint does not support 100rel" ;
+                            DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed sending reliable provisional response; most likely remote endpoint does not support 100rel"  ;
+                        } 
+                        else {
+                            IIP_SetReliable(m_invitesInProgress, iip, rel);
+                        }
+                        //TODO: should probably set timer here
                     }
                     else {
-                        if( sip_method_subscribe == nta_incoming_method(irq) ) {
-                            bClearIIP = true ;
-
-                            // add dialog for SUBSCRIBE dialogs
-                            if( 202 == code || 200 == code ) {
-                            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
-                            this->addDialog( dlg ) ;
-                            }
+                        DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
+                        rc = nta_incoming_treply( irq, code, status
+                            ,TAG_IF( code >= 200 && code < 300 && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
+                            ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
+                            ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                            ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
+                            ,TAG_NEXT(tags)
+                            ,TAG_END() ) ; 
+                        if( 0 != rc ) {
+                            DR_LOG(log_error) << "Error " << dec << rc << " sending response on irq " << hex << irq <<
+                                " - this is usually because the application provided a syntactically-invalid header";
+                            bSentOK = false ;
+                            failMsg = "Unknown server error sending response" ;
                         }
+                        else {
+                            if( sip_method_subscribe == nta_incoming_method(irq) ) {
+                                bClearIIP = true ;
 
-                        // sofia handles retransmits for us for final failures, but not for success
-                        // TODO: figure out why this is
-                        if( sip_method_invite == nta_incoming_method(irq) && code == 200 ) {
-                            
-                            this->addDialog( dlg ) ;
-
-                            if (tport_is_dgram(tp)) {
-                                // set timer G to retransmit 200 OK if we don't get ack
-                                TimerEventHandle t = m_pTQM->addTimer("timerG",
-                                    std::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
-                                dlg->setTimerG(t) ;
-                            }
-                            // set timer H, which sets the time to stop these retransmissions
-                            TimerEventHandle t = m_pTQM->addTimer("timerH",
-                                std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
-                            dlg->setTimerH(t) ;
-                        }
-
-                        // stats
-                        if (theOneAndOnlyController->getStatsCollector().enabled()) {
-        
-                            // response time to incoming INVITE request
-                            if (sip_method_invite == nta_incoming_method(irq) && code <= 200) {
-                                auto now = std::chrono::steady_clock::now();
-                                std::chrono::duration<double> diff = now - dlg->getArrivalTime();
-                                if (!dlg->hasAlerted()) {
-                                    dlg->alerting();
-                                    STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_PDD_IN, diff.count())
+                                // add dialog for SUBSCRIBE dialogs
+                                if( 202 == code || 200 == code ) {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
+                                this->addDialog( dlg ) ;
                                 }
-                                if (code == 200) {
-                                    STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN, diff.count())
+                            }
+
+                            // sofia handles retransmits for us for final failures, but not for success
+                            // TODO: figure out why this is
+                            if( sip_method_invite == nta_incoming_method(irq) && code == 200 ) {
+                                
+                                this->addDialog( dlg ) ;
+
+                                if (tport_is_dgram(tp)) {
+                                    // set timer G to retransmit 200 OK if we don't get ack
+                                    TimerEventHandle t = m_pTQM->addTimer("timerG",
+                                        std::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, NTA_SIP_T1 ) ;
+                                    dlg->setTimerG(t) ;
+                                }
+                                // set timer H, which sets the time to stop these retransmissions
+                                TimerEventHandle t = m_pTQM->addTimer("timerH",
+                                    std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
+                                dlg->setTimerH(t) ;
+                            }
+
+                            // stats
+                            if (theOneAndOnlyController->getStatsCollector().enabled()) {
+            
+                                // response time to incoming INVITE request
+                                if (sip_method_invite == nta_incoming_method(irq) && code <= 200) {
+                                    auto now = std::chrono::steady_clock::now();
+                                    std::chrono::duration<double> diff = now - dlg->getArrivalTime();
+                                    if (!dlg->hasAlerted()) {
+                                        dlg->alerting();
+                                        STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_PDD_IN, diff.count())
+                                    }
+                                    if (code == 200) {
+                                        STATS_HISTOGRAM_OBSERVE_NOCHECK(STATS_HISTOGRAM_INVITE_RESPONSE_TIME_IN, diff.count())
+                                    }
                                 }
                             }
                         }
                     }
+                    msg_destroy( msg ); //release the reference
+                    if (sessionExpires) su_free(m_pController->getHome(), sessionExpires);
                 }
-
-                msg_destroy( msg ); //release the reference
-
-                if (sessionExpires) su_free(m_pController->getHome(), sessionExpires);
             }
         }
         else {
