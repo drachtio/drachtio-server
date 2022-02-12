@@ -1520,7 +1520,10 @@ namespace drachtio {
             }
             if (rip->shouldClearDialogOnResponse()) {
                 string dialogId = rip->getDialogId() ;
-                if( dialogId.length() > 0 ) {
+                if (sip->sip_cseq->cs_method == sip_method_bye && (sip->sip_status->st_status == 407 || sip->sip_status->st_status == 401)) {
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: NOT clearing dialog after receiving 401/407 response to BYE"  ;
+                }
+                else if( dialogId.length() > 0 ) {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
                     SD_Clear(m_dialogs, dialogId ) ;
                 }
