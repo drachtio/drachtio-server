@@ -1046,7 +1046,7 @@ namespace drachtio {
         } else {
             su_sockaddr_t const *su = msg_addr(msg);
             char name[SU_ADDRSIZE] = "";
-            char uri[SU_ADDRSIZE+10] = "" ;
+            char uri[SU_ADDRSIZE+20] = "" ;
             char szTmp[10] ;
 
             su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
