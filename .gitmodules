@@ -8,3 +8,6 @@
 	path = deps/sofia-sip
 	url = https://github.com/davehorton/sofia-sip.git
 	branch = main
+[submodule "deps/cpp-bredis"]
+	path = deps/cpp-bredis
+	url = https://github.com/basiliscos/cpp-bredis.git

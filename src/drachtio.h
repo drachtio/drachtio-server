@@ -141,6 +141,8 @@ namespace drachtio {
 		,uas_role
 	}; 
 
+	void getSourceAddressForMsg(msg_t *msg, string& host);
+
   void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) ;
 
 	void getTransportDescription( const tport_t* tp, string& desc ) ;

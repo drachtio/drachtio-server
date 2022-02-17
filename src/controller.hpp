@@ -75,6 +75,7 @@ THE SOFTWARE.
 #include "sip-transports.hpp"
 #include "request-router.hpp"
 #include "stats-collector.hpp"
+#include "blacklist.hpp"
 
 using namespace std ;
 
@@ -125,7 +126,8 @@ namespace drachtio {
     std::shared_ptr<PendingRequestController> getPendingRequestController(void) { return m_pPendingRequestController ; }
     std::shared_ptr<SipProxyController> getProxyController(void) { return m_pProxyController ; }
     su_root_t* getRoot(void) { return m_root; }
-    
+    Blacklist* getBlacklist() { return m_pBlacklist; }
+  
     enum severity_levels getCurrentLoglevel() { return m_current_severity_threshold; }
 
     /* network --> client messages */
@@ -235,12 +237,17 @@ namespace drachtio {
     uint32_t m_nHomerId;
     string m_secret;
     string m_adminAddress;
+    string m_redisAddress;
+    string m_redisKey;
+    unsigned int m_redisPort;
+    unsigned int m_redisRefreshSecs;
 
     std::shared_ptr<ClientController> m_pClientController ;
     std::shared_ptr<RequestHandler> m_pRequestHandler ;
     std::shared_ptr<SipDialogController> m_pDialogController ;
     std::shared_ptr<SipProxyController> m_pProxyController ;
     std::shared_ptr<PendingRequestController> m_pPendingRequestController ;
+    Blacklist *m_pBlacklist ;
 
     std::shared_ptr<StackMsg> m_lastSentMsg ;
     std::shared_ptr<StackMsg> m_lastRecvMsg ;

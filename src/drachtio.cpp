@@ -191,6 +191,13 @@ namespace drachtio {
 		return false ;
 	}
 
+	void getSourceAddressForMsg(msg_t *msg, string& host) {
+        char name[SU_ADDRSIZE] = "";
+        su_sockaddr_t const *su = msg_addr(msg);
+        su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
+        host.assign(name);
+    }
+
     void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) {
         str = sip->sip_call_id->i_id ;
         str.append("|") ;

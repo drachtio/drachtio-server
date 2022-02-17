@@ -147,7 +147,7 @@ namespace drachtio {
  
   void IIP_Log(const InvitesInProgress_t& iips, bool full) {
     size_t count = IIP_Size(iips);
-    DR_LOG(log_info) << "IIP size:                                                " << count;
+    DR_LOG(log_debug) << "IIP size:                                                " << count;
     if (full && count) {
       std::lock_guard<std::mutex> lock(iip_mutex) ;
       auto &idx = iips.get<TimeTag>();
