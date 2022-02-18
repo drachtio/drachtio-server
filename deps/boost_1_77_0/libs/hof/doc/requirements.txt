@@ -8,3 +8,4 @@ sphinx>=1.5,<1.6
 # recommonmark==0.4.0
 git+https://github.com/pfultz2/recommonmark@develop
 sphinx-boost>0.0.2
+pygments>=2.7.4 # not directly required, pinned by Snyk to avoid a vulnerability
