@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 #include <boost/variant.hpp>
+#include <regex>
 
 #include "bredis.hpp"
 
@@ -34,11 +35,45 @@ using Policy = r::parsing_policy::keep_result;
 using result_t = r::parse_result_mapper_t<Iterator, Policy>;
 
 namespace drachtio {
+
+    static bool QueryRedis(
+      boost::asio::io_context& ioservice,
+      std::string redisKey,
+      const boost::asio::ip::tcp::endpoint& endpoint,
+      std::unordered_set<std::string>& ips
+      ) {
+      try {
+        Buffer rx_buff;
+        socket_t socket(ioservice, endpoint.protocol());
+        DR_LOG(log_debug) << "Blacklist: connecting to " << endpoint.address() ;
+        socket.connect(endpoint) ;
+        DR_LOG(log_debug) << "Blacklist: successfully connected to redis" ;
+
+        r::Connection<socket_t> c(std::move(socket));
+        c.write(r::single_command_t{"SMEMBERS", redisKey});
+        auto r = c.read(rx_buff);
+        auto extract = boost::apply_visitor(r::extractor<Iterator>(), r.result);
+        rx_buff.consume(r.consumed);
+        auto &reply = boost::get<r::extracts::array_holder_t>(extract);
+        DR_LOG(log_info) << "Blacklist: got " << reply.elements.size() << " IPs to blacklist" ;
+        ips.clear();
+        BOOST_FOREACH(auto& member, reply.elements) {
+          auto &reply_str = boost::get<r::extracts::string_t>(member);
+          ips.insert(reply_str.str);
+        }
+        socket.close();
+        return true;
+      } catch( std::exception& e) {
+        DR_LOG(log_info) << "Blacklist::QueryRedis - Error: connecting to " << endpoint.address() << " " << std::string( e.what() )  ;
+        return false;
+      }
+    }
     
-    Blacklist::Blacklist(string& redisAddress, unsigned int redisPort, string& redisKey, unsigned int refreshSecs) :
+    Blacklist::Blacklist(std::string& redisAddress, unsigned int redisPort, std::string& redisKey, unsigned int refreshSecs) :
       m_redisKey(redisKey),
       m_refreshSecs(refreshSecs),
-      m_endpoint(boost::asio::ip::make_address(redisAddress), redisPort)
+      m_redisAddress(redisAddress),
+      m_redisPort(redisPort)
     {
     } 
 
@@ -57,31 +92,33 @@ namespace drachtio {
 
       while (true) {
         unsigned int interval = m_refreshSecs;
-        try {
-          Buffer rx_buff;
-          socket_t socket(m_ioservice, m_endpoint.protocol());
-          socket.connect(m_endpoint) ;
-          DR_LOG(log_debug) << "Blacklist: successfully connected to redis" ;
 
-          r::Connection<socket_t> c(std::move(socket));
-          c.write(r::single_command_t{"SMEMBERS", m_redisKey});
-          auto r = c.read(rx_buff);
-          auto extract = boost::apply_visitor(r::extractor<Iterator>(), r.result);
-          rx_buff.consume(r.consumed);
-          auto &reply = boost::get<r::extracts::array_holder_t>(extract);
-          DR_LOG(log_info) << "Blacklist: got " << reply.elements.size() << " IPs to blacklist" ;
-          m_ips.clear();
-          BOOST_FOREACH(auto& member, reply.elements) {
-            auto &reply_str = boost::get<r::extracts::string_t>(member);
-            m_ips.insert(reply_str.str);
+        /* get redis endpoint */
+        boost::system::error_code ec;
+        boost::asio::ip::address ip_address = 
+          boost::asio::ip::address::from_string(m_redisAddress, ec);
+        if (ec.value() != 0) {
+          /* must be a dns name */
+          DR_LOG(log_debug) << "Blacklist resolving " << m_redisAddress ;
+
+          boost::asio::ip::tcp::resolver resolver(m_ioservice);
+          boost::asio::ip::tcp::resolver::results_type results = resolver.resolve(
+              m_redisAddress, 
+              boost::lexical_cast<std::string>(m_redisPort),
+              ec);
+          for (boost::asio::ip::tcp::endpoint const& endpoint : results) {
+            DR_LOG(log_debug) << "Blacklist resolved to " << endpoint.address() ;
+            if (QueryRedis(m_ioservice, m_redisKey, endpoint, m_ips)) initialized = true;
+            break;
           }
-          initialized = true;
-          socket.close();
-        } catch( std::exception& e) {
-          if (!initialized) interval = 60;
-          DR_LOG(log_error) << "Blacklist::threadFunc - Error in thread: " << string( e.what() )  ;
         }
-        std::this_thread::sleep_for (std::chrono::seconds(m_refreshSecs));
+        else {
+          boost::asio::ip::tcp::endpoint endpoint(ip_address, m_redisPort);
+          DR_LOG(log_debug) << "Connecting to redis at " << m_redisAddress << ":" << m_redisPort ;
+          if (QueryRedis(m_ioservice, m_redisKey, endpoint, m_ips)) initialized = true;
+        }
+        if (!initialized) interval = 60;
+        std::this_thread::sleep_for (std::chrono::seconds(interval));
       }
    }
 

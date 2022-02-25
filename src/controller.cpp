@@ -147,7 +147,7 @@ namespace {
             loggingSipMsg = true ;
             //DR_LOG(drachtio::log_debug) << "started logging sip message: " << output  ;
 
-            if (pBlacklist = theOneAndOnlyController->getBlacklist()) {
+            if ((pBlacklist = theOneAndOnlyController->getBlacklist())) {
                 std::string header(output);
                 std::regex re("\\[(.*)\\]");
                 std::smatch mr;
@@ -663,6 +663,11 @@ namespace drachtio {
             p->addDnsName(*it);
           }
           m_vecTransports.push_back(p) ;
+        }
+
+        if (!m_redisAddress.empty()) {
+            if (0 == m_redisPort) m_redisPort = 6379;
+            if (0 == m_redisRefreshSecs) m_redisRefreshSecs = 300;
         }
 
         if( !httpUrl.empty() ) {

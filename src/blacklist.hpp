@@ -51,7 +51,8 @@ namespace drachtio {
 
     std::thread                     m_thread ;
     boost::asio::io_context         m_ioservice;
-    boost::asio::ip::tcp::endpoint  m_endpoint;
+    std::string                     m_redisAddress;
+    unsigned int                    m_redisPort;
     std::string&                    m_redisKey; 
     unsigned int                    m_refreshSecs;
     std::unordered_set<std::string> m_ips ;      
