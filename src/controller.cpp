@@ -155,7 +155,7 @@ namespace {
                     std::string host = mr[1] ;
                     if (pBlacklist->isBlackListed(host.c_str())) {
                         sourceIsBlacklisted = true;
-                        DR_LOG(drachtio::log_info) << "discarding message from blacklisted host " << host  ;
+                        DR_LOG(drachtio::log_debug) << "discarding message from blacklisted host " << host  ;
                     }
                 }
             }
