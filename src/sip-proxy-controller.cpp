@@ -1610,9 +1610,9 @@ namespace drachtio {
     void SipProxyController::logStorageCount(bool bDetail)  {
         std::lock_guard<std::mutex> lock(m_mutex) ;
         
-        DR_LOG(log_info) << "SipProxyController storage counts"  ;
-        DR_LOG(log_info) << "----------------------------------"  ;
-        DR_LOG(log_info) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        DR_LOG(log_debug) << "SipProxyController storage counts"  ;
+        DR_LOG(log_debug) << "----------------------------------"  ;
+        DR_LOG(log_debug) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapCallId2Proxy) {
                 std::shared_ptr<ProxyCore> p = kv.second;
@@ -1620,7 +1620,7 @@ namespace drachtio {
             }
         }
 
-        DR_LOG(log_info) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
+        DR_LOG(log_debug) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapNonce2Challenge) {
                 std::shared_ptr<ChallengedRequest> p = kv.second;

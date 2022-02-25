@@ -128,7 +128,25 @@ namespace drachtio {
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
+
+                // redis blacklist server
+                try {
+                    cerr << "checking for blacklist in config" << endl;
+                    pt.get_child("drachtio.sip.blacklist") ; // will throw if doesn't exist
+                    m_redisAddress = pt.get<string>("drachtio.sip.blacklist.redis-address", "") ;
+                    m_redisPort = pt.get<unsigned int>("drachtio.sip.blacklist.redis-port", 6379) ;
+                    m_redisKey = pt.get<string>("drachtio.sip.blacklist.redis-key", "") ;
+                    m_redisRefreshSecs = pt.get<unsigned int>("drachtio.sip.blacklist.refresh-secs", 0) ;
+
+                    if (0 == m_redisAddress.length() || 0 == m_redisKey.length()) {
+                        cerr << "invalid blacklist config: redis-address or redis-key is missing" << endl;
+                        m_redisAddress = "";
+                    }
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                    cerr << "did not find blacklist at all" << endl;
+                }
                 
+
                 try {
                     string nat = pt.get<string>("drachtio.sip.aggressive-nat-detection", "no") ;
                     if (0 == nat.compare("yes") || 0 == nat.compare("YES") || 
@@ -380,6 +398,15 @@ namespace drachtio {
             version = m_captureHepVersion;
             return true;
         }
+        
+        bool getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) {
+            if (0 == m_redisAddress.length()) return false;
+            redisAddress = m_redisAddress;
+            redisPort = m_redisPort;
+            redisKey = m_redisKey;
+            redisRefreshSecs = 0 == m_redisRefreshSecs ? 3600 : m_redisRefreshSecs;
+            return true;
+        }
 
         unsigned int getMtu() {
             return m_mtu;
@@ -408,8 +435,6 @@ namespace drachtio {
             return false;
         }
 
-
- 
     private:
         
         bool getXmlAttribute( ptree::value_type const& v, const string& attrName, string& value ) {
@@ -466,6 +491,10 @@ namespace drachtio {
         unsigned int m_prometheusPort;
         unsigned int m_tcpKeepalive;
         float m_minTlsVersion;
+        string m_redisAddress;
+        unsigned int m_redisPort;
+        string m_redisKey;
+        unsigned int m_redisRefreshSecs;
   } ;
     
     /*
@@ -558,6 +587,10 @@ namespace drachtio {
         
     bool DrachtioConfig::getMinTlsVersion(float& minTlsVersion) const {
         return m_pimpl->getMinTlsVersion(minTlsVersion);
+    }
+
+    bool DrachtioConfig::getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const {
+        return m_pimpl->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs);
     }
 
 }

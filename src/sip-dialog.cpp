@@ -354,15 +354,15 @@ namespace drachtio {
   void SD_Log(const StableDialogs_t& dialogs, bool full) {
 		size_t count, nUac, nUas;
 		count = SD_Size(dialogs, nUac, nUas);
-    DR_LOG(log_info) << "StableDialogs total size:                                                " << count;
-    DR_LOG(log_info) << "StableDialogs uac:                                                       " << nUac;
-    DR_LOG(log_info) << "StableDialogs uas:                                                       " << nUas;
+    DR_LOG(log_debug) << "StableDialogs total size:                                                " << count;
+    DR_LOG(log_debug) << "StableDialogs uac:                                                       " << nUac;
+    DR_LOG(log_debug) << "StableDialogs uas:                                                       " << nUas;
     if (full && count) {
       std::lock_guard<std::mutex> lock(sd_mutex) ;
       auto &idx = dialogs.get<DlgTimeTag>();
       for (auto it = idx.begin(); it != idx.end(); ++it) {
 				std::shared_ptr<SipDialog> p = *it;
-        DR_LOG(log_info) << *p;
+        DR_LOG(log_debug) << *p;
       }
     }
 
