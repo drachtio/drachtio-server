@@ -942,7 +942,7 @@ namespace drachtio {
                     m_sinkTextFile.reset(
                         new sinks::synchronous_sink< sinks::text_file_backend >(
                             keywords::file_name = name,                                          
-                            keywords::rotation_size = rotationSize * 1024 * 1024,
+                            keywords::rotation_size = rotationSize * 1000000,
                             keywords::auto_flush = autoFlush,
                             keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
                             keywords::open_mode = (std::ios::out | std::ios::app),
@@ -961,8 +961,8 @@ namespace drachtio {
 
                     m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
                         keywords::target = archiveDirectory,                      
-                        keywords::max_size = maxSize * 1024 * 1024,          
-                        keywords::min_free_space = minSize * 1024 * 1024,
+                        keywords::max_size = maxSize * 1000000,          
+                        keywords::min_free_space = minSize * 1000000,
                         keywords::max_files = maxFiles
                     ));
                                
