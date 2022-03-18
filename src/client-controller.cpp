@@ -337,6 +337,23 @@ namespace drachtio {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;
             
             //TODO: try to find another client providing the same service
+
+            // if this is a BYE from the network, it ends the dialog 
+            string method_name = sip->sip_request->rq_method_name ;
+            if( 0 == method_name.compare("BYE") || 
+                (sip_method_notify == sip->sip_request->rq_method && 
+                NULL != sip->sip_subscription_state && 
+                NULL != sip->sip_subscription_state->ss_substate &&
+                NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
+                (NULL == sip->sip_event || 
+                    (sip->sip_event->o_type && 
+                    (0 != std::strcmp("refer", sip->sip_event->o_type) || 
+                    0 != std::strcmp("REFER", sip->sip_event->o_type))
+                    )
+                )
+            )) {
+                removeDialog( dialogId ) ;
+            }
             return false ;
         }
         if (string::npos == transactionId.find("unsolicited")) this->addNetTransaction( client, transactionId ) ;
@@ -358,7 +375,6 @@ namespace drachtio {
                 )
             )
         )) {
-
             removeDialog( dialogId ) ;
         }
 
@@ -372,6 +388,8 @@ namespace drachtio {
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId  ;
             removeAppTransaction( transactionId ) ;
+            removeDialog( dialogId ) ;
+            DR_LOG(log_debug) << "ClientController::route_response_inside_transaction - removed dialog: " << dialogId << ", " <<  m_mapDialogs.size() << " dialogs remain" ;
             return false ;
         }
 
@@ -379,7 +397,6 @@ namespace drachtio {
         m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         string method_name = sip->sip_cseq->cs_method_name ;
-
         if( sip->sip_status->st_status >= 200 ) {
             removeAppTransaction( transactionId ) ;
         }
