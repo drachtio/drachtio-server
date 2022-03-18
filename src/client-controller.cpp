@@ -372,6 +372,7 @@ namespace drachtio {
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId  ;
             removeAppTransaction( transactionId ) ;
+            removeDialog( dialogId ) ;
             return false ;
         }
 
@@ -379,7 +380,6 @@ namespace drachtio {
         m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         string method_name = sip->sip_cseq->cs_method_name ;
-
         if( sip->sip_status->st_status >= 200 ) {
             removeAppTransaction( transactionId ) ;
         }
