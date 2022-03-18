@@ -337,6 +337,23 @@ namespace drachtio {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;
             
             //TODO: try to find another client providing the same service
+
+            // if this is a BYE from the network, it ends the dialog 
+            string method_name = sip->sip_request->rq_method_name ;
+            if( 0 == method_name.compare("BYE") || 
+                (sip_method_notify == sip->sip_request->rq_method && 
+                NULL != sip->sip_subscription_state && 
+                NULL != sip->sip_subscription_state->ss_substate &&
+                NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
+                (NULL == sip->sip_event || 
+                    (sip->sip_event->o_type && 
+                    (0 != std::strcmp("refer", sip->sip_event->o_type) || 
+                    0 != std::strcmp("REFER", sip->sip_event->o_type))
+                    )
+                )
+            )) {
+                removeDialog( dialogId ) ;
+            }
             return false ;
         }
         if (string::npos == transactionId.find("unsolicited")) this->addNetTransaction( client, transactionId ) ;
@@ -358,7 +375,6 @@ namespace drachtio {
                 )
             )
         )) {
-
             removeDialog( dialogId ) ;
         }
 
