@@ -389,6 +389,7 @@ namespace drachtio {
             DR_LOG(log_warning) << "ClientController::route_response_inside_transaction - client managing transaction has disconnected: " << transactionId  ;
             removeAppTransaction( transactionId ) ;
             removeDialog( dialogId ) ;
+            DR_LOG(log_debug) << "ClientController::route_response_inside_transaction - removed dialog: " << dialogId << ", " <<  m_mapDialogs.size() << " dialogs remain" ;
             return false ;
         }
 
