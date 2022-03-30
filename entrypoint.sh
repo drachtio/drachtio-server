@@ -44,6 +44,7 @@ if [ "$1" = 'drachtio' ]; then
         else
           MYARGS+=("--external-ip")
           MYARGS+=("${PUBLIC_IP}")
+        fi
       fi
       ;;
 
