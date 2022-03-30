@@ -38,8 +38,12 @@ if [ "$1" = 'drachtio' ]; then
       MYARGS+=("--contact")
       MYARGS+=("sip:${LOCAL_IP}:${DRACHTIO_SIP_PORT:-5060};transport=udp,tcp")
       if [ -n "$PUBLIC_IP" ]; then
-        MYARGS+=("--external-ip")
-        MYARGS+=("${PUBLIC_IP}")
+        if [[ "$CLOUD" == "digitalocean" ]] then
+          MYARGS+=("--contact")
+          MYARGS+=("sip:${PUBLIC_IP}:${DRACHTIO_SIP_PORT:-5060};transport=udp,tcp")
+        else
+          MYARGS+=("--external-ip")
+          MYARGS+=("${PUBLIC_IP}")
       fi
       ;;
 
