@@ -5,7 +5,7 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt) server that is b
 The nodejs module that you can use to create applications controlling the server is called [drachtio-srf](https://github.com/davehorton/drachtio-srf).
 
 ## Docker
-A docker image [can be found here](https://cloud.docker.com/swarm/drachtio/repository/docker/drachtio/drachtio-server/general).
+A docker image [can be found here](https://hub.docker.com/r/drachtio/drachtio-server).
 
 The `drachtio/drachtio-server:latest` tagged image is kept current with the tip of the `main` branch, which is probably what you want.
 
