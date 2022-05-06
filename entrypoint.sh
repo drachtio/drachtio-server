@@ -48,6 +48,22 @@ if [ "$1" = 'drachtio' ]; then
       fi
       ;;
 
+    --wss-port)
+      shift
+      MYARGS+=("--contact")
+      MYARGS+=("sips:${LOCAL_IP}:$1;transport=wss")
+      if [ -n "$PUBLIC_IP" ]; then
+        if [[ "$CLOUD" == "digitalocean" ]]; then
+          MYARGS+=("--contact")
+          MYARGS+=("sip:${PUBLIC_IP}:$1;transport=udp,tcp")
+        else
+          MYARGS+=("--external-ip")
+          MYARGS+=("${PUBLIC_IP}")
+        fi
+      fi
+      ;;
+
+
     --)
       shift
       break
