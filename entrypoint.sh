@@ -29,7 +29,7 @@ case $CLOUD in
     ;;
 esac
 
-if [[ -n "$PUBLIC_IP" && -n "$WSS_PORT"]]; then
+if [[ -n "$PUBLIC_IP" && -n "$WSS_PORT" ]]; then
   MYARGS+=("--contact")
   MYARGS+=("sips:${LOCAL_IP}:$WSS_PORT;transport=wss")
   if [[ "$CLOUD" == "digitalocean" ]]; then
