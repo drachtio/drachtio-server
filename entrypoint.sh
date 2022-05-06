@@ -29,6 +29,18 @@ case $CLOUD in
     ;;
 esac
 
+if [ -n "$PUBLIC_IP" && -n "$WSS_PORT"]; then
+  MYARGS+=("--contact")
+  MYARGS+=("sips:${LOCAL_IP}:$WSS_PORT;transport=wss")
+  if [[ "$CLOUD" == "digitalocean" ]]; then
+    MYARGS+=("--contact")
+    MYARGS+=("sip:${PUBLIC_IP}:$WSS_PORT;transport=udp,tcp")
+  else
+    MYARGS+=("--external-ip")
+    MYARGS+=("${PUBLIC_IP}")
+  fi
+fi
+
 if [ "$1" = 'drachtio' ]; then
   shift
 
@@ -47,22 +59,6 @@ if [ "$1" = 'drachtio' ]; then
         fi
       fi
       ;;
-
-    --wss-port)
-      shift
-      MYARGS+=("--contact")
-      MYARGS+=("sips:${LOCAL_IP}:$1;transport=wss")
-      if [ -n "$PUBLIC_IP" ]; then
-        if [[ "$CLOUD" == "digitalocean" ]]; then
-          MYARGS+=("--contact")
-          MYARGS+=("sip:${PUBLIC_IP}:$1;transport=udp,tcp")
-        else
-          MYARGS+=("--external-ip")
-          MYARGS+=("${PUBLIC_IP}")
-        fi
-      fi
-      ;;
-
 
     --)
       shift
