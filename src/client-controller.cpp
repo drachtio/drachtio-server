@@ -333,25 +333,21 @@ namespace drachtio {
     bool ClientController::route_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, sip_t const *sip, 
         const string& transactionId, const string& dialogId ) {
         client_ptr client = this->findClientForDialog( dialogId );
+        string method_name = sip->sip_request->rq_method_name ;
+        bool isBye = 0 == method_name.compare("BYE");
+        bool isFinalNotifyForSubscribe = sip_method_notify == sip->sip_request->rq_method && 
+            NULL != sip->sip_subscription_state && 
+            NULL != sip->sip_subscription_state->ss_substate &&
+            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
+            (NULL == sip->sip_event || 
+                (sip->sip_event->o_type && !std::strstr(sip->sip_event->o_type, "refer") && !std::strstr(sip->sip_event->o_type, "REFER"))
+            );
+    
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;
             
-            //TODO: try to find another client providing the same service
-
             // if this is a BYE from the network, it ends the dialog 
-            string method_name = sip->sip_request->rq_method_name ;
-            if( 0 == method_name.compare("BYE") || 
-                (sip_method_notify == sip->sip_request->rq_method && 
-                NULL != sip->sip_subscription_state && 
-                NULL != sip->sip_subscription_state->ss_substate &&
-                NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
-                (NULL == sip->sip_event || 
-                    (sip->sip_event->o_type && 
-                    (0 != std::strcmp("refer", sip->sip_event->o_type) || 
-                    0 != std::strcmp("REFER", sip->sip_event->o_type))
-                    )
-                )
-            )) {
+            if( isBye || isFinalNotifyForSubscribe) {
                 removeDialog( dialogId ) ;
             }
             return false ;
@@ -362,19 +358,7 @@ namespace drachtio {
         m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
         // if this is a BYE from the network, it ends the dialog 
-        string method_name = sip->sip_request->rq_method_name ;
-        if( 0 == method_name.compare("BYE") || 
-            (sip_method_notify == sip->sip_request->rq_method && 
-            NULL != sip->sip_subscription_state && 
-            NULL != sip->sip_subscription_state->ss_substate &&
-            NULL != strstr(sip->sip_subscription_state->ss_substate, "terminated") &&
-            (NULL == sip->sip_event || 
-                (sip->sip_event->o_type && 
-                (0 != std::strcmp("refer", sip->sip_event->o_type) || 
-                0 != std::strcmp("REFER", sip->sip_event->o_type))
-                )
-            )
-        )) {
+        if( isBye || isFinalNotifyForSubscribe) {
             removeDialog( dialogId ) ;
         }
 
