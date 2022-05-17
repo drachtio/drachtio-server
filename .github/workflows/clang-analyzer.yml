@@ -1,0 +1,29 @@
+name: Clang Static Analysis
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ main ]
+  schedule:
+    - cron: '0 9 * * *' # Daily at 10:00 UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev
+      - name: build drachtio
+        run: |
+          ./autogen.sh
+          mkdir -p build && cd $_
+          scan-build ../configure
+          scan-build --status-bugs make
