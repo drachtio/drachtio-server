@@ -10,19 +10,17 @@ on:
     - cron: '0 9 * * *' # Daily at 10:00 UTC
 
 jobs:
-  build:
+  clang-analyzer:
+    name: Clang static analysis
     runs-on: ubuntu-latest
     steps:
-      - name: checkout repo
-        uses: actions/checkout@v2
-        with:
+       - uses: actions/checkout@v2
+         with:
           submodules: recursive
-      - name: build dependencies
-        run: |
+       - run: |
           sudo apt-get update
           sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev clang-tools
-      - name: build drachtio
-        run: |
+       - run: |
           ./autogen.sh
           mkdir -p build && cd $_
           scan-build ../configure
