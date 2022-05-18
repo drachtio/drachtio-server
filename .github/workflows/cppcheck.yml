@@ -1,0 +1,23 @@
+name: Cppcheck Static Analysis
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ main ]
+  schedule:
+    - cron: '0 9 * * *' # Daily at 10:00 UTC
+jobs:
+  clang-analyzer:
+    name: Cppcheck Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev cppcheck
+      - run: |
+          set -x
+          cppcheck --enable=warning,performance,portability,style --error-exitcode=1 src/

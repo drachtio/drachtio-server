@@ -1,0 +1,27 @@
+name: Clang Static Analysis
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ main ]
+  schedule:
+    - cron: '0 9 * * *' # Daily at 10:00 UTC
+
+jobs:
+  clang-analyzer:
+    name: Clang static analysis
+    runs-on: ubuntu-latest
+    steps:
+       - uses: actions/checkout@v2
+         with:
+          submodules: recursive
+       - run: |
+          sudo apt-get update
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev clang-tools
+       - run: |
+          ./autogen.sh
+          mkdir -p build && cd $_
+          scan-build ../configure
+          scan-build --status-bugs make
