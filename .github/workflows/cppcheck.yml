@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: '0 9 * * *' # Daily at 10:00 UTC
 jobs:
-  clang-analyzer:
+  cppcheck:
     name: Cppcheck Static Analysis
     runs-on: ubuntu-latest
     steps:
