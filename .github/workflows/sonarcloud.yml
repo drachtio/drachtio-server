@@ -49,9 +49,11 @@ jobs:
       - name: build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev cmake
       - name: Run build-wrapper
         run: |
+          automake --version
+          aclocal && autoheader && automake --add-missing && autoconf
           ./autogen.sh
           mkdir -p build && cd $_
           ../configure      
