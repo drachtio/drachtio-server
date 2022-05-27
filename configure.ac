@@ -1,5 +1,5 @@
 AC_INIT(drachtio, 1.2, daveh@beachdognet.com)
-AM_INIT_AUTOMAKE([subdir-objects -Wno-portability])
+AM_INIT_AUTOMAKE([subdir-objects -Wno-portability foreign])
 AC_CONFIG_SRCDIR([src/main.cpp])
 AC_CONFIG_HEADER([config.h])
 

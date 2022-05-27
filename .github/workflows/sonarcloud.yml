@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: '0 9 * * *' # Daily at 10:00 UTC
 jobs:
-  build:
+  sonar-build:
     name: Build
     runs-on: ubuntu-latest
     env:
