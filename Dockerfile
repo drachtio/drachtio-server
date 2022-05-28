@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:10.12-slim
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
