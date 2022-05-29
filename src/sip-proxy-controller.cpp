@@ -762,7 +762,6 @@ namespace drachtio {
                 //TODO: move this up to ProxyCore??
                 if( m_sipStatus >= 300 && m_sipStatus <= 399 && pCore->shouldFollowRedirects() && sip->sip_contact ) {
                     vector< std::shared_ptr<ClientTransaction> > vecNewTransactions  ;
-                    sip_contact_t* contact = sip->sip_contact ;
                     for (sip_contact_t* m = sip->sip_contact; m; m = m->m_next) {
                         char buffer[URL_MAXLEN] = "" ;
                         url_e(buffer, URL_MAXLEN, m->m_url) ;
@@ -810,7 +809,7 @@ namespace drachtio {
         }
 
         if( bForward ) {
-            bool bOK = pCore->forwardResponse( msg, sip ) ;
+            pCore->forwardResponse( msg, sip ) ;
         }  
         else {
             nta_msg_discard( NTA, msg ) ;
@@ -1215,7 +1214,7 @@ namespace drachtio {
         void* place = su_msg_data( m ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        ProxyData* msgData = new(place) ProxyData( clientMsgId, transactionId, recordRoute, fullResponse, followRedirects, 
+        new(place) ProxyData( clientMsgId, transactionId, recordRoute, fullResponse, followRedirects, 
             simultaneous, provisionalTimeout, finalTimeout, vecDestinations, headers ) ;
         rv = su_msg_send(m);  
         if( rv < 0 ) {

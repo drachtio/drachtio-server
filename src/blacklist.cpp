@@ -61,7 +61,7 @@ namespace drachtio {
           auto &reply_str = boost::get<r::extracts::string_t>(member);
           ips.insert(reply_str.str);
         }
-        socket.close();
+        c.next_layer().close();
         return true;
       } catch( std::exception& e) {
         DR_LOG(log_info) << "Blacklist::QueryRedis - Error: connecting to " << endpoint.address() << " " << std::string( e.what() )  ;

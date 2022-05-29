@@ -111,7 +111,6 @@ namespace drachtio {
     std::lock_guard<std::mutex> lock(iip_mutex) ;
 
     nta_incoming_t* irq = const_cast<nta_incoming_t*>(iip->irq());
-    nta_outgoing_t* orq = const_cast<nta_outgoing_t*>(iip->orq());
     nta_reliable_t* rel = const_cast<nta_reliable_t*>(iip->rel());
     if (irq) nta_incoming_destroy(irq) ;
 

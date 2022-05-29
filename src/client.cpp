@@ -216,7 +216,7 @@ namespace drachtio {
                 bOK = m_controller.sendRequestOutsideDialog( shared_from_this(), tokens[0], startLine, headers, body, transactionId, dialogId, routeUrl ) ;
              }
 
-             return true ;
+             return bOK ;
         }
         else if( 0 == tokens[1].compare("proxy") ) {
             DR_LOG(log_debug) << "Client::processMessage - received proxy request " << boost::algorithm::join(tokens, ",");

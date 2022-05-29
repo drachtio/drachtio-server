@@ -133,7 +133,7 @@ namespace drachtio {
         void* place = su_msg_data( msg ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        SipMessageData* msgData = new(place) SipMessageData( clientMsgId, transactionId, "", dialogId, startLine, headers, body ) ;
+        /*SipMessageData* msgData = */ new(place) SipMessageData( clientMsgId, transactionId, "", dialogId, startLine, headers, body ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", "Internal server error sending message") ;
@@ -388,7 +388,7 @@ namespace drachtio {
         void* place = su_msg_data( msg ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        SipMessageData* msgData = new(place) SipMessageData( clientMsgId, transactionId, "", dialogId, startLine, headers, body, routeUrl ) ;
+        /*SipMessageData* msgData = */new(place) SipMessageData( clientMsgId, transactionId, "", dialogId, startLine, headers, body, routeUrl ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
             return  false;
@@ -618,7 +618,7 @@ namespace drachtio {
         void* place = su_msg_data( msg ) ;
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
-        SipMessageData* msgData = new(place) SipMessageData( clientMsgId, transactionId, "", "", startLine, headers, body ) ;
+        /*SipMessageData* msgData = */new(place) SipMessageData( clientMsgId, transactionId, "", "", startLine, headers, body ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
             return  false;
@@ -635,7 +635,7 @@ namespace drachtio {
 
         /* we need to use placement new to allocate the object in a specific address, hence we are responsible for deleting it (below) */
         string rid ;
-        SipMessageData* msgData = new(place) SipMessageData( clientMsgId, transactionId, "", "", startLine, headers, body ) ;
+        /*SipMessageData* msgData = */new(place) SipMessageData( clientMsgId, transactionId, "", "", startLine, headers, body ) ;
         rv = su_msg_send(msg);  
         if( rv < 0 ) {
             return  false ;
@@ -1042,7 +1042,7 @@ namespace drachtio {
         else if( iip ) {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found invite or subscribe in progress " << std::hex << iip  ;
            /* invite in progress */
-            nta_leg_t* leg = const_cast<nta_leg_t *>(iip->leg()) ;
+            //nta_leg_t* leg = const_cast<nta_leg_t *>(iip->leg()) ;
             irq = const_cast<nta_incoming_t *>(iip->irq()) ;         
             std::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
@@ -1324,11 +1324,14 @@ namespace drachtio {
     }
 
     int SipDialogController::processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) {
-        DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: " << sip->sip_request->rq_method_name << " irq " << irq  ;
+        DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: irq " << irq  ;
         int rc = 0 ;
         string transactionId ;
         generateUuid( transactionId ) ;
 
+        if (nullptr == sip || nullptr == sip->sip_request) {
+            return -1;
+        }
         switch (sip->sip_request->rq_method) {
             case sip_method_ack:
             {
@@ -1602,11 +1605,11 @@ namespace drachtio {
             }
             return -1 ;
         }
-        DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " << sip->sip_request->rq_method_name  ;
+        DR_LOG(log_debug) << "SipDialogController::processCancelOrAck: " ;
         string transactionId ;
         generateUuid( transactionId ) ;
 
-        if( sip->sip_request->rq_method == sip_method_cancel ) {
+        if( nullptr != sip->sip_request && sip->sip_request->rq_method == sip_method_cancel ) {
             if (!IIP_FindByIrq(m_invitesInProgress, irq, iip)) {
                 DR_LOG(log_error) << "Unable to find invite-in-progress for CANCEL with call-id " << sip->sip_call_id->i_id  ;
                 return 0 ;
@@ -1637,7 +1640,7 @@ namespace drachtio {
             DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - done clearing IIP "   ;
 
         }
-        else if( sip->sip_request->rq_method == sip_method_ack ) {
+        else if( nullptr != sip->sip_request && sip->sip_request->rq_method == sip_method_ack ) {
             if (!IIP_FindByIrq(m_invitesInProgress, irq, iip)) {
                 DR_LOG(log_error) << "Unable to find invite-in-progress for ACK with call-id " << sip->sip_call_id->i_id  ;
                 return 0 ;
@@ -1662,9 +1665,6 @@ namespace drachtio {
         
             //another issue is that on any non-success response sent to an incoming INVITE the subsequent ACK is not sent to the client
             //because there is no dialog created and thus no routing available.  Should fix this.
-        }
-        else {
-            DR_LOG(log_debug) << "Received " << sip->sip_request->rq_method_name << " for call-id " << sip->sip_call_id->i_id << ", discarding"  ;
         }
         return 0 ;
     }
@@ -1758,7 +1758,7 @@ namespace drachtio {
 
             // this is slightly inaccurate: we are telling the app we received a BYE when we are in fact generating it
             // the impact is minimal though, and currently there is no message type to inform the app we generated a BYE on our own
-            bool routed = m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, byeTransactionId, dlg->getDialogId() ) ;
+            m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, byeTransactionId, dlg->getDialogId() ) ;
 
             Cdr::postCdr( std::make_shared<CdrStop>( m, "application", ackbye ? Cdr::ackbye : Cdr::session_expired ) );
             nta_outgoing_destroy(orq) ;
@@ -1938,7 +1938,7 @@ namespace drachtio {
         m_mapCallIdAndCSeq2Invite.insert(mapCallIdAndCSeq2Invite::value_type(callIdAndCSeq, invite));
 
         // start timerD
-        TimerEventHandle t = m_pTQM->addTimer("timerD", std::bind(&TimerDHandler::timerD, this, invite, callIdAndCSeq), NULL, TIMER_D_MSECS ) ;
+        m_pTQM->addTimer("timerD", std::bind(&TimerDHandler::timerD, this, invite, callIdAndCSeq), NULL, TIMER_D_MSECS ) ;
 
         DR_LOG(log_info) << "TimerDHandler::addInvite orq " << hex << (void *)invite << ", " << callIdAndCSeq;
 
@@ -2033,7 +2033,7 @@ namespace drachtio {
         if (theOneAndOnlyController->getStatsCollector().enabled()) {
 
             size_t nUas = 0, nUac = 0;
-            size_t total = SD_Size(m_dialogs, nUac, nUas);
+            //size_t total = SD_Size(m_dialogs, nUac, nUas);
             STATS_GAUGE_SET_NOCHECK(STATS_GAUGE_STABLE_DIALOGS, nUas, {{"type", "inbound"}})
             STATS_GAUGE_SET_NOCHECK(STATS_GAUGE_STABLE_DIALOGS, nUac, {{"type", "outbound"}})
         }

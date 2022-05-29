@@ -226,7 +226,6 @@ namespace drachtio {
         double namelookup=0, connect=0, total=0 ;
         char *ct = NULL ;
         easy = msg->easy_handle;
-        res = msg->data.result;
         curl_easy_getinfo(easy, CURLINFO_PRIVATE, &conn);
         curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &eff_url);
         curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &response_code);

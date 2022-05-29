@@ -1378,6 +1378,7 @@ namespace drachtio {
             if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
 
                 //check if we are in the first Route header, and the request-uri is not us; if so proxy accordingly
+                /*
                 bool hostMatch = 
                   (0 == strcmp( tpn->tpn_host, sip->sip_route->r_url->url_host ) || 
                   (tpn->tpn_canon && 0 == strcmp( tpn->tpn_canon, sip->sip_route->r_url->url_host )));
@@ -1386,7 +1387,7 @@ namespace drachtio {
                   (!tpn->tpn_port && !sip->sip_route->r_url->url_port) ||
                   (!tpn->tpn_port && 0 == strcmp(sip->sip_route->r_url->url_port, "5060")) ||
                   (!sip->sip_route->r_url->url_port && 0 == strcmp(tpn->tpn_port, "5060")) ;
-
+                */
 
                 if( /*hostMatch && portMatch && */ SipTransport::isLocalAddress(sip->sip_route->r_url->url_host)) {
                     //request within an established dialog in which we are a stateful proxy
