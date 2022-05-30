@@ -184,7 +184,7 @@ namespace drachtio {
                     createResponseMsg( tokens[0], msgResponse, false, "transaction id missing" ) ;
                     return false; 
                 }
-                m_controller.respondToSipRequest( shared_from_this(), tokens[0], transactionId, startLine, headers, body ) ;
+                bOK = m_controller.respondToSipRequest( shared_from_this(), tokens[0], transactionId, startLine, headers, body ) ;
             }
             else if( dialogId.length() > 0 ) { 
                 //has dialog id - request within a dialog
