@@ -189,6 +189,10 @@ namespace drachtio {
             const sip_contact_t *target ;
             if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
                 char buffer[256];
+
+                if (nullptr ==target) {
+                    throw std::runtime_error("unable to find route for dialog when sending ACK") ;
+                }
                 url_e( buffer, 255, target->m_url ) ;
                 requestUri = buffer ;
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - defaulting request uri to " << requestUri  ;
