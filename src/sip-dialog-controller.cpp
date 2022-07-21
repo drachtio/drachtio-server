@@ -1521,6 +1521,24 @@ namespace drachtio {
                 tport_is_dgram(tp)) {
                 // start a timerD for this successful reINVITE
                 m_timerDHandler.addInvite(orq);
+
+                /* reset session expires timer, if provided */
+                sip_session_expires_t* se = sip_session_expires(sip) ;
+                if( se ) {
+                    nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
+                    if (leg) {
+                        std::shared_ptr<SipDialog> dlg ;
+                        if( !findDialogByLeg( leg, dlg ) ) {
+                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: (re)setting session expires timer to " <<  se->x_delta;
+
+                            //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
+                            dlg->setSessionTimer( se->x_delta, 
+                                !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? 
+                                    SipDialog::we_are_refresher : 
+                                    SipDialog::they_are_refresher ) ;
+                        }
+                    }
+                }
             }
             if (rip->shouldClearDialogOnResponse()) {
                 string dialogId = rip->getDialogId() ;
