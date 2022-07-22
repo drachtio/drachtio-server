@@ -1516,12 +1516,11 @@ namespace drachtio {
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, rip->getTransactionId(), rip->getDialogId() ) ;            
 
             tport_t *tp = nta_outgoing_transport(orq) ; 
-            if (sip->sip_cseq->cs_method == sip_method_invite && 
-                200 == sip->sip_status->st_status &&
-                tport_is_dgram(tp)) {
-                // start a timerD for this successful reINVITE
-                m_timerDHandler.addInvite(orq);
+            if (sip->sip_cseq->cs_method == sip_method_invite && 200 == sip->sip_status->st_status) {
 
+                // start a timerD for this successful reINVITE
+                if (tport_is_dgram(tp) )m_timerDHandler.addInvite(orq);
+                
                 /* reset session expires timer, if provided */
                 sip_session_expires_t* se = sip_session_expires(sip) ;
                 if( se ) {
@@ -1539,6 +1538,12 @@ namespace drachtio {
                         }
                     }
                 }
+
+            }
+
+            if (sip->sip_cseq->cs_method == sip_method_invite && 
+                200 == sip->sip_status->st_status) {
+
             }
             if (rip->shouldClearDialogOnResponse()) {
                 string dialogId = rip->getDialogId() ;
