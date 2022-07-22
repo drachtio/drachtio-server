@@ -1524,26 +1524,17 @@ namespace drachtio {
                 /* reset session expires timer, if provided */
                 sip_session_expires_t* se = sip_session_expires(sip) ;
                 if( se ) {
-                    nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
-                    if (leg) {
-                        std::shared_ptr<SipDialog> dlg ;
-                        if( !findDialogByLeg( leg, dlg ) ) {
-                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: (re)setting session expires timer to " <<  se->x_delta;
-
-                            //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
-                            dlg->setSessionTimer( se->x_delta, 
-                                !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? 
-                                    SipDialog::we_are_refresher : 
-                                    SipDialog::they_are_refresher ) ;
-                        }
+                    std::shared_ptr<SipDialog> dlg ;
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: searching for dialog by call-id " << sip->sip_call_id->i_id;
+                    if (findDialogByCallId( sip->sip_call_id->i_id, dlg )) {
+                        DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: (re)setting session expires timer to " <<  se->x_delta;
+                        //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
+                        dlg->setSessionTimer( se->x_delta, 
+                            !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? 
+                                SipDialog::we_are_refresher : 
+                                SipDialog::they_are_refresher ) ;
                     }
                 }
-
-            }
-
-            if (sip->sip_cseq->cs_method == sip_method_invite && 
-                200 == sip->sip_status->st_status) {
-
             }
             if (rip->shouldClearDialogOnResponse()) {
                 string dialogId = rip->getDialogId() ;
