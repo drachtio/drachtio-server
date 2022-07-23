@@ -1501,28 +1501,28 @@ namespace drachtio {
         DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: "  ;
     	ostringstream o ;
         std::shared_ptr<RIP> rip  ;
+        sip_method_t method = sip->sip_cseq->cs_method;
+        int statusCode = sip->sip_status->st_status ;
 
         if( findRIPByOrq( orq, rip ) ) {
-            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: found request for response"  ;
+            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: found request for "  << sip->sip_cseq->cs_method_name << " sip status " << statusCode ;
 
             string encodedMessage ;
             bool truncated ;
             msg_t* msg = nta_outgoing_getresponse(orq) ;  // adds a reference
             SipMsgData_t meta( msg, orq, "network") ;
-
             EncodeStackMessage( sip, encodedMessage ) ;
-            msg_destroy(msg) ;                             // releases reference
             
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, rip->getTransactionId(), rip->getDialogId() ) ;            
 
-            tport_t *tp = nta_outgoing_transport(orq) ; 
-            if (sip->sip_cseq->cs_method == sip_method_invite && 200 == sip->sip_status->st_status) {
+            if (method == sip_method_invite && 200 == statusCode) {
+                tport_t *tp = nta_outgoing_transport(orq) ; 
+                sip_session_expires_t* se = sip_session_expires(sip) ;
 
                 // start a timerD for this successful reINVITE
                 if (tport_is_dgram(tp) )m_timerDHandler.addInvite(orq);
                 
                 /* reset session expires timer, if provided */
-                sip_session_expires_t* se = sip_session_expires(sip) ;
                 if( se ) {
                     std::shared_ptr<SipDialog> dlg ;
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: searching for dialog by call-id " << sip->sip_call_id->i_id;
@@ -1534,6 +1534,9 @@ namespace drachtio {
                                 SipDialog::we_are_refresher : 
                                 SipDialog::they_are_refresher ) ;
                     }
+                }
+                else {
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: no session expires header found";
                 }
             }
             if (rip->shouldClearDialogOnResponse()) {
@@ -1550,7 +1553,8 @@ namespace drachtio {
                     assert(false) ;
                 }
             }
-            clearRIP( orq ) ;          
+            clearRIP( orq ) ;     
+            msg_destroy(msg) ;   // releases reference
         }
         else {
             DR_LOG(log_error) << "SipDialogController::processResponseInsideDialog: unable to find request associated with response"  ;            
