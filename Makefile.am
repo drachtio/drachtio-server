@@ -6,7 +6,7 @@ INCLUDES= -I${srcdir}/deps/boost_1_78_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-
  -I${srcdir}/deps//cpp-bredis/include \
  -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib -L${srcdir}/deps/boost_1_78_0/stage/lib
-LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
+LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz -ltcmalloc
 bin_PROGRAMS= drachtio timer ssltest parser uri_test test_https test_asio_curl
 
 ACLOCAL_AMFLAGS = -I m4
