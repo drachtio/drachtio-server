@@ -6,7 +6,7 @@ INCLUDES= -I${srcdir}/deps/boost_1_78_0 -I${srcdir}/deps/sofia-sip/libsofia-sip-
  -I${srcdir}/deps//cpp-bredis/include \
  -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib -L${srcdir}/deps/boost_1_78_0/stage/lib
-LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz -ltcmalloc
+LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
 bin_PROGRAMS= drachtio timer ssltest parser uri_test test_https test_asio_curl
 
 ACLOCAL_AMFLAGS = -I m4
@@ -19,7 +19,7 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/invite-in-progress.cpp src/blacklist.cpp
 drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
 	-DBOOST_ALLOW_DEPRECATED_HEADERS 
-drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
+drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl -lpthread -ltcmalloc -lssl -lcrypto -lz
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
 timer_CPPFLAGS=-D_REENTRANT -DTEST
