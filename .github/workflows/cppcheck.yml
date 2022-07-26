@@ -17,7 +17,7 @@ jobs:
           submodules: recursive
       - run: |
           sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev cppcheck
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev cppcheck libgoogle-perftools-dev
       - run: |
           set -x
           cppcheck --enable=warning,performance,portability,style --error-exitcode=1 src/

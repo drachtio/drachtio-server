@@ -75,6 +75,10 @@ test_https_CPPFLAGS += -I/usr/local/opt/openssl/include
 make_BOOST_CMD = cd ${srcdir}/deps/boost_1_78_0 && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
 endif
 
+if TCMALLOC
+drachtio_LDADD += -ltcmalloc
+endif
+
 BUILT_SOURCES=${srcdir}/deps/boost_1_78_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 

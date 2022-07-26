@@ -24,6 +24,16 @@ case $host_os in
      ;;
 esac
 
+# optional linking with tcmalloc
+AC_ARG_ENABLE([tcmalloc],
+[  --enable-tcmalloc    Link with tcmalloc (requires libgoogle-perftools-dev)],
+[case "${enableval}" in
+  yes) tcmalloc=true ;;
+  no)  tcmalloc=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-tcmalloc]) ;;
+esac],[tcmalloc=false])
+AM_CONDITIONAL([TCMALLOC], [test x$tcmalloc = xtrue])
+
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC

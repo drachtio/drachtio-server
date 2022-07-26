@@ -249,7 +249,7 @@ namespace drachtio {
 	}
 
 	void SipDialog::setSessionTimer( unsigned long nSecs, SessionRefresher_t whoIsResponsible ) {
-		assert( NULL == m_timerSessionRefresh ) ;
+		if (m_timerSessionRefresh) cancelSessionTimer();
 		m_refresher = whoIsResponsible ;
 		m_nSessionTimerDuration = nSecs * 1000  ;
 		m_nSessionExpiresSecs = nSecs ;
