@@ -19,7 +19,7 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/invite-in-progress.cpp src/blacklist.cpp
 drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
 	-DBOOST_ALLOW_DEPRECATED_HEADERS 
-drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl -lpthread -ltcmalloc -lssl -lcrypto -lz
+drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson-2.10/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
 timer_CPPFLAGS=-D_REENTRANT -DTEST
@@ -73,6 +73,10 @@ drachtio_CPPFLAGS += -I/usr/local/opt/openssl/include -fvisibility=hidden
 test_https_LDADD += -L/usr/local/opt/openssl/lib ${srcdir}/deps/boost_1_78_0/stage/lib/libboost_system.a
 test_https_CPPFLAGS += -I/usr/local/opt/openssl/include
 make_BOOST_CMD = cd ${srcdir}/deps/boost_1_78_0 && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
+endif
+
+if TCMALLOC
+drachtio_LDADD += -ltcmalloc
 endif
 
 BUILT_SOURCES=${srcdir}/deps/boost_1_78_0/stage/lib/libboost_thread.a ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
