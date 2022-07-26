@@ -282,6 +282,8 @@ namespace drachtio {
 
     float m_minTlsVersion;
     bool m_bDisableNatDetection;
+
+    bool m_bAlwaysSend180;
   } ;
 
 } ;

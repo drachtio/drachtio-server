@@ -290,7 +290,7 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
-        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr) {
+        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false) {
 
         getEnv();
 
@@ -425,6 +425,7 @@ namespace drachtio {
                 {"blacklist-redis-port", required_argument, 0, 'P'},
                 {"blacklist-redis-key", required_argument, 0, 'Q'},
                 {"blacklist-refresh-secs", required_argument, 0, 'R'},
+                {"always-send-180", no_argument, 0, 'S'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -637,6 +638,9 @@ namespace drachtio {
                     break;
                 case 'R':
                     m_redisRefreshSecs = ::atoi(optarg);
+                    break;
+                case 'S':
+                    m_bAlwaysSend180 = true;
                     break;
 
                 case 'v':
@@ -1424,6 +1428,7 @@ namespace drachtio {
 
                         if( sip_method_invite == sip->sip_request->rq_method ) {
                             nta_msg_treply( m_nta, msg_ref_create( msg ), 100, NULL, TAG_END() ) ;  
+                            if (m_bAlwaysSend180) nta_msg_treply( m_nta, msg_ref_create( msg ), 180, NULL, TAG_END() ) ;  
                         }
 
                         string transactionId ;
