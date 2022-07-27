@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
@@ -9,7 +9,7 @@ RUN apt-get update \
   && ./bootstrap.sh \
   && mkdir /usr/local/src/drachtio-server/build  \
   && cd /usr/local/src/drachtio-server/build  \
-  && ../configure CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2' \
+  && ../configure --enable-tcmalloc=yes CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2' \
   && make \
   && make install \
   && apt-get purge -y --quiet --auto-remove gcc g++ make cmake build-essential git autoconf automake libtool libtool-bin \
