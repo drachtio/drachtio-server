@@ -570,6 +570,8 @@ CCDEPMODE
 ac_ct_CC
 CFLAGS
 CC
+TCMALLOC_FALSE
+TCMALLOC_TRUE
 host_os
 host_vendor
 host_cpu
@@ -665,6 +667,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
+enable_tcmalloc
 with_libcurl
 '
       ac_precious_vars='build_alias
@@ -1299,6 +1302,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking  speeds up one-time build
   --enable-dependency-tracking   do not reject slow dependency extractors
+  --enable-tcmalloc    Link with tcmalloc (requires libgoogle-perftools-dev)
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -5956,6 +5960,27 @@ fi
      ;;
 esac
 
+# optional linking with tcmalloc
+# Check whether --enable-tcmalloc was given.
+if test "${enable_tcmalloc+set}" = set; then :
+  enableval=$enable_tcmalloc; case "${enableval}" in
+  yes) tcmalloc=true ;;
+  no)  tcmalloc=false ;;
+  *) as_fn_error "bad value ${enableval} for --enable-tcmalloc" "$LINENO" 5 ;;
+esac
+else
+  tcmalloc=false
+fi
+
+ if test x$tcmalloc = xtrue; then
+  TCMALLOC_TRUE=
+  TCMALLOC_FALSE='#'
+else
+  TCMALLOC_TRUE='#'
+  TCMALLOC_FALSE=
+fi
+
+
 # Checks for programs.
 ac_ext=cpp
 ac_cpp='$CXXCPP $CPPFLAGS'
@@ -7530,6 +7555,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${LINUX_TRUE}" && test -z "${LINUX_FALSE}"; then
   as_fn_error "conditional \"LINUX\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${TCMALLOC_TRUE}" && test -z "${TCMALLOC_FALSE}"; then
+  as_fn_error "conditional \"TCMALLOC\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${am__fastdepCXX_TRUE}" && test -z "${am__fastdepCXX_FALSE}"; then
