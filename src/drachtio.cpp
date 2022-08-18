@@ -325,8 +325,8 @@ namespace drachtio {
             }
             else {
                 //otherwise, encode the sip header 
-                char buf[1024] ;
-                issize_t n = msg_header_e(buf, 1024, reinterpret_cast<const msg_header_t *>(p), 0) ;
+                char buf[8192] ;
+                issize_t n = msg_header_e(buf, 8192, reinterpret_cast<const msg_header_t *>(p), 0) ;
                 encodedMessage.append( buf, n ) ;
             }
             p = p->h_succ->sh_common ;
@@ -1093,7 +1093,11 @@ namespace drachtio {
             else if ((c & 0xF8) == 0xF0) i+=3;
             //else if (($c & 0xFC) == 0xF8) i+=4; // 111110bb //byte 5, unnecessary in 4 byte UTF-8
             //else if (($c & 0xFE) == 0xFC) i+=5; // 1111110b //byte 6, unnecessary in 4 byte UTF-8
-            else return 0;//invalid utf8
+            else {
+                DR_LOG(log_error) << "utf8_strlen - code 0x" << std::hex << c << " at position " << std::dec << q << " is not a valid UTF-8 character";
+                DR_LOG(log_error) << "utf8_strlen - in string: " << str ;
+                return 0;//invalid utf8
+            }
         }
         return q;
     }
