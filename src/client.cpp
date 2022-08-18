@@ -438,6 +438,10 @@ read_again:
         int len = utf8_strlen(str);
         ostringstream o ;
 
+        if (0 == len) {
+            DR_LOG(log_info) << "Client::send - we are unable to send this message back to client" << str; 
+            return;
+        }
         o << len << "#" << str ;
 
         m_msgToSend = o.str();
