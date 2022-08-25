@@ -261,20 +261,20 @@ namespace drachtio {
   void PendingRequestController::logStorageCount(bool bDetail)  {
     std::lock_guard<std::mutex> lock(m_mutex) ;
 
-    DR_LOG(log_debug) << "PendingRequestController storage counts"  ;
-    DR_LOG(log_debug) << "----------------------------------"  ;
-    DR_LOG(log_debug) << "m_mapCallId2Invite size:                                         " << m_mapCallId2Invite.size()  ;
+    DR_LOG(bDetail ? log_info : log_debug) << "PendingRequestController storage counts"  ;
+    DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
+    DR_LOG(bDetail ? log_info : log_debug) << "m_mapCallId2Invite size:                                         " << m_mapCallId2Invite.size()  ;
     if (bDetail) {
         for (const auto& kv : m_mapCallId2Invite) {
-          DR_LOG(log_debug) << "    call-id: " << std::hex << (kv.first).c_str();
+          DR_LOG(bDetail ? log_info : log_debug) << "    call-id: " << std::hex << (kv.first).c_str();
         }
     }
 
-    DR_LOG(log_debug) << "m_mapTxnId2Invite size:                                          " << m_mapTxnId2Invite.size()  ;
+    DR_LOG(bDetail ? log_info : log_debug) << "m_mapTxnId2Invite size:                                          " << m_mapTxnId2Invite.size()  ;
     if (bDetail) {
         for (const auto& kv : m_mapTxnId2Invite) {
           std::shared_ptr<PendingRequest_t> p = kv.second;
-          DR_LOG(log_debug) << "    txn id: " << std::hex << (kv.first).c_str() << ", call-id : " << p->getCallId().c_str();
+          DR_LOG(bDetail ? log_info : log_debug) << "    txn id: " << std::hex << (kv.first).c_str() << ", call-id : " << p->getCallId().c_str();
         }
     }
   }

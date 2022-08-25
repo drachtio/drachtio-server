@@ -365,6 +365,31 @@ namespace drachtio {
                 DR_LOG(log_error) << "Error reading configuration file; no changes will be made.  Please correct the configuration file and try to reload again"  ;
                 m_ConfigNew.reset() ;
             }
+            else {
+                m_current_severity_threshold = m_Config->getLoglevel() ;
+                logging::core::get()->set_filter(
+                   expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
+                );
+                switch (m_current_severity_threshold) {
+                    case log_notice:
+                        DR_LOG(log_notice) << "drachtio loglevel set to NOTICE"  ;
+                        break;
+                    case log_error:
+                        DR_LOG(log_notice) << "drachtio loglevel set to ERROR"  ;
+                        break;
+                    case log_info:
+                        DR_LOG(log_notice) << "drachtio loglevel set to INFO"  ;
+                        break;
+                    case log_debug:
+                        DR_LOG(log_notice) << "drachtio loglevel set to DEBUG"  ;
+                        break;
+                    default:
+                        break;
+                }
+                unsigned int sofiaLoglevel = m_Config->getSofiaLogLevel();
+                su_log_set_level(NULL, sofiaLoglevel);
+                DR_LOG(log_notice) << "sofia loglevel set to " <<  sofiaLoglevel;
+            }
         }
         else {
             DR_LOG(log_error) << "Ignoring signal; already have a new configuration file to install"  ;
@@ -1948,6 +1973,8 @@ namespace drachtio {
   }
 
     void DrachtioController::printStats(bool bDetail) {
+       bool bMemoryDebug = m_bMemoryDebug || m_bDumpMemory;
+
        usize_t irq_hash = -1, orq_hash = -1, leg_hash = -1;
        usize_t irq_used = -1, orq_used = -1, leg_used = -1 ;
        usize_t recv_msg = -1, sent_msg = -1;
@@ -1997,10 +2024,10 @@ namespace drachtio {
                                 NTATAG_S_TOUT_RESPONSE_REF(tout_response),
                            TAG_END()) ;
        
-       DR_LOG(log_debug) << "size of hash table for server-side transactions                  " << dec << irq_hash  ;
-       DR_LOG(log_debug) << "size of hash table for client-side transactions                  " << orq_hash  ;
-       DR_LOG(log_debug) << "size of hash table for dialogs                                   " << leg_hash  ;
-       DR_LOG(log_debug) << "number of server-side transactions in the hash table             " << irq_used  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "size of hash table for server-side transactions                  " << dec << irq_hash  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "size of hash table for client-side transactions                  " << orq_hash  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "size of hash table for dialogs                                   " << leg_hash  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of server-side transactions in the hash table             " << irq_used  ;
        if (bDetail && irq_used > 0) {
            nta_incoming_t* irq = NULL;
            std::deque<nta_incoming_t*> aged;
@@ -2012,19 +2039,19 @@ namespace drachtio {
                    uint32_t seq = nta_incoming_cseq(irq);
                    sip_time_t secsSinceReceived = now - nta_incoming_received(irq, NULL);
                    if (secsSinceReceived > 3600) aged.push_back(irq);
-                   DR_LOG(log_debug) << "    nta_incoming_t*: " << std::hex << (void *) irq  <<
+                   DR_LOG(bMemoryDebug ? log_info : log_debug) << "    nta_incoming_t*: " << std::hex << (void *) irq  <<
                     " " << method << " " << std::dec << seq << " remote tag: " << tag << 
                     " alive " << secsSinceReceived << " secs";
                }
            } while (irq) ;
            /*
            std::for_each(aged.begin(), aged.end(), [](nta_incoming_t* irq) {
-               DR_LOG(log_debug) << "        destroying very old nta_incoming_t*: " <<  std::hex << (void *) irq ;
+               DR_LOG(bMemoryDebug ? log_info : log_debug) << "        destroying very old nta_incoming_t*: " <<  std::hex << (void *) irq ;
                nta_incoming_destroy(irq);
            });
            */
        }
-       DR_LOG(log_debug) << "number of client-side transactions in the hash table             " << orq_used  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of client-side transactions in the hash table             " << orq_used  ;
        if (bDetail && orq_used > 0) {
            nta_outgoing_t* orq = NULL;
            do {
@@ -2033,47 +2060,47 @@ namespace drachtio {
                    const char* method = nta_outgoing_method_name(orq);
                    const char* callId = nta_outgoing_call_id(orq);
                    uint32_t seq = nta_outgoing_cseq(orq);
-                   DR_LOG(log_debug) << "    nta_outgoing_t*: " << std::hex << (void *) orq  <<
+                   DR_LOG(bMemoryDebug ? log_info : log_debug) << "    nta_outgoing_t*: " << std::hex << (void *) orq  <<
                     " " << method << " " << callId << std::dec << " CSeq: " << seq;
                }
            } while (orq) ;
        }
-       DR_LOG(log_debug) << "number of dialogs in the hash table                              " << leg_used  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of dialogs in the hash table                              " << leg_used  ;
        if (bDetail && leg_used > 0) {
            nta_leg_t* leg = NULL;
            do {
                leg = nta_get_next_dialog_from_hash(m_nta, leg);
                if (leg) {
                    const char* localTag = nta_leg_get_tag(leg);
-                   DR_LOG(log_debug) << "    nta_leg_t*: " << std::hex << (void *) leg  << 
+                   DR_LOG(bMemoryDebug ? log_info : log_debug) << "    nta_leg_t*: " << std::hex << (void *) leg  << 
                     " local tag: " << localTag ;
                }
            } while (leg) ;
        }
-       DR_LOG(log_debug) << "number of sip messages received                                  " << recv_msg  ;
-       DR_LOG(log_debug) << "number of sip messages sent                                      " << sent_msg  ;
-       DR_LOG(log_debug) << "number of sip requests received                                  " << recv_request  ;
-       DR_LOG(log_debug) << "number of sip requests sent                                      " << sent_request  ;
-       DR_LOG(log_debug) << "number of bad sip messages received                              " << bad_message  ;
-       DR_LOG(log_debug) << "number of bad sip requests received                              " << bad_request  ;
-       DR_LOG(log_debug) << "number of bad sip requests dropped                               " << drop_request  ;
-       DR_LOG(log_debug) << "number of bad sip reponses dropped                               " << drop_response  ;
-       DR_LOG(log_debug) << "number of client transactions created                            " << client_tr  ;
-       DR_LOG(log_debug) << "number of server transactions created                            " << server_tr  ;
-       DR_LOG(log_debug) << "number of in-dialog server transactions created                  " << dialog_tr  ;
-       DR_LOG(log_debug) << "number of server transactions that have received ack             " << acked_tr  ;
-       DR_LOG(log_debug) << "number of server transactions that have received cancel          " << canceled_tr  ;
-       DR_LOG(log_debug) << "number of requests that were processed stateless                 " << trless_request  ;
-       DR_LOG(log_debug) << "number of requests converted to transactions by message callback " << trless_to_tr  ;
-       DR_LOG(log_debug) << "number of responses without matching request                     " << trless_response  ;
-       DR_LOG(log_debug) << "number of successful responses missing INVITE client transaction " << trless_200  ;
-       DR_LOG(log_debug) << "number of requests merged by UAS                                 " << merged_request  ;
-       DR_LOG(log_debug) << "number of SIP responses sent by stack                            " << sent_response  ;
-       DR_LOG(log_debug) << "number of SIP requests retransmitted by stack                    " << retry_request  ;
-       DR_LOG(log_debug) << "number of SIP responses retransmitted by stack                   " << retry_response  ;
-       DR_LOG(log_debug) << "number of retransmitted SIP requests received by stack           " << recv_retry  ;
-       DR_LOG(log_debug) << "number of SIP client transactions that has timeout               " << tout_request  ;
-       DR_LOG(log_debug) << "number of SIP server transactions that has timeout               " << tout_response  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of sip messages received                                  " << recv_msg  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of sip messages sent                                      " << sent_msg  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of sip requests received                                  " << recv_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of sip requests sent                                      " << sent_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of bad sip messages received                              " << bad_message  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of bad sip requests received                              " << bad_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of bad sip requests dropped                               " << drop_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of bad sip reponses dropped                               " << drop_response  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of client transactions created                            " << client_tr  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of server transactions created                            " << server_tr  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of in-dialog server transactions created                  " << dialog_tr  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of server transactions that have received ack             " << acked_tr  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of server transactions that have received cancel          " << canceled_tr  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of requests that were processed stateless                 " << trless_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of requests converted to transactions by message callback " << trless_to_tr  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of responses without matching request                     " << trless_response  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of successful responses missing INVITE client transaction " << trless_200  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of requests merged by UAS                                 " << merged_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of SIP responses sent by stack                            " << sent_response  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of SIP requests retransmitted by stack                    " << retry_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of SIP responses retransmitted by stack                   " << retry_response  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of retransmitted SIP requests received by stack           " << recv_retry  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of SIP client transactions that has timeout               " << tout_request  ;
+       DR_LOG(bMemoryDebug ? log_info : log_debug) << "number of SIP server transactions that has timeout               " << tout_response  ;
 
        STATS_GAUGE_SET(STATS_GAUGE_SOFIA_SERVER_HASH_SIZE, irq_hash)
        STATS_GAUGE_SET(STATS_GAUGE_SOFIA_CLIENT_HASH_SIZE, orq_hash)
@@ -2118,10 +2145,10 @@ namespace drachtio {
         m_pProxyController->logStorageCount(bMemoryDebug) ;
         m_bDumpMemory = false;
 
-        DR_LOG(log_debug) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
+        DR_LOG(bMemoryDebug ? log_info : log_debug) << "m_mapUri2InvalidData size:                                       " << m_mapUri2InvalidData.size()  ;
 
 #ifdef SOFIA_MSG_DEBUG_TRACE
-        DR_LOG(log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
+        DR_LOG(bMemoryDebug ? log_info : log_debug) << "number allocated msg_t                                           " << sofia_msg_count()  ;
 #endif
     }
 
