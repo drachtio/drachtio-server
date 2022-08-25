@@ -366,7 +366,7 @@ namespace drachtio {
                 m_ConfigNew.reset() ;
             }
             else {
-                m_current_severity_threshold = m_Config->getLoglevel() ;
+                m_current_severity_threshold = m_ConfigNew->getLoglevel() ;
                 logging::core::get()->set_filter(
                    expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
                 );
@@ -386,9 +386,11 @@ namespace drachtio {
                     default:
                         break;
                 }
-                unsigned int sofiaLoglevel = m_Config->getSofiaLogLevel();
+                unsigned int sofiaLoglevel = m_ConfigNew->getSofiaLogLevel();
                 su_log_set_level(NULL, sofiaLoglevel);
                 DR_LOG(log_notice) << "sofia loglevel set to " <<  sofiaLoglevel;
+
+                this->installConfig() ;
             }
         }
         else {
