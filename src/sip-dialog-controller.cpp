@@ -2044,15 +2044,15 @@ namespace drachtio {
     // logging / metrics
     void SipDialogController::logStorageCount(bool bDetail)  {
 
-        DR_LOG(log_debug) << "SipDialogController storage counts"  ;
-        DR_LOG(log_debug) << "----------------------------------"  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "SipDialogController storage counts"  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
         IIP_Log(m_invitesInProgress, bDetail);
         SD_Log(m_dialogs, bDetail);
 
         std::lock_guard<std::mutex> lock(m_mutex) ;
-        DR_LOG(log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
-        DR_LOG(log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
-        DR_LOG(log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
         m_pTQM->logQueueSizes() ;
 
         // stats

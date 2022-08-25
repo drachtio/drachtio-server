@@ -1610,21 +1610,21 @@ namespace drachtio {
     void SipProxyController::logStorageCount(bool bDetail)  {
         std::lock_guard<std::mutex> lock(m_mutex) ;
         
-        DR_LOG(log_debug) << "SipProxyController storage counts"  ;
-        DR_LOG(log_debug) << "----------------------------------"  ;
-        DR_LOG(log_debug) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "SipProxyController storage counts"  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "m_mapCallId2Proxy size:                                          " << m_mapCallId2Proxy.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapCallId2Proxy) {
                 std::shared_ptr<ProxyCore> p = kv.second;
-                DR_LOG(log_debug) << "    sip proxy txn id: " << std::hex << (kv.first).c_str() << ", call-id: " << p->getCallId();
+                DR_LOG(bDetail ? log_info : log_debug) << "    sip proxy txn id: " << std::hex << (kv.first).c_str() << ", call-id: " << p->getCallId();
             }
         }
 
-        DR_LOG(log_debug) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "m_mapNonce2Challenge size:                                       " << m_mapNonce2Challenge.size()  ;
         if (bDetail) {
             for (const auto& kv : m_mapNonce2Challenge) {
                 std::shared_ptr<ChallengedRequest> p = kv.second;
-                DR_LOG(log_debug) << "    nonce: " << std::hex << (kv.first).c_str() << ", remote address: " << p->getRemoteAddress().c_str();
+                DR_LOG(bDetail ? log_info : log_debug) << "    nonce: " << std::hex << (kv.first).c_str() << ", remote address: " << p->getRemoteAddress().c_str();
             }
         }
         m_pTQM->logQueueSizes() ;
