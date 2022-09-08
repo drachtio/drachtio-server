@@ -212,10 +212,10 @@ namespace drachtio {
                     m_logFileName = pt.get<string>("drachtio.logging.file.name") ;
                     m_logArchiveDirectory = pt.get<string>("drachtio.logging.file.archive", "archive") ;
                     m_rotationSize = pt.get<unsigned int>("drachtio.logging.file.size", 50) ; // default: 50M
-                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 0) ;
-                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.minSize", 0) ;
-                    m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", false) ;
-                    m_maxFiles = pt.get<unsigned int>("drachtio.logging.file.maxFiles", 10);   // number of rotated files to keep
+                    m_maxSize = pt.get<unsigned int>("drachtio.logging.file.maxSize", 1000) ;    // default: 1G
+                    m_minSize = pt.get<unsigned int>("drachtio.logging.file.minSize", 0) ;      // default: no minimum
+                    m_bAutoFlush = pt.get<bool>("drachtio.logging.file.auto-flush", true) ;
+                    m_maxFiles = pt.get<unsigned int>("drachtio.logging.file.maxFiles", 100);   // number of rotated files to keep
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
 
