@@ -303,6 +303,7 @@ namespace drachtio {
                 archiveDirectory = m_logArchiveDirectory ;
                 rotationSize = m_rotationSize ;
                 autoFlush = m_bAutoFlush;
+                maxSize = m_maxSize ;
                 maxFiles = m_maxFiles;
                 return true ;
             }
