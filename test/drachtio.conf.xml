@@ -20,6 +20,8 @@
             <contact>sip:127.0.0.1:5090;transport=udp,tcp</contact>
         </contacts>
 
+        <user-agent-options-auto-respond>JsSIP 3.8.2</user-agent-options-auto-respond>
+        
         <spammers action="reject" tcp-action="discard">
             <header name="User-Agent">
                 <value>sip-cli</value>

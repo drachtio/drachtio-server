@@ -129,6 +129,13 @@ namespace drachtio {
                 } catch( boost::property_tree::ptree_bad_path& e ) {
                 }
 
+                // user agent which if we see in an OPTIONS request, we respond 200 OK
+                try {
+                    pt.get_child("drachtio.sip.user-agent-options-auto-respond") ; // will throw if doesn't exist
+                    m_autoAnswerOptionsUserAgent = pt.get<string>("drachtio.sip.user-agent-options-auto-respond") ;
+                } catch( boost::property_tree::ptree_bad_path& e ) {
+                }
+
                 // redis blacklist server
                 try {
                     cerr << "checking for blacklist in config" << endl;
@@ -409,6 +416,12 @@ namespace drachtio {
             return true;
         }
 
+        bool getAutoAnswerOptionsUserAgent(string& userAgent) {
+            if (0 == m_autoAnswerOptionsUserAgent.length()) return false;
+            userAgent = m_autoAnswerOptionsUserAgent;
+            return true;
+        }
+
         unsigned int getMtu() {
             return m_mtu;
         }
@@ -496,6 +509,7 @@ namespace drachtio {
         unsigned int m_redisPort;
         string m_redisKey;
         unsigned int m_redisRefreshSecs;
+        string m_autoAnswerOptionsUserAgent;
   } ;
     
     /*
@@ -593,5 +607,10 @@ namespace drachtio {
     bool DrachtioConfig::getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const {
         return m_pimpl->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs);
     }
+
+    bool DrachtioConfig::getAutoAnswerOptionsUserAgent(string& userAgent) const {
+        return m_pimpl->getAutoAnswerOptionsUserAgent(userAgent);
+    }
+
 
 }

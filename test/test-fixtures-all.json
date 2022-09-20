@@ -144,5 +144,10 @@
     "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
     "uac": {"name": "uac-spammer-expect-603.xml", "target": "127.0.0.1:5090"},
     "message": "connection tests: send 603 spammer detected"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "uac": {"name": "uac-options-expect-200.xml", "target": "127.0.0.1:5090"},
+    "message": "connection tests: 200 OK automatically generated for OPTIONS"
   }
 ]

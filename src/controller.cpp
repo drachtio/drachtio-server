@@ -453,6 +453,7 @@ namespace drachtio {
                 {"blacklist-redis-key", required_argument, 0, 'Q'},
                 {"blacklist-refresh-secs", required_argument, 0, 'R'},
                 {"always-send-180", no_argument, 0, 'S'},
+                {"user-agent-options-auto-respond", no_argument, 0, 'T'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -669,7 +670,9 @@ namespace drachtio {
                 case 'S':
                     m_bAlwaysSend180 = true;
                     break;
-
+                case 'T':
+                    m_strUserAgentAutoAnswerOptions = optarg;
+                    break;
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -721,37 +724,38 @@ namespace drachtio {
         cerr << "Usage: drachtio [OPTIONS]" << endl ;
         cerr << endl << "Start drachtio sip engine" << endl << endl ;
         cerr << "Options:" << endl << endl ;
-        cerr << "    --address                      Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
-        cerr << "    --aggressive-nat-detection     take presence of 'nat=yes' in Record-Route or Contact hdr as an indicator a remote server is behind a NAT" << endl ;
-        cerr << "    --blacklist-redis-address      address of redis server that contains a set with blacklisted IPs" << endl;
-        cerr << "    --blacklist-redis-port         port for redis server containing blacklisted IPs" << endl;
-        cerr << "    --blacklist-redis-key          key for a redis set that contains blacklisted IPs" << endl;
-        cerr << "    --blacklist-redis-refresh-secs how often to check for new blacklisted IPs" << endl;
-        cerr << "    --daemon                       Run the process as a daemon background process" << endl ;
-        cerr << "    --cert-file                    TLS certificate file" << endl ;
-        cerr << "    --chain-file                   TLS certificate chain file" << endl ;
-        cerr << "-c, --contact                      Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
-        cerr << "    --dh-param                     file containing Diffie-Helman parameters, required when using encrypted TLS admin connections" << endl ;
-        cerr << "    --dns-name                     specifies a DNS name that resolves to the local host, if any" << endl ;
-        cerr << "-f, --file                         Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
-        cerr << "    --homer                        ip:port of homer/sipcapture agent" << endl ;
-        cerr << "    --homer-id                     homer agent id to use in HEP messages to identify this server" << endl ;
-        cerr << "    --http-handler                 http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
-        cerr << "    --http-method                  method to use with http-handler: GET (default) or POST" << endl ;
-        cerr << "    --key-file                     TLS key file" << endl ;
-        cerr << "-l  --loglevel                     Log level (choices: notice, error, warning, info, debug)" << endl ;
-        cerr << "    --local-net                    CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
-        cerr << "    --memory-debug                 enable verbose debugging of memory allocations (do not turn on in production)" << endl ;
-        cerr << "    --mtu                          max packet size for UDP (default: system-defined mtu)" << endl ;
-        cerr << "-p, --port                         TCP port to listen on for application connections (default 9022)" << endl ;
-        cerr << "    --prometheus-scrape-port       The port (or host:port) to listen on for Prometheus.io metrics scrapes" << endl ;
-        cerr << "    --secret                       The shared secret to use for authenticating application connections" << endl ;
-        cerr << "    --sofia-loglevel               Log level of internal sip stack (choices: 0-9)" << endl ;
-        cerr << "    --external-ip                  External IP address to use in SIP messaging" << endl ;
-        cerr << "    --stdout                       Log to standard output as well as any configured log destinations" << endl ;
-        cerr << "    --tcp-keepalive-interval       tcp keepalive in seconds (0=no keepalive)" << endl ;
-        cerr << "    --min-tls-version              minimum allowed TLS version for connecting clients (default: 1.0)" << endl ;
-        cerr << "-v  --version                      Print version and exit" << endl ;
+        cerr << "    --address                          Bind to the specified address for application connections (default: 0.0.0.0)" << endl ;
+        cerr << "    --aggressive-nat-detection         take presence of 'nat=yes' in Record-Route or Contact hdr as an indicator a remote server is behind a NAT" << endl ;
+        cerr << "    --blacklist-redis-address          address of redis server that contains a set with blacklisted IPs" << endl;
+        cerr << "    --blacklist-redis-port             port for redis server containing blacklisted IPs" << endl;
+        cerr << "    --blacklist-redis-key              key for a redis set that contains blacklisted IPs" << endl;
+        cerr << "    --blacklist-redis-refresh-secs     how often to check for new blacklisted IPs" << endl;
+        cerr << "    --daemon                           Run the process as a daemon background process" << endl ;
+        cerr << "    --cert-file                        TLS certificate file" << endl ;
+        cerr << "    --chain-file                       TLS certificate chain file" << endl ;
+        cerr << "-c, --contact                          Sip contact url to bind to (see /etc/drachtio.conf.xml for examples)" << endl ;
+        cerr << "    --dh-param                         file containing Diffie-Helman parameters, required when using encrypted TLS admin connections" << endl ;
+        cerr << "    --dns-name                         specifies a DNS name that resolves to the local host, if any" << endl ;
+        cerr << "-f, --file                             Path to configuration file (default /etc/drachtio.conf.xml)" << endl ;
+        cerr << "    --homer                            ip:port of homer/sipcapture agent" << endl ;
+        cerr << "    --homer-id                         homer agent id to use in HEP messages to identify this server" << endl ;
+        cerr << "    --http-handler                     http(s) URL to optionally send routing request to for new incoming sip request" << endl ;
+        cerr << "    --http-method                      method to use with http-handler: GET (default) or POST" << endl ;
+        cerr << "    --key-file                         TLS key file" << endl ;
+        cerr << "-l  --loglevel                         Log level (choices: notice, error, warning, info, debug)" << endl ;
+        cerr << "    --local-net                        CIDR for local subnet (e.g. \"10.132.0.0/20\")" << endl ;
+        cerr << "    --memory-debug                     enable verbose debugging of memory allocations (do not turn on in production)" << endl ;
+        cerr << "    --mtu                              max packet size for UDP (default: system-defined mtu)" << endl ;
+        cerr << "-p, --port                             TCP port to listen on for application connections (default 9022)" << endl ;
+        cerr << "    --prometheus-scrape-port           The port (or host:port) to listen on for Prometheus.io metrics scrapes" << endl ;
+        cerr << "    --secret                           The shared secret to use for authenticating application connections" << endl ;
+        cerr << "    --sofia-loglevel                   Log level of internal sip stack (choices: 0-9)" << endl ;
+        cerr << "    --external-ip                      External IP address to use in SIP messaging" << endl ;
+        cerr << "    --stdout                           Log to standard output as well as any configured log destinations" << endl ;
+        cerr << "    --tcp-keepalive-interval           tcp keepalive in seconds (0=no keepalive)" << endl ;
+        cerr << "    --min-tls-version                  minimum allowed TLS version for connecting clients (default: 1.0)" << endl ;
+        cerr << "    --user-agent-options-auto-respond  If we see this User-Agent header value in an OPTIONS request, automatically send 200 OK" << endl ;
+        cerr << "-v  --version                          Print version and exit" << endl ;
     }
     void DrachtioController::getEnv(void) {
         const char* p = std::getenv("DRACHTIO_ADMIN_ADDRESS");
@@ -835,6 +839,10 @@ namespace drachtio {
         p = std::getenv("DRACHTIO_BLACKLIST_REDIS_REFRESH_SECS");
         if (p) {
             m_redisRefreshSecs = boost::lexical_cast<unsigned int>(p); ;
+        }
+        p = std::getenv("DRACHTIO_USER_AGENT_OPTIONS_AUTO_RESPOND");
+        if (p) {
+            m_strUserAgentAutoAnswerOptions = p;
         }
     }
 
@@ -1132,6 +1140,10 @@ namespace drachtio {
                 DR_LOG(log_notice) << "DrachtioController::run - sipcapture/Homer enabled: " << captureString;
             }
 
+        }
+
+        if (m_strUserAgentAutoAnswerOptions.empty()) {
+             m_Config->getAutoAnswerOptionsUserAgent(m_strUserAgentAutoAnswerOptions);
         }
 
         /* mostly useful for kubernetes deployments, where it is verboten to mess with iptables */
@@ -1456,6 +1468,12 @@ namespace drachtio {
                         if( sip_method_invite == sip->sip_request->rq_method ) {
                             nta_msg_treply( m_nta, msg_ref_create( msg ), 100, NULL, TAG_END() ) ;  
                             if (m_bAlwaysSend180) nta_msg_treply( m_nta, msg_ref_create( msg ), 180, NULL, TAG_END() ) ;  
+                        }
+                        if (sip_method_options == sip->sip_request->rq_method && sip->sip_user_agent && sip->sip_user_agent->g_string) {
+                            if (0 == m_strUserAgentAutoAnswerOptions.compare(sip->sip_user_agent->g_string)) {
+                                nta_msg_treply( m_nta, msg, 200, NULL, TAG_END() ) ;
+                                return -1 ;
+                            }
                         }
 
                         string transactionId ;

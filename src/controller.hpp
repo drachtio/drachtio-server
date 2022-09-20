@@ -284,6 +284,8 @@ namespace drachtio {
     bool m_bDisableNatDetection;
 
     bool m_bAlwaysSend180;
+
+    string  m_strUserAgentAutoAnswerOptions;
   } ;
 
 } ;
