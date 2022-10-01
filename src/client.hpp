@@ -31,6 +31,7 @@ THE SOFTWARE.
 #include <boost/asio/ssl.hpp>
 #include <boost/circular_buffer.hpp>
 
+#include <time.h>
 
 namespace drachtio {
 
@@ -71,6 +72,9 @@ namespace drachtio {
         bool isOutbound(void) const { return !m_transactionId.empty(); }
         bool hasTag(const char* tag) const { return m_tags.find(tag) != m_tags.end(); }
 
+        int getConnectionDuration(void) const { 
+            return time(NULL) - m_tConnect; 
+        }
     protected:
         virtual void send( const string& str ) = 0 ;  
 
@@ -104,6 +108,8 @@ namespace drachtio {
 
         string m_msgResponse;
         string m_msgToSend;
+
+        time_t m_tConnect ;
     };
 
 	template <typename T, typename S = T> 
