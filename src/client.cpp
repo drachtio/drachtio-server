@@ -101,6 +101,7 @@ namespace drachtio {
         m_transactionId(transactionId), m_host(host), m_port(port),
         m_state(initial), m_buffer(12228), m_nMessageLength(0) {
 
+            time(&m_tConnect);
     }
 
     BaseClient::~BaseClient() {

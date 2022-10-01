@@ -40,5 +40,6 @@ jobs:
           cd test
           npm install 
           npm run test-ci
+          cat /tmp/drachtio.log
 
  

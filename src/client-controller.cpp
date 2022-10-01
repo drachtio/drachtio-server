@@ -130,7 +130,9 @@ namespace drachtio {
     }
     void ClientController::leave( client_ptr client ) {
         m_clients.erase( client ) ;
-        DR_LOG(log_info) << "ClientController::leave - Removed client, count of connected clients is now: " << m_clients.size()  ;
+        time_t duration = client->getConnectionDuration();
+        DR_LOG(log_info) << "ClientController::leave - Removed client, connection duration " << std::dec << 
+            duration << " seconds, count of connected clients is now: " << m_clients.size()  ;
     }
     void ClientController::outboundFailed( const string& transactionId ) {
       string headers, body;
