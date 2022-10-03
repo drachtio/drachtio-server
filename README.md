@@ -23,7 +23,7 @@ All other third-party dependencies can be found under $(srcdir)/deps.  These inc
 
 After installing libcurl, do as follows:
 ```
-git clone --depth=50 --branch=main git://github.com/davehorton/drachtio-server.git && cd drachtio-server
+git clone --depth=50 --branch=main https://github.com/drachtio/drachtio-server.git && cd drachtio-server
 git submodule update --init --recursive
 ./autogen.sh
 mkdir build && cd $_
