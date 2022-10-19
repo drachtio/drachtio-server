@@ -43,7 +43,7 @@ namespace drachtio {
 
   void IIP::cancelMaxProceedingTimer() {
 		if (m_timerMaxProceeding) {
-      DR_LOG(log_debug) << "IIP::doMaxProceedingTimerHandling " << *this;
+      DR_LOG(log_debug) << "IIP::cancelMaxProceedingTimer " << *this;
       su_timer_destroy( m_timerMaxProceeding ) ;
     }
 		m_timerMaxProceeding = nullptr ;
@@ -55,6 +55,7 @@ namespace drachtio {
     DR_LOG(log_debug) << "IIP::startMaxProceedingTimer " << *this;
     m_ppSelf = new std::weak_ptr<IIP>( shared_from_this() ) ;
     m_timerMaxProceeding = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), MAX_PROCEEDING_DURATION ) ;
+    su_timer_set(m_timerMaxProceeding, max_proceeding_timer_handler, (su_timer_arg_t *) m_ppSelf );
 	}
 
   std::ostream& operator<<(std::ostream& os, const IIP& iip) {
