@@ -1,31 +1,63 @@
 #include "invite-in-progress.hpp"
 #include "controller.hpp"
 
+#define MAX_PROCEEDING_DURATION (180000)
+
 #include <mutex>
 namespace {
-  std::mutex					 	iip_mutex;
+    void max_proceeding_timer_handler( su_root_magic_t* magic, su_timer_t* timer, su_timer_arg_t* args) {
+      std::weak_ptr<drachtio::IIP> *p = reinterpret_cast< std::weak_ptr<drachtio::IIP> *>( args ) ;
+      std::shared_ptr<drachtio::IIP> pIIP = p->lock() ;
+      if( pIIP ) pIIP->doMaxProceedingTimerHandling() ;
+      else assert(0) ;
+    }
+
+  std::mutex	iip_mutex;
 }
 namespace drachtio {
 
   IIP::IIP(nta_leg_t* leg, nta_incoming_t* irq, const std::string& transactionId, std::shared_ptr<SipDialog> dlg) : 
     m_leg(leg), m_irq(irq), m_orq(nullptr), m_strTransactionId(transactionId), m_dlg(dlg),
-    m_role(uas_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()) {
-      DR_LOG(log_debug) << "adding IIP for incoming call " << *this;
+    m_role(uas_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerMaxProceeding(nullptr) {
+      DR_LOG(log_debug) << "adding IIP " << *this;
     }
 
   IIP::IIP(nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, std::shared_ptr<SipDialog> dlg) : 
     m_leg(leg), m_irq(nullptr), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),
-    m_role(uac_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()) {
-      DR_LOG(log_debug) << "adding IIP for outgoing call " << *this;
+    m_role(uac_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerMaxProceeding(nullptr) {
+      DR_LOG(log_debug) << "adding IIP " << *this;
     }
 
   IIP::~IIP() {
-    //DR_LOG(log_debug) << "IIP::~IIP " << *this;
+    cancelMaxProceedingTimer() ;
+		if( m_ppSelf) delete m_ppSelf ;
   }
+  
+  void IIP::doMaxProceedingTimerHandling(void) {
+    theOneAndOnlyController->getDialogController()->notifyMaxProceedingReachedIIP( shared_from_this() ) ;
+		delete m_ppSelf ; 
+    m_ppSelf = nullptr ; 
+    m_timerMaxProceeding = nullptr;
+  }
+
+  void IIP::cancelMaxProceedingTimer() {
+		if (m_timerMaxProceeding) {
+      su_timer_destroy( m_timerMaxProceeding ) ;
+    }
+		m_timerMaxProceeding = nullptr ;
+	}
+
+  void IIP::startMaxProceedingTimer() {
+    assert(!m_timerMaxProceeding) ;
+    assert(!m_ppSelf) ;
+    m_ppSelf = new std::weak_ptr<IIP>( shared_from_this() ) ;
+    m_timerMaxProceeding = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), MAX_PROCEEDING_DURATION ) ;
+    su_timer_set(m_timerMaxProceeding, max_proceeding_timer_handler, (su_timer_arg_t *) m_ppSelf );
+	}
 
   std::ostream& operator<<(std::ostream& os, const IIP& iip) {
     sip_time_t alive = sip_now() - iip.m_tmCreated;
-    os << "tid:" << iip.getTransactionId() << std::dec << 
+    os << (iip.role() == uac_role ? "outbound" : "inbound") << " tid:" << iip.getTransactionId() << std::dec << 
       " alive:" << alive << "s" << std::hex << 
       " leg:" << iip.leg() << 
       " irq:" << iip.irq() <<
@@ -43,6 +75,7 @@ namespace drachtio {
     if (!res.second) {
 	    DR_LOG(log_error) << "IIP_Insert failed to insert incoming IIP " << *iip;
 		}
+    iip->startMaxProceedingTimer();
   }
   void IIP_Insert(InvitesInProgress_t& iips, nta_leg_t* leg, nta_outgoing_t* orq, const std::string& transactionId, std::shared_ptr<SipDialog>& dlg) {
     std::shared_ptr<IIP> iip = std::make_shared<IIP>(leg, orq, transactionId, dlg);
@@ -53,6 +86,7 @@ namespace drachtio {
     if (!res.second) {
 	    DR_LOG(log_error) << "IIP_Insert failed to insert outgoing IIP " << *iip;
 		}
+    iip->startMaxProceedingTimer();
   }
 
   bool IIP_FindByIrq(const InvitesInProgress_t& iips, nta_incoming_t* irq, std::shared_ptr<IIP>& iip) {
