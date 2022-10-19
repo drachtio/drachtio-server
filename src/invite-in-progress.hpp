@@ -77,6 +77,7 @@ namespace drachtio {
 		void setCanceled(void) { m_bCanceled = true; }
 		bool isCanceled(void) { return m_bCanceled; }
 
+    void startMaxProceedingTimer(void);
     void cancelMaxProceedingTimer(void);
     void doMaxProceedingTimerHandling(void);
   
