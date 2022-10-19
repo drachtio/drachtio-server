@@ -51,7 +51,7 @@ namespace drachtio {
   struct TransactionIdTag{};
 
 	/* invites in progress */
-	class IIP {
+	class IIP  : public std::enable_shared_from_this<IIP> {
   public:
 		IIP(nta_leg_t* leg, nta_incoming_t* irq, const std::string& transactionId, std::shared_ptr<SipDialog> dlg);
 		IIP(nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, std::shared_ptr<SipDialog> dlg);
@@ -77,6 +77,9 @@ namespace drachtio {
 		void setCanceled(void) { m_bCanceled = true; }
 		bool isCanceled(void) { return m_bCanceled; }
 
+    void cancelMaxProceedingTimer(void);
+    void doMaxProceedingTimerHandling(void);
+  
     friend std::ostream& operator<<(std::ostream& os, const IIP& iip);
 
   private:
@@ -90,6 +93,8 @@ namespace drachtio {
 		agent_role		m_role ;
 		bool 					m_bCanceled;
     sip_time_t    m_tmCreated;
+    su_timer_t*   m_timerMaxProceeding;
+    std::weak_ptr<IIP>* m_ppSelf ;
 	} ;
 
 

@@ -1793,6 +1793,11 @@ namespace drachtio {
         }
         SD_Clear(m_dialogs, dlg) ;
     }
+    void SipDialogController::notifyMaxProceedingReachedIIP( std::shared_ptr<IIP> iip ) {
+        DR_LOG(log_info) << "SipDialogController::notifyMaxProceedingReachedIIP - tearing down transaction id " << iip->getTransactionId() ;
+        IIP_Clear(m_invitesInProgress, iip) ;
+    }
+
     void SipDialogController::bindIrq( nta_incoming_t* irq ) {
         nta_incoming_bind( irq, uasCancelOrAck, (nta_incoming_magic_t *) m_pController ) ;
     }
