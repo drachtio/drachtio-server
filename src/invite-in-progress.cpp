@@ -19,13 +19,13 @@ namespace drachtio {
   IIP::IIP(nta_leg_t* leg, nta_incoming_t* irq, const std::string& transactionId, std::shared_ptr<SipDialog> dlg) : 
     m_leg(leg), m_irq(irq), m_orq(nullptr), m_strTransactionId(transactionId), m_dlg(dlg),
     m_role(uas_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerMaxProceeding(nullptr) {
-      DR_LOG(log_debug) << "adding IIP for incoming call " << *this;
+      DR_LOG(log_debug) << "adding IIP " << *this;
     }
 
   IIP::IIP(nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, std::shared_ptr<SipDialog> dlg) : 
     m_leg(leg), m_irq(nullptr), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),
     m_role(uac_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerMaxProceeding(nullptr) {
-      DR_LOG(log_debug) << "adding IIP for outgoing call " << *this;
+      DR_LOG(log_debug) << "adding IIP " << *this;
     }
 
   IIP::~IIP() {
@@ -38,12 +38,10 @@ namespace drachtio {
 		delete m_ppSelf ; 
     m_ppSelf = nullptr ; 
     m_timerMaxProceeding = nullptr;
-    DR_LOG(log_debug) << "IIP::doMaxProceedingTimerHandling " << *this;
   }
 
   void IIP::cancelMaxProceedingTimer() {
 		if (m_timerMaxProceeding) {
-      DR_LOG(log_debug) << "IIP::cancelMaxProceedingTimer " << *this;
       su_timer_destroy( m_timerMaxProceeding ) ;
     }
 		m_timerMaxProceeding = nullptr ;
@@ -52,7 +50,6 @@ namespace drachtio {
   void IIP::startMaxProceedingTimer() {
     assert(!m_timerMaxProceeding) ;
     assert(!m_ppSelf) ;
-    DR_LOG(log_debug) << "IIP::startMaxProceedingTimer " << *this;
     m_ppSelf = new std::weak_ptr<IIP>( shared_from_this() ) ;
     m_timerMaxProceeding = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), MAX_PROCEEDING_DURATION ) ;
     su_timer_set(m_timerMaxProceeding, max_proceeding_timer_handler, (su_timer_arg_t *) m_ppSelf );
