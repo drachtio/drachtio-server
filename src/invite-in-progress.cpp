@@ -59,7 +59,7 @@ namespace drachtio {
 
   std::ostream& operator<<(std::ostream& os, const IIP& iip) {
     sip_time_t alive = sip_now() - iip.m_tmCreated;
-    os << "tid:" << iip.getTransactionId() << std::dec << 
+    os << (iip.role() == uac_role ? "outbound" : "inbound") << " tid:" << iip.getTransactionId() << std::dec << 
       " alive:" << alive << "s" << std::hex << 
       " leg:" << iip.leg() << 
       " irq:" << iip.irq() <<

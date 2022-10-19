@@ -65,6 +65,8 @@ namespace drachtio {
 		const nta_reliable_t* rel(void) const { return m_rel; }
 		const string& getTransactionId(void) const { return m_strTransactionId; }
 
+    const agent_role role() const { return m_role; }
+
 		void setReliable(nta_reliable_t* rel) { m_rel = rel; }
 		void destroyReliable(void) {
 			if( m_rel ) {
