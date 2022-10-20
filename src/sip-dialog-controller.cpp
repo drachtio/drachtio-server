@@ -1793,8 +1793,8 @@ namespace drachtio {
         }
         SD_Clear(m_dialogs, dlg) ;
     }
-    void SipDialogController::notifyMaxProceedingReachedIIP( std::shared_ptr<IIP> iip ) {
-        DR_LOG(log_info) << "SipDialogController::notifyMaxProceedingReachedIIP - tearing down transaction id " << iip->getTransactionId() ;
+    void SipDialogController::notifyCancelTimeoutReachedIIP( std::shared_ptr<IIP> iip ) {
+        DR_LOG(log_info) << "SipDialogController::notifyCancelTimeoutReachedIIP - tearing down transaction id " << iip->getTransactionId() ;
         m_pController->getClientController()->removeAppTransaction( iip->getTransactionId() ) ;
         IIP_Clear(m_invitesInProgress, iip) ;
     }
