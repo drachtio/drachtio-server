@@ -76,12 +76,12 @@ namespace drachtio {
 		}
 		std::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
 
-		void setCanceled(void) { m_bCanceled = true; }
+		void setCanceled(void);
 		bool isCanceled(void) { return m_bCanceled; }
 
-    void startMaxProceedingTimer(void);
-    void cancelMaxProceedingTimer(void);
-    void doMaxProceedingTimerHandling(void);
+    void startCancelTimer(void);
+    void stopCancelTimer(void);
+    void doCancelTimerHandling(void);
   
     friend std::ostream& operator<<(std::ostream& os, const IIP& iip);
 
@@ -96,7 +96,7 @@ namespace drachtio {
 		agent_role		m_role ;
 		bool 					m_bCanceled;
     sip_time_t    m_tmCreated;
-    su_timer_t*   m_timerMaxProceeding;
+    su_timer_t*   m_timerCancel;
     std::weak_ptr<IIP>* m_ppSelf ;
 	} ;
 

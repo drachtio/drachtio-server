@@ -197,7 +197,7 @@ namespace drachtio {
     void notifyRefreshDialog( std::shared_ptr<SipDialog> dlg ) ;
     void notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg, bool ackbye = false ) ;
 
-    void notifyMaxProceedingReachedIIP( std::shared_ptr<IIP> dlg ) ;
+    void notifyCancelTimeoutReachedIIP( std::shared_ptr<IIP> dlg ) ;
 
 		void logStorageCount(bool bDetail = false)  ;
 
