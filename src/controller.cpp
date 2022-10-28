@@ -1715,7 +1715,7 @@ namespace drachtio {
         }
         else {
             std::shared_ptr<UaInvalidData> p = (ret.first)->second ;
-            DR_LOG(log_debug) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+            DR_LOG(log_info) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
     void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
@@ -1730,7 +1730,7 @@ namespace drachtio {
         if( m_mapUri2InvalidData.end() != it ) {
             m_mapUri2InvalidData.erase( it ) ;
         }
-        DR_LOG(log_debug) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
+        DR_LOG(log_info) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
     }
     std::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
         std::shared_ptr<UaInvalidData> p ;
@@ -1748,7 +1748,7 @@ namespace drachtio {
             DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: found transport for " << uri  ;
         }
         else {
-            DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: no transport found for " << uri  ;
+            DR_LOG(log_info) << "DrachtioController::findTportForSubscription: no transport found for " << uri  ;
         }
         return p ;
     }

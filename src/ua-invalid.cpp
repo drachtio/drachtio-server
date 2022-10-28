@@ -25,6 +25,7 @@ THE SOFTWARE.
 namespace drachtio {
 
     void UaInvalidData::setTport(tport_t* tp) {
+      if (tp == m_tp) return ;
       string uri;
       getUri(uri);
 
