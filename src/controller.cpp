@@ -1715,7 +1715,8 @@ namespace drachtio {
         }
         else {
             std::shared_ptr<UaInvalidData> p = (ret.first)->second ;
-            DR_LOG(log_info) << "DrachtioController::cacheTportForSubscription added "  << uri << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
+            DR_LOG(log_info) << "DrachtioController::cacheTportForSubscription added "  << uri << 
+                ", tport:" << (void *) tp << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
     void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
@@ -2148,9 +2149,12 @@ namespace drachtio {
             std::shared_ptr<UaInvalidData> p = it->second ;
             if( p->isExpired() ) {
                 string uri  ;
+                tport_t* tp = p->getTport();
                 p->getUri(uri) ;
-                DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer expiring transport for webrtc client: "  << uri << " " << (void *) p->getTport() ;
+
                 m_mapUri2InvalidData.erase(it++) ;
+                DR_LOG(log_info) << "DrachtioController::processWatchdogTimer expiring registration for webrtc client: "  << 
+                    uri << " " << (void *)tp << ", count is now " << m_mapUri2InvalidData.size()  ;
             }
             else {
                 ++it ;
