@@ -54,6 +54,8 @@ THE SOFTWARE.
 
 #define MAX_LINELEN 2047
 
+#define MAX_SIP_URI_LEN (1024)
+
 #define BOOST_UUID (1)
 
 using namespace std ;
@@ -336,8 +338,8 @@ namespace drachtio {
     bool normalizeSipUri( std::string& uri, int brackets ) {
         su_home_t* home = theOneAndOnlyController->getHome() ;
         char *s ;
-        char buf[255];
-        char obuf[255] ;
+        char buf[MAX_SIP_URI_LEN];
+        char obuf[MAX_SIP_URI_LEN] ;
         char hp[64] ;
         char const *display = NULL;
         url_t url[1];
@@ -346,7 +348,7 @@ namespace drachtio {
         int rc ;
 
         // buf gets passed into sip_name_addr_d which puts NULs in various locations so the url_t members can point to their bits
-        s = strncpy( buf, uri.c_str(), 255 ) ;
+        s = strncpy( buf, uri.c_str(), MAX_SIP_URI_LEN ) ;
 
         // first we decode the string
         rc = sip_name_addr_d(home, &s, &display, url, &params, &comment) ;
@@ -374,14 +376,14 @@ namespace drachtio {
             return false ;
         }
         uri.assign( obuf ) ;
-        return true ;
+        return uri.length() < MAX_SIP_URI_LEN ;
     }
 
     bool replaceHostInUri( std::string& uri, const char* szHost, const char* szPort ) {
         su_home_t* home = theOneAndOnlyController->getHome() ;
         char *s ;
-        char buf[255];
-        char obuf[255] ;
+        char buf[MAX_SIP_URI_LEN];
+        char obuf[MAX_SIP_URI_LEN] ;
         char hp[64] ;
         char const *display = NULL;
         url_t url[1];
@@ -404,7 +406,7 @@ namespace drachtio {
         url->url_port = szPort ;
 
         // now we re-encode it
-        int nChars = sip_name_addr_e(obuf, 255, 0, display, 1, url, params, comment) ;
+        int nChars = sip_name_addr_e(obuf, MAX_SIP_URI_LEN, 0, display, 1, url, params, comment) ;
 
         // cleanup: free the msg_params if any were allocated        
         if( params ) {
