@@ -18,7 +18,7 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/request-handler.cpp src/request-router.cpp src/stats-collector.cpp \
 	src/invite-in-progress.cpp src/blacklist.cpp src/ua-invalid.cpp
 drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
-	-DBOOST_ALLOW_DEPRECATED_HEADERS 
+	-DBOOST_ALLOW_DEPRECATED_HEADERS -O2 -Wno-stringop-overflow
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
@@ -38,15 +38,15 @@ uri_test_LDADD=${srcdir}/deps/boost/stage/lib/libboost_thread.a ${srcdir}/deps/b
 	${srcdir}/deps/boost/stage/lib/libboost_filesystem.a -lpthread -lz
 
 ssltest_SOURCES= src/ssltest.cpp
-ssltest_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+ssltest_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
 ssltest_LDADD= -lssl -lcrypto -lz
 
 test_https_SOURCES= src/test_https.cpp
-test_https_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+test_https_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
 test_https_LDADD= -lssl -lcrypto -lz
 
 test_asio_curl_SOURCES= src/test_asio_curl.cpp
-test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O0
+test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
 test_asio_curl_LDADD=${srcdir}/deps/boost/stage/lib/libboost_thread.a ${srcdir}/deps/boost/stage/lib/libboost_system.a \
 	-lpthread -lcurl -lssl -lcrypto -lz
 

@@ -260,7 +260,7 @@ namespace drachtio {
                     else if (orq_tp) destroyOrq = true;
                     if (orq_tp) {
                         dlg->setTport(orq_tp) ;
-                        // tport reference will be release in SipDialog dtor
+                        tport_unref(orq_tp) ; // handed reference to dlg
                     }
                     else {
                         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - sending ACK but nta_outgoing_transport is null, delayed for DNS resolver";
