@@ -68,6 +68,7 @@ THE SOFTWARE.
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/logger.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/filesystem.hpp>
 
 #if defined(__clang__)
     #pragma clang diagnostic pop
@@ -1006,6 +1007,13 @@ namespace drachtio {
                     ));
                                
                     logging::core::get()->add_sink(m_sinkTextFile);
+                    boost::filesystem::permissions(name,
+                        boost::filesystem::perms::owner_read |
+                        boost::filesystem::perms::owner_write |
+                        boost::filesystem::perms::group_read |
+                        boost::filesystem::perms::group_write
+                    );
+
                 }
                 logging::core::get()->set_filter(
                    expr::attr<severity_levels>("Severity") <= m_current_severity_threshold
