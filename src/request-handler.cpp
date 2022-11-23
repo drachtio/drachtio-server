@@ -267,6 +267,7 @@ namespace drachtio {
   void event_cb(drachtio::RequestHandler::GlobalInfo *g, curl_socket_t s,
                        int action, const boost::system::error_code & error,
                        int *fdp) {
+    int f = *fdp;
     std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
     boost::asio::deadline_timer& timer = p->getTimer() ;
@@ -277,7 +278,7 @@ namespace drachtio {
     }
 
     /* make sure the event matches what are wanted */
-    if(*fdp == action || *fdp == CURL_POLL_INOUT) {
+    if(f == action || f == CURL_POLL_INOUT) {
       CURLMcode rc;
       if(error)
         action = CURL_CSELECT_ERR;
@@ -294,7 +295,7 @@ namespace drachtio {
        * the socket may have been closed and/or fdp may have been changed
        * in curl_multi_socket_action(), so check them both */
       if(!error && socket_map.find(s) != socket_map.end() &&
-         (*fdp == action || *fdp == CURL_POLL_INOUT)) {
+         (f == action || f == CURL_POLL_INOUT)) {
         boost::asio::ip::tcp::socket *tcp_socket = socket_map.find(s)->second;
 
         if(action == CURL_POLL_IN) {
@@ -476,7 +477,6 @@ namespace drachtio {
     DR_LOG(log_info) << "RequestHandler::startRequest: sending http " << httpMethod << ": " << url ;
 
     conn = m_pool.malloc() ;
-
     CURL* easy = NULL ;
     {
       //alloc and free happen in the same thread
@@ -498,6 +498,7 @@ namespace drachtio {
     strncpy(conn->body, body.c_str(), HTTP_BODY_LEN);
     strncpy(conn->transactionId, transactionId.c_str(), TXNID_LEN);
     conn->hdr_list = NULL ;
+    *conn->response = '\0' ;
 
     curl_easy_setopt(easy, CURLOPT_URL, conn->url);
     curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION, write_cb);
