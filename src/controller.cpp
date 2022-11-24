@@ -291,7 +291,7 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
-        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false) {
+        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false), m_bGloballyReadableLogs(false) {
 
         getEnv();
 
@@ -455,6 +455,7 @@ namespace drachtio {
                 {"blacklist-refresh-secs", required_argument, 0, 'R'},
                 {"always-send-180", no_argument, 0, 'S'},
                 {"user-agent-options-auto-respond", no_argument, 0, 'T'},
+                {"globally-readable-logs", no_argument, 0, 'U'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -673,6 +674,9 @@ namespace drachtio {
                     break;
                 case 'T':
                     m_strUserAgentAutoAnswerOptions = optarg;
+                    break;
+                case 'U':
+                    m_bGloballyReadableLogs = true;
                     break;
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
@@ -978,6 +982,19 @@ namespace drachtio {
                 unsigned int rotationSize, maxSize, minSize, maxFiles ;
                 bool autoFlush ;
                 if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize, maxFiles ) ) {
+                   if (!m_bGloballyReadableLogs) {
+                   boost::filesystem::path p(name);
+                    boost::filesystem::path dir = p.parent_path();
+                    boost::filesystem::create_directory(dir);
+                    std::ofstream output(name, ofstream::out | ofstream::app);
+                    output.close();
+                    boost::filesystem::permissions(name,
+                        boost::filesystem::perms::owner_read |
+                        boost::filesystem::perms::owner_write |
+                        boost::filesystem::perms::group_read |
+                        boost::filesystem::perms::group_write
+                    );
+                   }
 
                     m_sinkTextFile.reset(
                         new sinks::synchronous_sink< sinks::text_file_backend >(
@@ -1007,13 +1024,6 @@ namespace drachtio {
                     ));
                                
                     logging::core::get()->add_sink(m_sinkTextFile);
-                    boost::filesystem::permissions(name,
-                        boost::filesystem::perms::owner_read |
-                        boost::filesystem::perms::owner_write |
-                        boost::filesystem::perms::group_read |
-                        boost::filesystem::perms::group_write
-                    );
-
                 }
                 logging::core::get()->set_filter(
                    expr::attr<severity_levels>("Severity") <= m_current_severity_threshold

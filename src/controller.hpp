@@ -285,6 +285,8 @@ namespace drachtio {
 
     bool m_bAlwaysSend180;
 
+    bool m_bGloballyReadableLogs;
+
     string  m_strUserAgentAutoAnswerOptions;
   } ;
 
