@@ -273,7 +273,7 @@ namespace drachtio {
         if( complete ) {
             m_os.flush() ;
             m_sipMessage = m_os.str() ;
-            m_sipMessage.resize( m_sipMessage.length() - 1) ;
+            if (m_sipMessage.length() > 1) m_sipMessage.resize( m_sipMessage.length() - 1) ;
             boost::replace_all(m_sipMessage, "\n", DR_CRLF);
         }
         else if( 0 == strcmp(szLine, "\n") ) {
