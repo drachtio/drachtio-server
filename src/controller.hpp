@@ -286,6 +286,7 @@ namespace drachtio {
     bool m_bAlwaysSend180;
 
     bool m_bGloballyReadableLogs;
+    bool m_bTlsVerifyClientCert;
 
     string  m_strUserAgentAutoAnswerOptions;
   } ;

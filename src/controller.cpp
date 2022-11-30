@@ -291,7 +291,8 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
-        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false), m_bGloballyReadableLogs(false) {
+        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false), 
+        m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false) {
 
         getEnv();
 
@@ -781,6 +782,8 @@ namespace drachtio {
         if (p) m_tlsKeyFile = p;
         p = std::getenv("DRACHTIO_TLS_DH_PARAM_FILE");
         if (p) m_dhParam = p;
+        p = std::getenv("DRACHTIO_TLS_VERIFY_CLIENT_CERT");
+        if (p && ::atoi(p) == 1) m_bTlsVerifyClientCert = true;
         p = std::getenv("DRACHTIO_CONFIG_FILE_PATH");
         if (p) m_configFilename = p;
         p = std::getenv("DRACHTIO_HOMER_ADDRESS");
@@ -1258,6 +1261,7 @@ namespace drachtio {
          stateless_callback,                            /* no callback function */
          this,                                      /* therefore no context */
          TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+         TAG_IF( tlsTransport && hasTlsFiles && m_bTlsVerifyClientCert, TPTAG_TLS_VERIFY_PEER(true)),
          TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
          TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
          TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
@@ -1293,6 +1297,7 @@ namespace drachtio {
 
             rv = nta_agent_add_tport(m_nta, URL_STRING_MAKE(newUrl.c_str()),
                  TAG_IF( !captureString.empty(), TPTAG_CAPT(captureString.c_str())),
+                 TAG_IF( tlsTransport && hasTlsFiles && m_bTlsVerifyClientCert, TPTAG_TLS_VERIFY_PEER(true)),
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_KEY_FILE(tlsKeyFile.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles, TPTAG_TLS_CERTIFICATE_FILE(tlsCertFile.c_str())),
                  TAG_IF( tlsTransport && hasTlsFiles && !tlsChainFile.empty(), TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
