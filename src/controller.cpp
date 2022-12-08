@@ -1037,7 +1037,7 @@ namespace drachtio {
 
         }
         catch (std::exception& e) {
-            std::cout << "FAILURE creating logger: " << e.what() << std::endl;
+            std::cerr << "FAILURE creating logger: " << e.what() << std::endl;
             throw e;
         }	
     }
