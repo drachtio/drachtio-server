@@ -138,7 +138,6 @@ namespace drachtio {
 
                 // redis blacklist server
                 try {
-                    cerr << "checking for blacklist in config" << endl;
                     pt.get_child("drachtio.sip.blacklist") ; // will throw if doesn't exist
                     m_redisAddress = pt.get<string>("drachtio.sip.blacklist.redis-address", "") ;
                     m_redisPort = pt.get<unsigned int>("drachtio.sip.blacklist.redis-port", 6379) ;
@@ -150,7 +149,6 @@ namespace drachtio {
                         m_redisAddress = "";
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
-                    cerr << "did not find blacklist at all" << endl;
                 }
                 
 
