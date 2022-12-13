@@ -54,7 +54,9 @@ if [ "$1" = 'drachtio' ]; then
       ;;
 
     *)
-      MYARGS+=($1)
+      thisarg="${1//PUBLIC_IP/"$PUBLIC_IP"}"
+      thisarg="${thisarg//LOCAL_IP/"$LOCAL_IP"}"
+      MYARGS+=($thisarg)
       ;;
     esac
 
