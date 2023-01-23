@@ -2,10 +2,15 @@ const test = require('tape');
 const execCmd = require('./utils/exec');
 const delay = require('./utils/delay');
 const {start, stop } = require('./testbed');
-const logger = require('pino')({level: 'info'});
+const logger = require('pino')({level: 'debug'});
 let configFile, drachtio;
 const manageServer = !process.env.NOSERVER;
 
+/*
+process.on('uncaughtException', (err, origin) => {
+  console.log({err, origin}, 'uncaught exception');
+});
+*/
 module.exports = async function runTests(testName) {
   const fixtures = require(`./test-fixtures-${testName}`);
   logger.debug(`starting test suite ${testName}, manageServer: ${manageServer}`);
@@ -77,7 +82,7 @@ function runFixture(f) {
           if (f.script.function) {
             const args = f.script.args || (f.uas ? `127.0.0.1:${f.uas.port}` : undefined);
             scriptPromise = script[f.script.function](args, f.script.opts || {});
-            await delay(750);
+            if (f.script.delay) await delay(f.script.delay);
           }
         }
         if (f.uac) {
@@ -87,15 +92,22 @@ function runFixture(f) {
           uacPromise = execCmd(cmd, {cwd: './scenarios'});
         }
 
-        if (uacPromise) await uacPromise;
-        else if (scriptPromise) {
-          try {
-            await scriptPromise;
+        try {
+          const promises = [];
+          [uasPromise, scriptPromise, uacPromise].forEach((p) => {
+            p && promises.push(p);
+          });
+          if (promises.length > 0) {
+            logger.debug(`waiting for ${promises.length} promises to resolve..`);
+            await Promise.all(promises);
           }
-          catch (err) {
-            if (![err, '*'].includes(f.script.error)) throw err;
+        } catch (err) {
+          logger.debug({err}, 'caught error in script');
+          if (![err.message, err, '*'].includes(f.script.error)) {
+            logger.error('unexpected error in script - rethrowing');
+            throw err;
           }
-        }
+        };
 
         try {
           if (script) script.disconnect();

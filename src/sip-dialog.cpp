@@ -226,6 +226,7 @@ namespace drachtio {
 
   void SipDialog::setTport(tport_t* tp) {
 		if (m_tp) tport_unref(m_tp);
+    //DH: Why are we not taking a reference to the tport?
     m_tp = tp ;
     const tp_name_t* tpn = tport_name( m_tp );
 
