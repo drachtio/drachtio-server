@@ -1001,7 +1001,7 @@ namespace drachtio {
                                     if( NULL != sipResponse->sip_contact && NULL != sipResponse->sip_contact->m_expires ) {
                                         expires = ::atoi( sipResponse->sip_contact->m_expires ) ;
                                     }
-                                    else if (NULL != sipResponse->sip_contact && sipResponse->sip_expires->ex_delta) {
+                                    else if (NULL != sipResponse->sip_expires && sipResponse->sip_expires->ex_delta) {
                                         expires = sipResponse->sip_expires->ex_delta;
                                     }  
                                 }
