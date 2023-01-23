@@ -177,7 +177,7 @@ namespace drachtio {
             dlg->getTransportDesc(transport) ;
             tags = makeTags( pData->getHeaders(), transport) ;
 
-            tport_t* tp = dlg->getTport() ; 
+            tport_t* tp = dlg->getTport() ; //DH: this does NOT take out a reference
             bool forceTport = NULL != tp ;  
 
             nta_leg_t *leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
@@ -201,6 +201,8 @@ namespace drachtio {
                 std::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
                 if( NULL != pData ) {
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
+                    //DH: I am now holding a tport that I did not take out a reference for
+                    //what if while I am holding it the registration expires and the tport is destroyed?
                     if (pData->getTport() != tp) {
                         DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
                         tp = pData->getTport();

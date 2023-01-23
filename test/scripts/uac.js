@@ -19,7 +19,10 @@ class App extends Emitter {
     super();
 
     this.srf = new Srf() ;
-    this.srf.on('error', (err) => { this.emit('error', err);});
+    this.srf.on('error', (err) => { 
+      console.log(`Uas: error: ${err}`)
+      //this.emit('error', err);
+    });
   }
 
   options(uri) {

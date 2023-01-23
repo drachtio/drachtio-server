@@ -12,7 +12,10 @@ class App extends Emitter {
     super();
 
     this.srf = new Srf(tags) ;
-    this.srf.on('error', (err) => { this.emit('error', err);});
+    this.srf.on('error', (err) => {
+      console.log(`Uas: error: ${err}`)
+      //this.emit('error', err);
+    });
 
     this.calls = 0;
   }
@@ -68,14 +71,17 @@ class App extends Emitter {
 
   proxy(dest) {
     this.srf.invite((req, res) => {
-      this.srf.proxyRequest(req, dest, {recordRoute: true});
+      this.srf.proxyRequest(req, dest, {recordRoute: true})
+        .catch((err) => {
+          console.log(`Uas: proxy failed: ${err}`);
+        });
     });
   }
 
   b2b(dest) {
     this.srf.invite((req, res) => {
       function end(srf, dlg) {
-        dlg.destroy();
+        dlg.destroy().catch((err) => {});
         srf.endSession(req);
       }
       this.srf.createB2BUA(req, res, dest)
@@ -93,7 +99,7 @@ class App extends Emitter {
   b2bdisconnect(dest) {
     this.srf.invite((req, res) => {
       function end(srf, dlg) {
-        dlg.destroy();
+        dlg.destroy().catch((err) => {});
         srf.endSession(req);
       }
       this.srf.createB2BUA(req, res, dest, {}, {
