@@ -1762,11 +1762,15 @@ namespace drachtio {
         }
     }
     void SipDialogController::notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg, bool ackbye ) {
+        string routeUri;
         nta_leg_t* leg = const_cast<nta_leg_t *>(dlg->getNtaLeg()) ;
         const char* reason = ackbye ? "SIP ;cause=200 ;text=\"ACK-BYE due to cancel race condition\"" : "SIP ;cause=200 ;text=\"Session timer expired\"";
         if( leg ) {
+            if (dlg->getRouteUri(routeUri)) {
+                DR_LOG(log_debug) << "SipDialogController::notifyTerminateStaleDialog - sending request to nat'ed address using route " << routeUri ;
+            }
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
-                                            NULL,
+                                            routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                                             SIP_METHOD_BYE,
                                             NULL,
                                             SIPTAG_REASON_STR(reason),
