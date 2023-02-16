@@ -1520,13 +1520,15 @@ namespace drachtio {
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, rip->getTransactionId(), rip->getDialogId() ) ;            
 
             if (method == sip_method_invite && 200 == statusCode) {
-                tport_t *tp = nta_outgoing_transport(orq) ; 
-                sip_session_expires_t* se = sip_session_expires(sip) ;
-
+                tport_t *tp = nta_outgoing_transport(orq) ; // takes a ref on the tport..
                 // start a timerD for this successful reINVITE
-                if (tport_is_dgram(tp) )m_timerDHandler.addInvite(orq);
+                if (tp) {
+                  if (tport_is_dgram(tp)) m_timerDHandler.addInvite(orq);
+                  tport_unref(tp);  // ..releases it
+                }
                 
                 /* reset session expires timer, if provided */
+                sip_session_expires_t* se = sip_session_expires(sip) ;
                 if( se ) {
                     std::shared_ptr<SipDialog> dlg ;
                     nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
