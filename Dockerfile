@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:11.6-slim
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
