@@ -208,6 +208,10 @@ namespace drachtio {
           sip->sip_cseq->cs_method_name) ;
         str.append("|") ;
         str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
+        if (sip->sip_via && sip->sip_via->v_branch) {
+            str.append("|") ;
+            str.append(sip->sip_via->v_branch) ;
+        }
     }
 
 	void generateUuid(string& uuid) {
