@@ -105,7 +105,6 @@ namespace drachtio {
   void remsock(int *f, RequestHandler::GlobalInfo *g) {
     if(f) {
       free(f);
-      f = NULL;
     }
   }
 
@@ -268,10 +267,6 @@ namespace drachtio {
   void event_cb(drachtio::RequestHandler::GlobalInfo *g, curl_socket_t s,
                        int action, const boost::system::error_code & error,
                        int *fdp) {
-    // Socket already POOL REMOVED.
-    if (fdp == NULL) {
-      return;
-    }
     int f = *fdp;
     std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
