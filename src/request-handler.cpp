@@ -83,7 +83,7 @@ namespace drachtio {
     static const char *whatstr[] = { "none", "IN", "OUT", "INOUT", "REMOVE"};
 
     if(what == CURL_POLL_REMOVE) {
-      remsock(actionp, g);
+      *actionp = what;
     }
     else {
       if(!actionp) {
@@ -268,11 +268,13 @@ namespace drachtio {
   void event_cb(drachtio::RequestHandler::GlobalInfo *g, curl_socket_t s,
                        int action, const boost::system::error_code & error,
                        int *fdp) {
+    
+    int f = *fdp;
     // Socket already POOL REMOVED.
-    if (fdp == NULL) {
+    if (f == CURL_POLL_REMOVE) {
+      remsock(fdp, g);
       return;
     }
-    int f = *fdp;
     std::shared_ptr<RequestHandler> p = RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
     boost::asio::deadline_timer& timer = p->getTimer() ;
