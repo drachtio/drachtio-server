@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
-  && apt-get install -y --no-install-recommends ca-certificates gcc g++ make build-essential cmake git autoconf automake  curl libtool libtool-bin libssl-dev libcurl4-openssl-dev zlib1g-dev libgoogle-perftools-dev \
+  && apt-get install -y --no-install-recommends ca-certificates gcc g++ make cmake build-essential cmake git autoconf automake  curl libtool libtool-bin libssl-dev libcurl4-openssl-dev zlib1g-dev net-tools nmap netcat iputils-ping traceroute \
   && git clone --depth=50 --branch=main https://github.com/drachtio/drachtio-server.git /usr/local/src/drachtio-server \
   && cd /usr/local/src/drachtio-server \
   && git submodule update --init --recursive \
