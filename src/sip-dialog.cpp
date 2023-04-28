@@ -223,6 +223,13 @@ namespace drachtio {
     return os;
   }
 
+  void SipDialog::checkTportState(void) {
+    if (m_tp && tport_is_closed(m_tp)) {
+      DR_LOG(log_debug) << "SipDialog::checkTportState: tport(" << std::hex << (void *) m_tp << ") has been closed, releasing";
+      tport_unref(m_tp);
+      m_tp = nullptr;
+    }
+  }
   void SipDialog::setTport(tport_t* tp) {
 		if (m_tp) tport_unref(m_tp);
     tport_ref( tp ) ;
@@ -235,14 +242,22 @@ namespace drachtio {
   }
 	tport_t* SipDialog::getTport(void) { 
 		tport_t* tp = nullptr;
+
+    checkTportState();
 		if (m_tp) tp = m_tp ;
 		else if (m_orqAck) {
 			tp = nta_outgoing_transport( m_orqAck );
 			if (tp) {
-				DR_LOG(log_debug) << "SipDialog::getTport: retrieving tport from delayed orq " << std::hex << (void *) m_orqAck << ": " << (void *) tp;
-				nta_outgoing_destroy(m_orqAck);
-				m_tp = tp;
-				m_orqAck = nullptr; 
+        if (tport_is_closed(tp)) {
+          tport_unref(tp);
+          tp = nullptr;
+        }
+        else {
+          DR_LOG(log_debug) << "SipDialog::getTport: retrieving tport from delayed orq " << std::hex << (void *) m_orqAck << ": " << (void *) tp;
+          m_tp = tp;
+        }
+        nta_outgoing_destroy(m_orqAck);
+        m_orqAck = nullptr; 
 			}
 		}
 		return tp;

@@ -220,6 +220,9 @@ namespace drachtio {
 		
 
 	protected:
+
+    void          checkTportState(void);
+
 		bool 				m_bInviteDialog;
 
 		std::string 		m_dialogId ;
