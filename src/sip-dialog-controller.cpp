@@ -178,7 +178,7 @@ namespace drachtio {
             tags = makeTags( pData->getHeaders(), transport) ;
 
             tport_t* tp = dlg->getTport() ; //DH: this does NOT take out a reference
-            bool forceTport = NULL != tp ;  
+            bool forceTport = (NULL != tp && !tport_is_closed(tp));  
 
             nta_leg_t *leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
             if( !leg ) {
