@@ -1470,7 +1470,9 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            return m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            nta_incoming_destroy(irq) ;
+                            return rc;
                         default:
                         break;
                     }

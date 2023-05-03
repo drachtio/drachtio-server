@@ -30,6 +30,7 @@ THE SOFTWARE.
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <locale>
 #include <algorithm>
 #include <regex>
 
@@ -68,11 +69,27 @@ namespace {
 
 namespace drachtio {
     
-    typedef std::unordered_map<string,tag_type_t> mapHdr2Tag ;
+  std::string capitalizeAfterDash(const std::string& input) {
+      std::string output = input;
+      bool capitalizeNext = true;
 
-    typedef std::unordered_set<string> setHdr ;
+      for (size_t i = 0; i < output.length(); ++i) {
+        if (capitalizeNext && std::islower(output[i], std::locale{})) {
+          output[i] = std::toupper(output[i], std::locale{});
+          capitalizeNext = false;
+        } else if (output[i] == '-') {
+          capitalizeNext = true;
+        } else {
+          capitalizeNext = false;
+        }
+      }
+      return output;
+  }
+  typedef std::unordered_map<string,tag_type_t> mapHdr2Tag ;
 
-    typedef std::unordered_map<string,sip_method_t> mapMethod2Type ;
+  typedef std::unordered_set<string> setHdr ;
+
+  typedef std::unordered_map<string,sip_method_t> mapMethod2Type ;
 
 	/* headers that are allowed to be set by the client in responses to sip requests */
 	mapHdr2Tag m_mapHdr2Tag({
@@ -716,11 +733,12 @@ namespace drachtio {
             }
             else {
                 //custom header
-                int len = (*it).length() ;                  
+                std::ostringstream oss;
+                oss << capitalizeAfterDash(hdrName) << ": " << hdrValue;
+                int len = oss.str().length() ;                  
                 char *p = new char[len+1] ;
                 memset(p, '\0', len+1) ;
-                strncpy( p, (*it).c_str(), len) ;
-
+                strcpy( p, oss.str().c_str()) ;
                 tags[i].t_tag = siptag_unknown_str ;
                 tags[i].t_value = (tag_value_t) p ;
                 DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
