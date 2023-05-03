@@ -1470,7 +1470,9 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            return m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
+                            rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            return rc;
                         default:
                         break;
                     }
@@ -1918,7 +1920,7 @@ namespace drachtio {
         SD_Clear(m_dialogs, leg);
     }
     void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
-        DR_LOG(log_error) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
+        DR_LOG(log_debug) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
         std::lock_guard<std::mutex> lock(m_mutex) ;
         m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
     }

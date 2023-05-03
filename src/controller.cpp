@@ -1648,12 +1648,19 @@ namespace drachtio {
             m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg, tag ) ;            
         }
         else {
-            nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+          /* first try to find the original incoming irq */
+          nta_incoming_t* irq = nta_incoming_find(m_nta, sip, sip->sip_via);
+				  if (!irq) {
+            irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite or subscribe" ;
                 return false ;
             }
-            m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
+          }
+          else {
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - found existing irq " << std::hex << (void *)irq ;
+          }
+          m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
         }
         msg_ref_create( msg ) ; // we need to add a reference to the original request message
         return true ;
