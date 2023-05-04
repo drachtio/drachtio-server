@@ -70,7 +70,7 @@ namespace drachtio {
     std::string capitalizeAfterDash(const std::string& input) {
       std::string output = input;
       bool capitalizeNext = true;
-      if (input.substr(0, 2) != "X-") {
+      if (input.substr(0, 2) != "X-" && input.substr(0, 2) != "x-") {
         std::for_each(output.begin(), output.end(), [&](char& c) {
           if (capitalizeNext) c = std::toupper(c, std::locale{});
           capitalizeNext = c == '-';
