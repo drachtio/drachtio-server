@@ -710,6 +710,9 @@ namespace drachtio {
 
         EncodeStackMessage( sip, encodedMessage ) ;
 
+        url_t const * uri = nta_outgoing_request_uri(orq);
+        DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - uri.host from request was " << uri->url_host;
+
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
             std:shared_ptr<IIP> iip;
 
@@ -790,10 +793,18 @@ namespace drachtio {
                     DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected possible natted downstream client, but ignoring because disable-nat-detection is on";
                 }
                 if (nat) {
-                    url_t const * url = nta_outgoing_route_uri(orq);
-                    string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
-                    dlg->setRouteUri(routeUri);
-                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
+                    url_t const * uri = nta_outgoing_request_uri(orq);
+                    DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - (UAC) uri host from request " << (uri ? uri->url_host : "null";
+                    if (uri && 0 == strcmp(uri->url_host, "feature-server")) {
+                      DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - (UAC) detected jambonz k8s feature-server destination, no nat";
+                      nat = false;
+                    }
+                    else {
+                      url_t const * url = nta_outgoing_route_uri(orq);
+                      string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                      dlg->setRouteUri(routeUri);
+                      DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
+                    }
                 }
                 else {
                     dlg->clearRouteUri();
