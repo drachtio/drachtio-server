@@ -791,6 +791,7 @@ namespace drachtio {
                 }
                 if (nat) {
                     url_t const * uri = nta_outgoing_request_uri(orq);
+                    DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - (UAC) uri host from request " << (uri ? uri->url_host : "null";
                     if (uri && 0 == strcmp(uri->url_host, "feature-server")) {
                       DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - (UAC) detected jambonz k8s feature-server destination, no nat";
                       nat = false;
