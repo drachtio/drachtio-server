@@ -710,6 +710,9 @@ namespace drachtio {
 
         EncodeStackMessage( sip, encodedMessage ) ;
 
+        url_t const * uri = nta_outgoing_request_uri(orq);
+        DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - uri.host from request was " << uri->url_host;
+
         if( sip->sip_cseq->cs_method == sip_method_invite || sip->sip_cseq->cs_method == sip_method_subscribe ) {
             std:shared_ptr<IIP> iip;
 
