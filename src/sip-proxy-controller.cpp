@@ -1187,7 +1187,10 @@ namespace drachtio {
             theOneAndOnlyController->getClientController()->route_api_response( getClientMsgId(), "OK", "done" ) ;
          }             
     }
-
+    void ProxyCore::getUniqueSipTransactionIdentifier(string& str) { 
+      sip_t* sip = sip_object(m_pServerTransaction->msg()) ;
+      theProxyController->makeUniqueSipTransactionIdentifier(sip, str);
+    }
 
     ///SipProxyController
     SipProxyController::SipProxyController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
@@ -1327,7 +1330,10 @@ namespace drachtio {
         }
         std::shared_ptr<ProxyCore> p = getProxy( sip ) ;
 
-        if( !p ) return false ;
+        if( !p ) {
+          //DR_LOG(log_debug) << "SipProxyController::processResponse - could not find a ProxyCore handling this response" ;
+          return false ;
+        }
 
         //search for a matching client transaction to handle the response
         if( !p->processResponse( msg, sip ) ) {
@@ -1342,6 +1348,19 @@ namespace drachtio {
         DR_LOG(log_debug) << "SipProxyController::processResponse exiting " ;
         return true ;
     }
+    std::shared_ptr<ProxyCore> SipProxyController::getProxy( sip_t* sip ) {
+      string id ;
+      theProxyController->makeUniqueSipTransactionIdentifier(sip, id) ;
+      //DR_LOG(log_debug) << "SipProxyController::getProxy searching proxy for id " << id ;
+      std::shared_ptr<ProxyCore> p ;
+      std::lock_guard<std::mutex> lock(m_mutex) ;
+      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
+      if( it != m_mapCallId2Proxy.end() ) {
+        p = it->second ;
+      }
+      return p ;
+    }
+
     bool SipProxyController::processRequestWithRouteHeader( msg_t* msg, sip_t* sip ) {
         string callId = sip->sip_call_id->i_id ;
         string transactionId ;
@@ -1479,7 +1498,7 @@ namespace drachtio {
     }
     bool SipProxyController::isProxyingRequest( msg_t* msg, sip_t* sip )  {
       string id ;
-      makeUniqueSipTransactionIdentifier(sip, id) ;
+      theProxyController->makeUniqueSipTransactionIdentifier(sip, id) ;
       std::lock_guard<std::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
       return it != m_mapCallId2Proxy.end() ;
@@ -1487,7 +1506,7 @@ namespace drachtio {
 
     std::shared_ptr<ProxyCore> SipProxyController::removeProxy( sip_t* sip ) {
       string id ;
-      makeUniqueSipTransactionIdentifier(sip, id); 
+      theProxyController->makeUniqueSipTransactionIdentifier(sip, id); 
       std::shared_ptr<ProxyCore> p ;
       std::lock_guard<std::mutex> lock(m_mutex) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
@@ -1513,13 +1532,36 @@ namespace drachtio {
         }
     }
 
+    void SipProxyController::makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) {
+      str = sip->sip_call_id->i_id ;
+      str.append("|") ;
+      str.append((sip->sip_request && sip_method_cancel == sip->sip_request->rq_method) ?
+        "INVITE" :
+        sip->sip_cseq->cs_method_name) ;
+      str.append("|") ;
+      str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
+
+      // note: the branch we used in sending was the branch on the incoming invite which is now the second via
+      // if we are processing a response
+      if (sip->sip_status && sip->sip_via && sip->sip_via->v_next &&  sip->sip_via->v_next->v_branch) {
+        str.append("|") ;
+        str.append(sip->sip_via->v_next->v_branch) ;
+      }
+      else if (sip->sip_request && sip->sip_via && sip->sip_via->v_branch) {
+        str.append("|") ;
+        str.append(sip->sip_via->v_branch) ;
+      }
+      //DR_LOG(log_debug) << "SipProxyController::makeUniqueSipTransactionIdentifier: " << str ;
+    }
+
+
     std::shared_ptr<ProxyCore>  SipProxyController::addProxy( const string& clientMsgId, const string& transactionId, 
         msg_t* msg, sip_t* sip, tport_t* tp, bool recordRoute, bool fullResponse, bool followRedirects,
         bool simultaneous, const string& provisionalTimeout, const string& finalTimeout, vector<string> vecDestination, 
         const string& headers ) {
 
       string id ;
-      makeUniqueSipTransactionIdentifier(sip, id) ;
+      theProxyController->makeUniqueSipTransactionIdentifier(sip, id) ;
 
       DR_LOG(log_debug) << "SipProxyController::addProxy - adding transaction id " << transactionId << ", id " << 
         id << " before insert there are "<< m_mapCallId2Proxy.size() << " proxy instances";
