@@ -244,10 +244,7 @@ namespace drachtio {
     void timerProvisional( std::shared_ptr<ClientTransaction> pClient ) ;
 
     const char* getCallId(void) { return sip_object( m_pServerTransaction->msg() )->sip_call_id->i_id; }
-    void getUniqueSipTransactionIdentifier(string& str) { 
-      sip_t* sip = sip_object(m_pServerTransaction->msg()) ;
-      makeUniqueSipTransactionIdentifier(sip, str);
-    }
+    void getUniqueSipTransactionIdentifier(string& str);
     const char* getMethodName(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method_name; }
     sip_method_t getMethod(void) { return sip_object( m_pServerTransaction->msg() )->sip_request->rq_method; }
     sip_cseq_t* getCseq(void) { return sip_object( m_pServerTransaction->msg() )->sip_cseq; }
@@ -419,7 +416,7 @@ namespace drachtio {
     bool isRetransmission( sip_t* sip ) {
       std::lock_guard<std::mutex> lock(m_mutex) ;
       string id ;
-      makeUniqueSipTransactionIdentifier(sip, id) ;
+      this->makeUniqueSipTransactionIdentifier(sip, id) ;
       mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;   
       return it != m_mapCallId2Proxy.end() ;
     }
@@ -432,6 +429,8 @@ namespace drachtio {
     bool addChallenge( sip_t* sip, const string& target ) ;
     void timeoutChallenge(const char* nonce) ;
 
+    void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str);
+
   protected:
 
     void clearTimerProvisional( std::shared_ptr<ProxyCore> p );
@@ -441,17 +440,7 @@ namespace drachtio {
       bool recordRoute, bool fullResponse, bool followRedirects, bool simultaneous, const string& provisionalTimeout, 
       const string& finalTimeout, vector<string> vecDestination, const string& headers ) ;
 
-    std::shared_ptr<ProxyCore> getProxy( sip_t* sip ) {
-      string id ;
-      makeUniqueSipTransactionIdentifier(sip, id) ;
-      std::shared_ptr<ProxyCore> p ;
-      std::lock_guard<std::mutex> lock(m_mutex) ;
-      mapCallId2Proxy::iterator it = m_mapCallId2Proxy.find( id ) ;
-      if( it != m_mapCallId2Proxy.end() ) {
-        p = it->second ;
-      }
-      return p ;
-    }
+    std::shared_ptr<ProxyCore> getProxy( sip_t* sip );
     std::shared_ptr<ProxyCore> getProxyByCallId( sip_t* sip ) {
       std::shared_ptr<ProxyCore> p ;
       std::lock_guard<std::mutex> lock(m_mutex) ;
@@ -462,7 +451,6 @@ namespace drachtio {
       }
       return p ;
     }
-
 
     std::shared_ptr<ProxyCore> removeProxy( sip_t* sip );
 
