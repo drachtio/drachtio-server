@@ -1507,7 +1507,7 @@ namespace drachtio {
                   Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
 
                   // in case we have an invite in progress we sent, and received a BYE instead of final response
-                  DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: "  ;
+                  DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received BYE, if we have an IIP clear it now"  ;
                   IIP_Clear(m_invitesInProgress, leg);                }
             }
         }
@@ -1569,6 +1569,14 @@ namespace drachtio {
                 else if( dialogId.length() > 0 ) {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
                     SD_Clear(m_dialogs, dialogId ) ;
+                    
+                    if (sip->sip_cseq->cs_method == sip_method_bye) {
+                        nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
+                        if (leg) {
+                          DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received 200 OK to BYE, if we have an IIP clear it now, leg " << std::hex << (void*) leg  ;
+                          IIP_Clear(m_invitesInProgress, leg);
+                        }
+                    }
                 }
                 else {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: got 200 OK to BYE but don't have dialog id"  ;
