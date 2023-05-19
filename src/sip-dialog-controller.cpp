@@ -1477,7 +1477,7 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
+                            DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
                             rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
                             return rc;
                         default:
@@ -1505,7 +1505,10 @@ namespace drachtio {
 
                 if (sip_method_bye == sip->sip_request->rq_method) {
                   Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
-                }
+
+                  // in case we have an invite in progress we sent, and received a BYE instead of final response
+                  DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: "  ;
+                  IIP_Clear(m_invitesInProgress, leg);                }
             }
         }
         return rc ;
