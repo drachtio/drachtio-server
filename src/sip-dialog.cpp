@@ -177,6 +177,7 @@ namespace drachtio {
 			su_free(home, (void *) route_uri);
 		}
 
+		DR_LOG(log_debug) << "SipDialog::SipDialog - callId " << m_strCallId ;
 		DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for outbound INVITE sent from " << m_protocol << "/" << m_transportAddress << ":" << m_transportPort << " to " << name << ":" << std::dec << port ;
 
 	}	
@@ -193,6 +194,7 @@ namespace drachtio {
 		nta_leg_t *leg = nta_leg_by_call_id( theOneAndOnlyController->getAgent(), getCallId().c_str() );
 		assert( leg ) ;
 		if( leg ) {
+      DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying leg " << std::hex << (void *) leg ;
 			nta_leg_destroy( leg ) ;
 		}
     if( NULL != m_tp ) {

@@ -1568,13 +1568,24 @@ namespace drachtio {
                 }
                 else if( dialogId.length() > 0 ) {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
-                    SD_Clear(m_dialogs, dialogId ) ;
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: dialog id " << dialogId << " callId " << sip->sip_call_id->i_id  ;
                     
+                    SD_Log(m_dialogs, true);
+                    
+                    size_t countBefore = SD_Size(m_dialogs);
+                    SD_Clear(m_dialogs, dialogId ) ;
+                    size_t countAfter = SD_Size(m_dialogs);
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: dialog count before " << countBefore << " after " << countAfter << "  dialog id " << dialogId ;
+                  
                     if (sip->sip_cseq->cs_method == sip_method_bye) {
                         nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
                         if (leg) {
-                          DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received 200 OK to BYE, if we have an IIP clear it now, leg " << std::hex << (void*) leg  ;
+                          DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing leg " << std::hex << (void*) leg  ;
+                          countBefore = IIP_Size(m_invitesInProgress);
+                          IIP_Log(m_invitesInProgress, true);
                           IIP_Clear(m_invitesInProgress, leg);
+                          countAfter = IIP_Size(m_invitesInProgress);
+                          DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: invites in progress count before " << countBefore << " after " << countAfter << "  leg " << std::hex << (void*) leg ;
                         }
                     }
                 }
