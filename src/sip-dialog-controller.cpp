@@ -1567,25 +1567,21 @@ namespace drachtio {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: NOT clearing dialog after receiving 401/407 response to BYE"  ;
                 }
                 else if( dialogId.length() > 0 ) {
-                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
-                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: dialog id " << dialogId << " callId " << sip->sip_call_id->i_id  ;
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog " << dialogId << " after receiving response to BYE or notify w/ subscription-state terminated"  ;
                     
-                    SD_Log(m_dialogs, true);
-                    
-                    size_t countBefore = SD_Size(m_dialogs);
-                    SD_Clear(m_dialogs, dialogId ) ;
-                    size_t countAfter = SD_Size(m_dialogs);
-                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: dialog count before " << countBefore << " after " << countAfter << "  dialog id " << dialogId ;
-                  
+                    SD_Clear(m_dialogs, dialogId ) ;                  
                     if (sip->sip_cseq->cs_method == sip_method_bye) {
                         nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
                         if (leg) {
-                          DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing leg " << std::hex << (void*) leg  ;
-                          countBefore = IIP_Size(m_invitesInProgress);
-                          IIP_Log(m_invitesInProgress, true);
-                          IIP_Clear(m_invitesInProgress, leg);
-                          countAfter = IIP_Size(m_invitesInProgress);
-                          DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: invites in progress count before " << countBefore << " after " << countAfter << "  leg " << std::hex << (void*) leg ;
+                          std::shared_ptr<IIP> iip;
+                          if (IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
+                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing invite in progress that did not complete before receiving response to BYE"  ;
+                            IIP_Clear(m_invitesInProgress, leg);
+                            const nta_outgoing_t* orqInvite = iip->orq();
+                            if (orq != nullptr) {
+                              clearRIP((nta_outgoing_t *) orqInvite);
+                            }
+                          }
                         }
                     }
                 }
@@ -1885,7 +1881,6 @@ namespace drachtio {
         if( m_mapOrq2RIP.end() == it ) return  ;
         m_mapOrq2RIP.erase( it ) ;                      
     }
-    
     void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg) {
         DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) irq;
         incoming_retransmit_reply(irq, tp);
@@ -2091,6 +2086,15 @@ namespace drachtio {
         DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
         IIP_Log(m_invitesInProgress, bDetail);
         SD_Log(m_dialogs, bDetail);
+
+        DR_LOG(bDetail ? log_info : log_debug) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;
+        if (bDetail) {
+          for (auto& pair : m_mapOrq2RIP) {
+          nta_outgoing_t* key = pair.first;
+          std::shared_ptr<RIP> value = pair.second;
+          DR_LOG(log_info) << "  nta_outgoing_t* " << std::hex << (void *)key ;
+          }
+        }
 
         std::lock_guard<std::mutex> lock(m_mutex) ;
         DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
