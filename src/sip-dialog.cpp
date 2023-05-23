@@ -176,8 +176,8 @@ namespace drachtio {
 			su_free(home, (void *) route_uri);
 		}
 
-		DR_LOG(log_debug) << "SipDialog::SipDialog - callId " << m_strCallId ;
-		DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for outbound INVITE sent from " << m_protocol << "/" << m_transportAddress << ":" << m_transportPort << " to " << name << ":" << std::dec << port ;
+		DR_LOG(log_debug) << "SipDialog::SipDialog - creating dialog for outbound INVITE " << m_strCallId << " sent from " << 
+      m_protocol << "/" << m_transportAddress << ":" << m_transportPort << " to " << name << ":" << std::dec << port ;
 
 	}	
 	SipDialog::~SipDialog() {
