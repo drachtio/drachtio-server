@@ -7,6 +7,8 @@ const fs = require('fs');
 const assert = require('assert');
 const { RSA_NO_PADDING } = require('constants');
 
+const waitFor = async (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 class App extends Emitter {
   constructor(tags) {
     super();
@@ -252,6 +254,24 @@ class App extends Emitter {
           });
       });
     });
+  }
+
+  sendByeDuringReinvite(sdp) {
+    this.srf.invite(async(req, res) => {
+
+      const localSdp = sdp || req.body.replace(/m=audio\s+(\d+)/, 'm=audio 15000');
+
+      /* respond 200 OK and establish dialog */
+      const uas = await this.srf.createUAS(req, res, {localSdp});
+
+      /* immediately send a reinvite */
+      await waitFor(200);
+      uas.request({method: 'INVITE'});
+      await waitFor(10);
+      uas.request({method: 'BYE'});
+    });
+
+    return this;
   }
 
   handleReinviteByeRace(dest) {
