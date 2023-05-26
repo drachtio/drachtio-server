@@ -1508,7 +1508,11 @@ namespace drachtio {
 
                   // in case we have an invite in progress we sent, and received a BYE instead of final response
                   DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received BYE, if we have an IIP clear it now"  ;
-                  IIP_Clear(m_invitesInProgress, leg);                }
+                  std::shared_ptr<IIP> iip = IIP_Clear(m_invitesInProgress, leg);
+                  if (iip) {
+                    DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: found an IIP to clear: " << *iip;  ;
+                  }
+                }
             }
         }
         return rc ;
