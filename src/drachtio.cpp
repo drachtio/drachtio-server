@@ -67,7 +67,18 @@ namespace {
 } ;
 
 namespace drachtio {
-    
+    std::string capitalizeAfterDash(const std::string& input) {
+      std::string output = input;
+      bool capitalizeNext = true;
+      if (input.substr(0, 2) != "X-" && input.substr(0, 2) != "x-") {
+        std::for_each(output.begin(), output.end(), [&](char& c) {
+          if (capitalizeNext) c = std::toupper(c, std::locale{});
+          capitalizeNext = c == '-';
+        });
+      }
+      return output;
+    }
+
     typedef std::unordered_map<string,tag_type_t> mapHdr2Tag ;
 
     typedef std::unordered_set<string> setHdr ;
@@ -201,13 +212,18 @@ namespace drachtio {
     }
 
     void makeUniqueSipTransactionIdentifier(sip_t* sip, string& str) {
-        str = sip->sip_call_id->i_id ;
+      str = sip->sip_call_id->i_id ;
+      str.append("|") ;
+      str.append((sip->sip_request && sip_method_cancel == sip->sip_request->rq_method) ?
+        "INVITE" :
+        sip->sip_cseq->cs_method_name) ;
+      str.append("|") ;
+      str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
+      if (sip->sip_via && sip->sip_via->v_branch) {
         str.append("|") ;
-        str.append((sip->sip_request && sip_method_cancel == sip->sip_request->rq_method) ?
-          "INVITE" :
-          sip->sip_cseq->cs_method_name) ;
-        str.append("|") ;
-        str.append( boost::lexical_cast<std::string>(sip->sip_cseq->cs_seq) ) ;
+        str.append(sip->sip_via->v_branch) ;
+      }
+      //DR_LOG(log_debug) << "makeUniqueSipTransactionIdentifier: " << str ;
     }
 
 	void generateUuid(string& uuid) {
@@ -715,15 +731,16 @@ namespace drachtio {
                 }
             }
             else {
-                //custom header
-                int len = (*it).length() ;                  
+               //custom header
+                std::ostringstream oss;
+                oss << capitalizeAfterDash(hdrName) << ": " << hdrValue;
+                int len = oss.str().length() ;
                 char *p = new char[len+1] ;
                 memset(p, '\0', len+1) ;
-                strncpy( p, (*it).c_str(), len) ;
-
+                strcpy( p, oss.str().c_str()) ;
                 tags[i].t_tag = siptag_unknown_str ;
                 tags[i].t_value = (tag_value_t) p ;
-                DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
+                DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;
             }
             i++ ;
         }
@@ -810,15 +827,16 @@ namespace drachtio {
                 DR_LOG(log_debug) << "makeTags - Adding well-known header '" << hdrName << "' with value '" << p << "'"  ;
             }
             else {
-                //custom header
-                int len = (*it).length() ;                  
+               //custom header
+                std::ostringstream oss;
+                oss << capitalizeAfterDash(hdrName) << ": " << hdrValue;
+                int len = oss.str().length() ;
                 char *p = new char[len+1] ;
                 memset(p, '\0', len+1) ;
-                strncpy( p, (*it).c_str(), len) ;
-
+                strcpy( p, oss.str().c_str()) ;
                 tags[i].t_tag = siptag_unknown_str ;
                 tags[i].t_value = (tag_value_t) p ;
-                DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;  
+                DR_LOG(log_debug) << "makeTags - custom header: '" << hdrName << "', value: " << hdrValue  ;
             }
 
             i++ ;

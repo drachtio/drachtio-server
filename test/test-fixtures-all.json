@@ -62,6 +62,13 @@
   {
     "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
     "script": {"name": "uas", "function": "b2b"},
+    "uas": {"name": "uas-success.xml", "port": 5094, "transport": "tcp"},
+    "uac": {"name": "uac-long-sdp.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: handles very long sdp"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
     "uas": {"name": "uas-cancel.xml", "port": 5095},
     "uac": {"name": "uac-cancel.xml", "target": "127.0.0.1:5090"},
     "message": "b2b: cancels B when receive cancel from A"
@@ -75,7 +82,8 @@
   },
   {
     "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
-    "script": {"name": "uas", "function": "b2b"},
+    "script": {"name": "uas", "function": "b2b", "delay": 750, 
+      "error": "unable to find dialog for dialog id provided"},
     "uas": {"name": "uas-ackbye.xml", "port": 5095},
     "uac": {"name": "uac-cancel.xml", "target": "127.0.0.1:5090"},
     "message": "b2b: ACK-BYE to B when A CANCELS in race condition as we send 200 OK",
@@ -118,7 +126,8 @@
   },
   {
     "server": {"config": "drachtio.conf6.xml", "args": ["--memory-debug"]},
-    "script": {"name": "uas", "function": "proxy", "args": "sip:127.0.0.1:5095;transport=udp"},
+    "script": {"name": "uas", "function": "proxy", "args": "sip:127.0.0.1:5095;transport=udp", 
+      "error": "error proxying request"},
     "uac": {"name": "uac-expect-500.xml", "target": "127.0.0.1:5090", "transport": "tcp"},
     "message": "proxy: return 500 if call cannot be proxied due to lack of appropriate tport"
   },

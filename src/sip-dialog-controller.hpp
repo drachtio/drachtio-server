@@ -43,7 +43,7 @@ THE SOFTWARE.
 
 #define START_LEN (512)
 #define HDR_LEN (4192)
-#define BODY_LEN (8384)
+#define BODY_LEN (12288)
 
 namespace drachtio {
 

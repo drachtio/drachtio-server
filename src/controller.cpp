@@ -1364,6 +1364,11 @@ namespace drachtio {
             " does not match an existing call leg, processed in thread " << std::this_thread::get_id()  ;
 
         tport_t* tp_incoming = nta_incoming_transport(m_nta, NULL, msg );
+        if (NULL == tp_incoming) {
+            DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: unable to get transport for incoming message; discarding call-id " << sip->sip_call_id->i_id ;
+            return -1 ;
+        }
+
         tport_t* tp = tport_parent( tp_incoming ) ;
         const tp_name_t* tpn = tport_name( tp );
         tport_unref( tp_incoming ) ;
@@ -1489,8 +1494,16 @@ namespace drachtio {
                         }
 
                         if( sip_method_invite == sip->sip_request->rq_method ) {
-                            nta_msg_treply( m_nta, msg_ref_create( msg ), 100, NULL, TAG_END() ) ;  
-                            if (m_bAlwaysSend180) nta_msg_treply( m_nta, msg_ref_create( msg ), 180, NULL, TAG_END() ) ;  
+                          if (-1 == nta_msg_treply( m_nta, msg_ref_create( msg ), 100, NULL, TAG_END() )) {
+                            DR_LOG(log_info) << "failed sending 100 Trying: " << sip->sip_call_id->i_id  ;
+                            return -1;
+                          }
+                          if (m_bAlwaysSend180) {
+                            if (-1 == nta_msg_treply( m_nta, msg_ref_create( msg ), 180, NULL, TAG_END() )) {
+                              DR_LOG(log_info) << "failed sending 180 Ringing: " << sip->sip_call_id->i_id  ;
+                              return -1;
+                            }
+                          }
                         }
                         if (sip_method_options == sip->sip_request->rq_method && sip->sip_user_agent && sip->sip_user_agent->g_string) {
                             if (0 == m_strUserAgentAutoAnswerOptions.compare(sip->sip_user_agent->g_string)) {
@@ -1635,12 +1648,19 @@ namespace drachtio {
             m_pDialogController->addIncomingInviteTransaction( leg, irq, sip, transactionId, dlg, tag ) ;            
         }
         else {
-            nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
+          /* first try to find the original incoming irq */
+          nta_incoming_t* irq = nta_incoming_find(m_nta, sip, sip->sip_via);
+				  if (!irq) {
+            irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
                 DR_LOG(log_error) << "DrachtioController::setupLegForIncomingRequest - Error creating a transaction for new incoming invite or subscribe" ;
                 return false ;
             }
-            m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
+          }
+          else {
+            DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - found existing irq " << std::hex << (void *)irq ;
+          }
+          m_pDialogController->addIncomingRequestTransaction( irq, transactionId ) ;
         }
         msg_ref_create( msg ) ; // we need to add a reference to the original request message
         return true ;

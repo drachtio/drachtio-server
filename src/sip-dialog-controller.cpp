@@ -177,7 +177,7 @@ namespace drachtio {
             dlg->getTransportDesc(transport) ;
             tags = makeTags( pData->getHeaders(), transport) ;
 
-            tport_t* tp = dlg->getTport() ; 
+            tport_t* tp = dlg->getTport() ; //DH: this does NOT take out a reference
             bool forceTport = NULL != tp ;  
 
             nta_leg_t *leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
@@ -201,6 +201,8 @@ namespace drachtio {
                 std::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
                 if( NULL != pData ) {
                     DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
+                    //DH: I am now holding a tport that I did not take out a reference for
+                    //what if while I am holding it the registration expires and the tport is destroyed?
                     if (pData->getTport() != tp) {
                         DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
                         tp = pData->getTport();
@@ -788,10 +790,17 @@ namespace drachtio {
                     DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected possible natted downstream client, but ignoring because disable-nat-detection is on";
                 }
                 if (nat) {
-                    url_t const * url = nta_outgoing_route_uri(orq);
-                    string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
-                    dlg->setRouteUri(routeUri);
-                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
+                    url_t const * uri = nta_outgoing_request_uri(orq);
+                    if (uri && 0 == strcmp(uri->url_host, "feature-server")) {
+                      DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog - (UAC) detected jambonz k8s feature-server destination, no nat";
+                      nat = false;
+                    }
+                    else {
+                      url_t const * url = nta_outgoing_route_uri(orq);
+                      string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                      dlg->setRouteUri(routeUri);
+                      DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
+                    }
                 }
                 else {
                     dlg->clearRouteUri();
@@ -999,7 +1008,7 @@ namespace drachtio {
                                     if( NULL != sipResponse->sip_contact && NULL != sipResponse->sip_contact->m_expires ) {
                                         expires = ::atoi( sipResponse->sip_contact->m_expires ) ;
                                     }
-                                    else if (NULL != sipResponse->sip_contact && sipResponse->sip_expires->ex_delta) {
+                                    else if (NULL != sipResponse->sip_expires && sipResponse->sip_expires->ex_delta) {
                                         expires = sipResponse->sip_expires->ex_delta;
                                     }  
                                 }
@@ -1468,7 +1477,9 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            return m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
+                            rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            return rc;
                         default:
                         break;
                     }
@@ -1518,13 +1529,15 @@ namespace drachtio {
             m_pController->getClientController()->route_response_inside_transaction( encodedMessage, meta, orq, sip, rip->getTransactionId(), rip->getDialogId() ) ;            
 
             if (method == sip_method_invite && 200 == statusCode) {
-                tport_t *tp = nta_outgoing_transport(orq) ; 
-                sip_session_expires_t* se = sip_session_expires(sip) ;
-
+                tport_t *tp = nta_outgoing_transport(orq) ; // takes a ref on the tport..
                 // start a timerD for this successful reINVITE
-                if (tport_is_dgram(tp) )m_timerDHandler.addInvite(orq);
+                if (tp) {
+                  if (tport_is_dgram(tp)) m_timerDHandler.addInvite(orq);
+                  tport_unref(tp);  // ..releases it
+                }
                 
                 /* reset session expires timer, if provided */
+                sip_session_expires_t* se = sip_session_expires(sip) ;
                 if( se ) {
                     std::shared_ptr<SipDialog> dlg ;
                     nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
@@ -1914,7 +1927,7 @@ namespace drachtio {
         SD_Clear(m_dialogs, leg);
     }
     void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
-        DR_LOG(log_error) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
+        DR_LOG(log_debug) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
         std::lock_guard<std::mutex> lock(m_mutex) ;
         m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
     }
