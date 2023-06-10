@@ -1575,7 +1575,6 @@ namespace drachtio {
                         nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   
                         break;                           
 
-
                     default:
                         nta_msg_discard( m_nta, msg ) ;
                     break ;
@@ -2203,6 +2202,9 @@ namespace drachtio {
                 ++it ;
             }
         }
+
+        // expire any old incoming transactions that the app has not acted on in 5 minutes
+        m_pDialogController->ageOutTransactions(std::chrono::minutes(5)) ;
 
         bool bMemoryDebug = m_bMemoryDebug || m_bDumpMemory;
         this->printStats(bMemoryDebug) ;

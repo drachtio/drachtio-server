@@ -27,10 +27,17 @@ git clone --depth=50 --branch=main https://github.com/drachtio/drachtio-server.g
 git submodule update --init --recursive
 ./autogen.sh
 mkdir build && cd $_
-../configure CPPFLAGS='-DNDEBUG'
+../configure
 make
 sudo make install
 ```
+
+### Building without optimizing code
+When troubleshooting you may want to disable code optimizations (impact on performance will not be noticeable except on very large systems).
+```bash
+../configure --enable-debug=yes
+```
+
 ### Building with tcmalloc
 If you want to build with [tcmalloc](https://google.github.io/tcmalloc/overview.html), which is a faster implementation of memory management, install libgoogle-perftools-dev and then adding a configure option:
 

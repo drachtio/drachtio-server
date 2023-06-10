@@ -136,11 +136,12 @@ namespace drachtio {
     return true;
   }
 
-  void IIP_Clear(InvitesInProgress_t& iips, nta_leg_t* leg) {
+  std::shared_ptr<IIP>  IIP_Clear(InvitesInProgress_t& iips, nta_leg_t* leg) {
     std::shared_ptr<IIP> iip;
     if (IIP_FindByLeg(iips, leg, iip)) {
       IIP_Clear(iips, iip);
     }
+    return iip;
   }
 
   void IIP_Clear(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip) {

@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include <unordered_set>
 #include <mutex>
 #include <algorithm>
+#include <chrono>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/nta.h>
@@ -244,6 +245,7 @@ namespace drachtio {
 		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) ;
 		bool findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) ;
 		nta_incoming_t* findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) ;
+    void ageOutTransactions(const std::chrono::seconds& ageLimit);
 
 		// retransmit final response to invite
 		void retransmitFinalResponse(nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg);
@@ -286,8 +288,8 @@ namespace drachtio {
 		// Requests received from the network 
 
 		/* we need to lookup incoming transactions by transaction id when we get a response from the client */
-		typedef std::unordered_map<string, nta_incoming_t*> mapTransactionId2Irq ;
-		mapTransactionId2Irq m_mapTransactionId2Irq ;
+    typedef std::unordered_map<string, std::pair<nta_incoming_t*, std::chrono::time_point<std::chrono::system_clock>>> mapTransactionId2Irq;
+    mapTransactionId2Irq m_mapTransactionId2Irq;
 
 
 		// timers for dialogs and leg that we can remove after suitable timeout period waiting for retransmissions
