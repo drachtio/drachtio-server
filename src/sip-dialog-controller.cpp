@@ -1951,32 +1951,47 @@ namespace drachtio {
         nta_outgoing_destroy(orq) ;
         SD_Clear(m_dialogs, leg);
     }
-    void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
+    void SipDialogController::addIncomingRequestTransaction(nta_incoming_t* irq, const string& transactionId) {
         DR_LOG(log_debug) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
-        std::lock_guard<std::mutex> lock(m_mutex) ;
-        m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_mapTransactionId2Irq.insert({transactionId, {irq, std::chrono::system_clock::now()}});
     }
-    bool SipDialogController::findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) {
-        std::lock_guard<std::mutex> lock(m_mutex) ;
-        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
-        if( m_mapTransactionId2Irq.end() == it ) return false ;
-        irq = it->second ;
-        return true ;                       
+    bool SipDialogController::findIrqByTransactionId(const string& transactionId, nta_incoming_t*& irq) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto it = m_mapTransactionId2Irq.find(transactionId);
+        if (m_mapTransactionId2Irq.end() == it) return false;
+        irq = it->second.first;
+        return true;                       
     }
-    nta_incoming_t* SipDialogController::findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) {
+    nta_incoming_t* SipDialogController::findAndRemoveTransactionIdForIncomingRequest(const string& transactionId) {
         DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - searching transactionId " << transactionId ;
         std::lock_guard<std::mutex> lock(m_mutex) ;
-        nta_incoming_t* irq = nullptr ;
-        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
-        if( m_mapTransactionId2Irq.end() != it ) {
-            irq = it->second ;
-            m_mapTransactionId2Irq.erase( it ) ;
+        nta_incoming_t* irq = nullptr;
+        auto it = m_mapTransactionId2Irq.find(transactionId);
+        if(m_mapTransactionId2Irq.end() != it) {
+            irq = it->second.first;
+            m_mapTransactionId2Irq.erase(it);
         }
         else {
-            DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId << 
-                ", most likely this is a response to an invite we sent";
+            DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId;
         }
-        return irq ;
+        return irq;
+    }
+    void SipDialogController::ageOutTransactions(const std::chrono::seconds& ageLimit) {
+        std::lock_guard<std::mutex> lock(m_mutex) ;
+        auto now = std::chrono::system_clock::now();
+        for (auto it = m_mapTransactionId2Irq.begin(); it != m_mapTransactionId2Irq.end(); ) {
+            if (now - it->second.second > ageLimit) {
+              auto transactionId =  it->first;
+              auto irq = it->second.first;
+              DR_LOG(log_debug) << "SipDialogController::ageOutTransactions - ageing out transactionId " << transactionId << 
+                ", irq: " << std::hex << (void*) irq;
+              nta_incoming_destroy(irq);
+              it = m_mapTransactionId2Irq.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 
     void SipDialogController::clearSipTimers(std::shared_ptr<SipDialog>& dlg) {
