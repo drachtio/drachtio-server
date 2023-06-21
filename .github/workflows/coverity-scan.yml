@@ -13,7 +13,7 @@ jobs:
       - name: build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libgoogle-perftools-dev
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libunwind-dev libgoogle-perftools-dev
       - name: Download Coverity Build Tool
         run: |
           wget -q https://scan.coverity.com/download/linux64 --post-data "token=$TOKEN&project=drachtio%2Fdrachtio-server" -O cov-analysis-linux64.tar.gz
