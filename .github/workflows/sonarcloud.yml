@@ -49,7 +49,7 @@ jobs:
       - name: build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libgoogle-perftools-dev
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libgoogle-perftools-dev libunwind-dev
       - name: Run build-wrapper
         run: |
           ./autogen.sh

@@ -19,7 +19,7 @@ jobs:
           submodules: recursive
        - run: |
           sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libgoogle-perftools-dev clang-tools
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libgoogle-perftools-dev libunwind-dev clang-tools
        - run: |
           ./autogen.sh
           mkdir -p build && cd $_
