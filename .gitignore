@@ -10,10 +10,12 @@ drachtio.xcodeproj/
 aclocal.m4
 config.guess
 config.h.in
-config.h.in~
 depcomp
 config.guess
 config.sub
+/compile
+/configure
+/*~
 
 # boost
 project-cache.jam
