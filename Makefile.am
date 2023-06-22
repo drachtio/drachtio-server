@@ -84,8 +84,6 @@ BUILT_SOURCES=${srcdir}/deps/boost/stage/lib/libboost_thread.a ${srcdir}/deps/so
 
 clean-local:
 	cd ${srcdir}/deps/boost && ./bootstrap.sh && ./b2 clean
-	cd ${srcdir}/deps/sofia-sip && make clean  
-	cd ${srcdir}/deps/jansson && make clean  
 
 ${srcdir}/deps/boost/stage/lib/libboost_thread.a ${srcdir}/deps/boost/stage/lib/libboost_system.a ${srcdir}/deps/boost/stage/lib/libboost_filesystem.a ${srcdir}/deps/boost/stage/lib/libboost_log.a:
 	$(make_BOOST_CMD)
