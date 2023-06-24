@@ -7,6 +7,9 @@
 
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
+#include <prometheus/detail/ckms_quantiles.h>
+#include <prometheus/counter.h>
+#include <prometheus/histogram.h>
 
 using namespace prometheus;
 
