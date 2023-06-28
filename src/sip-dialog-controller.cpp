@@ -1988,6 +1988,9 @@ namespace drachtio {
                 ", irq: " << std::hex << (void*) irq;
               nta_incoming_destroy(irq);
               it = m_mapTransactionId2Irq.erase(it);
+
+              /* there is probably a net transaction related to remove as well */
+              m_pClientController->removeNetTransaction(transactionId);
             } else {
                 ++it;
             }

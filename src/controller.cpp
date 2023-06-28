@@ -2184,6 +2184,7 @@ namespace drachtio {
 
     }
     void DrachtioController::processWatchdogTimer() {
+        static uint32_t callCount = 0; 
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
     
         // expire any UaInvalidData
@@ -2203,8 +2204,10 @@ namespace drachtio {
             }
         }
 
-        // expire any old incoming transactions that the app has not acted on in 5 minutes
-        m_pDialogController->ageOutTransactions(std::chrono::minutes(5)) ;
+        // check every 5 minutes and expire any old incoming transactions that the app has not acted on in 5 minutes
+        if (callCount++ % 10 == 0) {
+          m_pDialogController->ageOutTransactions(std::chrono::minutes(5)) ;
+        }
 
         bool bMemoryDebug = m_bMemoryDebug || m_bDumpMemory;
         this->printStats(bMemoryDebug) ;
