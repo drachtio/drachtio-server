@@ -25,8 +25,11 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/request-handler.cpp src/request-router.cpp src/stats-collector.cpp \
 	src/invite-in-progress.cpp src/blacklist.cpp src/ua-invalid.cpp
 drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
-	-DBOOST_ALLOW_DEPRECATED_HEADERS -DBOOST_LOG_DYN_LINK -O2 -Wno-stringop-overflow
+	-DBOOST_ALLOW_DEPRECATED_HEADERS -O2 -Wno-stringop-overflow
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
+if ! DEP_BOOST
+drachtio_CPPFLAGS+=-DBOOST_LOG_DYN_LINK
+endif
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
 timer_CPPFLAGS=-D_REENTRANT -DTEST
