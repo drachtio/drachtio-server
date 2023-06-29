@@ -1,4 +1,5 @@
 AC_INIT([drachtio],[1.2],[daveh@beachdognet.com])
+AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE([subdir-objects -Wno-portability])
 AC_CONFIG_SRCDIR([src/main.cpp])
 AC_CONFIG_HEADERS([config.h])
@@ -10,12 +11,23 @@ AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11()
 AX_CXX_COMPILE_STDCXX_17(noext, optional)
 
-AM_CONDITIONAL([DEP_BOOST], [test -d deps/boost/libs])
+AC_CANONICAL_HOST
+project_root=`cd "$srcdir"; pwd`
+AC_SUBST(project_root)
+
+AC_CHECK_FILE([$project_root/deps/boost/libs], 
+              [have_dep_boost="yes"], 
+              [have_dep_boost="no"])
+AM_CONDITIONAL([DEP_BOOST], [test "x$have_dep_boost" = "xyes"])
+
+if test "x$have_dep_boost" = "xyes"; then
+  AC_MSG_NOTICE([Boost libraries found locally])
+else
+  AC_MSG_NOTICE([Boost libraries not found locally, building with system Boost])
+fi
 
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)
-
-AC_CANONICAL_HOST
 
 case $host_os in
 *darwin* | *rhapsody* | *macosx*)
