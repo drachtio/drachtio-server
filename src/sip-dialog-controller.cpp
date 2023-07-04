@@ -1477,7 +1477,7 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
+                            DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
                             rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
                             return rc;
                         default:
@@ -1505,6 +1505,17 @@ namespace drachtio {
 
                 if (sip_method_bye == sip->sip_request->rq_method) {
                   Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
+
+                  // in case we have an invite in progress we sent, and received a BYE instead of final response
+                  DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received BYE, if we have an IIP clear it now"  ;
+                  std::shared_ptr<IIP> deadIIP;
+                  if (IIP_FindByLeg(m_invitesInProgress, leg, deadIIP)) {
+                    DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: found an IIP to clear: " << *deadIIP;  ;
+                    DR_LOG(log_debug) << "irq " << std::hex << (void *) deadIIP->irq()  ;
+                    DR_LOG(log_debug) << "orq " << std::hex << (void *) deadIIP->orq();
+                    DR_LOG(log_debug) << "transactionId " << deadIIP->getTransactionId()  ;
+                    IIP_Clear(m_invitesInProgress, leg);
+                  }
                 }
             }
         }
@@ -1564,8 +1575,23 @@ namespace drachtio {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: NOT clearing dialog after receiving 401/407 response to BYE"  ;
                 }
                 else if( dialogId.length() > 0 ) {
-                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
-                    SD_Clear(m_dialogs, dialogId ) ;
+                    DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog " << dialogId << " after receiving response to BYE or notify w/ subscription-state terminated"  ;
+                    
+                    SD_Clear(m_dialogs, dialogId ) ;                  
+                    if (sip->sip_cseq->cs_method == sip_method_bye) {
+                        nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
+                        if (leg) {
+                          std::shared_ptr<IIP> iip;
+                          if (IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
+                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing invite in progress that did not complete before receiving response to BYE"  ;
+                            IIP_Clear(m_invitesInProgress, leg);
+                            const nta_outgoing_t* orqInvite = iip->orq();
+                            if (orq != nullptr) {
+                              clearRIP((nta_outgoing_t *) orqInvite);
+                            }
+                          }
+                        }
+                    }
                 }
                 else {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: got 200 OK to BYE but don't have dialog id"  ;
@@ -1863,7 +1889,6 @@ namespace drachtio {
         if( m_mapOrq2RIP.end() == it ) return  ;
         m_mapOrq2RIP.erase( it ) ;                      
     }
-    
     void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg) {
         DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) irq;
         incoming_retransmit_reply(irq, tp);
@@ -1926,32 +1951,50 @@ namespace drachtio {
         nta_outgoing_destroy(orq) ;
         SD_Clear(m_dialogs, leg);
     }
-    void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
+    void SipDialogController::addIncomingRequestTransaction(nta_incoming_t* irq, const string& transactionId) {
         DR_LOG(log_debug) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
-        std::lock_guard<std::mutex> lock(m_mutex) ;
-        m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_mapTransactionId2Irq.insert({transactionId, {irq, std::chrono::system_clock::now()}});
     }
-    bool SipDialogController::findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) {
-        std::lock_guard<std::mutex> lock(m_mutex) ;
-        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
-        if( m_mapTransactionId2Irq.end() == it ) return false ;
-        irq = it->second ;
-        return true ;                       
+    bool SipDialogController::findIrqByTransactionId(const string& transactionId, nta_incoming_t*& irq) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto it = m_mapTransactionId2Irq.find(transactionId);
+        if (m_mapTransactionId2Irq.end() == it) return false;
+        irq = it->second.first;
+        return true;                       
     }
-    nta_incoming_t* SipDialogController::findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) {
+    nta_incoming_t* SipDialogController::findAndRemoveTransactionIdForIncomingRequest(const string& transactionId) {
         DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - searching transactionId " << transactionId ;
         std::lock_guard<std::mutex> lock(m_mutex) ;
-        nta_incoming_t* irq = nullptr ;
-        mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
-        if( m_mapTransactionId2Irq.end() != it ) {
-            irq = it->second ;
-            m_mapTransactionId2Irq.erase( it ) ;
+        nta_incoming_t* irq = nullptr;
+        auto it = m_mapTransactionId2Irq.find(transactionId);
+        if(m_mapTransactionId2Irq.end() != it) {
+            irq = it->second.first;
+            m_mapTransactionId2Irq.erase(it);
         }
         else {
-            DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId << 
-                ", most likely this is a response to an invite we sent";
+            DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - failed to find transactionId " << transactionId;
         }
-        return irq ;
+        return irq;
+    }
+    void SipDialogController::ageOutTransactions(const std::chrono::seconds& ageLimit) {
+        std::lock_guard<std::mutex> lock(m_mutex) ;
+        auto now = std::chrono::system_clock::now();
+        for (auto it = m_mapTransactionId2Irq.begin(); it != m_mapTransactionId2Irq.end(); ) {
+            if (now - it->second.second > ageLimit) {
+              auto transactionId =  it->first;
+              auto irq = it->second.first;
+              DR_LOG(log_debug) << "SipDialogController::ageOutTransactions - ageing out transactionId " << transactionId << 
+                ", irq: " << std::hex << (void*) irq;
+              nta_incoming_destroy(irq);
+              it = m_mapTransactionId2Irq.erase(it);
+
+              /* there is probably a net transaction related to remove as well */
+              m_pClientController->removeNetTransaction(transactionId);
+            } else {
+                ++it;
+            }
+        }
     }
 
     void SipDialogController::clearSipTimers(std::shared_ptr<SipDialog>& dlg) {
@@ -2069,6 +2112,15 @@ namespace drachtio {
         DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
         IIP_Log(m_invitesInProgress, bDetail);
         SD_Log(m_dialogs, bDetail);
+
+        DR_LOG(bDetail ? log_info : log_debug) << "m_mapOrq2RIP size:                                               " << m_mapOrq2RIP.size()  ;
+        if (bDetail) {
+          for (auto& pair : m_mapOrq2RIP) {
+          nta_outgoing_t* key = pair.first;
+          std::shared_ptr<RIP> value = pair.second;
+          DR_LOG(log_info) << "  nta_outgoing_t* " << std::hex << (void *)key ;
+          }
+        }
 
         std::lock_guard<std::mutex> lock(m_mutex) ;
         DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
