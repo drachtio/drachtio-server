@@ -629,8 +629,8 @@ namespace drachtio {
             std::chrono::time_point<std::chrono::system_clock> entryTime = it->second.second;
             if (entryTime < thresholdTime) {
                 const std::string& transactionId = it->first;
+                 DR_LOG(log_info) << "ClientController::removeAppTransactionsOlderThan - removing stale transaction: " << transactionId;
                 it = m_mapAppTransactions.erase(it);
-                 DR_LOG(log_info) << "ClientController::removeAppTransactionsOlderThan - removed stale transaction: " << transactionId;
             } else {
                 ++it;
             }
@@ -644,8 +644,8 @@ namespace drachtio {
             std::chrono::time_point<std::chrono::system_clock> entryTime = it->second.second;
             if (entryTime < thresholdTime) {
                 const std::string& transactionId = it->first;
+                DR_LOG(log_info) << "ClientController::removeNetTransactionsOlderThan - removed stale transaction: " << transactionId;
                 it = m_mapNetTransactions.erase(it);
-                 DR_LOG(log_info) << "ClientController::removeNetTransactionsOlderThan - removed stale transaction: " << transactionId;
             } else {
                 ++it;
             }
