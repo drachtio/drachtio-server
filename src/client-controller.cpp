@@ -521,7 +521,10 @@ namespace drachtio {
         client_ptr client ;
 
         mapId2Client::iterator it = m_mapDialogs.find( dialogId ) ;
-        if( m_mapDialogs.end() != it ) client = it->second.lock() ;
+        if( m_mapDialogs.end() != it ) {
+            client_weak_ptr weakPtr = it->second.first;
+            client = weakPtr.lock();
+        }
 
         // if that client is no longer connected, randomly select another client that is running that app 
         if( !client ) {
@@ -554,57 +557,101 @@ namespace drachtio {
         return client ;
     }
 
-    client_ptr ClientController::findClientForAppTransaction( const string& transactionId ) {
-        std::lock_guard<std::mutex> l( m_lock ) ;
-        client_ptr client ;
-        mapId2Client::iterator it = m_mapAppTransactions.find( transactionId ) ;
-        if( m_mapAppTransactions.end() != it ) client = it->second.lock() ;
-        return client ;
+    client_ptr ClientController::findClientForAppTransaction(const string& transactionId) {
+        std::lock_guard<std::mutex> l(m_lock);
+        client_ptr client;
+        mapId2Client::iterator it = m_mapAppTransactions.find(transactionId);
+        if (m_mapAppTransactions.end() != it) {
+            client_weak_ptr weakPtr = it->second.first;
+            client = weakPtr.lock();
+        }
+        return client;
     }
     client_ptr ClientController::findClientForNetTransaction( const string& transactionId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
         mapId2Client::iterator it = m_mapNetTransactions.find( transactionId ) ;
-        if( m_mapNetTransactions.end() != it ) client = it->second.lock() ;
+        if( m_mapNetTransactions.end() != it )  {
+            client_weak_ptr weakPtr = it->second.first;
+            client = weakPtr.lock();
+        }
         return client ;
     }
     client_ptr ClientController::findClientForApiRequest( const string& clientMsgId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
         mapId2Client::iterator it = m_mapApiRequests.find( clientMsgId ) ;
-        if( m_mapApiRequests.end() != it ) client = it->second.lock() ;
+        if( m_mapApiRequests.end() != it ) {
+            client_weak_ptr weakPtr = it->second.first;
+            client = weakPtr.lock();
+        }
         return client ;
     }
-    void ClientController::removeAppTransaction( const string& transactionId ) {
+    void ClientController::addAppTransaction(client_ptr client, const string& transactionId) {
+      std::lock_guard<std::mutex> l(m_lock);
+      std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
+      m_mapAppTransactions.insert(make_pair(transactionId, std::make_pair(client, currentTime)));
+      DR_LOG(log_debug) << "ClientController::addAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size();
+    }
+    void ClientController::removeAppTransaction(const string& transactionId) {
+      std::lock_guard<std::mutex> l(m_lock);
+      m_mapAppTransactions.erase(transactionId);
+      DR_LOG(log_debug) << "ClientController::removeAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size();
+    }
+    void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
-        m_mapAppTransactions.erase( transactionId ) ;        
-        DR_LOG(log_debug) << "ClientController::removeAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size()  ;
+        std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
+        m_mapNetTransactions.insert(make_pair(transactionId, std::make_pair(client, currentTime))) ;        
+        DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
     void ClientController::removeNetTransaction( const string& transactionId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapNetTransactions.erase( transactionId ) ;        
         DR_LOG(log_debug) << "ClientController::removeNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
     }
+    void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
+        m_mapApiRequests.insert(make_pair(clientMsgId, std::make_pair(client, currentTime))) ;        
+        DR_LOG(log_debug) << "ClientController::addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
+    }
     void ClientController::removeApiRequest( const string& clientMsgId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
         m_mapApiRequests.erase( clientMsgId ) ;   
         DR_LOG(log_debug) << "ClientController::removeApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
     }
-    void ClientController::addAppTransaction( client_ptr client, const string& transactionId ) {
-        std::lock_guard<std::mutex> l( m_lock ) ;
-        m_mapAppTransactions.insert( make_pair( transactionId, client ) ) ;        
-        DR_LOG(log_debug) << "ClientController::addAppTransaction: transactionId " << transactionId << "; size: " << m_mapAppTransactions.size()  ;
+
+    void ClientController::removeAppTransactionsOlderThan(std::chrono::minutes duration) {
+        std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
+        std::chrono::time_point<std::chrono::system_clock> thresholdTime = currentTime - duration;
+
+        for (auto it = m_mapAppTransactions.begin(); it != m_mapAppTransactions.end(); ) {
+            std::chrono::time_point<std::chrono::system_clock> entryTime = it->second.second;
+            if (entryTime < thresholdTime) {
+                const std::string& transactionId = it->first;
+                 DR_LOG(log_info) << "ClientController::removeAppTransactionsOlderThan - removing stale transaction: " << transactionId;
+                it = m_mapAppTransactions.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
-    void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
-        std::lock_guard<std::mutex> l( m_lock ) ;
-        m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;        
-        DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+    void ClientController::removeNetTransactionsOlderThan(std::chrono::minutes duration) {
+        std::chrono::time_point<std::chrono::system_clock> currentTime = std::chrono::system_clock::now();
+        std::chrono::time_point<std::chrono::system_clock> thresholdTime = currentTime - duration;
+
+        for (auto it = m_mapNetTransactions.begin(); it != m_mapNetTransactions.end(); ) {
+            std::chrono::time_point<std::chrono::system_clock> entryTime = it->second.second;
+            if (entryTime < thresholdTime) {
+                const std::string& transactionId = it->first;
+                DR_LOG(log_info) << "ClientController::removeNetTransactionsOlderThan - removed stale transaction: " << transactionId;
+                it = m_mapNetTransactions.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
-    void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
-        std::lock_guard<std::mutex> l( m_lock ) ;
-        m_mapApiRequests.insert( make_pair( clientMsgId, client ) ) ;        
-        DR_LOG(log_debug) << "ClientController::addApiRequest: clientMsgId " << clientMsgId << "; size: " << m_mapApiRequests.size()  ;
-    }
+
 
     void ClientController::logStorageCount(bool bDetail) {
         std::lock_guard<std::mutex> lock(m_lock) ;

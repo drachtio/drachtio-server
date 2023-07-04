@@ -1575,7 +1575,6 @@ namespace drachtio {
                         nta_msg_treply( m_nta, msg, 481, NULL, TAG_END() ) ;   
                         break;                           
 
-
                     default:
                         nta_msg_discard( m_nta, msg ) ;
                     break ;
@@ -2185,6 +2184,7 @@ namespace drachtio {
 
     }
     void DrachtioController::processWatchdogTimer() {
+        static uint32_t callCount = 0; 
         DR_LOG(log_debug) << "DrachtioController::processWatchdogTimer"  ;
     
         // expire any UaInvalidData
@@ -2202,6 +2202,13 @@ namespace drachtio {
             else {
                 ++it ;
             }
+        }
+
+        // check every 5 minutes and expire any old incoming transactions that the app has not acted on in 5 minutes
+        if (callCount++ % 10 == 0) {
+          m_pDialogController->ageOutTransactions(std::chrono::minutes(5)) ;
+          m_pClientController->removeAppTransactionsOlderThan(std::chrono::minutes(5)) ;
+          m_pClientController->removeNetTransactionsOlderThan(std::chrono::minutes(5)) ;
         }
 
         bool bMemoryDebug = m_bMemoryDebug || m_bDumpMemory;
