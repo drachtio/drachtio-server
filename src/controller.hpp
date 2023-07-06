@@ -239,7 +239,11 @@ namespace drachtio {
     string m_adminAddress;
     string m_redisAddress;
     string m_redisKey;
-    unsigned int m_redisPort;
+    string m_redisSentinelAddresses;
+    string m_redisSentinelMasterName;
+    string m_redisUsername;
+    string m_redisPassword;
+    string m_redisPort;
     unsigned int m_redisRefreshSecs;
 
     std::shared_ptr<ClientController> m_pClientController ;
