@@ -11,6 +11,3 @@
 [submodule "deps/jansson"]
 	path = deps/jansson
 	url = https://github.com/akheron/jansson.git
-[submodule "deps/cpp_redis"]
-	path = deps/cpp_redis
-	url = https://github.com/cpp-redis/cpp_redis.git
