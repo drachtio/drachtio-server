@@ -11,3 +11,6 @@
 [submodule "deps/jansson"]
 	path = deps/jansson
 	url = https://github.com/akheron/jansson.git
+[submodule "deps/redis"]
+	path = deps/redis
+	url = https://github.com/boostorg/redis.git
