@@ -862,6 +862,22 @@ namespace drachtio {
         if (p) {
             m_redisRefreshSecs = boost::lexical_cast<unsigned int>(p); ;
         }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_SENTINEL_ADDRESSES");
+        if (p) {
+            m_redisSentinelAddresses = p;
+        }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_SENTINEL_SERVICE_NAME");
+        if (p) {
+            m_redisSentinelMasterName = p;
+        }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_USERNAME");
+        if (p) {
+            m_redisUsername= p;
+        }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_PASSWORD");
+        if (p) {
+            m_redisPassword= p;
+        }
         p = std::getenv("DRACHTIO_USER_AGENT_OPTIONS_AUTO_RESPOND");
         if (p) {
             m_strUserAgentAutoAnswerOptions = p;
@@ -1183,14 +1199,26 @@ namespace drachtio {
 
         /* mostly useful for kubernetes deployments, where it is verboten to mess with iptables */
         if (m_redisAddress.empty()) {
-            string redisAddress, redisPort, redisKey;
+            string redisAddress, redisPort, redisKey, redisSentinelAddresses, redisSentinelServiceName, redisUsername, redisPassword;
             unsigned int redisRefreshSecs;
             DR_LOG(log_notice) << "DrachtioController::run - blacklist checking config";
 
-            if (m_Config->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs)) {
+            if (m_Config->getBlacklistServer(
+              redisAddress, 
+              redisPort, 
+              redisKey, 
+              redisSentinelAddresses,
+              redisSentinelServiceName,
+              redisUsername,
+              redisPassword,
+              redisRefreshSecs)) {
                 m_redisAddress = redisAddress;
                 m_redisPort = redisPort;
                 m_redisKey = redisKey;
+                m_redisSentinelAddresses = redisSentinelAddresses;
+                m_redisSentinelMasterName = redisSentinelServiceName;
+                m_redisUsername = redisUsername;
+                m_redisPassword = redisPassword;
                 m_redisRefreshSecs = redisRefreshSecs;
             }
         }
