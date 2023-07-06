@@ -19,111 +19,164 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+#include <boost/algorithm/string.hpp>
 #include <boost/variant.hpp>
-#include <regex>
+#include <boost/redis/src.hpp>
+#include <boost/redis/logger.hpp>
+#include <boost/system/error_code.hpp>
+#include <iostream>
+#include <iterator>
 
-#include "bredis.hpp"
+#include <string>
+#include <iostream>
+
+
+namespace net = boost::asio;
+using boost::redis::connection;
+using boost::redis::request;
+using boost::redis::response;
+using boost::redis::config;
+using boost::redis::logger;
+using boost::redis::address;
+using boost::redis::ignore_t;
 
 #include "blacklist.hpp"
 #include "controller.hpp"
 
-namespace r = bredis;
-using socket_t = boost::asio::ip::tcp::socket;
-using Buffer = boost::asio::streambuf;
-using Iterator = typename r::to_iterator<Buffer>::iterator_t;
-using Policy = r::parsing_policy::keep_result;
-using result_t = r::parse_result_mapper_t<Iterator, Policy>;
+namespace {
+  logger l(logger::level::err);
+
+  std::vector<address> parseAddressList(const std::string& addrList) {
+    std::vector<address> addresses;
+    std::vector<std::string> hostPortPairs;
+
+    // Split the string on commas to get a list of host:port pairs.
+    boost::split(hostPortPairs, addrList, boost::is_any_of(","));
+
+    for(const std::string& pair : hostPortPairs) {
+        std::vector<std::string> hostPort;
+        // Split each pair on ':' to separate the host and the port.
+        boost::split(hostPort, pair, boost::is_any_of(":"));
+        if(hostPort.size() == 2) {
+            address addr = { hostPort[0], hostPort[1] };
+            addresses.push_back(addr);
+        }
+    }
+    return addresses;
+  }
+
+}
 
 namespace drachtio {
 
-    static bool QueryRedis(
-      boost::asio::io_context& ioservice,
-      std::string redisKey,
-      const boost::asio::ip::tcp::endpoint& endpoint,
-      std::unordered_set<std::string>& ips
-      ) {
+  void Blacklist::start(void) {
+      srand (time(NULL));    
+      std::thread t(&Blacklist::threadFunc, this) ;
+      m_thread.swap( t ) ;
+  }
+  void Blacklist::threadFunc() {
+    DR_LOG(log_debug) << "Blacklist thread id: " << std::this_thread::get_id()  ;
+    while (true) {
       try {
-        Buffer rx_buff;
-        socket_t socket(ioservice, endpoint.protocol());
-        DR_LOG(log_debug) << "Blacklist: connecting to " << endpoint.address() ;
-        socket.connect(endpoint) ;
-        DR_LOG(log_debug) << "Blacklist: successfully connected to redis" ;
-
-        r::Connection<socket_t> c(std::move(socket));
-        c.write(r::single_command_t{"SMEMBERS", redisKey});
-        auto r = c.read(rx_buff);
-        auto extract = boost::apply_visitor(r::extractor<Iterator>(), r.result);
-        rx_buff.consume(r.consumed);
-        auto &reply = boost::get<r::extracts::array_holder_t>(extract);
-        DR_LOG(log_info) << "Blacklist: got " << reply.elements.size() << " IPs to blacklist" ;
-        ips.clear();
-        BOOST_FOREACH(auto& member, reply.elements) {
-          auto &reply_str = boost::get<r::extracts::string_t>(member);
-          ips.insert(reply_str.str);
-        }
-        socket.close();
-        return true;
-      } catch( std::exception& e) {
-        DR_LOG(log_info) << "Blacklist::QueryRedis - Error: connecting to " << endpoint.address() << " " << std::string( e.what() )  ;
-        return false;
-      }
-    }
-    
-    Blacklist::Blacklist(std::string& redisAddress, unsigned int redisPort, std::string& redisKey, unsigned int refreshSecs) :
-      m_redisKey(redisKey),
-      m_refreshSecs(refreshSecs),
-      m_redisAddress(redisAddress),
-      m_redisPort(redisPort)
-    {
-    } 
-
-    void Blacklist::start() {
-        srand (time(NULL));    
-        std::thread t(&Blacklist::threadFunc, this) ;
-        m_thread.swap( t ) ;
-    }
-
-    Blacklist::~Blacklist() {
-        stop() ;
-    }
-    void Blacklist::threadFunc() {
-      bool initialized = false;
-      DR_LOG(log_debug) << "Blacklist thread id: " << std::this_thread::get_id()  ;
-
-      while (true) {
-        unsigned int interval = m_refreshSecs;
-
-        /* get redis endpoint */
-        boost::system::error_code ec;
-        boost::asio::ip::address ip_address = 
-          boost::asio::ip::address::from_string(m_redisAddress, ec);
-        if (ec.value() != 0) {
-          /* must be a dns name */
-          DR_LOG(log_debug) << "Blacklist resolving " << m_redisAddress ;
-
-          boost::asio::ip::tcp::resolver resolver(m_ioservice);
-          boost::asio::ip::tcp::resolver::results_type results = resolver.resolve(
-              m_redisAddress, 
-              boost::lexical_cast<std::string>(m_redisPort),
-              ec);
-          for (boost::asio::ip::tcp::endpoint const& endpoint : results) {
-            DR_LOG(log_debug) << "Blacklist resolved to " << endpoint.address() ;
-            if (QueryRedis(m_ioservice, m_redisKey, endpoint, m_ips)) initialized = true;
-            break;
-          }
+        address addr;
+        if (m_redisSentinels.length() > 0) {
+          std::string ip, port;
+          querySentinels(ip, port);
+          addr.host = ip;
+          addr.port = port;
         }
         else {
-          boost::asio::ip::tcp::endpoint endpoint(ip_address, m_redisPort);
-          DR_LOG(log_debug) << "Connecting to redis at " << m_redisAddress << ":" << m_redisPort ;
-          if (QueryRedis(m_ioservice, m_redisKey, endpoint, m_ips)) initialized = true;
+          addr.host = m_redisAddress;
+          addr.port = m_redisPort;
         }
-        if (!initialized) interval = 60;
-        std::this_thread::sleep_for (std::chrono::seconds(interval));
-      }
-   }
+        DR_LOG(log_debug) << "querying redis for blacklisted ips at " << addr.host << ":" << addr.port ;
 
-    void Blacklist::stop() {
-      //m_thread.join() ;
+        config cfg;
+        request req;
+        response< std::list<std::string> > resp;
+        net::io_context ioc;
+        connection conn{ioc};
+
+        cfg.addr = addr;
+        if (!m_redisUsername.empty()) {
+          cfg.username = m_redisUsername;
+        }
+        if (!m_redisPassword.empty()) {
+          cfg.password = m_redisPassword;
+        }
+
+        req.push("SMEMBERS", m_redisKey);
+        conn.async_run(cfg, l, net::detached);
+        conn.async_exec(req, resp, [&](auto ec, auto) {
+          if (!ec) {
+            auto& arr = std::get<0>(resp).value();
+            DR_LOG(log_debug) << "Found:" << arr.size() << " blacklisted ips in redis";
+            for (auto& r : arr) {
+              m_ips.insert(r);
+            }
+          }
+          conn.cancel();
+        });
+        ioc.run();
+
+        int sleepSecs = m_ips.size() > 0 ? m_refreshSecs : 300;
+        DR_LOG(log_debug) << "sleeping for " << sleepSecs << " seconds";
+        std::this_thread::sleep_for (std::chrono::seconds(sleepSecs));
+
+      } catch (const boost::system::system_error& e) {
+        DR_LOG(log_error) << "Caught boost system error in threadFunc: " << e.what();
+        return;
+      } catch (const std::exception& e) {
+        DR_LOG(log_error) << "Caught exception in Blacklist::threadFunc: " << e.what();
+        return;
+      } catch (...) {
+        DR_LOG(log_error) << "Caught unknown exception in Blacklist::threadFunc";
+        return;
+      }
+    }
+  }
+
+  void Blacklist::querySentinels(std::string& ip, std::string& port) {
+    try {
+      config cfg;
+      request req;
+      response<std::optional<std::array<std::string, 2>>, ignore_t> resp;
+      net::io_context ioc;
+      connection conn{ioc};
+
+      auto addresses = parseAddressList(m_redisSentinels);
+      auto addr = addresses.front();
+      req.push("SENTINEL", "get-master-addr-by-name", m_redisServiceName.c_str());
+
+      DR_LOG(log_debug) << "querying sentinels " << addr.host << ":" << addr.port;
+      cfg.addr = addresses.front();
+      conn.async_run(cfg, l, net::detached);
+      conn.async_exec(req, resp, [&](auto ec, auto) {
+          if (!ec && std::get<0>(resp)) {
+            ip = std::get<0>(resp).value().value().at(0);
+            port = std::get<0>(resp).value().value().at(1);
+            DR_LOG(log_debug) << "sentinel reports master at " << ip << " port " << port;
+          }
+          else if (ec) {
+            DR_LOG(log_debug) << "error querying sentinel: " << ec.message();
+          }
+          else {
+            DR_LOG(log_debug) << "sentinel reports no master";
+          }
+          conn.cancel();
+      });
+      ioc.run();
+    } catch (const boost::system::system_error& e) {
+      DR_LOG(log_error) << "Caught boost system error in Blacklist::querySentinels: " << e.what();
+      return;
+    } catch (const std::exception& e) {
+      DR_LOG(log_error) << "Caught exception in Blacklist::Blacklist::querySentinels: " << e.what();
+      return;
+    } catch (...) {
+      DR_LOG(log_error) << "Caught unknown exception in Blacklist::Blacklist::querySentinels";
+      return;
     }
 
- }
+  }
+
+}

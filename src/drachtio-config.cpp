@@ -140,7 +140,7 @@ namespace drachtio {
                 try {
                     pt.get_child("drachtio.sip.blacklist") ; // will throw if doesn't exist
                     m_redisAddress = pt.get<string>("drachtio.sip.blacklist.redis-address", "") ;
-                    m_redisPort = pt.get<unsigned int>("drachtio.sip.blacklist.redis-port", 6379) ;
+                    m_redisPort = pt.get<string>("drachtio.sip.blacklist.redis-port", "6379") ;
                     m_redisKey = pt.get<string>("drachtio.sip.blacklist.redis-key", "") ;
                     m_redisRefreshSecs = pt.get<unsigned int>("drachtio.sip.blacklist.refresh-secs", 0) ;
 
@@ -405,7 +405,7 @@ namespace drachtio {
             return true;
         }
         
-        bool getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) {
+        bool getBlacklistServer(string& redisAddress, string& redisPort, string& redisKey, unsigned int& redisRefreshSecs) {
             if (0 == m_redisAddress.length()) return false;
             redisAddress = m_redisAddress;
             redisPort = m_redisPort;
@@ -504,7 +504,7 @@ namespace drachtio {
         unsigned int m_tcpKeepalive;
         float m_minTlsVersion;
         string m_redisAddress;
-        unsigned int m_redisPort;
+        string m_redisPort;
         string m_redisKey;
         unsigned int m_redisRefreshSecs;
         string m_autoAnswerOptionsUserAgent;
@@ -602,7 +602,7 @@ namespace drachtio {
         return m_pimpl->getMinTlsVersion(minTlsVersion);
     }
 
-    bool DrachtioConfig::getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const {
+    bool DrachtioConfig::getBlacklistServer(string& redisAddress, string& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const {
         return m_pimpl->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs);
     }
 

@@ -89,7 +89,7 @@ namespace drachtio {
 
         bool getMinTlsVersion(float& minTlsVersion) const;
 
-        bool getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const;
+        bool getBlacklistServer(string& redisAddress, string& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const;
 
         bool getAutoAnswerOptionsUserAgent(string& userAgent) const;
         

@@ -3,11 +3,11 @@ INCLUDES= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-s
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson/src \
- -I${srcdir}/deps/cpp-bredis/include \
+ -I${srcdir}/deps/redis/include \
  -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
 
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
-LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
+LDADD= -lredis++ -lhiredis -lboost_thread -lpthread -lssl -lcrypto -lz
 
 if DEP_BOOST
 INCLUDES += -I${srcdir}/deps/boost
@@ -24,8 +24,8 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp src/sip-transports.cpp \
 	src/request-handler.cpp src/request-router.cpp src/stats-collector.cpp \
 	src/invite-in-progress.cpp src/blacklist.cpp src/ua-invalid.cpp
-drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
-	-DBOOST_ALLOW_DEPRECATED_HEADERS -O2 -Wno-stringop-overflow
+drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" \
+	-DBOOST_ALLOW_DEPRECATED_HEADERS -Wno-deprecated-declarations 
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a ${srcdir}/deps/jansson/src/.libs/libjansson.a -lcurl -lpthread -lssl -lcrypto -lz
 if ! DEP_BOOST
 drachtio_CPPFLAGS+=-DBOOST_LOG_DYN_LINK
