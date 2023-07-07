@@ -454,10 +454,6 @@ namespace drachtio {
                 {"blacklist-redis-port", required_argument, 0, 'P'},
                 {"blacklist-redis-key", required_argument, 0, 'Q'},
                 {"blacklist-refresh-secs", required_argument, 0, 'R'},
-                {"blacklist-sentinel-addresses", required_argument, 0, 0},
-                {"blacklist-sentinel-service-name", required_argument, 0, 0},
-                {"blacklist-redis-username", required_argument, 0, 0},
-                {"blacklist-redis-password", required_argument, 0, 0},
                 {"always-send-180", no_argument, 0, 'S'},
                 {"user-agent-options-auto-respond", no_argument, 0, 'T'},
                 {"globally-readable-logs", no_argument, 0, 'U'},
@@ -480,20 +476,10 @@ namespace drachtio {
                     /* If this option set a flag, do nothing else now. */
                     if (long_options[option_index].flag != 0)
                         break;
-                    if (strcmp(long_options[option_index].name, "blacklist-sentinel-addresses") == 0) {
-                      m_redisSentinelAddresses = optarg;
-                    }
-                    else if (strcmp(long_options[option_index].name, "blacklist-sentinel-service-name") == 0) {
-                      m_redisSentinelMasterName = optarg;
-                    }
-                    else if (strcmp(long_options[option_index].name, "blacklist-redis-username") == 0) {
-                      std::cerr << "blacklist-redis-username is " << optarg << std::endl;
-                      m_redisUsername = optarg;
-                    }
-                    else if (strcmp(long_options[option_index].name, "blacklist-redis-password") == 0) {
-                      std::cerr << "blacklist-redis-password is " << optarg << std::endl;
-                      m_redisPassword = optarg;
-                    }
+                    cout << "option " << long_options[option_index].name ;
+                    if (optarg)
+                        cout << " with arg " << optarg;
+                    cout << endl ;
                     break;
                 case 'A':
                     m_tlsKeyFile = optarg;
@@ -676,7 +662,7 @@ namespace drachtio {
                     m_redisAddress = optarg;
                     break;
                 case 'P':
-                    m_redisPort = optarg;
+                    m_redisPort = ::atoi(optarg);
                     break;
                 case 'Q':
                     m_redisKey = optarg;
@@ -720,7 +706,7 @@ namespace drachtio {
         }
 
         if (!m_redisAddress.empty()) {
-            if (m_redisPort.empty()) m_redisPort = "6379";
+            if (0 == m_redisPort) m_redisPort = 6379;
             if (0 == m_redisRefreshSecs) m_redisRefreshSecs = 300;
         }
 
@@ -861,22 +847,6 @@ namespace drachtio {
         p = std::getenv("DRACHTIO_BLACKLIST_REDIS_REFRESH_SECS");
         if (p) {
             m_redisRefreshSecs = boost::lexical_cast<unsigned int>(p); ;
-        }
-        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_SENTINEL_ADDRESSES");
-        if (p) {
-            m_redisSentinelAddresses = p;
-        }
-        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_SENTINEL_SERVICE_NAME");
-        if (p) {
-            m_redisSentinelMasterName = p;
-        }
-        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_USERNAME");
-        if (p) {
-            m_redisUsername= p;
-        }
-        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_PASSWORD");
-        if (p) {
-            m_redisPassword= p;
         }
         p = std::getenv("DRACHTIO_USER_AGENT_OPTIONS_AUTO_RESPOND");
         if (p) {
@@ -1199,55 +1169,22 @@ namespace drachtio {
 
         /* mostly useful for kubernetes deployments, where it is verboten to mess with iptables */
         if (m_redisAddress.empty()) {
-            string redisAddress, redisPort, redisKey, redisSentinelAddresses, redisSentinelServiceName, redisUsername, redisPassword;
-            unsigned int redisRefreshSecs;
+            string redisAddress, redisKey;
+            unsigned int redisPort, redisRefreshSecs;
             DR_LOG(log_notice) << "DrachtioController::run - blacklist checking config";
 
-            if (m_Config->getBlacklistServer(
-              redisAddress, 
-              redisPort, 
-              redisKey, 
-              redisSentinelAddresses,
-              redisSentinelServiceName,
-              redisUsername,
-              redisPassword,
-              redisRefreshSecs)) {
+            if (m_Config->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs)) {
                 m_redisAddress = redisAddress;
                 m_redisPort = redisPort;
                 m_redisKey = redisKey;
-                m_redisSentinelAddresses = redisSentinelAddresses;
-                m_redisSentinelMasterName = redisSentinelServiceName;
-                m_redisUsername = redisUsername;
-                m_redisPassword = redisPassword;
                 m_redisRefreshSecs = redisRefreshSecs;
             }
         }
-        if (m_redisKey.length()) {
-            if (m_redisAddress.length() && m_redisPort.length()) {
-              DR_LOG(log_notice) << "DrachtioController::run - blacklist is in redis at " << 
-                m_redisAddress << ":" << m_redisPort << ", key is " << m_redisKey;
-              m_pBlacklist = new Blacklist(m_redisKey, m_redisRefreshSecs);
-              m_pBlacklist->redisAddress(m_redisAddress, m_redisPort);
-            }
-            else if (m_redisSentinelAddresses.length() && m_redisSentinelMasterName.length()){
-              DR_LOG(log_notice) << "DrachtioController::run - blacklist is in redis, sentinels: " << 
-                m_redisSentinelAddresses << ", service name " << m_redisSentinelMasterName <<
-                " key is " << m_redisKey;
-              m_pBlacklist = new Blacklist(m_redisKey, m_redisRefreshSecs);
-              m_pBlacklist->sentinelAddresses(m_redisSentinelAddresses);
-              m_pBlacklist->redisServiceName(m_redisSentinelMasterName);
-            }
-            if (m_pBlacklist) {
-              if (m_redisUsername.length()) {
-                DR_LOG(log_debug) << "DrachtioController::run - blacklist redis username " << m_redisUsername;
-                m_pBlacklist->username(m_redisUsername);
-              }
-              if (m_redisPassword.length()) {
-                DR_LOG(log_debug) << "DrachtioController::run - blacklist redis password " << m_redisPassword;
-                m_pBlacklist->password(m_redisPassword);
-              }
-              m_pBlacklist->start();
-            }
+        if (m_redisAddress.length() && m_redisKey.length()) {
+            DR_LOG(log_notice) << "DrachtioController::run - blacklist is in redis " << m_redisAddress << ":" << m_redisPort 
+                << ", key is " << m_redisKey;
+            m_pBlacklist = new Blacklist(m_redisAddress, m_redisPort, m_redisKey, m_redisRefreshSecs);
+            m_pBlacklist->start();
         }
 
         // monitoring

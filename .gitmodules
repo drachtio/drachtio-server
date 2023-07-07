@@ -5,12 +5,12 @@
 	path = deps/sofia-sip
 	url = https://github.com/davehorton/sofia-sip.git
 	branch = main
+[submodule "deps/cpp-bredis"]
+	path = deps/cpp-bredis
+	url = https://github.com/basiliscos/cpp-bredis.git
 [submodule "deps/boost"]
 	path = deps/boost
 	url = https://github.com/boostorg/boost.git
 [submodule "deps/jansson"]
 	path = deps/jansson
 	url = https://github.com/akheron/jansson.git
-[submodule "deps/redis"]
-	path = deps/redis
-	url = https://github.com/boostorg/redis.git
