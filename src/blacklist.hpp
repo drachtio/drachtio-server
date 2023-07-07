@@ -30,50 +30,32 @@ THE SOFTWARE.
 
 #include "drachtio.h"
 
+using socket_t = boost::asio::ip::tcp::socket;
+
 namespace drachtio {
     
   class Blacklist {
   public:
-    Blacklist(string& redisKey, unsigned int refreshSecs = 3600) : m_redisKey(redisKey), m_refreshSecs(refreshSecs) {
-    }
-    ~Blacklist(){};
+    Blacklist(string& redisAddress, unsigned int redisPort, string& redisKey, unsigned int refreshSecs = 3600);
+    ~Blacklist();
+    
+    void start();
+    void stop() ;
+  	void threadFunc(void) ;
 
-    void start(void);
-
-    void redisAddress(std::string& address, std::string& port) {
-      m_redisAddress = address;
-      m_redisPort = port;
-    }
-    void sentinelAddresses(std::string& addresses) {
-      m_redisSentinels = addresses;
-    }
-    void redisServiceName(std::string& serviceName) {
-      m_redisServiceName = serviceName;
-    }
-    void username(std::string& username) {
-      m_redisUsername = username;
-    }
-    void password(std::string& password) {
-      m_redisPassword = password;
-    }
-    void threadFunc(void) ;
     bool isBlackListed(const char* srcAddress) {
       return m_ips.end() != m_ips.find(srcAddress);
     }
 
   private:
-    void querySentinels(std::string& ip, std::string& port);
 
+    std::thread                     m_thread ;
+    boost::asio::io_context         m_ioservice;
     std::string                     m_redisAddress;
-    std::string                     m_redisPort;
+    unsigned int                    m_redisPort;
     std::string&                    m_redisKey; 
     unsigned int                    m_refreshSecs;
-    std::string                     m_redisSentinels;
-    std::string                     m_redisServiceName;
-    std::string                     m_redisUsername;
-    std::string                     m_redisPassword;
     std::unordered_set<std::string> m_ips ;      
-    std::thread                     m_thread ;
   } ;
 }
 
