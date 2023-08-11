@@ -457,6 +457,9 @@ namespace drachtio {
                 {"always-send-180", no_argument, 0, 'S'},
                 {"user-agent-options-auto-respond", no_argument, 0, 'T'},
                 {"globally-readable-logs", no_argument, 0, 'U'},
+                {"blacklist-redis-sentinels", required_argument, 0, 'V'},
+                {"blacklist-redis-master", required_argument, 0, 'W'},
+                {"blacklist-redis-password", required_argument, 0, 'X'},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -679,6 +682,15 @@ namespace drachtio {
                 case 'U':
                     m_bGloballyReadableLogs = true;
                     break;
+                case 'V':
+                    m_redisSentinels = optarg;
+                    break;
+                case 'W':
+                    m_redisMaster = optarg;
+                    break;
+                case 'X':
+                    m_redisPassword= optarg;
+                    break;
                 case 'v':
                     cout << DRACHTIO_VERSION << endl ;
                     exit(0) ;
@@ -736,6 +748,8 @@ namespace drachtio {
         cerr << "    --blacklist-redis-port             port for redis server containing blacklisted IPs" << endl;
         cerr << "    --blacklist-redis-key              key for a redis set that contains blacklisted IPs" << endl;
         cerr << "    --blacklist-redis-refresh-secs     how often to check for new blacklisted IPs" << endl;
+        cerr << "    --blacklist-redis-sentinels        comma-separated list of redis sentinels in ip:port format" << endl;
+        cerr << "    --blacklist-redis-password         password for redis server, if required" << endl;
         cerr << "    --daemon                           Run the process as a daemon background process" << endl ;
         cerr << "    --cert-file                        TLS certificate file" << endl ;
         cerr << "    --chain-file                       TLS certificate chain file" << endl ;
@@ -835,6 +849,18 @@ namespace drachtio {
         p = std::getenv("DRACHTIO_BLACKLIST_REDIS_ADDRESS");
         if (p) {
             m_redisAddress = p;
+        }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_SENTINELS");
+        if (p) {
+            m_redisSentinels = p;
+        }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_MASTER");
+        if (p) {
+            m_redisMaster = p;
+        }
+        p = std::getenv("DRACHTIO_BLACKLIST_REDIS_PASSWORD");
+        if (p) {
+            m_redisPassword = p;
         }
         p = std::getenv("DRACHTIO_BLACKLIST_REDIS_PORT");
         if (p) {
@@ -1169,12 +1195,15 @@ namespace drachtio {
 
         /* mostly useful for kubernetes deployments, where it is verboten to mess with iptables */
         if (m_redisAddress.empty()) {
-            string redisAddress, redisKey;
+            string redisAddress, redisSentinels, redisMaster, redisPassword, redisKey;
             unsigned int redisPort, redisRefreshSecs;
             DR_LOG(log_notice) << "DrachtioController::run - blacklist checking config";
 
-            if (m_Config->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs)) {
+            if (m_Config->getBlacklistServer(redisAddress, redisSentinels, redisMaster, redisPassword, redisPort, redisKey, redisRefreshSecs)) {
                 m_redisAddress = redisAddress;
+                m_redisSentinels = redisSentinels;
+                m_redisMaster = redisMaster;
+                m_redisPassword = redisPassword;
                 m_redisPort = redisPort;
                 m_redisKey = redisKey;
                 m_redisRefreshSecs = redisRefreshSecs;
@@ -1183,8 +1212,17 @@ namespace drachtio {
         if (m_redisAddress.length() && m_redisKey.length()) {
             DR_LOG(log_notice) << "DrachtioController::run - blacklist is in redis " << m_redisAddress << ":" << m_redisPort 
                 << ", key is " << m_redisKey;
-            m_pBlacklist = new Blacklist(m_redisAddress, m_redisPort, m_redisKey, m_redisRefreshSecs);
+            m_pBlacklist = new Blacklist(m_redisAddress, m_redisPort, m_redisPassword, m_redisKey, m_redisRefreshSecs);
             m_pBlacklist->start();
+        }
+        else if (m_redisSentinels.length() && m_redisMaster.length() &&  m_redisKey.length()) {
+            DR_LOG(log_notice) << "DrachtioController::run - blacklist is in redis, using sentinels " << m_redisSentinels 
+                << ", key is " << m_redisKey;
+            m_pBlacklist = new Blacklist(m_redisSentinels, m_redisMaster, m_redisPassword, m_redisKey, m_redisRefreshSecs);
+            m_pBlacklist->start();
+        }
+        else {
+            DR_LOG(log_notice) << "DrachtioController::run - blacklist is disabled";
         }
 
         // monitoring

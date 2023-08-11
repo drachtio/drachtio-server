@@ -36,7 +36,8 @@ namespace drachtio {
     
   class Blacklist {
   public:
-    Blacklist(string& redisAddress, unsigned int redisPort, string& redisKey, unsigned int refreshSecs = 3600);
+    Blacklist(string& redisAddress, unsigned int redisPort, string& redisPassword, string& redisKey, unsigned int refreshSecs = 3600);
+    Blacklist(string& sentinels, string& masterName,   string& redisPassword, string& redisKey, unsigned int refreshSecs = 3600);
     ~Blacklist();
     
     void start();
@@ -51,11 +52,15 @@ namespace drachtio {
 
     std::thread                     m_thread ;
     boost::asio::io_context         m_ioservice;
+    std::string                     m_masterName;
+    std::string                     m_sentinels;
     std::string                     m_redisAddress;
+    std::string                     m_redisPassword;
     unsigned int                    m_redisPort;
     std::string&                    m_redisKey; 
     unsigned int                    m_refreshSecs;
     std::unordered_set<std::string> m_ips ;      
+    std::unordered_set<std::string> m_replicas ;      
   } ;
 }
 
