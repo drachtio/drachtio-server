@@ -140,12 +140,23 @@ namespace drachtio {
                 try {
                     pt.get_child("drachtio.sip.blacklist") ; // will throw if doesn't exist
                     m_redisAddress = pt.get<string>("drachtio.sip.blacklist.redis-address", "") ;
+                    m_redisSentinels = pt.get<string>("drachtio.sip.blacklist.redis-sentinels", "") ;
+                    m_redisMaster = pt.get<string>("drachtio.sip.blacklist.redis-master", "") ;
+                    m_redisPassword = pt.get<string>("drachtio.sip.blacklist.redis-password", "") ;
                     m_redisPort = pt.get<unsigned int>("drachtio.sip.blacklist.redis-port", 6379) ;
                     m_redisKey = pt.get<string>("drachtio.sip.blacklist.redis-key", "") ;
                     m_redisRefreshSecs = pt.get<unsigned int>("drachtio.sip.blacklist.refresh-secs", 0) ;
 
-                    if (0 == m_redisAddress.length() || 0 == m_redisKey.length()) {
-                        cerr << "invalid blacklist config: redis-address or redis-key is missing" << endl;
+                    if ( (m_redisAddress.empty() && m_redisSentinels.empty())) {
+                        cerr << "invalid blacklist config: either redis-address or redis-sentinels must be specified" << endl;
+                        m_redisAddress = "";
+                    }
+                    if (m_redisKey.empty()) {
+                        cerr << "invalid blacklist config: must specify redis-key" << endl;
+                        m_redisAddress = "";
+                    }
+                    if (!m_redisSentinels.empty() && m_redisMaster.empty()) {
+                        cerr << "invalid blacklist config: must specify redis-master when using redis sentinel" << endl;
                         m_redisAddress = "";
                     }
                 } catch( boost::property_tree::ptree_bad_path& e ) {
@@ -405,9 +416,11 @@ namespace drachtio {
             return true;
         }
         
-        bool getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) {
-            if (0 == m_redisAddress.length()) return false;
+        bool getBlacklistServer(string& redisAddress, string& redisSentinels, string& redisMaster, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) {
+            if (m_redisAddress.empty() && m_redisSentinels.empty()) return false;
             redisAddress = m_redisAddress;
+            redisSentinels = m_redisSentinels;
+            redisMaster = m_redisMaster;
             redisPort = m_redisPort;
             redisKey = m_redisKey;
             redisRefreshSecs = 0 == m_redisRefreshSecs ? 3600 : m_redisRefreshSecs;
@@ -504,6 +517,9 @@ namespace drachtio {
         unsigned int m_tcpKeepalive;
         float m_minTlsVersion;
         string m_redisAddress;
+        string m_redisSentinels;
+        string m_redisMaster;
+        string m_redisPassword;
         unsigned int m_redisPort;
         string m_redisKey;
         unsigned int m_redisRefreshSecs;
@@ -602,8 +618,8 @@ namespace drachtio {
         return m_pimpl->getMinTlsVersion(minTlsVersion);
     }
 
-    bool DrachtioConfig::getBlacklistServer(string& redisAddress, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const {
-        return m_pimpl->getBlacklistServer(redisAddress, redisPort, redisKey, redisRefreshSecs);
+    bool DrachtioConfig::getBlacklistServer(string& redisAddress, string& redisSentinels, string& redisMaster, string& redisPassword, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const {
+        return m_pimpl->getBlacklistServer(redisAddress, redisSentinels, redisMaster, redisPort, redisKey, redisRefreshSecs);
     }
 
     bool DrachtioConfig::getAutoAnswerOptionsUserAgent(string& userAgent) const {
