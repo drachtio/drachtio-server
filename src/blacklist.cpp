@@ -206,7 +206,7 @@ namespace drachtio {
           return false;
         }
 
-        DR_LOG(log_debug) << "Blacklist::QueryRedis - got " << reply->elements << " IPs to blacklist" ;
+        DR_LOG(log_info) << "Blacklist::QueryRedis - got " << reply->elements << " IPs to blacklist" ;
         ips.clear();
         for (int i = 0; i < reply->elements; i++) {
           auto member = reply->element[i];
