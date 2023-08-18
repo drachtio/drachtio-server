@@ -381,7 +381,7 @@ namespace drachtio {
          }
 
         // now we re-encode it
-        int nChars = sip_name_addr_e(obuf, 255, 0, display, brackets, url, params, comment) ;
+        int nChars = sip_name_addr_e(obuf, sizeof(obuf), 0, display, brackets, url, params, comment) ;
 
         // cleanup: free the msg_params if any were allocated        
         if( params ) {
