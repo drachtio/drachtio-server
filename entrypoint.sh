@@ -29,6 +29,11 @@ case $CLOUD in
     ;;
 esac
 
+if [ -f "/proc/1/cgroup" ]; then
+  # Docker container
+  LOCAL_IP=$(ip route get 1.1.1.1 | grep -oP 'src \K\S+')
+fi
+
 if [ "$1" = 'drachtio' ]; then
   shift
 
