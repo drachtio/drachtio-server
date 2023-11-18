@@ -200,7 +200,7 @@ namespace drachtio {
         break;
       }
 
-      DR_LOG(log_debug) << "RequestHandler::mcode_test ERROR: " << where << " returns " << s << "code: " << code;
+      DR_LOG(log_debug) << "RequestHandler::mcode_test ERROR: " << where << " returns " << s << " code: " << code;
 
       return -1;
     }
