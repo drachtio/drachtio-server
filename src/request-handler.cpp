@@ -159,15 +159,10 @@ namespace drachtio {
     /* cancel running timer */
     timer.cancel();
 
-    if(timeout_ms > 0) {
-      /* update timer */
+    if(timeout_ms >= 0) {
+      // from libcurl 7.88.1-10+deb12u4 does not allow call curl_multi_socket_action or curl_multi_perform in curl_multi callback directly
       timer.expires_from_now(boost::posix_time::millisec(timeout_ms));
       timer.async_wait(boost::bind(&timer_cb, boost::placeholders::_1, g));
-    }
-    else if(timeout_ms == 0) {
-      /* call timeout function immediately */
-      boost::system::error_code error; /*success*/
-      timer_cb(error, g);
     }
 
     return 0;
