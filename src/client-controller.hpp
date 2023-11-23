@@ -122,6 +122,9 @@ namespace drachtio {
 
     std::shared_ptr<SipDialogController> getDialogController(void) ;
 
+    void removeAppTransactionsOlderThan( std::chrono::minutes duration ) ;
+    void removeNetTransactionsOlderThan( std::chrono::minutes duration ) ;
+
     //void sendSipMessageToClient( client_ptr client, const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta );
 
   protected:
@@ -172,7 +175,8 @@ namespace drachtio {
     typedef std::unordered_map<string,unsigned int> map_of_request_type_offsets ;
     map_of_request_type_offsets m_map_of_request_type_offsets ;
 
-    typedef std::unordered_map<string,client_weak_ptr> mapId2Client ;
+    //typedef std::unordered_map<string,client_weak_ptr> mapId2Client ;
+    typedef std::unordered_map<string, std::pair<client_weak_ptr, std::chrono::time_point<std::chrono::system_clock>>> mapId2Client;
     mapId2Client m_mapDialogs ;
     mapId2Client m_mapAppTransactions ;
     mapId2Client m_mapNetTransactions ;
