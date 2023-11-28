@@ -1035,14 +1035,15 @@ namespace drachtio {
                 }
             }
 
-            if (existingDialog && bSentOK) {
+            if (existingDialog) {
                 nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
                 if (leg) {
                     std::shared_ptr<SipDialog> dlg ;
                     if(findDialogByLeg( leg, dlg )) {
                         dialogId = dlg->getDialogId();
+                        dlg->removeIncomingRequestTransaction(transactionId);
                         DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest retrieved dialog id for existing dialog " << dialogId  ;
-                        if (sip->sip_request->rq_method == sip_method_invite && body.length()) {
+                        if (sip->sip_request->rq_method == sip_method_invite && body.length() && bSentOK) {
                             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest updating local sdp for dialog " << dialogId  ;
                             dlg->setLocalSdp( body.c_str() ) ;
                         }
@@ -1399,6 +1400,7 @@ namespace drachtio {
                                         NULL,
                                         SIP_METHOD_BYE,
                                         NULL,
+                                        TAG_IF(dlg->getTport(), NTATAG_TPORT(dlg->getTport())),
                                         SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"CANCEL after 200 OK\""),
                                         TAG_END() ) ;
 
@@ -1417,8 +1419,12 @@ namespace drachtio {
                 m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, "unsolicited", dlg->getDialogId() ) ;
                 msg_destroy(m);      // releases the reference
 
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - destroying orq from BYE";
                 nta_outgoing_destroy(orq) ;
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - clearing dialog";
                 SD_Clear(m_dialogs, leg ) ;
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - clearing IIP";
+                IIP_Clear(m_invitesInProgress, leg);
 
             }
             default:
@@ -1433,6 +1439,10 @@ namespace drachtio {
                 if (sip_method_invite == sip->sip_request->rq_method) {
                     nta_incoming_treply(irq, SIP_100_TRYING, TAG_END());
                 }
+                
+                /* we are relying on the client to eventually respond. Clients should be treated as unreliable in this sense.
+                 Store txnId with dlg so we can clear them if client has not responded by the time we tear down the dialog. */
+                dlg->addIncomingRequestTransaction(transactionId);
 
                 /* if this is a re-INVITE or an UPDATE deal with session timers */
                 if( sip_method_invite == sip->sip_request->rq_method || sip_method_update == sip->sip_request->rq_method ) {
@@ -1953,7 +1963,17 @@ namespace drachtio {
         }
         return irq ;
     }
-
+    void SipDialogController::clearDanglingIncomingRequests(std::vector<std::string> txnIds) {
+        auto count = txnIds.size();
+        for (const std::string& txnId : txnIds) {
+            auto* irq = findAndRemoveTransactionIdForIncomingRequest(txnId);
+            DR_LOG(log_info) << "SipDialogController::clearDanglingIncomingRequests txn / irq: " << txnId << std::hex << " : " << (void *) irq;
+            m_pController->getClientController()->removeNetTransaction(txnId);
+            if (irq != nullptr) {
+                nta_incoming_destroy(irq);
+            }
+        }
+    }
     void SipDialogController::clearSipTimers(std::shared_ptr<SipDialog>& dlg) {
         DR_LOG(log_debug) << "SipDialogController::clearSipTimers for " << dlg->getCallId()  ;
         TimerEventHandle h = dlg->getTimerG() ;

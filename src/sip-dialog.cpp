@@ -211,6 +211,12 @@ namespace drachtio {
 		if (m_orq) {
 			nta_outgoing_destroy(m_orq);
 		}
+        
+        auto txnIds = getIncomingRequestTransactionIds();
+        theOneAndOnlyController->getDialogController()->clearDanglingIncomingRequests(txnIds);
+        
+        /* if we never got an ACK after sending a 200 OK to an incoming INVITE the net transaction is still there */
+        theOneAndOnlyController->getClientController()->removeNetTransaction(this->getTransactionId());
 	}
 
 	std::ostream& operator<<(std::ostream& os, const SipDialog& dlg) {

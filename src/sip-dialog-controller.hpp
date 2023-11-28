@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include <unordered_set>
 #include <mutex>
 #include <algorithm>
+#include <vector>
 
 #include <sofia-sip/su_wait.h>
 #include <sofia-sip/nta.h>
@@ -252,6 +253,8 @@ namespace drachtio {
 		// timers
 		void clearSipTimers(std::shared_ptr<SipDialog>& dlg);
 		bool stopTimerD(nta_outgoing_t* invite);
+        
+        void clearDanglingIncomingRequests(std::vector<std::string> txnIds);
 
 	protected:
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
