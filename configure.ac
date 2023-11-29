@@ -1,7 +1,7 @@
-AC_INIT(drachtio, 1.2, daveh@beachdognet.com)
+AC_INIT([drachtio],[1.2],[daveh@beachdognet.com])
 AM_INIT_AUTOMAKE([subdir-objects -Wno-portability])
 AC_CONFIG_SRCDIR([src/main.cpp])
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -9,6 +9,8 @@ AC_LANG(C++)
 
 AX_CXX_COMPILE_STDCXX_11()
 AX_CXX_COMPILE_STDCXX_17(noext, optional)
+
+AM_CONDITIONAL([DEP_BOOST], [test -d "${srcdir}/deps/boost/libs"])
 
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)

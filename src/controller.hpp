@@ -238,6 +238,9 @@ namespace drachtio {
     string m_secret;
     string m_adminAddress;
     string m_redisAddress;
+    string m_redisSentinels;
+    string m_redisMaster;
+    string m_redisPassword;
     string m_redisKey;
     unsigned int m_redisPort;
     unsigned int m_redisRefreshSecs;

@@ -1,0 +1,8 @@
+[ 
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
+    "uac": {"name": "uac-invalid-uri-user.xml", "target": "127.0.0.1:5090"},
+    "message": "b2b: rejects invalid uri user part"
+  }
+]

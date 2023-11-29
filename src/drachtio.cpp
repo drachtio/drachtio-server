@@ -372,6 +372,10 @@ namespace drachtio {
             // no go: if we can't decode it then we have an invalid input
             return false ;
         }
+        if( nullptr == url->url_user && std::string::npos != uri.find("@")) {
+          DR_LOG(log_info) << "normalizeSipUri: invalid uri, user part contains invalid chars:" << uri ;
+          return false;
+        }
 
         /* we allow applications to just give us a phone number sometimes, and that ends up parsed into the host portion with no scheme */
         if( NULL == url->url_scheme && NULL == url->url_user && NULL != url->url_host ) {
@@ -381,7 +385,7 @@ namespace drachtio {
          }
 
         // now we re-encode it
-        int nChars = sip_name_addr_e(obuf, 255, 0, display, brackets, url, params, comment) ;
+        int nChars = sip_name_addr_e(obuf, sizeof(obuf), 0, display, brackets, url, params, comment) ;
 
         // cleanup: free the msg_params if any were allocated        
         if( params ) {

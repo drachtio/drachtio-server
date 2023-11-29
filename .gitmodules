@@ -14,3 +14,6 @@
 [submodule "deps/jansson"]
 	path = deps/jansson
 	url = https://github.com/akheron/jansson.git
+[submodule "deps/hiredis"]
+	path = deps/hiredis
+	url = https://github.com/redis/hiredis.git
