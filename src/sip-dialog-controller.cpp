@@ -1441,8 +1441,15 @@ namespace drachtio {
                 }
                 
                 /* we are relying on the client to eventually respond. Clients should be treated as unreliable in this sense.
-                 Store txnId with dlg so we can clear them if client has not responded by the time we tear down the dialog. */
-                dlg->addIncomingRequestTransaction(transactionId);
+                 Store txnId with dlg so we can clear them if client has not responded by the time we tear down the dialog. 
+                 
+                 BYE is an exception, because we clear the dialog when we receive the BYE (not when we send the 200 OK)
+                 and as a result if we added it below we would immediately delete the irq and generate a 500 before
+                 the client had a chance to respond.
+                 */
+                if (sip_method_bye != sip->sip_request->rq_method) {
+                  dlg->addIncomingRequestTransaction(transactionId);
+                }
 
                 /* if this is a re-INVITE or an UPDATE deal with session timers */
                 if( sip_method_invite == sip->sip_request->rq_method || sip_method_update == sip->sip_request->rq_method ) {
