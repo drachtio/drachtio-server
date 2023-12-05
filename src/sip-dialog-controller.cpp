@@ -185,6 +185,23 @@ namespace drachtio {
                 assert( leg ) ;
                 throw std::runtime_error("unable to find active leg for dialog") ;
             }
+            
+            /* race condition: we are sending a BYE during a re-invite transaction.  Generate a cancel first */
+            if (sip_method_bye == method) {
+                std::shared_ptr<IIP> iip;
+                nta_leg_t * leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
+                //DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - sending BYE, leg is " << std::hex << (void *) leg;
+                if (IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
+                    const nta_outgoing_t* orq = iip->orq();
+                    if (orq) {
+                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - sending BYE during re-invite on leg "
+                        << std::hex << (void *) leg << ", so canceling orq " << (void *) orq;
+                        nta_outgoing_cancel((nta_outgoing_t*) orq);
+                        IIP_Clear(m_invitesInProgress, leg);
+                    }
+                }
+            }
+
 
             const sip_contact_t *target ;
             if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
@@ -355,15 +372,7 @@ namespace drachtio {
                 }
 
                 if (sip_method_bye == method) {
-                    std::shared_ptr<IIP> iip;
-                    nta_leg_t * leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
                     Cdr::postCdr( std::make_shared<CdrStop>( m, "application", Cdr::normal_release ) );
-
-                    if (IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
-                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - sent BYE during re-invite leg "
-                        << std::hex << (void *) leg << ", so clearing IIP now ";
-                        IIP_Clear(m_invitesInProgress, leg);
-                    }
                 }
      
                 msg_destroy(m) ; //releases reference
