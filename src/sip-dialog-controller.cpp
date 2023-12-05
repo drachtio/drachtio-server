@@ -355,7 +355,15 @@ namespace drachtio {
                 }
 
                 if (sip_method_bye == method) {
-                  Cdr::postCdr( std::make_shared<CdrStop>( m, "application", Cdr::normal_release ) );
+                    std::shared_ptr<IIP> iip;
+                    nta_leg_t * leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
+                    Cdr::postCdr( std::make_shared<CdrStop>( m, "application", Cdr::normal_release ) );
+
+                    if (IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
+                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - sent BYE during re-invite leg "
+                        << std::hex << (void *) leg << ", so clearing IIP now ";
+                        IIP_Clear(m_invitesInProgress, leg);
+                    }
                 }
      
                 msg_destroy(m) ; //releases reference
