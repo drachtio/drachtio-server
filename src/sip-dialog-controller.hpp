@@ -53,15 +53,11 @@ namespace drachtio {
 	/* requests in progress (sent by application, may be inside or outside a dialog) */
 	class RIP {
 	public:
-		RIP( const string& transactionId ) : 
-			m_transactionId(transactionId) {}
-		RIP( const string& transactionId, const string& dialogId ) : 
-			m_transactionId(transactionId), m_dialogId(dialogId) {}
-		RIP( const string& transactionId, const string& dialogId,  std::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse = false ) : 
-			m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
-			}
+        RIP( const string& transactionId ) ;
+        RIP( const string& transactionId, const string& dialogId );
+        RIP( const string& transactionId, const string& dialogId,  std::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse = false ) ;
 
-		~RIP() {}
+        ~RIP();
 
 		const string& getTransactionId(void) { return m_transactionId; }
 		const string& getDialogId(void) { return m_dialogId; }
@@ -70,7 +66,7 @@ namespace drachtio {
 	private:
 		string 												m_transactionId ;
 		string												m_dialogId ;
-		bool													m_bClearDialogOnResponse;
+		bool												m_bClearDialogOnResponse;
 		std::shared_ptr<SipDialog> 	m_dlg ;
 	} ;
 
@@ -239,7 +235,8 @@ namespace drachtio {
 		/// RIP helpers
 		void addRIP( nta_outgoing_t* orq, std::shared_ptr<RIP> rip) ;
 		bool findRIPByOrq( nta_outgoing_t* orq, std::shared_ptr<RIP>& rip ) ;
-		void clearRIP( nta_outgoing_t* orq ) ;
+        void clearRIP( nta_outgoing_t* orq ) ;
+        void clearRIPByDialogId( const std::string dialogId) ;
 
 		/// IRQ helpers
 		void addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) ;
@@ -285,8 +282,9 @@ namespace drachtio {
 		/* we need to lookup responses to requests sent by the client inside a dialog */
 		typedef std::unordered_map<nta_outgoing_t*, std::shared_ptr<RIP> > mapOrq2RIP ;
 		mapOrq2RIP m_mapOrq2RIP ;
-
-		// Requests received from the network 
+        void logRIP(bool detail);
+        
+		// Requests received from the network
 
 		/* we need to lookup incoming transactions by transaction id when we get a response from the client */
 		typedef std::unordered_map<string, nta_incoming_t*> mapTransactionId2Irq ;

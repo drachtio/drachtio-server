@@ -107,6 +107,22 @@ namespace {
 
 
 namespace drachtio {
+    RIP::RIP( const string& transactionId ) : m_transactionId(transactionId) {
+            DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId  ;
+
+        }
+    RIP::RIP( const string& transactionId, const string& dialogId ) : m_transactionId(transactionId), m_dialogId(dialogId) {
+            DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId << " dialogId " << dialogId  ;
+
+        }
+    RIP::RIP( const string& transactionId, const string& dialogId,  std::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse) :
+        m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
+            DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId << " dialogId " << dialogId << " clearDialogOnResponse " << clearDialogOnResponse ;
+        }
+
+    RIP::~RIP() {
+        DR_LOG(log_debug) << "RIP::~RIP dialog id: " << m_dialogId  ;
+    }
 
 	SipDialogController::SipDialogController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
         m_agent(pController->getAgent()), m_pClientController(pController->getClientController())  {
@@ -198,6 +214,8 @@ namespace drachtio {
                         << std::hex << (void *) leg << ", so canceling orq " << (void *) orq;
                         nta_outgoing_cancel((nta_outgoing_t*) orq);
                         IIP_Clear(m_invitesInProgress, leg);
+                        const string id = dlg->getDialogId();
+                        clearRIPByDialogId(id);
                     }
                 }
             }
@@ -1897,7 +1915,22 @@ namespace drachtio {
         if( m_mapOrq2RIP.end() == it ) return  ;
         m_mapOrq2RIP.erase( it ) ;                      
     }
-    
+    void SipDialogController::clearRIPByDialogId( const std::string dialogId) {
+        DR_LOG(log_info) << "SipDialogController::clearRIPByDialogId - searching for RIP for dialog id " <<  dialogId  ;
+        for (const auto& pair : m_mapOrq2RIP) {
+            nta_outgoing_t* orq = pair.first;
+            std::shared_ptr<RIP> p = pair.second;
+            if (0 == dialogId.compare(p->getDialogId())) {
+                DR_LOG(log_info) << "SipDialogController::clearRIPByDialogId - found for RIP for dialog id, orq to destroy is " <<
+                std::hex << (void *) orq;
+                m_mapOrq2RIP.erase(orq);
+                nta_outgoing_destroy( orq ) ;
+                return;
+            }
+        }
+
+    }
+        
     void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg) {
         DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) irq;
         incoming_retransmit_reply(irq, tp);
@@ -2106,10 +2139,22 @@ namespace drachtio {
         return success;
     }
 
+    void SipDialogController::logRIP(bool bDetail) {
+        DR_LOG(bDetail ? log_info : log_debug) << "RIP size:                                                        " <<
+            m_mapOrq2RIP.size();
+        if (bDetail) {
+            for (const auto& pair : m_mapOrq2RIP) {
+                nta_outgoing_t* orq = pair.first;
+                std::shared_ptr<RIP> p = pair.second;
+                DR_LOG(log_debug) << "    orq: " << std::hex << (void *) orq << " dialog id " << p->getDialogId() << " txn id " << p->getTransactionId();
+            }
+        }
+    }
+
     // logging / metrics
     void SipDialogController::logStorageCount(bool bDetail)  {
 
-        DR_LOG(bDetail ? log_info : log_debug) << "SipDialogController storage counts"  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "SipDiaSD_LoglogController storage counts"  ;
         DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
         IIP_Log(m_invitesInProgress, bDetail);
         SD_Log(m_dialogs, bDetail);
@@ -2118,6 +2163,7 @@ namespace drachtio {
         DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
         DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
         DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
+        logRIP(bDetail);
         m_pTQM->logQueueSizes() ;
 
         // stats
