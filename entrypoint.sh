@@ -33,11 +33,6 @@ case $CLOUD in
     ;;
 esac
 
-if [ -f "/proc/1/cgroup" ]; then
-  # Docker container
-  LOCAL_IP=$(ip route get 1.1.1.1 | grep -oP 'src \K\S+')
-fi
-
 if [ "$1" = 'drachtio' ]; then
   shift
 
@@ -63,9 +58,7 @@ if [ "$1" = 'drachtio' ]; then
       ;;
 
     *)
-      thisarg="${1//PUBLIC_IP/"$PUBLIC_IP"}"
-      thisarg="${thisarg//LOCAL_IP/"$LOCAL_IP"}"
-      MYARGS+=($thisarg)
+      MYARGS+=($1)
       ;;
     esac
 
