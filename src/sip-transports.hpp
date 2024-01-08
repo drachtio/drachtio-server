@@ -70,6 +70,7 @@ namespace drachtio {
     bool isIpV6(void) ;
     bool isLocalhost(void) ;
     bool isLocal(const char* szHost) ;
+    bool isSips(void) { return 0 == m_contactScheme.compare("sips"); }
 
     void setNetwork(const string& network) { m_network = network;}
     void setNetmask(uint32_t netmask) { m_netmask = netmask;}
