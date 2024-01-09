@@ -21,6 +21,7 @@ THE SOFTWARE.
 */
 #include <algorithm>
 #include <regex>
+#include <cstdlib> // For std::getenv
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/find.hpp>
@@ -40,6 +41,8 @@ namespace drachtio {
 #include "sip-transports.hpp"
 
 namespace {
+
+    const char* envSupportBestEffortTls = std::getenv("DRACHTIO_SUPPORT_BEST_EFFORT_TLS");
 
     std::string combineCallIdAndCSeq(nta_outgoing_t* orq) {
         string callIdAndCSeq = nta_outgoing_call_id(orq);
@@ -1122,6 +1125,15 @@ namespace drachtio {
                     assert(pSelectedTransport); 
 
                     pSelectedTransport->getContactUri(contact, true);
+
+                    /* is far end requesting "best effort" tls ?*/
+                    if (envSupportBestEffortTls && atoi(envSupportBestEffortTls) == 1 &&
+                      pSelectedTransport->isSips() && sip->sip_contact && sip->sip_contact->m_url &&
+                      0 == strcmp(sip->sip_contact->m_url->url_scheme, "sip")) {
+                        contact.replace(0, 5, "sip:");
+                        DR_LOG(log_info) << "SipDialogController::doRespondToSipRequest - far end wants best effort tls, replacing sips with sip in Contact";
+                    }
+
                     contact = "<" + contact + ">" ;
 
                     pSelectedTransport->getDescription(transportDesc);
