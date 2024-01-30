@@ -43,7 +43,7 @@ THE SOFTWARE.
 #include "invite-in-progress.hpp"
 
 #define START_LEN (512)
-#define HDR_LEN (8096)
+#define HDR_LEN (8192+64) //64 is to allow some space for header name
 #define BODY_LEN (12288)
 
 namespace drachtio {
