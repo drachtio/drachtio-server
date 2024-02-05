@@ -1115,6 +1115,9 @@ namespace drachtio {
         if (!m_bRejectRegisterWithNoRealm) {
             m_bRejectRegisterWithNoRealm = m_Config->rejectRegisterWithNoRealm();
         }
+        if (m_bRejectRegisterWithNoRealm) {
+            DR_LOG(log_notice) << "DrachtioController::run: rejecting REGISTER requests with no realm in the SIP URI" ;
+        }
 
         // tls files
         string tlsKeyFile, tlsCertFile, tlsChainFile, dhParam ;
