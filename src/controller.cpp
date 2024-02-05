@@ -418,7 +418,7 @@ namespace drachtio {
                 /* These options set a flag. */
                 {"daemon", no_argument,       &m_bDaemonize, true},
                 {"noconfig", no_argument,       &m_bNoConfig, true},
-                {"reject-register-with-no-realm", &m_bRejectRegisterWithNoRealm, true},
+                {"reject-register-with-no-realm", no_argument, &m_bRejectRegisterWithNoRealm, true},
                 
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
