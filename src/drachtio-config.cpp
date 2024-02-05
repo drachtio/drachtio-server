@@ -463,6 +463,10 @@ namespace drachtio {
             return false;
         }
 
+        bool rejectRegisterWithNoRealm() const {
+            return m_bRejectRegisterWithNoRealm;
+        }
+
     private:
         
         bool getXmlAttribute( ptree::value_type const& v, const string& attrName, string& value ) {
@@ -632,7 +636,7 @@ namespace drachtio {
     }
 
     bool DrachtioConfig::rejectRegisterWithNoRealm() const {
-        return false;
+        return m_pimpl->rejectRegisterWithNoRealm();
     }
 
 
