@@ -291,6 +291,8 @@ namespace drachtio {
     bool m_bGloballyReadableLogs;
     bool m_bTlsVerifyClientCert;
 
+    int m_bRejectRegisterWithNoRealm;
+
     string  m_strUserAgentAutoAnswerOptions;
   } ;
 

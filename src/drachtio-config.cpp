@@ -114,6 +114,9 @@ namespace drachtio {
 
                 m_sipOutboundProxy = pt.get<string>("drachtio.sip.outbound-proxy", "") ;
 
+                std::string rejectRegister = pt.get<string>("drachtio.sip.reject-register-with-no-realm", "false");
+                m_bRejectRegisterWithNoRealm = (0 == rejectRegister.compare("true") || 0 == rejectRegister.compare("yes") || 0 == rejectRegister.compare("1"));
+
                 // capture server
                 try {
                     pt.get_child("drachtio.sip.capture-server") ; // will throw if doesn't exist
@@ -524,6 +527,8 @@ namespace drachtio {
         string m_redisKey;
         unsigned int m_redisRefreshSecs;
         string m_autoAnswerOptionsUserAgent;
+        bool m_bRejectRegisterWithNoRealm;
+
   } ;
     
     /*
@@ -624,6 +629,10 @@ namespace drachtio {
 
     bool DrachtioConfig::getAutoAnswerOptionsUserAgent(string& userAgent) const {
         return m_pimpl->getAutoAnswerOptionsUserAgent(userAgent);
+    }
+
+    bool DrachtioConfig::rejectRegisterWithNoRealm() const {
+        return false;
     }
 
 

@@ -292,7 +292,7 @@ namespace drachtio {
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
         m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false), 
-        m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false) {
+        m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
         getEnv();
 
@@ -418,6 +418,7 @@ namespace drachtio {
                 /* These options set a flag. */
                 {"daemon", no_argument,       &m_bDaemonize, true},
                 {"noconfig", no_argument,       &m_bNoConfig, true},
+                {"reject-register-with-no-realm", no_argument, &m_bRejectRegisterWithNoRealm},
                 
                 /* These options don't set a flag.
                  We distinguish them by their indices. */
@@ -747,7 +748,7 @@ namespace drachtio {
         cerr << "    --blacklist-redis-address          address of redis server that contains a set with blacklisted IPs" << endl;
         cerr << "    --blacklist-redis-port             port for redis server containing blacklisted IPs" << endl;
         cerr << "    --blacklist-redis-key              key for a redis set that contains blacklisted IPs" << endl;
-        cerr << "    --blacklist-redis-refresh-secs     how often to check for new blacklisted IPs" << endl;
+        cerr << "    --blacklist-refresh-secs           how often to check for new blacklisted IPs" << endl;
         cerr << "    --blacklist-redis-sentinels        comma-separated list of redis sentinels in ip:port format" << endl;
         cerr << "    --blacklist-redis-password         password for redis server, if required" << endl;
         cerr << "    --daemon                           Run the process as a daemon background process" << endl ;
@@ -768,6 +769,7 @@ namespace drachtio {
         cerr << "    --mtu                              max packet size for UDP (default: system-defined mtu)" << endl ;
         cerr << "-p, --port                             TCP port to listen on for application connections (default 9022)" << endl ;
         cerr << "    --prometheus-scrape-port           The port (or host:port) to listen on for Prometheus.io metrics scrapes" << endl ;
+        cerr << "    --reject-register-with-no-realm    reject with a 403 any REGISTER that has an IP address in the sip uri host" << endl ;
         cerr << "    --secret                           The shared secret to use for authenticating application connections" << endl ;
         cerr << "    --sofia-loglevel                   Log level of internal sip stack (choices: 0-9)" << endl ;
         cerr << "    --external-ip                      External IP address to use in SIP messaging" << endl ;
@@ -878,6 +880,8 @@ namespace drachtio {
         if (p) {
             m_strUserAgentAutoAnswerOptions = p;
         }
+        p = std::getenv("DRACHTIO_REJECT_REGISTER_WITH_NO_REALM");
+        if (p && ::atoi(p) == 1) m_bRejectRegisterWithNoRealm = true;
     }
 
     void DrachtioController::daemonize() {
@@ -1106,6 +1110,10 @@ namespace drachtio {
 
         if (!m_bAggressiveNatDetection) {
             m_bAggressiveNatDetection = m_Config->isAggressiveNatEnabled();
+        }
+
+        if (!m_bRejectRegisterWithNoRealm) {
+            m_bRejectRegisterWithNoRealm = m_Config->rejectRegisterWithNoRealm();
         }
 
         // tls files
@@ -1513,6 +1521,17 @@ namespace drachtio {
                 m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
             }
             else {
+
+                /* optionally reject REGISTER quickly if no sip realm provided */
+                if (m_bRejectRegisterWithNoRealm && sip_method_register == sip->sip_request->rq_method ) {
+                  std::regex ipRegex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$");
+                  if (std::regex_match(sip->sip_request->rq_url->url_host, ipRegex)) {
+                    DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: rejecting REGISTER with no realm" ;
+                    STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "REGISTER"},{"code", "403"}})
+                    nta_msg_treply( m_nta, msg, 403, NULL, TAG_END() ) ;
+                    return -1 ;
+                  }
+                }
                 switch (sip->sip_request->rq_method ) {
                     case sip_method_invite:
                     case sip_method_register:
