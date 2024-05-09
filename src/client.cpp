@@ -443,20 +443,17 @@ read_again:
 
     template<typename T, typename S>
     void Client<T,S>::send( const string& str ) {
-        int len = utf8_strlen(str);
-        ostringstream o ;
-
-        if (0 == len) {
-            DR_LOG(log_info) << "Client::send - we are unable to send this message back to client" << str; 
-            return;
+        try {
+          int len = utf8_strlen(str);
+          ostringstream o ;
+          o << len << "#" << str ;
+          m_msgToSend = o.str();       
+          boost::asio::async_write( m_sock, boost::asio::buffer( m_msgToSend ), 
+              std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
+          DR_LOG(log_debug) << "sending " << o.str() << endl ;   
+        } catch (const std::exception& e) {
+          DR_LOG(log_error) << "Client::send failed, message is not using utf-8 encoding: " << str << ": " << e.what() << std::endl;
         }
-        o << len << "#" << str ;
-
-        m_msgToSend = o.str();
-       
-        boost::asio::async_write( m_sock, boost::asio::buffer( m_msgToSend ), 
-            std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
-        //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
     }
 
     // Client (member function specializations for plain tcp connections)
