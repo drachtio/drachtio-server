@@ -1105,23 +1105,19 @@ namespace drachtio {
           return -1;
   }
 
-  int utf8_strlen(const std::string& str) {
+  int utf8_strlen(const std::string& str)
+  {
       int c, i, ix, q;
-      for (q = 0, i = 0, ix = str.length(); i < ix; i++, q++) {
+      for (q = 0, i = 0, ix = str.length(); q < ix; q++)
+      {
           c = (unsigned char) str[i];
-          if (c <= 0x7F) { // ASCII
-              continue;
-          } else if ((c & 0xE0) == 0xC0 && i + 1 < ix && (str[i + 1] & 0xC0) == 0x80) {
-              i += 1;
-          } else if ((c & 0xF0) == 0xE0 && i + 2 < ix && (str[i + 1] & 0xC0) == 0x80 && (str[i + 2] & 0xC0) == 0x80) {
-              i += 2;
-          } else if ((c & 0xF8) == 0xF0 && i + 3 < ix && (str[i + 1] & 0xC0) == 0x80 && (str[i + 2] & 0xC0) == 0x80 && (str[i + 3] & 0xC0) == 0x80) {
-              i += 3;
-          } else {
-              // Throw an exception if an invalid UTF-8 sequence is found
-              std::ostringstream errMsg;
-              errMsg << "Invalid UTF-8 encoding detected at position " << q << ": 0x" << std::hex << c;
-              throw std::runtime_error(errMsg.str());
+          if      (c >= 0   && c <= 127) i += 1;
+          else if ((c & 0xE0) == 0xC0) i += 2;
+          else if ((c & 0xF0) == 0xE0) i += 3;
+          else if ((c & 0xF8) == 0xF0) i += 4;
+          else {
+            std::string error_msg = "utf8_strlen - code 0x" + std::to_string(c) + " at position " + std::to_string(q) + " is not a valid UTF-8 character in string: " + str;
+            throw std::runtime_error(error_msg);
           }
       }
       return q;

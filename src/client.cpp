@@ -162,10 +162,12 @@ namespace drachtio {
                 return false ;       
             } 
             else {
-                vector<string> hps ;
-                theOneAndOnlyController->getMyHostports( hps ) ;
+                vector<string> hps, hpsLocal ;
+                theOneAndOnlyController->getMyHostports( hps ) ;            // public hostports
+                theOneAndOnlyController->getMyHostports( hpsLocal, true) ;  // local hostports
                 string hostports = boost::algorithm::join(hps, ",") ;
-                string response = hostports + "|" + DRACHTIO_VERSION;
+                string localHostports = boost::algorithm::join(hpsLocal, ",") ;
+                string response = hostports + "|" + DRACHTIO_VERSION + "|" + localHostports ;
                 createResponseMsg( tokens[0], msgResponse, true, response.c_str()) ;
                 DR_LOG(log_debug) << "Client::processAuthentication - secret validated successfully: " << secret ;
                 return true ;
@@ -451,8 +453,8 @@ read_again:
           boost::asio::async_write( m_sock, boost::asio::buffer( m_msgToSend ), 
               std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
           DR_LOG(log_debug) << "sending " << o.str() << endl ;   
-        } catch (const std::exception& e) {
-          DR_LOG(log_error) << "Client::send failed, message is not using utf-8 encoding: " << str << ": " << e.what() << std::endl;
+        } catch (const std::runtime_error& e) {
+          DR_LOG(log_error) << "Client::send failed, message is not using utf-8 encoding: " << e.what() << std::endl;
         }
     }
 
@@ -516,7 +518,7 @@ read_again:
 
         }
         else if( endpointIterator != tcp::resolver::iterator() ) {
-            DR_LOG(log_debug) << "Client::connect_handler tcp - failed to connecte to " <<
+            DR_LOG(log_debug) << "Client::connect_handler tcp - failed to connect to " <<
             endpoint_address() << ":" << endpoint_port() ;
             m_sock.close() ;
             tcp::endpoint endpoint = *endpointIterator;
