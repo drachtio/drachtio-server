@@ -1107,20 +1107,20 @@ namespace drachtio {
 
   int utf8_strlen(const std::string& str)
   {
-      int c, i, ix, q;
-      for (q = 0, i = 0, ix = str.length(); q < ix; q++)
-      {
-          c = (unsigned char) str[i];
-          if      (c >= 0   && c <= 127) i += 1;
-          else if ((c & 0xE0) == 0xC0) i += 2;
-          else if ((c & 0xF0) == 0xE0) i += 3;
-          else if ((c & 0xF8) == 0xF0) i += 4;
-          else {
-            std::string error_msg = "utf8_strlen - code 0x" + std::to_string(c) + " at position " + std::to_string(q) + " is not a valid UTF-8 character in string: " + str;
-            throw std::runtime_error(error_msg);
-          }
+    int c,i,ix,q;
+    for (q=0, i=0, ix=str.length(); i < ix; i++, q++)
+    {
+      c = (unsigned char) str[i];
+      if      (c>=0   && c<=127) i+=0;
+      else if ((c & 0xE0) == 0xC0) i+=1;
+      else if ((c & 0xF0) == 0xE0) i+=2;
+      else if ((c & 0xF8) == 0xF0) i+=3;
+      else {
+        std::string error_msg = "utf8_strlen - code 0x" + std::to_string(c) + " at position " + std::to_string(q) + " is not a valid UTF-8 character in string: " + str;
+        throw std::runtime_error(error_msg);
       }
-      return q;
+    }
+    return q;
   }
 }
 
