@@ -227,6 +227,25 @@ namespace drachtio {
         return true ;  
     }
 
+
+    bool ClientController::no_longer_wants_requests( client_ptr client, const string& verb ) {
+        RequestSpecifier spec( client ) ;
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        // Remove all instances of this client for this verb
+        for (map_of_request_types::iterator it = m_request_types.begin(); it != m_request_types.end(); ) {
+            if (it->second.client() == client) {
+                it = m_request_types.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+        DR_LOG(log_debug) << "Removed client for " << verb << " requests"  ;
+
+        //TODO: validate the verb is supported
+        return true ;  
+    }
+
     client_ptr ClientController::selectClientForRequestOutsideDialog(const char* keyword, const char* tag) {
         string method_name = keyword ;
         transform(method_name.begin(), method_name.end(), method_name.begin(), ::tolower);

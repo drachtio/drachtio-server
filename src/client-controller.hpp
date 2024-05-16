@@ -72,6 +72,7 @@ namespace drachtio {
     void addNamedService( client_ptr client, string& strAppName ) ;
 
     bool wants_requests( client_ptr client, const string& verb ) ;
+    bool no_longer_wants_requests( client_ptr client, const string& verb ) ;
 
     void addDialogForTransaction( const string& transactionId, const string& dialogId ) ;
     void addAppTransaction( client_ptr client, const string& transactionId );
