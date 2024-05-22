@@ -77,7 +77,7 @@ namespace drachtio {
     void setRange(uint32_t range) { m_range = range;}
 
     void getDescription(string& s, bool shortVersion = true) ;
-    void getHostport(string& s) ;
+    void getHostport(string& s, bool localIpsOnly = false) ;
 
     uint32_t getOctetMatchCount(const string& address);
 
@@ -85,7 +85,7 @@ namespace drachtio {
     static std::shared_ptr<SipTransport> findTransport(tport_t* tp) ;
     static std::shared_ptr<SipTransport> findAppropriateTransport(const char* remoteHost, const char* proto = "udp") ;
     static void logTransports() ;
-    static void getAllHostports( vector<string>& vec ) ;
+    static void getAllHostports( vector<string>& vec, bool localIpsOnly = false ) ;
     static void getAllExternalIps( vector<string>& vec ) ;
     static void getAllExternalContacts( vector< pair<string, string> >& vec ) ;
     static bool isLocalAddress(const char* szHost, tport_t* tp = NULL) ;

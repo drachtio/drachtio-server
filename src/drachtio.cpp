@@ -880,250 +880,247 @@ namespace drachtio {
      }
 
 	bool sipMsgHasNatEqualsYes( const sip_t* sip, bool weAreUac, bool checkContact ) {
-        if (!sip->sip_record_route && !checkContact) return false;
+      if (!sip->sip_record_route && !checkContact) return false;
 
-        if (sip->sip_record_route) {
-            sip_record_route_t *r = sip->sip_record_route;
+      if (sip->sip_record_route) {
+          sip_record_route_t *r = sip->sip_record_route;
 
-            if (weAreUac) {
-                for (; r; r = r->r_next) {
-                    if (r->r_next == NULL) break ;
-                }
-            }
-            if (r && r->r_url->url_params && NULL != ::strstr(r->r_url->url_params, "nat=yes")) {
-                return true;
-            }
-        }
+          if (weAreUac) {
+              for (; r; r = r->r_next) {
+                  if (r->r_next == NULL) break ;
+              }
+          }
+          if (r && r->r_url->url_params && NULL != ::strstr(r->r_url->url_params, "nat=yes")) {
+              return true;
+          }
+      }
 
-        if (checkContact && !sip->sip_record_route) {
-            if (sip->sip_contact &&
-                sip->sip_contact->m_url->url_params &&
-                NULL != ::strstr(sip->sip_contact->m_url->url_params, "nat=yes")) {
-                
-                return true;
-            }
-        }
-        return false;
-    }
+      if (checkContact && !sip->sip_record_route) {
+          if (sip->sip_contact &&
+              sip->sip_contact->m_url->url_params &&
+              NULL != ::strstr(sip->sip_contact->m_url->url_params, "nat=yes")) {
+              
+              return true;
+          }
+      }
+      return false;
+  }
 
-    string urlencode(const string &s) {
-        static const char lookup[]= "0123456789abcdef";
-        std::stringstream e;
-        for(int i=0, ix=s.length(); i<ix; i++)
-        {
-            const char& c = s[i];
-            if ( (48 <= c && c <= 57) ||//0-9
-                 (65 <= c && c <= 90) ||//abc...xyz
-                 (97 <= c && c <= 122) || //ABC...XYZ
-                 (c=='-' || c=='_' || c=='.' || c=='~') 
-            )
-            {
-                e << c;
-            }
-            else
-            {
-                e << '%';
-                e << lookup[ (c&0xF0)>>4 ];
-                e << lookup[ (c&0x0F) ];
-            }
-        }
-        return e.str();
-    }
-
-    SipMsgData_t::SipMsgData_t(const string& str ) {
-        boost::char_separator<char> sep(" []//:") ;
-        tokenizer tok( str, sep) ;
-        tokenizer::iterator it = tok.begin() ;
-
-        m_source = 0 == (*it).compare("recv") ? "network" : "application" ;
-        it++ ;
-        m_bytes = *(it) ;
-        it++; it++; it++ ;
-        m_protocol = *(it) ;
-        m_address = *(++it) ;
-        m_port = *(++it) ;
-        it++ ;  
-        string t = *(++it) + ":" + *(++it) + ":" + *(++it) + "." + *(++it) ;
-        m_time = t.substr(0, t.size()-2);
-    }
-
-    SipMsgData_t::SipMsgData_t( msg_t* msg ) : m_source("network") {
-        su_time_t now = su_now() ;
-        unsigned short second, minute, hour;
-        char time[64] ;
-        tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), NULL, msg) ;        
-        assert(NULL != tport) ;
-
-        second = (unsigned short)(now.tv_sec % 60);
-        minute = (unsigned short)((now.tv_sec / 60) % 60);
-        hour = (unsigned short)((now.tv_sec / 3600) % 24);
-        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
- 
-        m_time.assign( time ) ;
-        if( tport_is_udp(tport ) ) m_protocol = "udp" ;
-        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
-        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-
-        tport_unref( tport ) ;
-
-        init( msg ) ;
-    }
-    SipMsgData_t::SipMsgData_t( msg_t* msg, nta_incoming_t* irq, const char* source ) : m_source(source) {
-        su_time_t now = su_now() ;
-        unsigned short second, minute, hour;
-        char time[64] ;
-        tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ;  
-
-        second = (unsigned short)(now.tv_sec % 60);
-        minute = (unsigned short)((now.tv_sec / 60) % 60);
-        hour = (unsigned short)((now.tv_sec / 3600) % 24);
-        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
- 
-        m_time.assign( time ) ;
-        if( tport_is_udp(tport ) ) m_protocol = "udp" ;
-        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
-
-        tport_unref( tport ) ;
-
-        init( msg ) ;
-    }
-    SipMsgData_t::SipMsgData_t( msg_t* msg, nta_outgoing_t* orq, const char* source ) : m_source(source) {
-        su_time_t now = su_now() ;
-        unsigned short second, minute, hour;
-        char time[64] ;
-        tport_t *tport = nta_outgoing_transport( orq ) ;    //adds a a reference
-        //assert( tport ) ; //why would this ever be null?
-
-        second = (unsigned short)(now.tv_sec % 60);
-        minute = (unsigned short)((now.tv_sec / 60) % 60);
-        hour = (unsigned short)((now.tv_sec / 3600) % 24);
-        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
- 
-        m_time.assign( time ) ;
-
-        if( tport_is_udp(tport ) ) m_protocol = "udp" ;
-        else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
-        else m_protocol = "unknown";
-
-        init( msg ) ;
-
-        if( 0 == strcmp(source, "application") ) {
-            if( NULL != tport ) {
-                const tp_name_t* name = tport_name(tport) ;
-                m_address = name->tpn_host ;
-                m_port = name->tpn_port ;                
-            }
-            //
-            /*
-            else {
-                m_address = theOneAndOnlyController->getMyDefaultSipAddress() ;
-                m_port = theOneAndOnlyController->getMyDefaultSipPort() ;
-            }
-            */
-        }
-
-
-        tport_unref( tport ) ;
-
-    }
-    void SipMsgData_t::init( msg_t* msg ) {
-        su_sockaddr_t const *su = msg_addr(msg);
-        short port ;
-        char name[SU_ADDRSIZE] = "";
-        char szTmp[10] ;
-
-        su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
-
-        m_address.assign( name ) ;
-        sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
-        m_port.assign( szTmp );
-        sprintf( szTmp, "%u", msg_size( msg ) ) ;
-        m_bytes.assign( szTmp ) ;
-    }
-
-     int ackResponse( msg_t* msg ) {
-        nta_agent_t* nta = theOneAndOnlyController->getAgent() ;
-        sip_t *sip = sip_object(msg);
-        msg_t *amsg = nta_msg_create(nta, 0);
-        sip_t *asip = sip_object(amsg);
-        url_string_t const *ruri;
-        nta_outgoing_t *ack = NULL, *bye = NULL;
-        sip_cseq_t *cseq;
-        sip_request_t *rq;
-        sip_route_t *route = NULL, *r, r0[1];
-        su_home_t *home = msg_home(amsg);
-        tport_t* tp_incoming = nta_incoming_transport(nta, NULL, msg);
-
-        if (asip == NULL)
-        return -1;
-
-        sip_add_tl(amsg, asip,
-            SIPTAG_TO(sip->sip_to),
-            SIPTAG_FROM(sip->sip_from),
-            SIPTAG_CALL_ID(sip->sip_call_id),
-            TAG_END());
-
-        if (sip->sip_contact && sip->sip_status->st_status > 399 ) {
-            ruri = (url_string_t const *)sip->sip_contact->m_url;
-        } else {
-            su_sockaddr_t const *su = msg_addr(msg);
-            char name[SU_ADDRSIZE] = "";
-            char uri[SU_ADDRSIZE+20] = "" ;
-            char szTmp[10] ;
-
-            su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
-            sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
-            sprintf(uri, "sip:%s:%s", name, szTmp) ;
-            ruri = URL_STRING_MAKE(uri) ;
-        }
-
-        if (!(cseq = sip_cseq_create(home, sip->sip_cseq->cs_seq, SIP_METHOD_ACK)))
-            goto err;
-        else
-            msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)cseq);
-
-        if (!(rq = sip_request_create(home, SIP_METHOD_ACK, ruri, NULL)))
-            goto err;
-        else
-            msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)rq);
-
-        DR_LOG(log_debug) << "ackResponse - sending ack via tport " << std::hex << (void *) tp_incoming ;
-
-        if( nta_msg_tsend( nta, amsg, NULL, 
-            NTATAG_BRANCH_KEY(sip->sip_via->v_branch),
-            NTATAG_TPORT(tp_incoming),
-            TAG_END() ) < 0 )
- 
-            goto err ;
-
-         return 0;
-
-        err:
-            if( amsg ) msg_destroy(amsg);
-            return -1;
-    }
-
-    int utf8_strlen(const string& str)
+  string urlencode(const string &s) {
+    static const char lookup[]= "0123456789abcdef";
+    std::stringstream e;
+    for(int i=0, ix=s.length(); i<ix; i++)
     {
-        int c,i,ix,q;
-        for (q=0, i=0, ix=str.length(); i < ix; i++, q++)
+        const char& c = s[i];
+        if ( (48 <= c && c <= 57) ||//0-9
+              (65 <= c && c <= 90) ||//abc...xyz
+              (97 <= c && c <= 122) || //ABC...XYZ
+              (c=='-' || c=='_' || c=='.' || c=='~') 
+        )
         {
-            c = (unsigned char) str[i];
-            if      (c>=0   && c<=127) i+=0;
-            else if ((c & 0xE0) == 0xC0) i+=1;
-            else if ((c & 0xF0) == 0xE0) i+=2;
-            else if ((c & 0xF8) == 0xF0) i+=3;
-            //else if (($c & 0xFC) == 0xF8) i+=4; // 111110bb //byte 5, unnecessary in 4 byte UTF-8
-            //else if (($c & 0xFE) == 0xFC) i+=5; // 1111110b //byte 6, unnecessary in 4 byte UTF-8
-            else {
-                DR_LOG(log_error) << "utf8_strlen - code 0x" << std::hex << c << " at position " << std::dec << q << " is not a valid UTF-8 character";
-                DR_LOG(log_error) << "utf8_strlen - in string: " << str ;
-                return 0;//invalid utf8
-            }
+            e << c;
         }
-        return q;
+        else
+        {
+            e << '%';
+            e << lookup[ (c&0xF0)>>4 ];
+            e << lookup[ (c&0x0F) ];
+        }
     }
- }
+    return e.str();
+  }
+
+  SipMsgData_t::SipMsgData_t(const string& str ) {
+      boost::char_separator<char> sep(" []//:") ;
+      tokenizer tok( str, sep) ;
+      tokenizer::iterator it = tok.begin() ;
+
+      m_source = 0 == (*it).compare("recv") ? "network" : "application" ;
+      it++ ;
+      m_bytes = *(it) ;
+      it++; it++; it++ ;
+      m_protocol = *(it) ;
+      m_address = *(++it) ;
+      m_port = *(++it) ;
+      it++ ;  
+      string t = *(++it) + ":" + *(++it) + ":" + *(++it) + "." + *(++it) ;
+      m_time = t.substr(0, t.size()-2);
+  }
+
+  SipMsgData_t::SipMsgData_t( msg_t* msg ) : m_source("network") {
+      su_time_t now = su_now() ;
+      unsigned short second, minute, hour;
+      char time[64] ;
+      tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), NULL, msg) ;        
+      assert(NULL != tport) ;
+
+      second = (unsigned short)(now.tv_sec % 60);
+      minute = (unsigned short)((now.tv_sec / 60) % 60);
+      hour = (unsigned short)((now.tv_sec / 3600) % 24);
+      sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+
+      m_time.assign( time ) ;
+      if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+      else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+      else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
+
+      tport_unref( tport ) ;
+
+      init( msg ) ;
+  }
+  SipMsgData_t::SipMsgData_t( msg_t* msg, nta_incoming_t* irq, const char* source ) : m_source(source) {
+      su_time_t now = su_now() ;
+      unsigned short second, minute, hour;
+      char time[64] ;
+      tport_t *tport = nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ;  
+
+      second = (unsigned short)(now.tv_sec % 60);
+      minute = (unsigned short)((now.tv_sec / 60) % 60);
+      hour = (unsigned short)((now.tv_sec / 3600) % 24);
+      sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+
+      m_time.assign( time ) ;
+      if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+      else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
+      else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+
+      tport_unref( tport ) ;
+
+      init( msg ) ;
+  }
+  SipMsgData_t::SipMsgData_t( msg_t* msg, nta_outgoing_t* orq, const char* source ) : m_source(source) {
+      su_time_t now = su_now() ;
+      unsigned short second, minute, hour;
+      char time[64] ;
+      tport_t *tport = nta_outgoing_transport( orq ) ;    //adds a a reference
+      //assert( tport ) ; //why would this ever be null?
+
+      second = (unsigned short)(now.tv_sec % 60);
+      minute = (unsigned short)((now.tv_sec / 60) % 60);
+      hour = (unsigned short)((now.tv_sec / 3600) % 24);
+      sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+
+      m_time.assign( time ) ;
+
+      if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+      else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
+      else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
+      else m_protocol = "unknown";
+
+      init( msg ) ;
+
+      if( 0 == strcmp(source, "application") ) {
+          if( NULL != tport ) {
+              const tp_name_t* name = tport_name(tport) ;
+              m_address = name->tpn_host ;
+              m_port = name->tpn_port ;                
+          }
+          //
+          /*
+          else {
+              m_address = theOneAndOnlyController->getMyDefaultSipAddress() ;
+              m_port = theOneAndOnlyController->getMyDefaultSipPort() ;
+          }
+          */
+      }
+
+
+      tport_unref( tport ) ;
+
+  }
+  void SipMsgData_t::init( msg_t* msg ) {
+      su_sockaddr_t const *su = msg_addr(msg);
+      short port ;
+      char name[SU_ADDRSIZE] = "";
+      char szTmp[10] ;
+
+      su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
+
+      m_address.assign( name ) ;
+      sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
+      m_port.assign( szTmp );
+      sprintf( szTmp, "%u", msg_size( msg ) ) ;
+      m_bytes.assign( szTmp ) ;
+  }
+
+    int ackResponse( msg_t* msg ) {
+      nta_agent_t* nta = theOneAndOnlyController->getAgent() ;
+      sip_t *sip = sip_object(msg);
+      msg_t *amsg = nta_msg_create(nta, 0);
+      sip_t *asip = sip_object(amsg);
+      url_string_t const *ruri;
+      nta_outgoing_t *ack = NULL, *bye = NULL;
+      sip_cseq_t *cseq;
+      sip_request_t *rq;
+      sip_route_t *route = NULL, *r, r0[1];
+      su_home_t *home = msg_home(amsg);
+      tport_t* tp_incoming = nta_incoming_transport(nta, NULL, msg);
+
+      if (asip == NULL)
+      return -1;
+
+      sip_add_tl(amsg, asip,
+          SIPTAG_TO(sip->sip_to),
+          SIPTAG_FROM(sip->sip_from),
+          SIPTAG_CALL_ID(sip->sip_call_id),
+          TAG_END());
+
+      if (sip->sip_contact && sip->sip_status->st_status > 399 ) {
+          ruri = (url_string_t const *)sip->sip_contact->m_url;
+      } else {
+          su_sockaddr_t const *su = msg_addr(msg);
+          char name[SU_ADDRSIZE] = "";
+          char uri[SU_ADDRSIZE+20] = "" ;
+          char szTmp[10] ;
+
+          su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
+          sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
+          sprintf(uri, "sip:%s:%s", name, szTmp) ;
+          ruri = URL_STRING_MAKE(uri) ;
+      }
+
+      if (!(cseq = sip_cseq_create(home, sip->sip_cseq->cs_seq, SIP_METHOD_ACK)))
+          goto err;
+      else
+          msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)cseq);
+
+      if (!(rq = sip_request_create(home, SIP_METHOD_ACK, ruri, NULL)))
+          goto err;
+      else
+          msg_header_insert(amsg, (msg_pub_t *)asip, (msg_header_t *)rq);
+
+      DR_LOG(log_debug) << "ackResponse - sending ack via tport " << std::hex << (void *) tp_incoming ;
+
+      if( nta_msg_tsend( nta, amsg, NULL, 
+          NTATAG_BRANCH_KEY(sip->sip_via->v_branch),
+          NTATAG_TPORT(tp_incoming),
+          TAG_END() ) < 0 )
+
+          goto err ;
+
+        return 0;
+
+      err:
+          if( amsg ) msg_destroy(amsg);
+          return -1;
+  }
+
+  int utf8_strlen(const std::string& str)
+  {
+    int c,i,ix,q;
+    for (q=0, i=0, ix=str.length(); i < ix; i++, q++)
+    {
+      c = (unsigned char) str[i];
+      if      (c>=0   && c<=127) i+=0;
+      else if ((c & 0xE0) == 0xC0) i+=1;
+      else if ((c & 0xF0) == 0xE0) i+=2;
+      else if ((c & 0xF8) == 0xF0) i+=3;
+      else {
+        std::string error_msg = "utf8_strlen - code 0x" + std::to_string(c) + " at position " + std::to_string(q) + " is not a valid UTF-8 character in string: " + str;
+        throw std::runtime_error(error_msg);
+      }
+    }
+    return q;
+  }
+}
 

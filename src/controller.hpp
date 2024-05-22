@@ -148,7 +148,7 @@ namespace drachtio {
     nta_agent_t* getAgent(void) { return m_nta; }
     su_home_t* getHome(void) { return m_home; }
 
-    void getMyHostports( vector<string>& vec ) ;
+    void getMyHostports( vector<string>& vec, bool localIpsOnly = false) ;
 
     bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
 

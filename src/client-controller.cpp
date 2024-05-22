@@ -240,9 +240,7 @@ namespace drachtio {
                 ++it;
             }
         }
-        DR_LOG(log_debug) << "Removed client for " << verb << " requests"  ;
-
-        //TODO: validate the verb is supported
+        DR_LOG(log_info) << "Removed client for " << verb << " requests"  ;
         return true ;  
     }
 

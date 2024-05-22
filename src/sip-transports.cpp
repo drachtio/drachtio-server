@@ -163,12 +163,12 @@ namespace drachtio {
     }
   }
 
-  void SipTransport::getHostport(string& s) {
+  void SipTransport::getHostport(string& s, bool localIpsOnly) {
     assert(hasTport()) ;
     s = "" ;
     s += getProtocol() ;
     s += "/" ;
-    s += hasExternalIp() ? getExternalIp() : getHost() ;
+    s += (!localIpsOnly && hasExternalIp()) ? getExternalIp() : getHost() ;
     s += ":" ;
     s += getPort() ;
   }
@@ -530,11 +530,11 @@ namespace drachtio {
       }
     }
   }
-  void SipTransport::getAllHostports( vector<string>& vec ) {
+  void SipTransport::getAllHostports( vector<string>& vec, bool localIpsOnly) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       std::shared_ptr<SipTransport> p = it->second ;
       string desc ;
-      p->getHostport(desc);
+      p->getHostport(desc, localIpsOnly);
       vec.push_back(desc) ;
     }
   }

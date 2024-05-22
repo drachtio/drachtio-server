@@ -1433,6 +1433,21 @@ namespace drachtio {
                 return -1 ;
             }
 
+            // additional sanity checks on headers
+            if (sip->sip_error) {
+              auto error_header = sip->sip_error;
+              if (error_header->er_common[0].h_data && error_header->er_common[0].h_len > 0) {
+                std::string error_string((const char *) error_header->er_common[0].h_data, error_header->er_common[0].h_len);
+                DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: discarding message due to error: " << error_string;
+              }
+              else {
+                DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: discarding invalid message";
+              }
+              STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "400"}})
+              nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
+              return -1 ;
+            }
+
             // spammer check
             string action, tcpAction ;
             DrachtioConfig::mapHeader2Values& mapSpammers =  m_Config->getSpammers( action, tcpAction );
@@ -1786,8 +1801,8 @@ namespace drachtio {
         }
         return 0 ;
     }
-    void DrachtioController::getMyHostports( vector<string>& vec ) {
-      return SipTransport::getAllHostports( vec ) ;
+    void DrachtioController::getMyHostports( vector<string>& vec, bool localIpsOnly) {
+      return SipTransport::getAllHostports( vec, localIpsOnly ) ;
     }
     bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port, bool ipv6 ) {
         string desc, p ;
