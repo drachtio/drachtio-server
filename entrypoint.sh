@@ -72,7 +72,7 @@ if [ "$1" = 'drachtio' ]; then
     --cloud-deployment)
       MYARGS+=("--contact")
       MYARGS+=("sip:${LOCAL_IP}:${DRACHTIO_SIP_PORT:-5060};transport=udp,tcp")
-      if [ -n "$PUBLIC_IP" ] && [ -z "$PRIVATE_IP_ONLY" ]; then
+      if [[ -n "$PUBLIC_IP" && ( -z "$PRIVATE_IP_ONLY" || "$PRIVATE_IP_ONLY" == false ) ]]; then
         if [[ "$CLOUD" == "digitalocean" ]]; then
           MYARGS+=("--contact")
           MYARGS+=("sip:${PUBLIC_IP}:${DRACHTIO_SIP_PORT:-5060};transport=udp,tcp")
