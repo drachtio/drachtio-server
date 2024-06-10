@@ -1,0 +1,8 @@
+[
+  {
+    "server": {"config": "drachtio.conf7.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "doRegister"},
+    "uac": {"name": "uac-register-with-star-in-contact.xml", "target": "127.0.0.1:5090", "transport": "tcp"},
+    "message": "uas: handle incoming register with Contact: *"
+  }
+]
