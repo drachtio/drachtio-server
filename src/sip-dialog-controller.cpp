@@ -21,6 +21,7 @@ THE SOFTWARE.
 */
 #include <algorithm>
 #include <regex>
+#include <cstdlib> // For std::getenv
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/find.hpp>
@@ -40,6 +41,8 @@ namespace drachtio {
 #include "sip-transports.hpp"
 
 namespace {
+
+    const char* envSupportBestEffortTls = std::getenv("DRACHTIO_SUPPORT_BEST_EFFORT_TLS");
 
     std::string combineCallIdAndCSeq(nta_outgoing_t* orq) {
         string callIdAndCSeq = nta_outgoing_call_id(orq);
@@ -107,6 +110,22 @@ namespace {
 
 
 namespace drachtio {
+    RIP::RIP( const string& transactionId ) : m_transactionId(transactionId) {
+            DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId  ;
+
+        }
+    RIP::RIP( const string& transactionId, const string& dialogId ) : m_transactionId(transactionId), m_dialogId(dialogId) {
+            DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId << " dialogId " << dialogId  ;
+
+        }
+    RIP::RIP( const string& transactionId, const string& dialogId,  std::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse) :
+        m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
+            DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId << " dialogId " << dialogId << " clearDialogOnResponse " << clearDialogOnResponse ;
+        }
+
+    RIP::~RIP() {
+        DR_LOG(log_debug) << "RIP::~RIP dialog id: " << m_dialogId  ;
+    }
 
 	SipDialogController::SipDialogController( DrachtioController* pController, su_clone_r* pClone ) : m_pController(pController), m_pClone(pClone), 
         m_agent(pController->getAgent()), m_pClientController(pController->getClientController())  {
@@ -185,6 +204,25 @@ namespace drachtio {
                 assert( leg ) ;
                 throw std::runtime_error("unable to find active leg for dialog") ;
             }
+            
+            /* race condition: we are sending a BYE during a re-invite transaction.  Generate a cancel first */
+            if (sip_method_bye == method) {
+                std::shared_ptr<IIP> iip;
+                nta_leg_t * leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
+                //DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - sending BYE, leg is " << std::hex << (void *) leg;
+                if (IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
+                    const nta_outgoing_t* orq = iip->orq();
+                    if (orq) {
+                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - sending BYE during re-invite on leg "
+                        << std::hex << (void *) leg << ", so canceling orq " << (void *) orq;
+                        nta_outgoing_cancel((nta_outgoing_t*) orq);
+                        IIP_Clear(m_invitesInProgress, leg);
+                        const string id = dlg->getDialogId();
+                        clearRIPByDialogId(id);
+                    }
+                }
+            }
+
 
             const sip_contact_t *target ;
             if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
@@ -355,7 +393,7 @@ namespace drachtio {
                 }
 
                 if (sip_method_bye == method) {
-                  Cdr::postCdr( std::make_shared<CdrStop>( m, "application", Cdr::normal_release ) );
+                    Cdr::postCdr( std::make_shared<CdrStop>( m, "application", Cdr::normal_release ) );
                 }
      
                 msg_destroy(m) ; //releases reference
@@ -1044,14 +1082,15 @@ namespace drachtio {
                 }
             }
 
-            if (existingDialog && bSentOK) {
+            if (existingDialog) {
                 nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
                 if (leg) {
                     std::shared_ptr<SipDialog> dlg ;
                     if(findDialogByLeg( leg, dlg )) {
                         dialogId = dlg->getDialogId();
+                        dlg->removeIncomingRequestTransaction(transactionId);
                         DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest retrieved dialog id for existing dialog " << dialogId  ;
-                        if (sip->sip_request->rq_method == sip_method_invite && body.length()) {
+                        if (sip->sip_request->rq_method == sip_method_invite && body.length() && bSentOK) {
                             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest updating local sdp for dialog " << dialogId  ;
                             dlg->setLocalSdp( body.c_str() ) ;
                         }
@@ -1095,6 +1134,15 @@ namespace drachtio {
                     assert(pSelectedTransport); 
 
                     pSelectedTransport->getContactUri(contact, true);
+
+                    /* is far end requesting "best effort" tls ?*/
+                    if (envSupportBestEffortTls && atoi(envSupportBestEffortTls) == 1 &&
+                      pSelectedTransport->isSips() && sip->sip_contact && sip->sip_contact->m_url &&
+                      0 == strcmp(sip->sip_contact->m_url->url_scheme, "sip")) {
+                        contact.replace(0, 5, "sip:");
+                        DR_LOG(log_info) << "SipDialogController::doRespondToSipRequest - far end wants best effort tls, replacing sips with sip in Contact";
+                    }
+
                     contact = "<" + contact + ">" ;
 
                     pSelectedTransport->getDescription(transportDesc);
@@ -1408,6 +1456,7 @@ namespace drachtio {
                                         NULL,
                                         SIP_METHOD_BYE,
                                         NULL,
+                                        TAG_IF(dlg->getTport(), NTATAG_TPORT(dlg->getTport())),
                                         SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"CANCEL after 200 OK\""),
                                         TAG_END() ) ;
 
@@ -1426,8 +1475,12 @@ namespace drachtio {
                 m_pController->getClientController()->route_request_inside_dialog( encodedMessage, meta, sip, "unsolicited", dlg->getDialogId() ) ;
                 msg_destroy(m);      // releases the reference
 
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - destroying orq from BYE";
                 nta_outgoing_destroy(orq) ;
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - clearing dialog";
                 SD_Clear(m_dialogs, leg ) ;
+                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - clearing IIP";
+                IIP_Clear(m_invitesInProgress, leg);
 
             }
             default:
@@ -1441,6 +1494,17 @@ namespace drachtio {
 
                 if (sip_method_invite == sip->sip_request->rq_method) {
                     nta_incoming_treply(irq, SIP_100_TRYING, TAG_END());
+                }
+                
+                /* we are relying on the client to eventually respond. Clients should be treated as unreliable in this sense.
+                 Store txnId with dlg so we can clear them if client has not responded by the time we tear down the dialog. 
+                 
+                 BYE is an exception, because we clear the dialog when we receive the BYE (not when we send the 200 OK)
+                 and as a result if we added it below we would immediately delete the irq and generate a 500 before
+                 the client had a chance to respond.
+                 */
+                if (sip_method_bye != sip->sip_request->rq_method) {
+                  dlg->addIncomingRequestTransaction(transactionId);
                 }
 
                 /* if this is a re-INVITE or an UPDATE deal with session timers */
@@ -1486,7 +1550,7 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
+                            DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
                             rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
                             return rc;
                         default:
@@ -1510,7 +1574,24 @@ namespace drachtio {
                     if( !routed ) {
                         nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;                
                     }
-                }
+                    
+                    // check for race condition where we received a BYE with a re-INVITE we sent still outstanding
+                    auto txnId = dlg->getTransactionId();
+                    std::shared_ptr<IIP> iip ;
+                    if (IIP_FindByTransactionId(m_invitesInProgress, txnId, iip)) {
+                        IIP_Clear(m_invitesInProgress, iip);
+                        nta_outgoing_t* orq = const_cast<nta_outgoing_t *>(iip->orq());
+                        DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog: cleared IIP for reinvite due to recv BYE";
+                        if (orq) {
+                            std::shared_ptr<RIP> pRIP;
+                            if (findRIPByOrq(orq, pRIP)) {
+                                DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog: cleared outstanding RIP due to recv BYE, dialogId is " << txnId  ;
+                                m_pClientController->removeAppTransaction(pRIP->getTransactionId());
+                                clearRIP(orq);
+                            }
+                        }
+                    }
+                 }
 
                 if (sip_method_bye == sip->sip_request->rq_method) {
                   Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::normal_release ) );
@@ -1872,7 +1953,22 @@ namespace drachtio {
         if( m_mapOrq2RIP.end() == it ) return  ;
         m_mapOrq2RIP.erase( it ) ;                      
     }
-    
+    void SipDialogController::clearRIPByDialogId( const std::string dialogId) {
+        DR_LOG(log_debug) << "SipDialogController::clearRIPByDialogId - searching for RIP for dialog id " <<  dialogId  ;
+        for (const auto& pair : m_mapOrq2RIP) {
+            nta_outgoing_t* orq = pair.first;
+            std::shared_ptr<RIP> p = pair.second;
+            if (0 == dialogId.compare(p->getDialogId())) {
+                DR_LOG(log_debug) << "SipDialogController::clearRIPByDialogId - found for RIP for dialog id, orq to destroy is " <<
+                std::hex << (void *) orq;
+                m_mapOrq2RIP.erase(orq);
+                nta_outgoing_destroy( orq ) ;
+                return;
+            }
+        }
+        return;
+    }
+        
     void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg) {
         DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) irq;
         incoming_retransmit_reply(irq, tp);
@@ -1962,7 +2058,17 @@ namespace drachtio {
         }
         return irq ;
     }
-
+    void SipDialogController::clearDanglingIncomingRequests(std::vector<std::string> txnIds) {
+        auto count = txnIds.size();
+        for (const std::string& txnId : txnIds) {
+            auto* irq = findAndRemoveTransactionIdForIncomingRequest(txnId);
+            DR_LOG(log_info) << "SipDialogController::clearDanglingIncomingRequests txn / irq: " << txnId << std::hex << " : " << (void *) irq;
+            m_pController->getClientController()->removeNetTransaction(txnId);
+            if (irq != nullptr) {
+                nta_incoming_destroy(irq);
+            }
+        }
+    }
     void SipDialogController::clearSipTimers(std::shared_ptr<SipDialog>& dlg) {
         DR_LOG(log_debug) << "SipDialogController::clearSipTimers for " << dlg->getCallId()  ;
         TimerEventHandle h = dlg->getTimerG() ;
@@ -2071,10 +2177,22 @@ namespace drachtio {
         return success;
     }
 
+    void SipDialogController::logRIP(bool bDetail) {
+        DR_LOG(bDetail ? log_info : log_debug) << "RIP size:                                                        " <<
+            m_mapOrq2RIP.size();
+        if (bDetail) {
+            for (const auto& pair : m_mapOrq2RIP) {
+                nta_outgoing_t* orq = pair.first;
+                std::shared_ptr<RIP> p = pair.second;
+                DR_LOG(log_debug) << "    orq: " << std::hex << (void *) orq << " dialog id " << p->getDialogId() << " txn id " << p->getTransactionId();
+            }
+        }
+    }
+
     // logging / metrics
     void SipDialogController::logStorageCount(bool bDetail)  {
 
-        DR_LOG(bDetail ? log_info : log_debug) << "SipDialogController storage counts"  ;
+        DR_LOG(bDetail ? log_info : log_debug) << "SipDiaSD_LoglogController storage counts"  ;
         DR_LOG(bDetail ? log_info : log_debug) << "----------------------------------"  ;
         IIP_Log(m_invitesInProgress, bDetail);
         SD_Log(m_dialogs, bDetail);
@@ -2083,6 +2201,7 @@ namespace drachtio {
         DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
         DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
         DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
+        logRIP(bDetail);
         m_pTQM->logQueueSizes() ;
 
         // stats
