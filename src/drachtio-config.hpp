@@ -92,6 +92,8 @@ namespace drachtio {
         bool getBlacklistServer(string& redisAddress, string& redisSentinels, string& redisMaster, string& redisPassword, unsigned int& redisPort, string& redisKey, unsigned int& redisRefreshSecs) const;
 
         bool getAutoAnswerOptionsUserAgent(string& userAgent) const;
+
+        bool rejectRegisterWithNoRealm() const;
         
         void Log() const ;
         

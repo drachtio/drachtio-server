@@ -78,7 +78,10 @@ namespace drachtio {
 		const char*  rtag = nta_leg_get_rtag( leg )  ;
 		if( rtag ) this->setRemoteTag( rtag ) ;
 		assert(rtag); // should always have a from tag on incoming invite
-	
+
+        DR_LOG(log_debug) << "SipDialog::SipDialog - creating sip UAS dialog with call-id " << getCallId() <<
+            " leg " << std::hex << (void *) m_leg;
+
 		if( sip->sip_payload ) this->setRemoteSdp( sip->sip_payload->pl_data, sip->sip_payload->pl_len ) ;
 		if( sip->sip_content_type ) {
 			string hvalue ;
@@ -122,13 +125,16 @@ namespace drachtio {
 		m_startTime(0), m_connectTime(0), m_endTime(0), m_releaseCause(no_release), m_refresher(no_refresher), m_timerSessionRefresh(NULL),m_ppSelf(NULL),
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(NULL), m_leg(leg), m_orqAck(nullptr), m_orq(orq), m_seq(0),
     m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL), m_nSessionTimerDuration(0),
-		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false),
+		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false), m_transactionId(transactionId),
 		m_timeArrive(std::chrono::steady_clock::now()), m_bAckBye(false), m_tmArrival(sip_now()), m_bDestroyAckOnClose(false)
 	{
 		m_transactionId = transactionId ;
 
 		if( sip->sip_call_id->i_id ) m_strCallId = sip->sip_call_id->i_id ;
 		m_seq = nta_leg_get_seq(leg);
+
+        DR_LOG(log_debug) << "SipDialog::SipDialog - creating UAC sip dialog with call-id " << getCallId() <<
+            " leg " << std::hex << (void *) m_leg;
 
     m_tp = nta_outgoing_transport( orq );
 
@@ -181,7 +187,8 @@ namespace drachtio {
 
 	}	
 	SipDialog::~SipDialog() {
-		DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying sip dialog with call-id " << getCallId() ;
+		DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying sip dialog with call-id " << getCallId() <<
+            " leg " << std::hex << (void *) m_leg;
 		if( NULL != m_timerSessionRefresh ) {
 			cancelSessionTimer() ;
 			assert( m_ppSelf ) ;
@@ -191,6 +198,10 @@ namespace drachtio {
 		}
 
 		nta_leg_t *leg = nta_leg_by_call_id( theOneAndOnlyController->getAgent(), getCallId().c_str() );
+        
+        DR_LOG(log_debug) << "SipDialog::~SipDialog - I'm holding leg " << std::hex << (void *) m_leg <<
+            " and retrieved leg via call-id " << (void *) leg;
+
 		assert( leg ) ;
 		if( leg ) {
 			nta_leg_destroy( leg ) ;
@@ -211,6 +222,12 @@ namespace drachtio {
 		if (m_orq) {
 			nta_outgoing_destroy(m_orq);
 		}
+        
+        auto txnIds = getIncomingRequestTransactionIds();
+        theOneAndOnlyController->getDialogController()->clearDanglingIncomingRequests(txnIds);
+        
+        /* if we never got an ACK after sending a 200 OK to an incoming INVITE the net transaction is still there */
+        theOneAndOnlyController->getClientController()->removeNetTransaction(this->getTransactionId());
 	}
 
 	std::ostream& operator<<(std::ostream& os, const SipDialog& dlg) {
@@ -369,9 +386,9 @@ namespace drachtio {
   void SD_Log(const StableDialogs_t& dialogs, bool full) {
 		size_t count, nUac, nUas;
 		count = SD_Size(dialogs, nUac, nUas);
-    DR_LOG(log_debug) << "StableDialogs total size:                                                " << count;
-    DR_LOG(log_debug) << "StableDialogs uac:                                                       " << nUac;
-    DR_LOG(log_debug) << "StableDialogs uas:                                                       " << nUas;
+    DR_LOG(log_debug) << "StableDialogs total size:                                        " << count;
+    DR_LOG(log_debug) << "StableDialogs uac:                                               " << nUac;
+    DR_LOG(log_debug) << "StableDialogs uas:                                               " << nUas;
     if (full && count) {
       std::lock_guard<std::mutex> lock(sd_mutex) ;
       auto &idx = dialogs.get<DlgTimeTag>();

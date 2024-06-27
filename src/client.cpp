@@ -136,6 +136,14 @@ namespace drachtio {
             }
             createResponseMsg( tokens[0], msgResponse ) ;
         }
+        else if( 0 == tokens[1].compare("remove_route") ) {
+            if( !m_controller.no_longer_wants_requests( shared_from_this(), tokens[2] ) ) {
+                DR_LOG(log_error) << "Remove route request includes unsupported verb: " << tokens[2]  ;   
+                createResponseMsg( tokens[0], msgResponse, false, "Remove route request includes unsupported verb" ) ;
+                return false ;        
+            }
+            createResponseMsg( tokens[0], msgResponse ) ;
+        }
         else if( 0 == tokens[1].compare("authenticate")) {
             string secret = tokens[2] ;
             if (tokens.size() > 3) {
