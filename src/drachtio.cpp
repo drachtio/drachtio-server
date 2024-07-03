@@ -1107,8 +1107,9 @@ namespace drachtio {
 
     int utf8_strlen(const string& str)
     {
-        int c,i,ix,q;
-        for (q=0, i=0, ix=str.length(); i < ix; i++, q++)
+        int c,i,ix,q = 0;
+        ix = str.length();
+        for (i=0; i < ix; i++, q++) 
         {
             c = (unsigned char) str[i];
             if      (c>=0   && c<=127) i+=0;
