@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM debian:12.6-slim
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
