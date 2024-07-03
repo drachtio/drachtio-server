@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include <netinet/tcp.h>
 
 #include <iostream>
+#include <memory>
 
 #include <functional>
 #include <algorithm>
@@ -375,14 +376,13 @@ namespace drachtio {
 
         /* while we have at least one full message, process it */
         while( m_buffer.size() >= m_nMessageLength && m_nMessageLength > 0 ) {
-            //string msgResponse ;
-            m_msgResponse = "";
+            string msgResponse ;
             string in ;
             bool bContinue = true ;
             try {
                 in.assign(m_buffer.begin(), m_buffer.begin() + m_nMessageLength);
                 DR_LOG(log_debug) << "Client::read_handler read: " << in << endl ;
-                bContinue = processClientMessage( in, m_msgResponse ) ;
+                bContinue = processClientMessage( in, msgResponse ) ;
             } catch( std::runtime_error& err ) {
                 DR_LOG(log_error) << "Client::read_handler - Error processing client message: " << std::string( m_buffer.begin(), m_buffer.begin() + m_nMessageLength ) << " : " << err.what()  ;
                 m_controller.leave( shared_from_this() ) ;
@@ -390,11 +390,18 @@ namespace drachtio {
             }
 
             /* send response if indicated */
-            if( !m_msgResponse.empty() ) {
-               m_msgResponse.insert(0, boost::lexical_cast<string>(m_msgResponse.length()) + "#") ;
-                DR_LOG(log_debug) << "Sending response: " << m_msgResponse << endl ;
-                boost::asio::async_write( m_sock, boost::asio::buffer( m_msgResponse ), 
-                    std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
+            if( !msgResponse.empty() ) {
+                int len = utf8_strlen(msgResponse);
+                auto forthelifeofsend = std::make_shared<std::string>(
+                    std::to_string(len) + std::string("#") + msgResponse
+                );
+
+                auto self(shared_from_this());
+                DR_LOG(log_debug) << "Sending response: " << *forthelifeofsend << endl ;
+                boost::asio::async_write( m_sock, boost::asio::buffer( *forthelifeofsend ), 
+                    [self, forthelifeofsend](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+                        DR_LOG(log_debug) << "Client::read_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
+                    } );
             }
             if( !bContinue ) {
                  DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
@@ -437,26 +444,28 @@ read_again:
 
     template<typename T, typename S>
     void Client<T,S>::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-    	DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
+        DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
     }
-
 
     template<typename T, typename S>
     void Client<T,S>::send( const string& str ) {
         int len = utf8_strlen(str);
-        ostringstream o ;
 
         if (0 == len) {
             DR_LOG(log_info) << "Client::send - we are unable to send this message back to client" << str; 
             return;
         }
-        o << len << "#" << str ;
 
-        m_msgToSend = o.str();
-       
-        boost::asio::async_write( m_sock, boost::asio::buffer( m_msgToSend ), 
-            std::bind( &BaseClient::write_handler, shared_from_this(), std::placeholders::_1, std::placeholders::_2 ) ) ;
-        //DR_LOG(log_debug) << "sending " << o.str() << endl ;   
+        auto forthelifeofsend = std::make_shared<std::string>(
+            std::to_string(len) + std::string("#") + str
+        );
+
+        auto self(shared_from_this());
+        DR_LOG(log_debug) << "Sending: " << *forthelifeofsend << endl ;
+        boost::asio::async_write( m_sock, boost::asio::buffer( *forthelifeofsend ), 
+            [self, forthelifeofsend](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+                DR_LOG(log_debug) << "Client::send - wrote " << bytes_transferred << " bytes: " << ec  ;
+            } );
     }
 
     // Client (member function specializations for plain tcp connections)

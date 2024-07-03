@@ -106,9 +106,6 @@ namespace drachtio {
         string m_strRemoteAddress;
         unsigned int m_nRemotePort;
 
-        string m_msgResponse;
-        string m_msgToSend;
-
         time_t m_tConnect ;
     };
 
