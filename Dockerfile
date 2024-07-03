@@ -1,9 +1,11 @@
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim as builder
+
+WORKDIR /usr/local/src/drachtio-server/
+COPY . /usr/local/src/drachtio-server/
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
   && apt-get install -y --no-install-recommends ca-certificates gcc g++ make build-essential cmake git autoconf automake  curl libtool libtool-bin libssl-dev libcurl4-openssl-dev zlib1g-dev libgoogle-perftools-dev jq \
-  && git clone --depth=50 --branch=main https://github.com/drachtio/drachtio-server.git /usr/local/src/drachtio-server \
   && cd /usr/local/src \
   && curl -O http://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz && tar -xvf autoconf-2.71.tar.gz \
   && cd autoconf-2.71 && ./configure && make && make install \
@@ -18,7 +20,7 @@ RUN apt-get update \
   && make \
   && make install
 
-FROM debian:bullseye-slim as app
+FROM debian:bookworm-slim as app
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
