@@ -299,6 +299,14 @@ class App extends Emitter {
     });
   }
 
+  doRegister() {
+    this.srf.register((req, res) => {
+      console.log('sending 200 OK to register');
+      res.send(200);
+    });
+    return this;
+  }
+
   doPresence1() {
     // respond to publish and register immediately
     this.srf.register((req, res) => {
