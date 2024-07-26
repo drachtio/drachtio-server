@@ -21,7 +21,7 @@ RUN apt-get update \
   && make \
   && make install
 
-FROM debian:bullseye-slim as app
+FROM debian:bookworm-slim as app
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
