@@ -9,11 +9,6 @@ INCLUDES= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-s
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
 LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
 
-if DEP_BOOST
-INCLUDES += -I${srcdir}/deps/boost
-AM_LDFLAGS += -L${srcdir}/deps/boost/stage/lib
-endif
-
 bin_PROGRAMS= drachtio timer ssltest parser uri_test test_https test_asio_curl
 
 ACLOCAL_AMFLAGS = -I m4
@@ -25,13 +20,10 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/request-handler.cpp src/request-router.cpp src/stats-collector.cpp \
 	src/invite-in-progress.cpp src/blacklist.cpp src/ua-invalid.cpp
 drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
-	-DBOOST_ALLOW_DEPRECATED_HEADERS -O2 -Wno-stringop-overflow
+	-DBOOST_ALLOW_DEPRECATED_HEADERS -DBOOST_LOG_DYN_LINK -O2 -Wno-stringop-overflow
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
   ${srcdir}/deps/jansson/src/.libs/libjansson.a \
   ${srcdir}/deps/hiredis/libhiredis.a -lcurl -lpthread -lssl -lcrypto -lz
-if ! DEP_BOOST
-drachtio_CPPFLAGS+=-DBOOST_LOG_DYN_LINK
-endif
 
 timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
 timer_CPPFLAGS=-D_REENTRANT -DTEST
@@ -67,9 +59,6 @@ drachtio_LDADD += -lboost_thread -lboost_system -lboost_log -lboost_filesystem \
 timer_LDADD += -lrt
 parser_LDADD += -lrt
 test_https_LDADD += -lrt -lpthread -lboost_system
-if DEP_BOOST
-make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-libraries=thread,system,log,filesystem && ./b2 link=static variant=release stage
-endif
 endif
 if OSX
 drachtio_LDADD += -L/usr/local/opt/openssl/lib -lboost_thread \
@@ -81,9 +70,6 @@ drachtio_LDADD += -L/usr/local/opt/openssl/lib -lboost_thread \
 drachtio_CPPFLAGS += -I/usr/local/opt/openssl/include -fvisibility=hidden
 test_https_LDADD += -L/usr/local/opt/openssl/lib -lboost_system
 test_https_CPPFLAGS += -I/usr/local/opt/openssl/include
-if DEP_BOOST
-make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
-endif
 endif
 
 if TCMALLOC
@@ -93,19 +79,7 @@ endif
 BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
-if DEP_BOOST
-BUILT_SOURCES += ${srcdir}/deps/boost/stage/lib/libboost_thread.a
-endif
-
 clean-local:
-if DEP_BOOST
-	cd ${srcdir}/deps/boost && ./bootstrap.sh && ./b2 clean
-endif
-
-if DEP_BOOST
-${srcdir}/deps/boost/stage/lib/libboost_thread.a ${srcdir}/deps/boost/stage/lib/libboost_system.a ${srcdir}/deps/boost/stage/lib/libboost_filesystem.a ${srcdir}/deps/boost/stage/lib/libboost_log.a:
-	$(make_BOOST_CMD)
-endif
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE)
