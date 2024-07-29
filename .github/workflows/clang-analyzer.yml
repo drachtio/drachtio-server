@@ -17,10 +17,22 @@ jobs:
        - uses: actions/checkout@v2
          with:
           submodules: recursive
-       - run: |
-          sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libunwind-dev libgoogle-perftools-dev clang-tools
-       - run: |
+       - name: Install dependencies
+         run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          clang-tools
+          libboost-filesystem-dev
+          libboost-log-dev
+          libboost-system-dev
+          libboost-thread-dev
+          libcurl4-openssl-dev
+          libgoogle-perftools-dev
+          libtool
+          libtool-bin
+          libunwind-dev
+       - name: Run Clang Analyzer
+         run: |
           ./autogen.sh
           mkdir -p build && cd $_
           scan-build ../configure
