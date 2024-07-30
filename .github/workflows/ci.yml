@@ -39,6 +39,7 @@ jobs:
         with:
           node-version: 20
       - name: run ci tests
+        timeout-minutes: 10
         run: |
           cd test
           npm install 
