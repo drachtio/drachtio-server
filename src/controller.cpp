@@ -1319,6 +1319,7 @@ namespace drachtio {
          NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
          NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
          NTATAG_PASS_408(true), //pass 408s to application
+         TPTAG_PONG2PING(1), // if we get a 2-byte ping, respond with CRLF pong
          TAG_NULL(),
          TAG_END() ) ;
         
@@ -1353,6 +1354,7 @@ namespace drachtio {
                  TAG_IF( tlsTransport && hasTlsFiles && !tlsChainFile.empty(), TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                  TAG_IF( tlsTransport &&hasTlsFiles, 
                     TPTAG_TLS_VERSION( tlsVersionTagValue )),
+                 TPTAG_PONG2PING(1), // if we get a 2-byte ping, respond with CRLF pong
                  TAG_NULL(),
                  TAG_END() ) ;
 
