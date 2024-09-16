@@ -1677,8 +1677,11 @@ namespace drachtio {
         if( findRIPByOrq( orq, rip ) ) {
 
             if( sip->sip_status->st_status != 200 ) {
-                DR_LOG(log_info) << "SipDialogController::processResponseToRefreshingReinvite: reinvite failed "  ;
-                //TODO: notify client that call has failed, send BYE
+                DR_LOG(log_info) << "SipDialogController::processResponseToRefreshingReinvite: reinvite failed (status="
+                                 << sip->sip_status->st_status << ") - clearing dialog";
+                notifyTerminateStaleDialog( dlg );
+                clearRIP( orq );
+                return 0;
             }
             else {
                 /* reset session expires timer, if provided */
@@ -1698,7 +1701,7 @@ namespace drachtio {
                    TAG_END());
 
             nta_outgoing_destroy( ack_request ) ;
-            clearRIP( orq ) ;          
+            clearRIP( orq ) ;
 
             STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "ACK"}})
             return 0;
