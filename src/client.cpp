@@ -391,7 +391,7 @@ namespace drachtio {
 
             /* send response if indicated */
             if( !msgResponse.empty() ) {
-                int len = utf8_strlen(msgResponse);
+                int len = std::size(msgResponse);
                 auto forthelifeofsend = std::make_shared<std::string>(
                     std::to_string(len) + std::string("#") + msgResponse
                 );
@@ -449,7 +449,7 @@ read_again:
 
     template<typename T, typename S>
     void Client<T,S>::send( const string& str ) {
-        int len = utf8_strlen(str);
+        int len = std::size(str);
 
         if (0 == len) {
             DR_LOG(log_info) << "Client::send - we are unable to send this message back to client" << str; 

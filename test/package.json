@@ -14,7 +14,7 @@
     "blue-tape": "^1.0.0",
     "body-parser": "^1.18.3",
     "debug": "^3.1.0",
-    "drachtio-srf": "^4.4.63",
+    "drachtio-srf": "^5.0.0",
     "express": "4.16.3",
     "minimist": "^1.2.0",
     "pino": "^6.6.1",
