@@ -86,7 +86,10 @@ function runFixture(f) {
           }
         }
         if (f.uac) {
-          let cmd = `sipp -sf ./${f.uac.name} ${f.uac.target} -m 1`;
+          const cid_str = '-cid_str %u-%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p' +
+            '%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p' +
+            '%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p@%s';
+          let cmd = `sipp -sf ./${f.uac.name} ${f.uac.target} ${f.uac.long_call_id ? cid_str : ''} -m 1`;
           if (f.uac.transport === 'tcp') cmd += ' -t t1';
           logger.debug(`starting UAC scenario: ${cmd}`);
           uacPromise = execCmd(cmd, {cwd: './scenarios'});

@@ -55,6 +55,13 @@
   {
     "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
     "script": {"name": "uas", "function": "b2b"},
+    "uas": {"name": "uas-bye.xml", "port": 5094},
+    "uac": {"name": "uac-recv-bye.xml", "target": "127.0.0.1:5090", "long_call_id": true},
+    "message": "b2b: handle long call ID"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "b2b"},
     "uas": {"name": "uas-183-180-200.xml", "port": 5095},
     "uac": {"name": "uac.xml", "target": "127.0.0.1:5090"},
     "message": "b2b: multiple provisional responses"
