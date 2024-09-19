@@ -164,7 +164,7 @@ namespace drachtio {
 			char	m_szClientMsgId[MSG_ID_LEN+1];
 			char	m_szTransactionId[MSG_ID_LEN+1];
 			char	m_szRequestId[MSG_ID_LEN+1];
-			char	m_szDialogId[MSG_ID_LEN+1];
+			char	m_szDialogId[MAX_DIALOG_ID_LEN+1];
 			char	m_szStartLine[START_LEN+1];
 			char	m_szHeaders[HDR_LEN+1];
 			char	m_szBody[BODY_LEN+1];

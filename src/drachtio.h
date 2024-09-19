@@ -109,6 +109,7 @@ const string STATS_HISTOGRAM_INVITE_PDD_OUT = "drachtio_call_pdd_seconds_out";
 #define TIMER_H_MSECS (NTA_SIP_T1 * 64)
 
 #define MSG_ID_LEN (128)
+#define MAX_DIALOG_ID_LEN (1024)
 #define URI_LEN (256)
 
 namespace logging = boost::log;
