@@ -4,7 +4,7 @@ INCLUDES= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-s
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson/src \
- -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
+ -I${srcdir}/deps/prometheus-cpp/build/include -I${srcdir}/deps -I/usr/local/include
 
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
 LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
