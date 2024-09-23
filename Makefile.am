@@ -1,7 +1,7 @@
 BUILD_CPUS ?= 1
 MYVERSION=$(shell git describe --always 2>/dev/null || echo 1.0.0)
 
-AM_CPPFLAGS = -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta \
+INCLUDES = -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson/src \
@@ -14,17 +14,17 @@ drachtio_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.
   -lcurl -lpthread -lssl -lcrypto -lz
 
 if DEP_HIREDIS
-AM_CPPFLAGS += -I${srcdir}/deps/hiredis
+INCLUDES += -I${srcdir}/deps/hiredis
 AM_LDFLAGS += -L${srcdir}/deps/hiredis
 drachtio_LDADD += ${srcdir}/deps/hiredis/libhiredis.a
 else if SYS_HIREDIS
-AM_CPPFLAGS += $(HIREDIS_CFLAGS)
+INCLUDES += $(HIREDIS_CFLAGS)
 AM_LDFLAGS += $(HIREDIS_LIBS)
 drachtio_LDADD += -lhiredis
 endif
 
 if DEP_BOOST
-AM_CPPFLAGS += -I${srcdir}/deps/boost
+INCLUDES += -I${srcdir}/deps/boost
 AM_LDFLAGS += -L${srcdir}/deps/boost/stage/lib
 endif
 
