@@ -1,6 +1,7 @@
 FROM debian:bookworm-slim
 
 ARG BUILD_CPUS=16
+ENV BUILD_CPUS=${BUILD_CPUS}
 
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \

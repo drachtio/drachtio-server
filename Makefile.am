@@ -1,3 +1,4 @@
+BUILD_CPUS ?= 1
 MYVERSION=$(shell git describe --always 2>/dev/null || echo 1.0.0)
 INCLUDES= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
@@ -86,7 +87,7 @@ drachtio_CPPFLAGS += -I/usr/local/opt/openssl/include -fvisibility=hidden
 test_https_LDADD += -L/usr/local/opt/openssl/lib -lboost_system
 test_https_CPPFLAGS += -I/usr/local/opt/openssl/include
 if DEP_BOOST
-make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
+make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 -j$(BUILD_CPUS) cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
 endif
 endif
 
@@ -116,17 +117,17 @@ ${srcdir}/deps/boost/stage/lib/libboost_thread.a ${srcdir}/deps/boost/stage/lib/
 endif
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
-	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE)
+	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE) -j$(BUILD_CPUS)
 
 ${srcdir}/deps/jansson/src/.libs/libjansson.a:
-	cd ${srcdir}/deps/jansson && autoreconf -fi && ./configure && $(MAKE)
+	cd ${srcdir}/deps/jansson && autoreconf -fi && ./configure && $(MAKE) -j$(BUILD_CPUS)
 
 ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-pull.a:
 	cd ${srcdir}/deps/prometheus-cpp && mkdir -p build && cd build  && \
 	cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=`pwd` && \
-	$(MAKE) && make install
+	$(MAKE) -j$(BUILD_CPUS) && make install
 
 if DEP_HIREDIS
 ${srcdir}/deps/hiredis/libhiredis.a:
-	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE)
+	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE) -j$(BUILD_CPUS)
 endif
