@@ -11,6 +11,7 @@ AX_CXX_COMPILE_STDCXX_11()
 AX_CXX_COMPILE_STDCXX_17(noext, optional)
 
 AM_CONDITIONAL([DEP_BOOST], [test -d "${srcdir}/deps/boost/libs"])
+AM_CONDITIONAL([DEP_HIREDIS], [test -d "${srcdir}/deps/hiredis/CMakeLists.txt"])
 
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)

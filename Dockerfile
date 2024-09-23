@@ -14,7 +14,7 @@ RUN apt-get update \
   && mkdir /usr/local/src/drachtio-server/build  \
   && cd /usr/local/src/drachtio-server/build  \
   && ../configure --enable-tcmalloc=yes CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2' \
-  && make-j ${BUILD_CPUS} \
+  && make -j ${BUILD_CPUS} \
   && make install \
   && apt-get purge -y --quiet --auto-remove gcc g++ make cmake build-essential git autoconf automake libtool libtool-bin \
   && rm -rf /var/lib/apt/* \

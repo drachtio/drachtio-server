@@ -3,11 +3,15 @@ INCLUDES= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-s
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson/src \
- -I${srcdir}/deps/hiredis \
  -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
 
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
 LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
+
+if DEP_HIREDIS
+INCLUDES += -I${srcdir}/deps
+AM_LDFLAGS += -L${srcdir}/deps/hiredis
+endif
 
 if DEP_BOOST
 INCLUDES += -I${srcdir}/deps/boost
@@ -28,7 +32,7 @@ drachtio_CPPFLAGS=-D_REENTRANT -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=de
 	-DBOOST_ALLOW_DEPRECATED_HEADERS -O2 -Wno-stringop-overflow
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
   ${srcdir}/deps/jansson/src/.libs/libjansson.a \
-  ${srcdir}/deps/hiredis/libhiredis.a -lcurl -lpthread -lssl -lcrypto -lz
+  -lhiredis -lcurl -lpthread -lssl -lcrypto -lz
 if ! DEP_BOOST
 drachtio_CPPFLAGS+=-DBOOST_LOG_DYN_LINK
 endif
@@ -93,6 +97,10 @@ endif
 BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
+if DEP_HIREDIS
+BUILT_SOURCES += ${srcdir}/deps/hiredis/libhiredis.a
+endif
+
 if DEP_BOOST
 BUILT_SOURCES += ${srcdir}/deps/boost/stage/lib/libboost_thread.a
 endif
@@ -118,6 +126,7 @@ ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a ${srcdir}/deps/
 	cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=`pwd` && \
 	$(MAKE) && make install
 
+if DEP_HIREDIS
 ${srcdir}/deps/hiredis/libhiredis.a:
 	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE)
-
+endif
