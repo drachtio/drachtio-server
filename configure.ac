@@ -10,14 +10,7 @@ AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11()
 AX_CXX_COMPILE_STDCXX_17(noext, optional)
 
-AC_PATH_PROG([PKG_CONFIG], [pkg-config], [no])
-
 AM_CONDITIONAL([DEP_BOOST], [test -d "${srcdir}/deps/boost/libs"])
-AM_CONDITIONAL([DEP_HIREDIS], [test -d "${srcdir}/deps/hiredis/CMakeLists.txt"])
-
-# Check if system installed hiredis is available
-PKG_CHECK_MODULES([HIREDIS], [hiredis], [have_hiredis=yes], [have_hiredis=no])
-AM_CONDITIONAL([SYS_HIREDIS], [test "$have_hiredis" = "yes"])
 
 AM_CONDITIONAL(OSX, false)
 AM_CONDITIONAL(LINUX, false)
