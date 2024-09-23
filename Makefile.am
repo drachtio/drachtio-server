@@ -10,8 +10,13 @@ AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
 LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
 
 if DEP_HIREDIS
-INCLUDES += -I${srcdir}/deps
+INCLUDES += -I${srcdir}/deps/hiredis
 AM_LDFLAGS += -L${srcdir}/deps/hiredis
+drachtio_LDADD += ${srcdir}/deps/hiredis/libhiredis.a
+else if SYS_HIREDIS
+INCLUDES += $(HIREDIS_CFLAGS)
+AM_LDFLAGS += $(HIREDIS_LIBS)
+drachtio_LDADD += -lhiredis
 endif
 
 if DEP_BOOST
