@@ -122,7 +122,7 @@ namespace drachtio {
 				memcpy( m_szClientMsgId, clientMsgId.c_str(), std::min(MSG_ID_LEN, (int) clientMsgId.length()) ) ;
 				if( !transactionId.empty() ) memcpy( m_szTransactionId, transactionId.c_str(), std::min(MSG_ID_LEN, (int) transactionId.length())) ;
 				if( !requestId.empty() ) memcpy( m_szRequestId, requestId.c_str(), std::min(MSG_ID_LEN, (int) requestId.length()));
-				if( !dialogId.empty() )  memcpy( m_szDialogId, dialogId.c_str(), std::min(MSG_ID_LEN, (int) dialogId.length()));
+				if( !dialogId.empty() )  memcpy( m_szDialogId, dialogId.c_str(), std::min(MAX_DIALOG_ID_LEN, (int) dialogId.length()));
 				memcpy( m_szStartLine, startLine.c_str(), std::min(START_LEN, (int) startLine.length()));
 				memcpy( m_szHeaders, headers.c_str(), std::min(HDR_LEN, (int) headers.length())) ;
 				memcpy( m_szBody, body.c_str(), std::min(BODY_LEN, (int) body.length()));
@@ -164,7 +164,7 @@ namespace drachtio {
 			char	m_szClientMsgId[MSG_ID_LEN+1];
 			char	m_szTransactionId[MSG_ID_LEN+1];
 			char	m_szRequestId[MSG_ID_LEN+1];
-			char	m_szDialogId[MSG_ID_LEN+1];
+			char	m_szDialogId[MAX_DIALOG_ID_LEN+1];
 			char	m_szStartLine[START_LEN+1];
 			char	m_szHeaders[HDR_LEN+1];
 			char	m_szBody[BODY_LEN+1];

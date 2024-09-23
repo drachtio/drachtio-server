@@ -120,4 +120,3 @@ ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a ${srcdir}/deps/
 
 ${srcdir}/deps/hiredis/libhiredis.a:
 	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE)
-
