@@ -59,9 +59,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          version: "latest"
-          driver: docker-container # Use the docker-container driver for multi-platform builds
-
+          version: "lab:latest"
+          driver: cloud
+          endpoint: "drachtio/freeswitch-builder"
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         with:
