@@ -4,7 +4,7 @@ drachtio-server is a [SIP](http://www.ietf.org/rfc/rfc3261.txt) server that is b
 
 The nodejs module that you can use to create applications controlling the server is called [drachtio-srf](https://github.com/davehorton/drachtio-srf).
 
-> Note: versions 0.9.0 (including rc tags) of drachtio server must be used in conjuction with a drachtio-srf version of 0.5.0 or above due to changes in the wire protocol.
+> Note: versions 0.9.0 (including rc tags) of drachtio server must be used in conjuction with a drachtio-srf version of 5.0.0 or above due to changes in the wire protocol.
 
 ## Docker
 A docker image [can be found here](https://hub.docker.com/r/drachtio/drachtio-server).
