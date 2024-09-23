@@ -5,23 +5,14 @@ INCLUDES = -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/url -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/tport \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/bnf -I${srcdir}/deps/jansson/src \
- -I${srcdir}/deps/prometheus-cpp/build/include -I${srcdir}/deps -I/usr/local/include
+ -I${srcdir}/deps/hiredis \
+ -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
 
 AM_LDFLAGS = -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
 
 drachtio_LDADD = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
   ${srcdir}/deps/jansson/src/.libs/libjansson.a \
   -lcurl -lpthread -lssl -lcrypto -lz
-
-if DEP_HIREDIS
-INCLUDES += -I${srcdir}/deps/hiredis
-AM_LDFLAGS += -L${srcdir}/deps/hiredis
-drachtio_LDADD += ${srcdir}/deps/hiredis/libhiredis.a
-else if SYS_HIREDIS
-INCLUDES += $(HIREDIS_CFLAGS)
-AM_LDFLAGS += $(HIREDIS_LIBS)
-drachtio_LDADD += -lhiredis
-endif
 
 if DEP_BOOST
 INCLUDES += -I${srcdir}/deps/boost
@@ -107,9 +98,7 @@ endif
 BUILT_SOURCES = ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
   ${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
-if DEP_HIREDIS
-BUILT_SOURCES += ${srcdir}/deps/hiredis/libhiredis.a
-endif
+BUILT_SOURCES += ${srcdir}/deps/hiredis/libhiredis.aendif
 
 if DEP_BOOST
 BUILT_SOURCES += ${srcdir}/deps/boost/stage/lib/libboost_thread.a
@@ -136,7 +125,5 @@ ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a ${srcdir}/deps/
 	cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=`pwd` && \
 	$(MAKE) -j$(BUILD_CPUS) && make install
 
-if DEP_HIREDIS
 ${srcdir}/deps/hiredis/libhiredis.a:
 	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE) -j$(BUILD_CPUS)
-endif

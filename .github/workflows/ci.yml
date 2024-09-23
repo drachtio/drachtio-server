@@ -9,13 +9,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libunwind-dev libgoogle-perftools-dev
+          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libunwind-dev libgoogle-perftools-dev libboost-all-dev libhiredis-dev
       - name: build sipp
         run: |
           sudo chmod a+w /usr/local/src/
