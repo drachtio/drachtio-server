@@ -30,15 +30,6 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
-      - name: Read Environment Variables
-        id: env_vars
-        run: |
-          for var in cmakeVersion grpcVersion libwebsocketsVersion speechSdkVersion spandspVersion sofiaVersion awsSdkCppVersion freeswitchModulesVersion freeswitchVersion; do
-            value=$(grep "$var" .env | cut -d'=' -f2)
-            echo "$var=$value" >> $GITHUB_OUTPUT
-          done
-        shell: bash
-
       - name: Prepare tag
         id: prepare_tag
         run: |
@@ -79,13 +70,4 @@ jobs:
           tags: ${{ steps.prepare_tag.outputs.image_id }}:${{ steps.prepare_tag.outputs.version }}
           build-args: | 
             BUILD_CPUS=16
-            CMAKE_VERSION=${{ steps.env_vars.outputs.cmakeVersion }}
-            GRPC_VERSION=${{ steps.env_vars.outputs.grpcVersion }}
-            LIBWEBSOCKETS_VERSION=${{ steps.env_vars.outputs.libwebsocketsVersion }}
-            SPEECH_SDK_VERSION=${{ steps.env_vars.outputs.speechSdkVersion }}
-            SPANDSP_VERSION=${{ steps.env_vars.outputs.spandspVersion }}
-            SOFIA_VERSION=${{ steps.env_vars.outputs.sofiaVersion }}
-            AWS_SDK_CPP_VERSION=${{ steps.env_vars.outputs.awsSdkCppVersion }}
-            FREESWITCH_MODULES_VERSION=${{ steps.env_vars.outputs.freeswitchModulesVersion }}
-            FREESWITCH_VERSION=${{ steps.env_vars.outputs.freeswitchVersion }}
           push: true  # Ensure the images are pushed to the registry
