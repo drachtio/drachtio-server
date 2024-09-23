@@ -10,12 +10,14 @@ RUN apt-get update \
     g++ \
     gcc \
     git \
+    jq \
     libboost-filesystem-dev \
     libboost-log-dev \
     libboost-system-dev \
     libboost-thread-dev \
     libcurl4-openssl-dev \
     libgoogle-perftools-dev \
+    libhiredis-dev \
     libssl-dev \
     libtool \
     libtool-bin \
@@ -31,7 +33,6 @@ RUN ../configure --enable-tcmalloc=yes CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2'
 RUN make -j$(nproc) MYVERSION=${MYVERSION}
 
 FROM debian:bookworm-slim
-
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -42,6 +43,7 @@ RUN apt-get update \
     libboost-system1.74.0 \
     libboost-thread1.74.0 \
     libgoogle-perftools4 \
+    libhiredis0.14 \
   && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 COPY --from=build /usr/local/src/drachtio-server/build/drachtio /usr/local/bin/

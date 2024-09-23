@@ -22,7 +22,7 @@ THE SOFTWARE.
 #include <boost/variant.hpp>
 #include <regex>
 
-#include  "hiredis.h"
+#include <hiredis/hiredis.h>
 
 #include "blacklist.hpp"
 #include "controller.hpp"
