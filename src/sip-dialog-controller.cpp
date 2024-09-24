@@ -996,7 +996,12 @@ namespace drachtio {
                     tport_unref( tp ) ;
             
                     //create tags for headers
-                    tags = makeTags( headers, transportDesc ) ;
+                    if (pSelectedTransport->hasExternalIp()) {
+                        tags = makeTags( headers, transportDesc, pSelectedTransport->getExternalIp().c_str() ) ;
+                    }
+                    else {
+                        tags = makeTags( headers, transportDesc ) ;
+                    }			
 
                     if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
                         if( 0 == body.find("v=0") ) {
@@ -1141,7 +1146,12 @@ namespace drachtio {
                     tport_unref( tp ) ;
             
                     //create tags for headers
-                    tags = makeTags( headers, transportDesc ) ;
+                    if (pSelectedTransport->hasExternalIp()) {
+                        tags = makeTags( headers, transportDesc, pSelectedTransport->getExternalIp().c_str() ) ;
+                    }
+                    else {
+                        tags = makeTags( headers, transportDesc ) ;
+                    }			
                     string customContact ;
                     bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
                     if( hasCustomContact ) {
