@@ -223,11 +223,18 @@ namespace drachtio {
 			nta_outgoing_destroy(m_orq);
 		}
         
-        auto txnIds = getIncomingRequestTransactionIds();
-        theOneAndOnlyController->getDialogController()->clearDanglingIncomingRequests(txnIds);
-        
-        /* if we never got an ACK after sending a 200 OK to an incoming INVITE the net transaction is still there */
-        theOneAndOnlyController->getClientController()->removeNetTransaction(this->getTransactionId());
+    auto txnIds = getIncomingRequestTransactionIds();
+    theOneAndOnlyController->getDialogController()->clearDanglingIncomingRequests(txnIds);
+    
+    /* if we never got an ACK after sending a 200 OK to an incoming INVITE the net transaction is still there */
+    theOneAndOnlyController->getClientController()->removeNetTransaction(this->getTransactionId());
+
+    /* TODO: remove any reinvite orq's we were tracking */
+    for (auto it = m_vecOrq.begin(); it != m_vecOrq.end(); ++it) {
+      auto orq = *it;
+      DR_LOG(log_debug) << "SipDialog::~SipDialog - removing timer D entry re-INVITE " << std::hex << (void *) orq ;
+      theOneAndOnlyController->getDialogController()->stopTimerD(orq);
+    }
 	}
 
 	std::ostream& operator<<(std::ostream& os, const SipDialog& dlg) {

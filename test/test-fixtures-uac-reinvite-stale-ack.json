@@ -1,0 +1,9 @@
+[
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uac", "function": "reinvite_short_call", "args": "sip:127.0.0.1:5091"},
+    "uas": {"name": "uas-success-reinvite.xml", "port": 5091},
+    "message": "uac: free stale ack from reinvite",
+    "timeout": 90000
+  }
+]
