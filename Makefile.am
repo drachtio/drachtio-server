@@ -33,40 +33,11 @@ if ! DEP_BOOST
 drachtio_CPPFLAGS+=-DBOOST_LOG_DYN_LINK
 endif
 
-timer_SOURCES= src/test_timer.cpp src/timer-queue.cpp
-timer_CPPFLAGS=-D_REENTRANT -DTEST
-timer_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a -lboost_thread \
-	-lboost_system -lpthread
-
-parser_SOURCES= src/test_parser.cpp
-parser_CPPFLAGS=-D_REENTRANT -DTEST
-parser_LDADD=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a -lboost_thread \
-	-lboost_system -lboost_log -lboost_filesystem -lpthread -lssl -lcrypto -lz
-
-uri_test_SOURCES= src/test_uri_parser.cpp
-uri_test_CPPFLAGS=-D_REENTRANT -DTEST
-uri_test_LDADD=-lboost_thread -lboost_system -lboost_filesystem -lpthread -lz
-
-ssltest_SOURCES= src/ssltest.cpp
-ssltest_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
-ssltest_LDADD= -lssl -lcrypto -lz
-
-test_https_SOURCES= src/test_https.cpp
-test_https_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
-test_https_LDADD= -lssl -lcrypto -lz
-
-test_asio_curl_SOURCES= src/test_asio_curl.cpp
-test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
-test_asio_curl_LDADD=-lboost_thread -lboost_system -lpthread -lcurl -lssl -lcrypto -lz
-
 if LINUX
 drachtio_LDADD += -L/usr/local/lib -lboost_thread -lboost_system -lboost_log -lboost_filesystem \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-pull.a \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a \
 	-lpthread -lssl -lcrypto -lz -lrt
-timer_LDADD += -lrt
-parser_LDADD += -lrt
-test_https_LDADD += -lrt -lpthread -lboost_system
 if DEP_BOOST
 make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-libraries=thread,system,log,filesystem && ./b2 link=static variant=release stage
 endif
