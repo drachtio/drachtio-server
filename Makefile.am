@@ -50,8 +50,6 @@ drachtio_LDADD += -L/opt/homebrew/opt/openssl@3/lib -lboost_thread \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a  \
 	-lpthread -lssl -lcrypto -lz 
 drachtio_CPPFLAGS += -I/opt/homebrew/opt/openssl@3/include -fvisibility=hidden
-test_https_LDADD += -L/opt/homebrew/opt/openssl@3/lib -lboost_system
-test_https_CPPFLAGS += -I/opt/homebrew/opt/openssl@3/include
 if DEP_BOOST
 make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
 endif
