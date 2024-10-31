@@ -17,13 +17,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Detect tag
-        id: detect_tag
-        run: |
-          DETECTED_TAG=$(git describe --always --tags 2>/dev/null || echo "1.0.0")
-          echo "detected_version=$DETECTED_VERSION" >> $GITHUB_OUTPUT
-          git log --oneline --decorate -n 10
       
       - name: Free Disk Space Before Build
         run: |
@@ -85,7 +78,7 @@ jobs:
           tags: ${{ steps.prepare_tag.outputs.image_id }}:${{ steps.prepare_tag.outputs.version }}
           build-args: | 
             BUILD_CPUS=16
-            DETECTED_TAG=${{ steps.detect_tag.outputs.detected_tag }}
+            DETECTED_TAG=${{ steps.prepare_tag.outputs.version }}
           push: true
           no-cache: true
 
