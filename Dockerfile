@@ -13,7 +13,8 @@ RUN apt-get update \
   && git checkout ${DETECTED_TAG} \
   && git submodule update --init --recursive \
   && ./bootstrap.sh \
-  && mkdir /usr/local/src/drachtio-server/build && cd $_ \
+  && mkdir build \
+  && cd build \
   && ../configure --enable-tcmalloc=yes CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2' \
   && make -j${BUILD_CPUS} \
   && make install \
