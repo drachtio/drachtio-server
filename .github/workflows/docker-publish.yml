@@ -22,6 +22,7 @@ jobs:
         run: |
           DETECTED_VERSION=$(git describe --always --tags 2>/dev/null || echo "1.0.0")
           echo "Determined version from git: $DETECTED_VERSION"
+          git log --oneline --decorate -n 30
       
       - name: Free Disk Space Before Build
         run: |

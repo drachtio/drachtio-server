@@ -342,7 +342,6 @@ namespace drachtio {
    }
 
     void Blacklist::stop() {
-      //m_thread.join() ;
     }
-
  }
+ 
