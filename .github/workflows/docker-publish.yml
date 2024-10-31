@@ -78,5 +78,6 @@ jobs:
           tags: ${{ steps.prepare_tag.outputs.image_id }}:${{ steps.prepare_tag.outputs.version }}
           build-args: | 
             BUILD_CPUS=16
-          push: true  # Ensure the images are pushed to the registry
+          push: true
+          no-cache: true
 
