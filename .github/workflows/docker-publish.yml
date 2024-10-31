@@ -15,7 +15,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Determine Version
+        run: |
+          DETECTED_VERSION=$(git describe --always --tags 2>/dev/null || echo "1.0.0")
+          echo "Determined version from git: $DETECTED_VERSION"
+      
       - name: Free Disk Space Before Build
         run: |
           echo "Disk space before cleanup:"

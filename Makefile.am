@@ -6,7 +6,7 @@ INCLUDES= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-s
  -I${srcdir}/deps/hiredis \
  -I${srcdir}/deps/prometheus-cpp/build/include -I/usr/local/include
 
-AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
+AM_LDFLAGS= -L${srcdir}/deps/prometheus-cpp/build/lib
 LDADD= -lboost_thread -lpthread -lssl -lcrypto -lz
 
 if DEP_BOOST
@@ -14,7 +14,7 @@ INCLUDES += -I${srcdir}/deps/boost
 AM_LDFLAGS += -L${srcdir}/deps/boost/stage/lib
 endif
 
-bin_PROGRAMS= drachtio timer ssltest parser uri_test test_https test_asio_curl
+bin_PROGRAMS= drachtio
 
 ACLOCAL_AMFLAGS = -I m4
 
@@ -60,7 +60,7 @@ test_asio_curl_CPPFLAGS=-D_REENTRANT -DDEBUG -g -O2
 test_asio_curl_LDADD=-lboost_thread -lboost_system -lpthread -lcurl -lssl -lcrypto -lz
 
 if LINUX
-drachtio_LDADD += -lboost_thread -lboost_system -lboost_log -lboost_filesystem \
+drachtio_LDADD += -L/usr/local/lib -lboost_thread -lboost_system -lboost_log -lboost_filesystem \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-pull.a \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a \
 	-lpthread -lssl -lcrypto -lz -lrt
@@ -72,15 +72,15 @@ make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-libraries=thre
 endif
 endif
 if OSX
-drachtio_LDADD += -L/usr/local/opt/openssl/lib -lboost_thread \
+drachtio_LDADD += -L/opt/homebrew/opt/openssl@3/lib -lboost_thread \
 	-lboost_system -lboost_log \
 	-lboost_filesystem \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-pull.a  \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a  \
 	-lpthread -lssl -lcrypto -lz 
-drachtio_CPPFLAGS += -I/usr/local/opt/openssl/include -fvisibility=hidden
-test_https_LDADD += -L/usr/local/opt/openssl/lib -lboost_system
-test_https_CPPFLAGS += -I/usr/local/opt/openssl/include
+drachtio_CPPFLAGS += -I/opt/homebrew/opt/openssl@3/include -fvisibility=hidden
+test_https_LDADD += -L/opt/homebrew/opt/openssl@3/lib -lboost_system
+test_https_CPPFLAGS += -I/opt/homebrew/opt/openssl@3/include
 if DEP_BOOST
 make_BOOST_CMD = cd ${srcdir}/deps/boost && ./bootstrap.sh --with-toolset=clang --with-libraries=thread,system,log,filesystem && ./b2 cxxflags=-std=c++14 link=static variant=release stage && rm -f ./stage/lib/*.dylib
 endif
