@@ -18,11 +18,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine Version
+      - name: Detect tag
+        id: detect_tag
         run: |
-          DETECTED_VERSION=$(git describe --always --tags 2>/dev/null || echo "1.0.0")
-          echo "Determined version from git: $DETECTED_VERSION"
-          git log --oneline --decorate -n 30
+          DETECTED_TAG=$(git describe --always --tags 2>/dev/null || echo "1.0.0")
+          echo "detected_version=$DETECTED_VERSION" >> $GITHUB_OUTPUT
+          git log --oneline --decorate -n 10
       
       - name: Free Disk Space Before Build
         run: |
@@ -70,6 +71,12 @@ jobs:
           version: "lab:latest"
           driver: cloud
           endpoint: "drachtio/freeswitch-builder"
+
+      - name: Determine Branch
+        run: |
+          BRANCH_NAME=${GITHUB_REF##*/}
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         with:
@@ -78,6 +85,7 @@ jobs:
           tags: ${{ steps.prepare_tag.outputs.image_id }}:${{ steps.prepare_tag.outputs.version }}
           build-args: | 
             BUILD_CPUS=16
+            DETECTED_TAG=${{ steps.detect_tag.outputs.detected_tag }}
           push: true
           no-cache: true
 

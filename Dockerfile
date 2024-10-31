@@ -1,9 +1,14 @@
 FROM debian:bookworm-slim
 
+ARG BUILD_CPUS=2
+ARG DETECTED_TAG=branch/0.8
+
 RUN apt-get update \
   && apt-get -y --quiet --force-yes upgrade \
   && apt-get install -y --no-install-recommends ca-certificates gcc g++ make build-essential cmake git autoconf automake  curl libtool libtool-bin libssl-dev libcurl4-openssl-dev zlib1g-dev libgoogle-perftools-dev jq \
-  && git clone --depth=50 --branch=main https://github.com/drachtio/drachtio-server.git /usr/local/src/drachtio-server \
+  && git clone --depth=50 https://github.com/drachtio/drachtio-server.git /usr/local/src/drachtio-server \
+  && cd /usr/local/src/drachtio-server \
+  && git checkout ${DETECTED_TAG} \
   && cd /usr/local/src \
   && curl -O http://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz && tar -xvf autoconf-2.71.tar.gz \
   && cd autoconf-2.71 && ./configure && make && make install \
