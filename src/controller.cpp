@@ -1747,7 +1747,7 @@ namespace drachtio {
 
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
-        assert(false) ;
+        DR_LOG(log_error) << "DrachtioController::processRequestInsideDialog unable to find dialog for incoming request!" ; ;
 
         return 0 ;
     }

@@ -26,7 +26,6 @@ THE SOFTWARE.
 #include <chrono>
 #include <iostream>
 #include <set>
-#include <deque>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -220,20 +219,16 @@ namespace drachtio {
 		uint32_t getSeq(void) { return m_seq; }
 		void clearSeq(void) {m_seq = 0;}
         
-    void addIncomingRequestTransaction(std::string& txnId) {
-        m_incomingRequestTransactionIds.insert(txnId);
-    }
-    void removeIncomingRequestTransaction(std::string& txnId) {
-        m_incomingRequestTransactionIds.erase(txnId);
-    }
-    std::vector<std::string> getIncomingRequestTransactionIds(void) {
-        return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
-    }
-
-    void trackInviteOrq(nta_outgoing_t* invite) {
-      if (invite != nullptr && invite != m_orq) m_vecOrq.push_back(invite);
-    }
-
+        void addIncomingRequestTransaction(std::string& txnId) {
+            m_incomingRequestTransactionIds.insert(txnId);
+        }
+        void removeIncomingRequestTransaction(std::string& txnId) {
+            m_incomingRequestTransactionIds.erase(txnId);
+        }
+        std::vector<std::string> getIncomingRequestTransactionIds(void) {
+            return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
+        }
+		
 	protected:
 
     void          checkTportState(void);
@@ -276,8 +271,6 @@ namespace drachtio {
 		nta_outgoing_t* m_orqAck;
 		bool 		m_bDestroyAckOnClose;
 
-    std::deque<nta_outgoing_t*> m_vecOrq;
-
 		std::string 		m_routeUri;
 
 		// sip timers
@@ -298,7 +291,7 @@ namespace drachtio {
 		// arrival time
 		sip_time_t m_tmArrival;
         
-    std::set<std::string> m_incomingRequestTransactionIds;
+        std::set<std::string> m_incomingRequestTransactionIds;
 
 	}  ;
 

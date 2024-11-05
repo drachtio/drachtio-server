@@ -296,10 +296,7 @@ namespace drachtio {
                         TAG_NEXT(tags) ) ;
                     
                     tport_t* orq_tp = nta_outgoing_transport( orq );  // takes a reference on the tport
-                    if (tport_is_dgram(orq_tp)) {
-                      nta_outgoing_t* invite = m_timerDHandler.addAck(orq);
-                      dlg->trackInviteOrq(invite);
-                    }
+                    if (tport_is_dgram(orq_tp)) m_timerDHandler.addAck(orq);
                     else if (orq_tp) destroyOrq = true;
                     if (orq_tp) {
                         dlg->setTport(orq_tp) ;
@@ -1616,9 +1613,7 @@ namespace drachtio {
                 tport_t *tp = nta_outgoing_transport(orq) ; // takes a ref on the tport..
                 // start a timerD for this successful reINVITE
                 if (tp) {
-                  if (tport_is_dgram(tp)) {
-                    m_timerDHandler.addInvite(orq);
-                  }
+                  if (tport_is_dgram(tp)) m_timerDHandler.addInvite(orq);
                   tport_unref(tp);  // ..releases it
                 }
                 
@@ -2103,22 +2098,18 @@ namespace drachtio {
     }
 
     // ..then, when the app gives us the ACK to send out, call this to save for possible retransmits
-    nta_outgoing_t* TimerDHandler::addAck(nta_outgoing_t* ack) {
-      nta_outgoing_t* invite = nullptr;
-      string callIdAndCSeq = combineCallIdAndCSeq(ack);
+    void TimerDHandler::addAck(nta_outgoing_t* ack) {
+        string callIdAndCSeq = combineCallIdAndCSeq(ack);
 
-      mapCallIdAndCSeq2Invite::const_iterator it = m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq);
-      if (m_mapCallIdAndCSeq2Invite.end() != it) {
-        invite = it->second;
-        m_mapInvite2Ack.insert(mapInvite2Ack::value_type(it->second, ack));
-        m_mapCallIdAndCSeq2Invite.erase(it);
-        DR_LOG(log_info) << "TimerDHandler::addAck " << hex << (void *)ack << ", " << callIdAndCSeq;
-      }
-      else {
-        DR_LOG(log_error) << "TimerDHandler::addAck - failed to find outbound invite we sent for callid " << nta_outgoing_call_id(ack);
-      }
-
-      return invite;
+        mapCallIdAndCSeq2Invite::const_iterator it = m_mapCallIdAndCSeq2Invite.find(callIdAndCSeq);
+        if (m_mapCallIdAndCSeq2Invite.end() != it) {
+            m_mapInvite2Ack.insert(mapInvite2Ack::value_type(it->second, ack));
+            m_mapCallIdAndCSeq2Invite.erase(it);
+            DR_LOG(log_info) << "TimerDHandler::addAck " << hex << (void *)ack << ", " << callIdAndCSeq;
+        }
+        else {
+            DR_LOG(log_error) << "TimerDHandler::addAck - failed to find outbound invite we sent for callid " << nta_outgoing_call_id(ack);
+        }
     }
 
     // call this when we received a response to check it if is a retransmitted response
