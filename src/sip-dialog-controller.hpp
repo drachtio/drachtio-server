@@ -83,7 +83,7 @@ namespace drachtio {
 			m_pTQM = pTQM;
 		}
 		void addInvite(nta_outgoing_t* invite);
-		nta_outgoing_t* addAck(nta_outgoing_t*	ack);
+		void addAck(nta_outgoing_t*	ack);
 		bool resendIfNeeded(nta_outgoing_t* invite);
 		bool clearTimerD(nta_outgoing_t* invite);
 		size_t countTimerD() { return m_mapInvite2Ack.size();}
@@ -250,9 +250,8 @@ namespace drachtio {
 		// timers
 		void clearSipTimers(std::shared_ptr<SipDialog>& dlg);
 		bool stopTimerD(nta_outgoing_t* invite);
-    void simplyRemoveTimerDEntry(nta_outgoing_t* invite);
         
-    void clearDanglingIncomingRequests(std::vector<std::string> txnIds);
+        void clearDanglingIncomingRequests(std::vector<std::string> txnIds);
 
 	protected:
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
