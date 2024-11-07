@@ -15,7 +15,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
+      
       - name: Free Disk Space Before Build
         run: |
           echo "Disk space before cleanup:"
@@ -34,22 +36,27 @@ jobs:
         id: prepare_tag
         run: |
           IMAGE_ID=drachtio/drachtio-server
-
+      
           # Strip git ref prefix from version
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-
-          # Strip "v" prefix from tag name
+      
+          # Save original tag (with "v" prefix if it exists) in TAG
+          TAG=$VERSION
+      
+          # Strip "v" prefix from VERSION if it exists
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-
-          # Use Docker `latest` tag convention
+      
+          # Use Docker `latest` tag convention if on main branch
           [ "$VERSION" == "main" ] && VERSION=latest
-
+      
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
-
+          echo TAG=$TAG
+      
           echo "image_id=$IMAGE_ID" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+    
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -62,6 +69,12 @@ jobs:
           version: "lab:latest"
           driver: cloud
           endpoint: "drachtio/freeswitch-builder"
+
+      - name: Determine Branch
+        run: |
+          BRANCH_NAME=${GITHUB_REF##*/}
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         with:
@@ -70,4 +83,6 @@ jobs:
           tags: ${{ steps.prepare_tag.outputs.image_id }}:${{ steps.prepare_tag.outputs.version }}
           build-args: | 
             BUILD_CPUS=16
-          push: true  # Ensure the images are pushed to the registry
+            DETECTED_TAG=${{ steps.prepare_tag.outputs.tag }}
+          push: true
+          no-cache: true

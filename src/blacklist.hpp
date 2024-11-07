@@ -27,6 +27,7 @@ THE SOFTWARE.
 
 #include <unordered_set>
 #include <thread>
+#include <list>
 
 #include "drachtio.h"
 

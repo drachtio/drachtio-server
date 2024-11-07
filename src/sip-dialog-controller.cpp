@@ -996,7 +996,8 @@ namespace drachtio {
                     tport_unref( tp ) ;
             
                     //create tags for headers
-                    tags = makeTags( headers, transportDesc ) ;
+                    tags = makeTags( headers, transportDesc,
+                      pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL) ;
 
                     if( body.length() && !searchForHeader( tags, siptag_content_type, contentType ) ) {
                         if( 0 == body.find("v=0") ) {
@@ -1128,8 +1129,10 @@ namespace drachtio {
 
                     /* is far end requesting "best effort" tls ?*/
                     if (envSupportBestEffortTls && atoi(envSupportBestEffortTls) == 1 &&
-                      pSelectedTransport->isSips() && sip->sip_contact && sip->sip_contact->m_url &&
-                      0 == strcmp(sip->sip_contact->m_url->url_scheme, "sip")) {
+                        pSelectedTransport->isSips() && sip->sip_contact &&
+                        sip->sip_contact->m_url->url_scheme &&
+                        strcmp(sip->sip_contact->m_url->url_scheme, "sip") == 0) {
+                        
                         contact.replace(0, 5, "sip:");
                         DR_LOG(log_info) << "SipDialogController::doRespondToSipRequest - far end wants best effort tls, replacing sips with sip in Contact";
                     }
@@ -1141,7 +1144,9 @@ namespace drachtio {
                     tport_unref( tp ) ;
             
                     //create tags for headers
-                    tags = makeTags( headers, transportDesc ) ;
+                    tags = makeTags( headers, transportDesc,
+                      pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL) ;
+
                     string customContact ;
                     bool hasCustomContact = searchForHeader( tags, siptag_contact_str, customContact ) ;
                     if( hasCustomContact ) {

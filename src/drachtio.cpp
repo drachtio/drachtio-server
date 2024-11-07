@@ -252,7 +252,7 @@ namespace drachtio {
         if( tp ) {
             const tp_name_t* tn = tport_name(tp) ;
             char name[255] ;
-            sprintf(name, TPN_FORMAT, TPN_ARGS(tn) ) ;
+            snprintf(name, sizeof(name), TPN_FORMAT, TPN_ARGS(tn) ) ;
             desc.assign( name ) ;            
         }
     }
@@ -957,7 +957,7 @@ namespace drachtio {
         second = (unsigned short)(now.tv_sec % 60);
         minute = (unsigned short)((now.tv_sec / 60) % 60);
         hour = (unsigned short)((now.tv_sec / 3600) % 24);
-        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+        snprintf(time, sizeof(time), "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
  
         m_time.assign( time ) ;
         if( tport_is_udp(tport ) ) m_protocol = "udp" ;
@@ -977,7 +977,7 @@ namespace drachtio {
         second = (unsigned short)(now.tv_sec % 60);
         minute = (unsigned short)((now.tv_sec / 60) % 60);
         hour = (unsigned short)((now.tv_sec / 3600) % 24);
-        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+        snprintf(time, sizeof(time), "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
  
         m_time.assign( time ) ;
         if( tport_is_udp(tport ) ) m_protocol = "udp" ;
@@ -998,7 +998,7 @@ namespace drachtio {
         second = (unsigned short)(now.tv_sec % 60);
         minute = (unsigned short)((now.tv_sec / 60) % 60);
         hour = (unsigned short)((now.tv_sec / 3600) % 24);
-        sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
+        snprintf(time, sizeof(time), "%02u:%02u:%02u.%06lu", hour, minute, second, now.tv_usec) ;
  
         m_time.assign( time ) ;
 
@@ -1037,9 +1037,9 @@ namespace drachtio {
         su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
 
         m_address.assign( name ) ;
-        sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
+        snprintf( szTmp, sizeof(szTmp), "%u", ntohs(su->su_port) ) ;
         m_port.assign( szTmp );
-        sprintf( szTmp, "%u", msg_size( msg ) ) ;
+        snprintf( szTmp, sizeof(szTmp), "%u", msg_size( msg ) ) ;
         m_bytes.assign( szTmp ) ;
     }
 
@@ -1074,8 +1074,8 @@ namespace drachtio {
             char szTmp[10] ;
 
             su_inet_ntop(su->su_family, SU_ADDR(su), name, sizeof(name));
-            sprintf( szTmp, "%u", ntohs(su->su_port) ) ;
-            sprintf(uri, "sip:%s:%s", name, szTmp) ;
+            snprintf( szTmp, sizeof(szTmp), "%u", ntohs(su->su_port) ) ;
+            snprintf(uri, sizeof(uri), "sip:%s:%s", name, szTmp);
             ruri = URL_STRING_MAKE(uri) ;
         }
 

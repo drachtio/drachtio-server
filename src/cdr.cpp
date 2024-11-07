@@ -45,7 +45,7 @@ namespace drachtio {
     second = (unsigned short)(m_eventTime.tv_sec % 60);
     minute = (unsigned short)((m_eventTime.tv_sec / 60) % 60);
     hour = (unsigned short)((m_eventTime.tv_sec / 3600) % 24);
-    sprintf(time, "%02u:%02u:%02u.%06lu", hour, minute, second, m_eventTime.tv_usec) ;
+    snprintf(time, sizeof(time), "%02u:%02u:%02u.%06lu", hour, minute, second, m_eventTime.tv_usec);
 
     metaData = "" ;
     metaData += getRecordType() ;
