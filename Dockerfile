@@ -20,7 +20,7 @@ RUN apt-get update \
   && ../configure --enable-tcmalloc=yes CPPFLAGS='-DNDEBUG' CXXFLAGS='-O2' \
   && make -j${BUILD_CPUS} \
   && make install \
-  && apt-get purge -y --quiet --auto-remove gcc g++ make cmake build-essential git autoconf automake libtool libtool-bin \
+  && apt-get purge -y --quiet --auto-remove gcc g++ make cmake build-essential git libtool libtool-bin \
   && rm -rf /var/lib/apt/* \
   && rm -rf /var/lib/dpkg/* \
   && rm -rf /var/lib/cache/* \
