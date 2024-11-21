@@ -346,6 +346,9 @@ namespace drachtio {
 
                 if( orq ) {
                     DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+                    if( sip_method_invite == method ) {
+                      dlg->addReinviteOrq(orq);
+                    }
                 }
             }
 
@@ -1128,7 +1131,7 @@ namespace drachtio {
 
                     /* is far end requesting "best effort" tls ?*/
                     if (envSupportBestEffortTls && atoi(envSupportBestEffortTls) == 1 &&
-                      pSelectedTransport->isSips() && sip->sip_contact && sip->sip_contact->m_url &&
+                      pSelectedTransport->isSips() && sip->sip_contact &&
                       0 == strcmp(sip->sip_contact->m_url->url_scheme, "sip")) {
                         contact.replace(0, 5, "sip:");
                         DR_LOG(log_info) << "SipDialogController::doRespondToSipRequest - far end wants best effort tls, replacing sips with sip in Contact";
