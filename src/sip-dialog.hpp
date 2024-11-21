@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2013, David C Horton
+Copyright (c) 2024, FirstFive8, Inc
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -219,15 +219,19 @@ namespace drachtio {
 		uint32_t getSeq(void) { return m_seq; }
 		void clearSeq(void) {m_seq = 0;}
         
-        void addIncomingRequestTransaction(std::string& txnId) {
-            m_incomingRequestTransactionIds.insert(txnId);
-        }
-        void removeIncomingRequestTransaction(std::string& txnId) {
-            m_incomingRequestTransactionIds.erase(txnId);
-        }
-        std::vector<std::string> getIncomingRequestTransactionIds(void) {
-            return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
-        }
+    void addIncomingRequestTransaction(std::string& txnId) {
+        m_incomingRequestTransactionIds.insert(txnId);
+    }
+    void removeIncomingRequestTransaction(std::string& txnId) {
+        m_incomingRequestTransactionIds.erase(txnId);
+    }
+    std::vector<std::string> getIncomingRequestTransactionIds(void) {
+        return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
+    }
+
+    void addReinviteOrq(nta_outgoing_t* orq) {
+        m_reinvites.push_back(orq);
+    }
 		
 	protected:
 
@@ -291,7 +295,10 @@ namespace drachtio {
 		// arrival time
 		sip_time_t m_tmArrival;
         
-        std::set<std::string> m_incomingRequestTransactionIds;
+    std::set<std::string> m_incomingRequestTransactionIds;
+
+    // re-invite orqs that we send as
+    std::vector<nta_outgoing_t*> m_reinvites;
 
 	}  ;
 

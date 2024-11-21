@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2013, David C Horton
+Copyright (c) 2024, FirstFive8, Inc
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -438,7 +438,13 @@ namespace drachtio {
       m_thread.swap( t ) ;
   }
   RequestHandler::~RequestHandler() {
-    curl_multi_cleanup(m_g.multi);
+    if (nullptr == m_g.multi) {
+      DR_LOG(log_error) << "RequestHandler::~RequestHandler - multi handle is null; this should only happen during shutdown";
+    }
+    else {
+      curl_multi_cleanup(m_g.multi);
+      m_g.multi = nullptr;
+    }
   }
   void RequestHandler::threadFunc() {
                

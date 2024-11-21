@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2013, David C Horton
+Copyright (c) 2024, FirstFive8, Inc
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -346,6 +346,9 @@ namespace drachtio {
 
                 if( orq ) {
                     DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+                    if( sip_method_invite == method ) {
+                      dlg->addReinviteOrq(orq);
+                    }
                 }
             }
 

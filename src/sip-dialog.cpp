@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2013, David C Horton
+Copyright (c) 2024, FirstFive8, Inc
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -199,8 +199,8 @@ namespace drachtio {
 
 		nta_leg_t *leg = nta_leg_by_call_id( theOneAndOnlyController->getAgent(), getCallId().c_str() );
         
-        DR_LOG(log_debug) << "SipDialog::~SipDialog - I'm holding leg " << std::hex << (void *) m_leg <<
-            " and retrieved leg via call-id " << (void *) leg;
+    DR_LOG(log_debug) << "SipDialog::~SipDialog - I'm holding leg " << std::hex << (void *) m_leg <<
+        " and retrieved leg via call-id " << (void *) leg;
 
 		assert( leg ) ;
 		if( leg ) {
@@ -214,6 +214,12 @@ namespace drachtio {
 		if (we_are_uac == m_type && m_orq) {
 			theOneAndOnlyController->getDialogController()->stopTimerD(m_orq);
 		}
+
+    for (nta_outgoing_t* item : m_reinvites) {
+      DR_LOG(log_debug) << "SipDialog::~SipDialog - I'm holding a reinvite orq " << std::hex << (void *) item;
+      theOneAndOnlyController->getDialogController()->stopTimerD(item);
+    }
+
 		/* N.B.: we only destroy the orq here for ACK for non-udp transports, since timer D handles for udp */
 		if (m_orqAck && m_bDestroyAckOnClose) {
 			DR_LOG(log_debug) << "SipDialog::~SipDialog - destroying orq from original (uac) ACK " << std::hex << (void *) m_orqAck ;
@@ -223,11 +229,11 @@ namespace drachtio {
 			nta_outgoing_destroy(m_orq);
 		}
         
-        auto txnIds = getIncomingRequestTransactionIds();
-        theOneAndOnlyController->getDialogController()->clearDanglingIncomingRequests(txnIds);
-        
-        /* if we never got an ACK after sending a 200 OK to an incoming INVITE the net transaction is still there */
-        theOneAndOnlyController->getClientController()->removeNetTransaction(this->getTransactionId());
+    auto txnIds = getIncomingRequestTransactionIds();
+    theOneAndOnlyController->getDialogController()->clearDanglingIncomingRequests(txnIds);
+    
+    /* if we never got an ACK after sending a 200 OK to an incoming INVITE the net transaction is still there */
+    theOneAndOnlyController->getClientController()->removeNetTransaction(this->getTransactionId());
 	}
 
 	std::ostream& operator<<(std::ostream& os, const SipDialog& dlg) {
