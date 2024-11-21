@@ -149,6 +149,7 @@ namespace drachtio {
     su_home_t* getHome(void) { return m_home; }
 
     void getMyHostports( vector<string>& vec ) ;
+    void getMyLocalHostports( vector<string>& vec ) ;
 
     bool getMySipAddress( const char* proto, string& host, string& port, bool ipv6 = false ) ;
 

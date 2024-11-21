@@ -173,6 +173,17 @@ namespace drachtio {
     s += getPort() ;
   }
 
+  void SipTransport::getLocalHostport(string& s) {
+    if( hasTport() ) {
+      s += getProtocol() ;
+      s += "/" ;
+      s += getHost() ;
+      s += ":" ;
+      s += getPort() ;
+    }
+  }
+
+
   void SipTransport::getBindableContactUri(string& contact) {
     contact = m_contactScheme ;
     contact.append(":");
@@ -531,6 +542,14 @@ namespace drachtio {
     }
   }
   void SipTransport::getAllHostports( vector<string>& vec ) {
+    for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
+      std::shared_ptr<SipTransport> p = it->second ;
+      string desc ;
+      p->getHostport(desc);
+      vec.push_back(desc) ;
+    }
+  }
+  void SipTransport::getAllLocalHostports( vector<string>& vec ) {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       std::shared_ptr<SipTransport> p = it->second ;
       string desc ;
