@@ -346,6 +346,9 @@ namespace drachtio {
 
                 if( orq ) {
                     DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+                    if( sip_method_invite == method ) {
+                      dlg->addReinviteOrq(orq);
+                    }
                 }
             }
 

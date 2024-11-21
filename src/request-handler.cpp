@@ -438,7 +438,13 @@ namespace drachtio {
       m_thread.swap( t ) ;
   }
   RequestHandler::~RequestHandler() {
-    curl_multi_cleanup(m_g.multi);
+    if (nullptr == m_g.multi) {
+      DR_LOG(log_error) << "RequestHandler::~RequestHandler - multi handle is null; this should only happen during shutdown";
+    }
+    else {
+      curl_multi_cleanup(m_g.multi);
+      m_g.multi = nullptr;
+    }
   }
   void RequestHandler::threadFunc() {
                
