@@ -1,3 +1,5 @@
+AM_CXXFLAGS = -std=c++17
+
 MYVERSION=$(shell git describe --always 2>/dev/null || echo 1.0.0)
 
 AM_LDFLAGS= -L/usr/local/lib -L${srcdir}/deps/prometheus-cpp/build/lib
