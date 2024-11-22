@@ -1791,6 +1791,9 @@ namespace drachtio {
     void DrachtioController::getMyHostports( vector<string>& vec ) {
       return SipTransport::getAllHostports( vec ) ;
     }
+    void DrachtioController::getMyLocalHostports( vector<string>& vec ) {
+      return SipTransport::getAllLocalHostports( vec ) ;
+    }
     bool DrachtioController::getMySipAddress( const char* proto, string& host, string& port, bool ipv6 ) {
         string desc, p ;
         const tport_t* tp = getTportForProtocol(host, proto) ;

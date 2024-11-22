@@ -163,10 +163,12 @@ namespace drachtio {
                 return false ;       
             } 
             else {
-                vector<string> hps ;
+                vector<string> hps, local_hps ;
                 theOneAndOnlyController->getMyHostports( hps ) ;
+                theOneAndOnlyController->getMyLocalHostports( local_hps ) ;
                 string hostports = boost::algorithm::join(hps, ",") ;
-                string response = hostports + "|" + DRACHTIO_VERSION;
+                string localHostports = boost::algorithm::join(local_hps, ",") ;
+                string response = hostports + "|" + DRACHTIO_VERSION + "|" + localHostports ;
                 createResponseMsg( tokens[0], msgResponse, true, response.c_str()) ;
                 DR_LOG(log_debug) << "Client::processAuthentication - secret validated successfully: " << secret ;
                 return true ;
