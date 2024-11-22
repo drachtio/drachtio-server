@@ -553,7 +553,7 @@ namespace drachtio {
     for (mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.begin(); m_mapTport2SipTransport.end() != it; ++it ) {
       std::shared_ptr<SipTransport> p = it->second ;
       string desc ;
-      p->getHostport(desc);
+      p->getLocalHostport(desc);
       vec.push_back(desc) ;
     }
   }
