@@ -105,7 +105,8 @@ const string STATS_HISTOGRAM_INVITE_PDD_OUT = "drachtio_call_pdd_seconds_out";
 
 #define TIMER_C_MSECS (185000)
 #define TIMER_B_MSECS (NTA_SIP_T1 * 64)
-#define TIMER_D_MSECS (32500)
+//DH: 2024-11-25: we want this to be slightly less than sofia's timerD; ref: https://github.com/drachtio/drachtio-server/issues/386
+#define TIMER_D_MSECS (30000)
 #define TIMER_H_MSECS (NTA_SIP_T1 * 64)
 
 #define MSG_ID_LEN (128)

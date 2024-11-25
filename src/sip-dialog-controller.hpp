@@ -251,7 +251,7 @@ namespace drachtio {
 		void clearSipTimers(std::shared_ptr<SipDialog>& dlg);
 		bool stopTimerD(nta_outgoing_t* invite);
         
-        void clearDanglingIncomingRequests(std::vector<std::string> txnIds);
+    void clearDanglingIncomingRequests(std::vector<std::string> txnIds);
 
 	protected:
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
