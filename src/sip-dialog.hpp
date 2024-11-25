@@ -228,10 +228,6 @@ namespace drachtio {
     std::vector<std::string> getIncomingRequestTransactionIds(void) {
         return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
     }
-
-    void addReinviteOrq(nta_outgoing_t* orq) {
-        m_reinvites.push_back(orq);
-    }
 		
 	protected:
 
@@ -296,10 +292,6 @@ namespace drachtio {
 		sip_time_t m_tmArrival;
         
     std::set<std::string> m_incomingRequestTransactionIds;
-
-    // re-invite orqs that we send as
-    std::vector<nta_outgoing_t*> m_reinvites;
-
 	}  ;
 
   typedef multi_index_container<
