@@ -35,11 +35,20 @@ jobs:
         with:
           languages: ${{ matrix.language }}
 
-      - name: build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev libunwind-dev libgoogle-perftools-dev 
-      - name: build drachtio
+      - name: Install dependencies
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          libboost-filesystem-dev
+          libboost-log-dev
+          libboost-system-dev
+          libboost-thread-dev
+          libcurl4-openssl-dev
+          libgoogle-perftools-dev
+          libtool
+          libtool-bin
+          libunwind-dev
+      - name: Build drachtio
         run: |
           ./autogen.sh
           mkdir -p build && cd $_
