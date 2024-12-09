@@ -838,7 +838,24 @@ namespace drachtio {
                     }
                     else {
                       url_t const * url = nta_outgoing_route_uri(orq);
-                      string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                      
+                      
+                      // Retrieve address and port from meta
+                        std::string fetchedAddress = meta.getAddress();
+                        std::string fetchedPort = meta.getPort();
+
+                        // Determine the scheme
+                        std::string fetchedScheme = (url ? url->url_scheme : "sip");
+
+                        // Construct routeUri based on IP version
+                        std::string routeUri;
+                        if (isIPv6(fetchedAddress)) {
+                            routeUri = fetchedScheme + ":[" + fetchedAddress + "]:" + fetchedPort;
+                        } else {
+                            routeUri = fetchedScheme + ":" + fetchedAddress + ":" + fetchedPort;
+                        }
+                                            
+                      
                       dlg->setRouteUri(routeUri);
                       DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
                     }
@@ -906,6 +923,7 @@ namespace drachtio {
 
         return 0 ;
     }
+   
     void SipDialogController::doRespondToSipRequest( SipMessageData* pData ) {
         string transactionId( pData->getTransactionId() );
         string startLine( pData->getStartLine()) ;
