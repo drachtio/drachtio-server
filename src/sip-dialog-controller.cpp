@@ -137,6 +137,12 @@ namespace drachtio {
 	}
 	SipDialogController::~SipDialogController() {
 	}
+    bool SipDialogController::isIPv6(const std::string &address)
+    {
+        return address.find(':') != std::string::npos;
+    }
+
+
     bool SipDialogController::sendRequestInsideDialog( const string& clientMsgId, const string& dialogId, const string& startLine, const string& headers, const string& body, string& transactionId ) {
 
         assert( dialogId.length() > 0 ) ;
