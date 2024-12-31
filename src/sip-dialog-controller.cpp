@@ -1059,7 +1059,7 @@ namespace drachtio {
                                 if( add ) {
                                     theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
                                 }
-                                else {
+                                else if (contact->m_url->url_host) {
                                     theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
                                 }
                             }
