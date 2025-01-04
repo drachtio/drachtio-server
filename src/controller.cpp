@@ -461,6 +461,7 @@ namespace drachtio {
                 {"blacklist-redis-sentinels", required_argument, 0, 'V'},
                 {"blacklist-redis-master", required_argument, 0, 'W'},
                 {"blacklist-redis-password", required_argument, 0, 'X'},
+                {"tls-cipherlist", required_argument, 0, 0},
                 {"version",    no_argument, 0, 'v'},
                 {0, 0, 0, 0}
             };
@@ -477,6 +478,10 @@ namespace drachtio {
             switch (c)
             {
                 case 0:
+                    if (strcmp(long_options[option_index].name, "tls-cipherlist") == 0) {
+                      m_tlsCipherList = optarg;
+                      break;
+                    }
                     /* If this option set a flag, do nothing else now. */
                     if (long_options[option_index].flag != 0)
                         break;
@@ -775,6 +780,7 @@ namespace drachtio {
         cerr << "    --external-ip                      External IP address to use in SIP messaging" << endl ;
         cerr << "    --stdout                           Log to standard output as well as any configured log destinations" << endl ;
         cerr << "    --tcp-keepalive-interval           tcp keepalive in seconds (0=no keepalive)" << endl ;
+        cerr << "    --tls-cipherlist                   list of ciphers to support for TLS connections (default: all strong ciphers supported)" << endl ;
         cerr << "    --min-tls-version                  minimum allowed TLS version for connecting clients (default: 1.0)" << endl ;
         cerr << "    --user-agent-options-auto-respond  If we see this User-Agent header value in an OPTIONS request, automatically send 200 OK" << endl ;
         cerr << "-v  --version                          Print version and exit" << endl ;
@@ -882,6 +888,11 @@ namespace drachtio {
         }
         p = std::getenv("DRACHTIO_REJECT_REGISTER_WITH_NO_REALM");
         if (p && ::atoi(p) == 1) m_bRejectRegisterWithNoRealm = true;
+        p = std::getenv("DRACHTIO_TLS_CIPHER_LIST");
+        if (p) {
+            m_tlsCipherList = p;
+        }
+
     }
 
     void DrachtioController::daemonize() {
@@ -1316,6 +1327,7 @@ namespace drachtio {
          TAG_IF( tlsTransport && hasTlsFiles && tlsChainFile.length() > 0, TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
          TAG_IF( tlsTransport &&hasTlsFiles, 
             TPTAG_TLS_VERSION( tlsVersionTagValue )),
+         TAG_IF( tlsTransport && hasTlsFiles && m_tlsCipherList.length() > 0, TPTAG_TLS_CIPHERS(m_tlsCipherList.c_str())),
          NTATAG_SERVER_RPORT(2),   //force rport even when client does not provide
          NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
          NTATAG_PASS_408(true), //pass 408s to application
@@ -1354,6 +1366,7 @@ namespace drachtio {
                  TAG_IF( tlsTransport && hasTlsFiles && !tlsChainFile.empty(), TPTAG_TLS_CERTIFICATE_CHAIN_FILE(tlsChainFile.c_str())),
                  TAG_IF( tlsTransport &&hasTlsFiles, 
                     TPTAG_TLS_VERSION( tlsVersionTagValue )),
+                 TAG_IF( tlsTransport && hasTlsFiles && m_tlsCipherList.length() > 0, TPTAG_TLS_CIPHERS(m_tlsCipherList.c_str())),
                  TPTAG_PONG2PING(1), // if we get a 2-byte ping, respond with CRLF pong
                  TAG_NULL(),
                  TAG_END() ) ;

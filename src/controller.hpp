@@ -246,6 +246,8 @@ namespace drachtio {
     unsigned int m_redisPort;
     unsigned int m_redisRefreshSecs;
 
+    string m_tlsCipherList;
+
     std::shared_ptr<ClientController> m_pClientController ;
     std::shared_ptr<RequestHandler> m_pRequestHandler ;
     std::shared_ptr<SipDialogController> m_pDialogController ;
