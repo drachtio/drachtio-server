@@ -18,9 +18,7 @@ namespace {
 
 namespace drachtio {
  queueEntry_t::queueEntry_t(TimerQueue* queue, TimerFunc f, void * functionArgs, su_time_t when) : m_queue(queue), 
-  m_functionArgs(functionArgs), m_when(when), m_next(NULL), m_prev(NULL) {
-
-    m_function = f ;
+  m_functionArgs(functionArgs), m_when(when), m_next(NULL), m_prev(NULL), m_function(f) {
   }
 
   TimerQueue::TimerQueue(su_root_t* root, const char* szName) : m_root(root), m_head(NULL), m_tail(NULL), 
@@ -58,7 +56,6 @@ namespace drachtio {
     queueEntry_t* entry = new queueEntry_t(this, f, functionArgs, when) ;
     TimerEventHandle handle = entry ;
     assert(handle) ;
-    int queueLength ;
 
     if( entry ) {
 #ifndef TEST
@@ -111,7 +108,6 @@ namespace drachtio {
         } while( NULL != (ptr = ptr->m_next) ) ;
         assert( NULL != ptr ) ;
       }
-      queueLength = ++m_length ;
     }
     else {
       //DR_LOG(log_error) << "Error allocating queue entry" ;
@@ -145,7 +141,6 @@ namespace drachtio {
         DR_LOG(log_debug) << m_name << ": removing entry, prior to removal length: " << dec << m_length;
 #endif
 
-    int queueLength ;
     {
       if( m_head == entry ) {
         m_head = entry->m_next ;
@@ -182,12 +177,9 @@ namespace drachtio {
           "ms after removal, length: " << dec << m_length;
 #endif
         //std::cout << "Setting timer for " << su_duration( m_head->m_when, su_now() )  << "ms after removal of head entry"  << std::endl;
-        int rc = su_timer_set_at(m_timer, timer_function, this, m_head->m_when);
+        su_timer_set_at(m_timer, timer_function, this, m_head->m_when);
       }      
     }
-
-    //DR_LOG(log_debug) << "timer remove: queue length is now " << queueLength ;
-    //std::cout << "timer remove: queue length is now " << queueLength << std::endl;
 
     delete entry ;
   }
