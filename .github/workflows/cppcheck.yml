@@ -15,9 +15,21 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev cppcheck libunwind-dev libgoogle-perftools-dev
-      - run: |
+      - name: Install dependencies
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          cppcheck
+          libboost-filesystem-dev
+          libboost-log-dev
+          libboost-system-dev
+          libboost-thread-dev
+          libcurl4-openssl-dev
+          libgoogle-perftools-dev
+          libtool
+          libtool-bin
+          libunwind-dev
+      - name: Run CppCheck
+        run: |
           set -x
           cppcheck --enable=warning,performance,portability,style --error-exitcode=1 src/
