@@ -92,7 +92,6 @@ namespace drachtio {
 
     void ClientController::start() {
         DR_LOG(log_debug) << "Client controller thread id: " << std::this_thread::get_id()  ;
-        srand (time(NULL));    
         std::thread t(&ClientController::threadFunc, this) ;
         m_thread.swap( t ) ;
             
