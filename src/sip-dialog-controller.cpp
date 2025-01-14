@@ -346,9 +346,6 @@ namespace drachtio {
 
                 if( orq ) {
                     DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
-                    if( sip_method_invite == method ) {
-                      dlg->addReinviteOrq(orq);
-                    }
                 }
             }
 
@@ -1059,7 +1056,7 @@ namespace drachtio {
                                 if( add ) {
                                     theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
                                 }
-                                else {
+                                else if (contact->m_url->url_host) {
                                     theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
                                 }
                             }
@@ -2127,6 +2124,7 @@ namespace drachtio {
     bool TimerDHandler::resendIfNeeded(nta_outgoing_t* invite) {
         mapInvite2Ack::const_iterator it = m_mapInvite2Ack.find(invite);
         if (it != m_mapInvite2Ack.end()) {
+            DR_LOG(log_debug) << "TimerDHandler::resendIfNeeded - retransmitting ACK;  invite orq " << invite << " ack orq " << it->second;
             outgoing_retransmit(it->second) ;
             return true;
         }
