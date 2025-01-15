@@ -24,10 +24,19 @@ jobs:
           submodules: recursive
       - name: Install sonar-scanner and build-wrapper
         uses: sonarsource/sonarcloud-github-c-cpp@v2
-      - name: build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtool libtool-bin libcurl4-openssl-dev libpcap-dev  libunwind-dev libgoogle-perftools-dev
+      - name: Install dependencies
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          libboost-filesystem-dev
+          libboost-log-dev
+          libboost-system-dev
+          libboost-thread-dev
+          libcurl4-openssl-dev
+          libgoogle-perftools-dev
+          libtool
+          libtool-bin
+          libunwind-dev
       - name: Run build-wrapper
         run: |
           ./autogen.sh
