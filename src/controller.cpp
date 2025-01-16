@@ -1163,11 +1163,11 @@ namespace drachtio {
             }
         }
 
-        if (m_adminTcpPort && !m_adminTlsPort) {
+        if (adminTcpPort && !adminTlsPort) {
             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tcp port " << adminTcpPort << " only";
             m_pClientController.reset(new ClientController(this, adminAddress, adminTcpPort));
         }
-        else if (!m_adminTcpPort && m_adminTlsPort) {
+        else if (!adminTcpPort && adminTlsPort) {
             DR_LOG(log_notice) << "DrachtioController::run listening for applications on tls port " << adminTlsPort << " only";
             m_pClientController.reset(new ClientController(this, adminAddress, adminTlsPort, tlsChainFile, tlsCertFile, tlsKeyFile, dhParam));
         }
