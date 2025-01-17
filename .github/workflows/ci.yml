@@ -23,18 +23,10 @@ jobs:
           libboost-thread-dev
           libcurl4-openssl-dev
           libgoogle-perftools-dev
-          libpcap-dev
           libtool
           libtool-bin
           libunwind-dev
-      - name: build sipp
-        run: |
-          sudo chmod a+w /usr/local/src/
-          cd /usr/local/src/
-          git clone https://github.com/SIPp/sipp.git -b v3.6.1 --depth 20
-          cd sipp
-          ./build.sh --common
-          sudo make install
+          sip-tester
       - name: build drachtio
         run: |
           ./autogen.sh
