@@ -24,6 +24,8 @@ THE SOFTWARE.
 #define DRACHTIO_MAIN
 
 #include "controller.hpp"
+#include <stdlib.h>
+#include <time.h>
 
 using namespace drachtio ;
 
@@ -38,6 +40,7 @@ void handleSigPipe( int signal ) {
 }
 
 int main( int argc, char *argv[] ) {
+	srand(time(NULL));
 
 	try {
 		theOneAndOnlyController = new DrachtioController( argc, argv ) ;

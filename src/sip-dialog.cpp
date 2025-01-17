@@ -290,7 +290,10 @@ namespace drachtio {
 		DR_LOG(log_info) << "SipDialog::setSessionTimer: " << getCallId() << " Session expires has been set to " << nSecs << " seconds and refresher is " << (areWeRefresher() ? "us" : "them")  ;
 
 		/* if we are the refresher, then we want the timer to go off halfway through the interval */
-		if( areWeRefresher() ) m_nSessionTimerDuration /= 2 ;
+		if( areWeRefresher() ) {
+			m_nSessionTimerDuration /= 2 ;
+			m_nSessionTimerDuration += (rand() % 10000) - 5000 ;
+		}
 		m_timerSessionRefresh = su_timer_create( su_root_task(theOneAndOnlyController->getRoot()), m_nSessionTimerDuration ) ;
 
 		m_ppSelf = new std::weak_ptr<SipDialog>( shared_from_this() ) ;
