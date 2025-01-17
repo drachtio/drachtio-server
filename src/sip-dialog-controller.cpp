@@ -1674,7 +1674,11 @@ namespace drachtio {
         std::shared_ptr<RIP> rip  ;
 
         nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
-        assert(leg) ;
+        if (!leg) {
+            DR_LOG(log_warning) << "SipDialogController::processResponseToRefreshingReinvite: unable to find leg for call-id "
+                                << sip->sip_call_id->i_id << ", probably glare condition with BYE and re-INVITE";
+            return 0;
+        }
         std::shared_ptr<SipDialog> dlg ;
         if( !findDialogByLeg( leg, dlg ) ) {
             assert(0) ;
