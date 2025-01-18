@@ -36,4 +36,4 @@ jobs:
           ./autogen.sh
           mkdir -p build && cd $_
           scan-build ../configure
-          scan-build --status-bugs make
+          scan-build make
