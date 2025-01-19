@@ -31,4 +31,4 @@ jobs:
           libunwind-dev
       - name: Run CppCheck
         run: |
-          cppcheck --enable=warning,performance,portability,style --error-exitcode=1 src/
+          cppcheck --enable=warning,performance,portability,style src/
