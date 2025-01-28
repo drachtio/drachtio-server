@@ -2002,7 +2002,10 @@ namespace drachtio {
                     assert(false) ;
                 }
             }
-            clearRIP( orq ) ;     
+            // keep the RIP until the final response, so a final after a 1xx (e.g. 180/183 to a reINVITE) still reaches the app
+            if (statusCode >= 200) {
+                clearRIP( orq ) ;
+            }
             msg_destroy(msg) ;   // releases reference
         }
         else {
