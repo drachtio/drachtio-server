@@ -1658,7 +1658,10 @@ namespace drachtio {
                     assert(false) ;
                 }
             }
-            clearRIP( orq ) ;     
+            // Don't clear on provisional responses to reINVITE
+            if (sip->sip_cseq->cs_method == sip_method_invite && (sip->sip_status->st_status < 100 || sip->sip_status->st_status > 199)) {
+                clearRIP( orq ) ;
+            }
             msg_destroy(msg) ;   // releases reference
         }
         else {
