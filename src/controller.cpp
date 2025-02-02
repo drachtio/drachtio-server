@@ -1447,7 +1447,21 @@ namespace drachtio {
                 nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
                 return -1 ;
             }
-
+            // additional sanity checks on headers
+            if (sip->sip_error) {
+                auto error_header = sip->sip_error;
+                if (error_header->er_common[0].h_data && error_header->er_common[0].h_len > 0) {
+                    std::string error_string((const char *) error_header->er_common[0].h_data, error_header->er_common[0].h_len);
+                    DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: discarding message due to error: " << error_string;
+                }
+                else {
+                    DR_LOG(log_error) << "DrachtioController::processMessageStatelessly: discarding invalid message";
+                }
+                STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "400"}})
+                nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
+                return -1 ;
+            }
+            
             // spammer check
             string action, tcpAction ;
             DrachtioConfig::mapHeader2Values& mapSpammers =  m_Config->getSpammers( action, tcpAction );
@@ -1539,17 +1553,28 @@ namespace drachtio {
                 m_pProxyController->processRequestWithoutRouteHeader( msg, sip ) ;
             }
             else {
-
-                /* optionally reject REGISTER quickly if no sip realm provided */
-                if (m_bRejectRegisterWithNoRealm && sip_method_register == sip->sip_request->rq_method ) {
-                  std::regex ipRegex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$");
-                  if (std::regex_match(sip->sip_request->rq_url->url_host, ipRegex)) {
-                    DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: rejecting REGISTER with no realm" ;
-                    STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "REGISTER"},{"code", "403"}})
-                    nta_msg_treply( m_nta, msg, 403, NULL, TAG_END() ) ;
-                    return -1 ;
-                  }
+                if (sip_method_register == sip->sip_request->rq_method) {
+                    /* optionally reject REGISTER quickly if no sip realm provided */
+                    if (m_bRejectRegisterWithNoRealm && sip_method_register == sip->sip_request->rq_method ) {
+                        std::regex ipRegex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$");
+                        if (std::regex_match(sip->sip_request->rq_url->url_host, ipRegex)) {
+                            DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: rejecting REGISTER with no realm" ;
+                            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "REGISTER"},{"code", "403"}})
+                            nta_msg_treply( m_nta, msg, 403, NULL, TAG_END() ) ;
+                            return -1 ;
+                        }
+                    }
+                    
+                    /* reject register with Contact: * if Expires is not 0 */
+                    if (sip->sip_contact && 0 == strcmp(sip->sip_contact->m_url[0].url_scheme, "*") &&
+                        sip->sip_expires && sip->sip_expires->ex_delta != 0) {
+                        DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: rejecting REGISTER with Contact: * and non-zero Expires" ;
+                        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "REGISTER"},{"code", "400"}})
+                        nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
+                        return -1 ;
+                    }
                 }
+               
                 switch (sip->sip_request->rq_method ) {
                     case sip_method_invite:
                     case sip_method_register:
@@ -1821,6 +1846,7 @@ namespace drachtio {
     }
 
     void DrachtioController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
+        if (host == nullptr) return;
         string uri ;
         std::shared_ptr<UaInvalidData> pUa = std::make_shared<UaInvalidData>(user, host, expires, tp) ;
         pUa->getUri( uri ) ;
@@ -1842,6 +1868,7 @@ namespace drachtio {
         }
     }
     void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
+        if (host == nullptr) return;
         string uri = "" ;
         if (user) {
             uri.append(user) ;
