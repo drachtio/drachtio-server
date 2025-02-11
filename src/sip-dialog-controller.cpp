@@ -887,11 +887,22 @@ namespace drachtio {
 
         if( sip->sip_cseq->cs_method == sip_method_invite) {
           if (sip->sip_status->st_status >= 300) {
+            // Increment the failed calls counter with account/application labels.
+            // Use empty labels if dlg is null.
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_FAILED_CALLS,
+                {{"accountSid", dlg ? dlg->getAccountSid() : std::string("")},
+                 {"applicationSid", dlg ? dlg->getApplicationSid() : std::string("")}});
+ 
             Cdr::postCdr( std::make_shared<CdrStop>( msg, "network",
                 487 == sip->sip_status->st_status ? Cdr::call_canceled : Cdr::call_rejected ) );
           }
           else if (sip->sip_status->st_status == 200) {
-            Cdr::postCdr( std::make_shared<CdrStart>( msg, "network", Cdr::uac ) );                
+            // Increment the successful calls counter with account/application labels.
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_SUCCESSFUL_CALLS,
+                {{"accountSid", dlg ? dlg->getAccountSid() : std::string("")},
+                 {"applicationSid", dlg ? dlg->getApplicationSid() : std::string("")}});
+ 
+            Cdr::postCdr( std::make_shared<CdrStart>( msg, "network", Cdr::uac ) );
           }
         }
         if( sip->sip_cseq->cs_method == sip_method_invite && sip->sip_status->st_status > 200 ) {
@@ -1994,7 +2005,8 @@ namespace drachtio {
         // Assuming that dlg has methods getAccountSid() and getApplicationSid().
         // If not, replace with appropriate values or defaults.
         STATS_COUNTER_INCREMENT(STATS_COUNTER_ACK_TIMEOUT, 
-            {{"accountSid", dlg->getAccountSid()}, {"applicationSid", dlg->getApplicationSid()}});
+            {{"accountSid", dlg ? dlg->getAccountSid() : std::string("")}, 
+            {"applicationSid", dlg ? dlg->getApplicationSid() : std::string("")}});
         // --- End new metric tracking for ACK timeout ---
 
         nta_leg_t* leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
