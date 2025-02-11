@@ -1990,6 +1990,13 @@ namespace drachtio {
         DR_LOG(log_error) << "SipDialogController::endRetransmitFinalResponse - never received ACK for final response to incoming INVITE; irq:" << 
             std::hex << (void*) irq << " source address was " << dlg->getSourceAddress() ;
 
+        // --- Begin new metric tracking for ACK timeout ---
+        // Assuming that dlg has methods getAccountSid() and getApplicationSid().
+        // If not, replace with appropriate values or defaults.
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_ACK_TIMEOUT, 
+            {{"accountSid", dlg->getAccountSid()}, {"applicationSid", dlg->getApplicationSid()}});
+        // --- End new metric tracking for ACK timeout ---
+
         nta_leg_t* leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
         TimerEventHandle h = dlg->getTimerG() ;
         if( h ) {
@@ -2003,9 +2010,7 @@ namespace drachtio {
 
         IIP_Clear(m_invitesInProgress, leg);
 
-
         // we never got the ACK, so now we should tear down the call by sending a BYE
-        // TODO: also need to remove dialog from hash table
         nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
                                 NULL,
                                 SIP_METHOD_BYE,
