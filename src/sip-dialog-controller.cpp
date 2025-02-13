@@ -603,7 +603,8 @@ namespace drachtio {
                 ,TAG_NEXT(tags) ) ;
 
             if( NULL == orq ) {
-                throw std::runtime_error("Error creating sip transaction for uac request") ;               
+              nta_leg_destroy( leg );
+              throw std::runtime_error("Error creating sip transaction for uac request");
             }
 
             msg_t* m = nta_outgoing_getrequest(orq) ; //adds a reference
