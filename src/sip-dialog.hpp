@@ -228,6 +228,10 @@ namespace drachtio {
     std::vector<std::string> getIncomingRequestTransactionIds(void) {
         return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
     }
+
+    // New getters for metric labels
+    const std::string& getAccountSid() const { return m_accountSid; }
+    const std::string& getApplicationSid() const { return m_applicationSid; }
 		
 	protected:
 
@@ -292,6 +296,10 @@ namespace drachtio {
 		sip_time_t m_tmArrival;
         
     std::set<std::string> m_incomingRequestTransactionIds;
+
+    // New members for storing account and application IDs for metrics
+    std::string m_accountSid;
+    std::string m_applicationSid;
 	}  ;
 
   typedef multi_index_container<
