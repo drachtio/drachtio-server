@@ -228,8 +228,13 @@ namespace drachtio {
             if( (sip_method_ack == method || string::npos != requestUri.find("placeholder")) && nta_leg_get_route( leg, NULL, &target ) >=0 ) {
                 char buffer[256];
 
-                if (nullptr ==target) {
-                    throw std::runtime_error("unable to find route for dialog when sending ACK") ;
+                if (nullptr == target) {
+                  throw std::runtime_error("unable to find route when sending "
+                      + method_name(method) + " for dialog id " + pData->getDialogId() ) ;
+                }
+                else if (strlen(target->m_url) == 0) {
+                  throw std::runtime_error("unable to find route due to no url when sending "
+                      + method_name(method) + " for dialog id " + pData->getDialogId() ) ;
                 }
                 url_e( buffer, 255, target->m_url ) ;
                 requestUri = buffer ;
