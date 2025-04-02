@@ -229,10 +229,10 @@ namespace drachtio {
                 char buffer[256];
 
                 if (nullptr == target) {
-                  throw std::runtime_error("unable to find route when sending request inside dialog " + pData->getStartLine() + " for dialog id " + pData->getDialogId() ) ;
+                  throw std::runtime_error("unable to find route when sending request inside dialog for dialog id " + pData->getDialogId() ) ;
                 }
-                else if (strlen(target->m_url) == 0) {
-                  throw std::runtime_error("unable to find route for empty url when sending request inside dialog " + pData->getStartLine() + " for dialog id " + pData->getDialogId() ) ;
+                else if (nullptr == target->m_url->url_host) {
+                  throw std::runtime_error("unable to find route for empty host when sending request inside dialog for dialog id " + pData->getDialogId() ) ;
                 }
                 url_e( buffer, 255, target->m_url ) ;
                 requestUri = buffer ;
