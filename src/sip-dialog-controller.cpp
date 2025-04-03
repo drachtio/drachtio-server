@@ -1118,13 +1118,21 @@ namespace drachtio {
                 msg_t* msg = nta_incoming_getrequest( irq ) ;   //allocates a reference
                 sip_t *sip = sip_object( msg );
 
-                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
+                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ;
+                dialogId = dlg->getDialogId();
                 if (!tp || tport_is_shutdown(tp)) {
                     failMsg = "transport for response has been shutdown or closed";
                     DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to forward response as transport has been closed or shutdown "
                         << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
                     bSentOK = false;
                     transportGone = true;
+                    msg_destroy(msg);
+                }
+                else if (SD_FindByDialogId(m_dialogs, dialogId, dlg)) {
+                    DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - Stable dialogs is available, rejecting this request";
+                    nta_incoming_treply( irq, SIP_480_TEMPORARILY_UNAVAILABLE, TAG_END() ) ;
+                    bSentOK = false;
+                    failMsg = "dialog already exists, rejecting this request";
                     msg_destroy(msg);
                 }
                 else {
@@ -1162,8 +1170,6 @@ namespace drachtio {
                     }
 
                     dlg->setLocalContactHeader(hasCustomContact ? customContact.c_str() : contact.c_str());
-
-                    dialogId = dlg->getDialogId() ;
 
                     dlg->setSipStatus( code ) ;
 
