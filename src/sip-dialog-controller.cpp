@@ -1129,7 +1129,7 @@ namespace drachtio {
                     msg_destroy(msg);
                 }
                 else if (SD_FindByDialogId(m_dialogs, dialogId, dlg)) {
-                    DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - Stable dialogs is available, rejecting this request";
+                    DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - this is a forking INVITE, rejecting this request as the call has been answered" ;
                     nta_incoming_treply( irq, SIP_480_TEMPORARILY_UNAVAILABLE, TAG_END() ) ;
                     bSentOK = false;
                     failMsg = "dialog already exists, rejecting this request";
@@ -1452,8 +1452,7 @@ namespace drachtio {
                 //    (2) A forking INVITE, where one fork was answered and the other was cancelled
                 //           => find in pending request controller and send 200 OK to the CANCEL and 487 to INVITE
 
-                std::shared_ptr<PendingRequest_t> p = theOneAndOnlyController->getPendingRequestController()->findInviteByCallId( sip->sip_call_id->i_id ) ;
-                if( p ) {
+                std::shared_ptr<PendingRequest_t> p = theOneAndOnlyController->getPendingRequestController()->findInviteByCallIdAndBranch( sip ) ;
                   msg_t* msg = nta_incoming_getrequest( irq ) ; // adds a reference
                   string encodedMessage ;
                   EncodeStackMessage( sip, encodedMessage ) ;
