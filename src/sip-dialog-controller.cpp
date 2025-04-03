@@ -1118,13 +1118,21 @@ namespace drachtio {
                 msg_t* msg = nta_incoming_getrequest( irq ) ;   //allocates a reference
                 sip_t *sip = sip_object( msg );
 
-                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ; 
+                tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ;
+                dialogId = dlg->getDialogId();
                 if (!tp || tport_is_shutdown(tp)) {
                     failMsg = "transport for response has been shutdown or closed";
                     DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to forward response as transport has been closed or shutdown "
                         << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
                     bSentOK = false;
                     transportGone = true;
+                    msg_destroy(msg);
+                }
+                else if (SD_FindByDialogId(m_dialogs, dialogId, dlg)) {
+                    DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - this is a forking INVITE, rejecting this request as the call has been answered" ;
+                    nta_incoming_treply( irq, SIP_480_TEMPORARILY_UNAVAILABLE, TAG_END() ) ;
+                    bSentOK = false;
+                    failMsg = "dialog already exists, rejecting this request";
                     msg_destroy(msg);
                 }
                 else {
@@ -1162,8 +1170,6 @@ namespace drachtio {
                     }
 
                     dlg->setLocalContactHeader(hasCustomContact ? customContact.c_str() : contact.c_str());
-
-                    dialogId = dlg->getDialogId() ;
 
                     dlg->setSipStatus( code ) ;
 
@@ -1440,8 +1446,36 @@ namespace drachtio {
             }
             case sip_method_cancel:
             {
-                // this should only happen in a race condition, where we've sent the 200 OK but not yet received an ACK 
-                //  in this case, send a 481 to the CANCEL and then generate a BYE
+                // Two cases:
+                //    (1) A race condition, where we've sent the 200 OK but not yet received an ACK
+                //           => send 481 to Cancel and then BYE
+                //    (2) A forking INVITE, where one fork was answered and the other was cancelled
+                //           => find in pending request controller and send 200 OK to the CANCEL and 487 to INVITE
+
+                std::shared_ptr<PendingRequest_t> p = theOneAndOnlyController->getPendingRequestController()->findInviteByCallIdAndBranch( sip ) ;
+                if (p) {
+                  msg_t* msg = nta_incoming_getrequest( irq ) ; // adds a reference
+                  string encodedMessage ;
+                  EncodeStackMessage( sip, encodedMessage ) ;
+                  SipMsgData_t meta( msg ) ;
+                  msg_destroy(msg) ;      // releases the reference
+
+                  DR_LOG(log_info) << "received quick cancel for forking invite: " << sip->sip_call_id->i_id  ;
+
+                  client_ptr client = m_pClientController->findClientForNetTransaction(p->getTransactionId());
+                  if(client) {
+                      void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
+                      m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta)) ;
+                  }
+
+                  STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "200"}})
+                  nta_msg_treply( theOneAndOnlyController->getAgent(), msg, 200, NULL, TAG_END() );
+                  p->cancel() ;
+                  STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "INVITE"},{"code", "487"}})
+                  nta_msg_treply( theOneAndOnlyController->getAgent(), msg_dup(p->getMsg()), 487, NULL, TAG_END() );
+                  break;
+                }
+
                 std::shared_ptr<SipDialog> dlg ;
                 if( !this->findDialogByLeg( leg, dlg ) ) {
                     DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;

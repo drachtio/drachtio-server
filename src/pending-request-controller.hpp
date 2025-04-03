@@ -122,7 +122,8 @@ namespace drachtio {
         }
       }   
       return p ;
-   }
+    }
+    std::shared_ptr<PendingRequest_t> findInviteByCallIdAndBranch( sip_t const *sip );
 
   bool getMethodForRequest(const string& transactionId, string& method);
   void timeout(const string& transactionId) ;

@@ -350,7 +350,7 @@ namespace drachtio {
     void Client<T,S>::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
 
         if( ec ) {
-            DR_LOG(log_error) << "Client::read_handler - bouncing client due to error reading: " << ec ;
+            DR_LOG(log_debug) << "Client::read_handler - bouncing client due to error reading: " << ec ;
             m_controller.leave( shared_from_this() ) ;
             return ;
         }

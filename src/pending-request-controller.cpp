@@ -251,6 +251,24 @@ namespace drachtio {
     return p ;
   }
 
+  std::shared_ptr<PendingRequest_t> PendingRequestController::findInviteByCallIdAndBranch( sip_t const *sip ) {
+    std::shared_ptr<PendingRequest_t> p ;
+    string callId = sip->sip_call_id->i_id ;
+    string branch = sip->sip_via->v_branch ;
+    DR_LOG(log_info) << "PendingRequestController::findInviteByCallIdAndBranch - Call-ID: " << callId << ", branch: " << branch ;
+    std::lock_guard<std::mutex> lock(m_mutex) ;
+    for( mapCallId2Invite::iterator it = m_mapCallId2Invite.begin() ; m_mapCallId2Invite.end() != it; it++ ) {
+      std::shared_ptr<PendingRequest_t> p = it->second ;
+      sip_t* sip = p->getSipObject() ;
+      DR_LOG(log_info) << "PendingRequestController::findInviteByCallIdAndBranch - comparing Call-ID: " << sip->sip_call_id->i_id << ", branch: " << sip->sip_via->v_branch ;
+      if( 0 == callId.compare( sip->sip_call_id->i_id) && sip->sip_request->rq_method == sip_method_invite &&
+          0 == branch.compare( sip->sip_via->v_branch ) ) {
+        return p ;
+      }
+    }
+    return p ;
+  }
+
   void PendingRequestController::timeout(const string& transactionId) {
     DR_LOG(log_debug) << "PendingRequestController::timeout: giving up on transactionId " << transactionId ;
 
