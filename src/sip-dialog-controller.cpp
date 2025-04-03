@@ -1453,6 +1453,7 @@ namespace drachtio {
                 //           => find in pending request controller and send 200 OK to the CANCEL and 487 to INVITE
 
                 std::shared_ptr<PendingRequest_t> p = theOneAndOnlyController->getPendingRequestController()->findInviteByCallIdAndBranch( sip ) ;
+                if (p) {
                   msg_t* msg = nta_incoming_getrequest( irq ) ; // adds a reference
                   string encodedMessage ;
                   EncodeStackMessage( sip, encodedMessage ) ;
