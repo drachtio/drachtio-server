@@ -1,0 +1,10 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+build-docker.sh
+*.o
+*.lo
+*.la
+**/build
+**/.deps
