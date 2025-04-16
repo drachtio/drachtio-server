@@ -136,7 +136,8 @@ namespace drachtio {
     /* stateless callback for messages not associated with a leg */
     int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
 
-    bool setupLegForIncomingRequest( const string& transactionId, const string& tag ) ;
+    bool setupLegForIncomingRequest( const string& transactionId, const string& tag) ;
+    void rejectLegForIncomingRequest( const string& transactionId, const string& tag, const char* status, int code, string& headers) ;
 
     /* callback from http outbound requests for route selection */
     void httpCallRoutingComplete(const string& transactionId, long response_code, const string& response) ;
