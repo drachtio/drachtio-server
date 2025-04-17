@@ -1718,6 +1718,8 @@ namespace drachtio {
       tags = makeTags( headers, transportDesc,
         pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL) ;
 
+      DR_LOG(log_debug) << "DrachtioController::rejectLegForIncomingRequest - transaction id: " << transactionId;
+
       STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", std::to_string(code)}})
       nta_msg_treply( m_nta, msg, code, status, TAG_NEXT(tags), TAG_END() ) ;
     }
