@@ -1254,7 +1254,7 @@ namespace drachtio {
                             DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed sending reliable provisional response; most likely remote endpoint does not support 100rel"  ;
                         } 
                         else {
-                            IIP_SetReliable(m_invitesInProgress, iip, rel);
+                            IIP_AddReliable(m_invitesInProgress, iip, rel);
                         }
                         //TODO: should probably set timer here
                     }
@@ -1844,12 +1844,13 @@ namespace drachtio {
         }
         return 0 ;
     }
-    int SipDialogController::processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) {
-        DR_LOG(log_debug) << "SipDialogController::processPrack: "  ;
-        std::shared_ptr<IIP> iip  ;
-        if (IIP_FindByReliable(m_invitesInProgress, rel, iip)) {
-            std::string transactionId ;
+    int SipDialogController::processPrack( nta_reliable_t* rel, nta_incoming_t* prack, sip_t const *sip) {
+        DR_LOG(log_debug) << "SipDialogController::processPrack: rel "  << std::hex << (void*) rel ;
+        std::shared_ptr<IIP> iip ;
+        if( IIP_FindByReliable( m_invitesInProgress, rel, iip) ) {
+            string transactionId ;
             generateUuid( transactionId ) ;
+
             std::shared_ptr<SipDialog> dlg = iip->dlg() ;
             assert( dlg ) ;
 
@@ -1863,12 +1864,12 @@ namespace drachtio {
 
             m_pClientController->route_request_inside_dialog( encodedMessage, meta, sip, transactionId, dlg->getDialogId() ) ;
 
-            iip->destroyReliable() ;
+            iip->destroyReliable(rel);
 
             addIncomingRequestTransaction( prack, transactionId) ;
         }
         else {
-            assert(0) ;
+          DR_LOG(log_error) << "SipDialogController::processPrack: unable to find IIP for rel "  << std::hex << (void*) rel ;
         }
         return 0 ;
     }
