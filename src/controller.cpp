@@ -1722,6 +1722,8 @@ namespace drachtio {
 
       STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", std::to_string(code)}})
       nta_msg_treply( m_nta, msg, code, status, TAG_NEXT(tags), TAG_END() ) ;
+
+      deleteTags( tags ) ;
     }
 
     bool DrachtioController::setupLegForIncomingRequest( const string& transactionId, const string& tag) {
