@@ -959,6 +959,9 @@ namespace drachtio {
 
                 if (code >= 300) {
                   m_pController->rejectLegForIncomingRequest( transactionId, tag, status, code, headers ) ;
+                  pData->~SipMessageData() ;
+                  su_free(m_pController->getHome(), sip_status);
+                  return;
                 }
                 else if( m_pController->setupLegForIncomingRequest( transactionId, tag ) ) {
                     if (!IIP_FindByTransactionId(m_invitesInProgress, transactionId, iip)) {
