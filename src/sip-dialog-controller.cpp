@@ -957,10 +957,7 @@ namespace drachtio {
                     }
                 }
 
-                if (code >= 300) {
-                  m_pController->rejectLegForIncomingRequest( transactionId, tag, status, code, headers ) ;
-                }
-                else if( m_pController->setupLegForIncomingRequest( transactionId, tag ) ) {
+                if( m_pController->setupLegForIncomingRequest( transactionId, tag ) ) {
                     if (!IIP_FindByTransactionId(m_invitesInProgress, transactionId, iip)) {
                         irq = findAndRemoveTransactionIdForIncomingRequest(transactionId)  ;
                     }
@@ -1103,7 +1100,7 @@ namespace drachtio {
             msg_destroy( msg ); //release the reference
 
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest destroying irq " << irq  ;
-            bDestroyIrq = true ;  
+            bDestroyIrq = true ;                        
         }
         else if( iip ) {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found invite or subscribe in progress " << std::hex << iip  ;
