@@ -171,6 +171,7 @@ namespace drachtio {
 
     RequestRouter& getRequestRouter(void) { return m_requestRouter; }
     StatsCollector& getStatsCollector(void) { return m_statsCollector; }
+    std::unordered_set<std::string>& getPreservedHeaderNames(void) { return m_preservedHeaderNames; }
 
     void makeOutboundConnection(const string& transactionId, const string& uri);
     void makeConnectionForTag(const string& transactionId, const string& tag);
@@ -297,6 +298,8 @@ namespace drachtio {
     int m_bRejectRegisterWithNoRealm;
 
     string  m_strUserAgentAutoAnswerOptions;
+
+    std::unordered_set<std::string> m_preservedHeaderNames;
   } ;
 
 } ;

@@ -68,6 +68,18 @@ namespace {
 
 namespace drachtio {
     std::string capitalizeAfterDash(const std::string& input) {
+      std::unordered_set<std::string> preservedHeaders;
+      
+      preservedHeaders = theOneAndOnlyController->getPreservedHeaderNames();
+      if (!preservedHeaders.empty()) {
+        for (const auto& header : preservedHeaders) {
+            if (boost::iequals(boost::trim_copy(header), input)) {
+              DR_LOG(log_debug) << "capitalizeAfterDash - preserving header case " << header;
+              return input; // Return unmodified if header should be preserved
+            }
+        }
+      }
+
       std::string output = input;
       bool capitalizeNext = true;
       if (input.substr(0, 2) != "X-" && input.substr(0, 2) != "x-") {
