@@ -892,7 +892,16 @@ namespace drachtio {
         if (p) {
             m_tlsCipherList = p;
         }
-
+        p = std::getenv("DRACHTIO_PRESERVE_HEADER_NAMES");
+        if (p) {
+            vector<string> headers;
+            boost::split(headers, p, boost::is_any_of(","));
+            for (const string& header : headers) {
+                string trimmed = header;
+                boost::trim(trimmed);
+                m_preservedHeaderNames.insert(trimmed);
+            }
+        }
     }
 
     void DrachtioController::daemonize() {
