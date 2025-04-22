@@ -1707,33 +1707,7 @@ namespace drachtio {
         return rc ;
     }
 
-    void DrachtioController::rejectLegForIncomingRequest( const string& transactionId, const string& tag, const char* status, int code, string& headers) {
-      tagi_t* tags = nullptr;
-      std::string transportDesc;
-
-      std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
-      if (!p || p->isCanceled()) return;
-
-      sip_t* sip = p->getSipObject() ;
-      msg_t* msg = p->getMsg() ;
-      tport_t* tp = p->getTport() ;
-
-      if (tport_is_shutdown(tp)) return;
-
-      tport_t *tport = tport_parent( tp );
-      std::shared_ptr<SipTransport> pSelectedTransport = SipTransport::findTransport( tport ) ;
-      tport_unref( tp ) ;
-
-      tags = makeTags( headers, transportDesc,
-        pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL) ;
-
-      DR_LOG(log_debug) << "DrachtioController::rejectLegForIncomingRequest - transaction id: " << transactionId;
-
-      STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", std::to_string(code)}})
-      nta_msg_treply( m_nta, msg, code, status, TAG_NEXT(tags), TAG_END() ) ;
-    }
-
-    bool DrachtioController::setupLegForIncomingRequest( const string& transactionId, const string& tag) {
+    bool DrachtioController::setupLegForIncomingRequest( const string& transactionId, const string& tag ) {
         //DR_LOG(log_debug) << "DrachtioController::setupLegForIncomingRequest - entering"  ;
         std::shared_ptr<PendingRequest_t> p = m_pPendingRequestController->findAndRemove( transactionId ) ;
         if( !p ) {
