@@ -1124,7 +1124,7 @@ namespace drachtio {
           std::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
           // check if this is a response to an UPDATE for an invite in progress
-          if (containsCseqUpdate(headers) && dlg->getUpdateIrq()) {
+          if (dlg->getUpdateIrq() && containsCseqUpdate(headers)) {
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - found UPDATE for invite in progress " << std::hex << iip  ;
             isUpdate = true;
             bDestroyIrq = true ;
