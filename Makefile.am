@@ -25,9 +25,14 @@ drachtio_CPPFLAGS= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/dep
  -D_REENTRANT -DBOOST_LOG_DYN_LINK -DDRACHTIO_VERSION=\"$(MYVERSION)\" -Wno-error=deprecated-declarations \
  -DBOOST_ALLOW_DEPRECATED_HEADERS -O2
 
+if DEP_HIREDIS
+drachtio_CPPFLAGS += -I${srcdir}/deps
+AM_LDFLAGS += -L${srcdir}/deps/hiredis
+endif
+
 drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
   ${srcdir}/deps/jansson/src/.libs/libjansson.a \
-  ${srcdir}/deps/hiredis/libhiredis.a -lcurl -lpthread -lssl -lcrypto -lz
+  -lhiredis -lcurl -lpthread -lssl -lcrypto -lz
 
 if LINUX
 drachtio_CPPFLAGS += -Wno-stringop-overflow
@@ -54,6 +59,10 @@ endif
 BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
+if DEP_HIREDIS
+BUILT_SOURCES += ${srcdir}/deps/hiredis/libhiredis.a
+endif
+
 clean-local:
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
@@ -67,5 +76,7 @@ ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a ${srcdir}/deps/
 	cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=`pwd` && \
 	$(MAKE) && make install
 
+if DEP_HIREDIS
 ${srcdir}/deps/hiredis/libhiredis.a:
 	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE)
+endif

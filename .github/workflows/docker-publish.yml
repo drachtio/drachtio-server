@@ -83,6 +83,6 @@ jobs:
           tags: ${{ steps.prepare_tag.outputs.image_id }}:${{ steps.prepare_tag.outputs.version }}
           build-args: | 
             BUILD_CPUS=16
-            DETECTED_TAG=${{ steps.prepare_tag.outputs.tag }}
+            MYVERSION=${{ steps.prepare_tag.outputs.tag }}
           push: true
           no-cache: true
