@@ -61,7 +61,7 @@ namespace drachtio {
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(nta_incoming_transport(theOneAndOnlyController->getAgent(), irq, msg) ), 
     m_leg( leg ), m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL), m_orqAck(nullptr), m_orq(nullptr), m_seq(0),
 		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false), m_nSessionTimerDuration(0),
-		m_timeArrive(std::chrono::steady_clock::now()), m_bAckBye(false), m_tmArrival(sip_now()), m_bDestroyAckOnClose(false)
+		m_timeArrive(std::chrono::steady_clock::now()), m_bAckBye(false), m_tmArrival(sip_now()), m_bDestroyAckOnClose(false), m_irqUpdate(NULL)
 	{
     const tp_name_t* tpn = tport_name( m_tp );
 
@@ -126,7 +126,7 @@ namespace drachtio {
 		m_nSessionExpiresSecs(0), m_nMinSE(90), m_tp(NULL), m_leg(leg), m_orqAck(nullptr), m_orq(orq), m_seq(0),
     m_timerG(NULL), m_durationTimerG(0), m_timerH(NULL), m_nSessionTimerDuration(0),
 		m_bInviteDialog(sip->sip_request->rq_method == sip_method_invite), m_bAlerting(false), m_transactionId(transactionId),
-		m_timeArrive(std::chrono::steady_clock::now()), m_bAckBye(false), m_tmArrival(sip_now()), m_bDestroyAckOnClose(false)
+		m_timeArrive(std::chrono::steady_clock::now()), m_bAckBye(false), m_tmArrival(sip_now()), m_bDestroyAckOnClose(false), m_irqUpdate(NULL)
 	{
 		m_transactionId = transactionId ;
 
