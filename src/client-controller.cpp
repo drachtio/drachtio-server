@@ -337,6 +337,7 @@ namespace drachtio {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             client = this->findClientForNetTransaction( transactionId );
+            if (!client) client = this->findClientForAppTransaction( transactionId );
             if( !client ) {
                 DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client managing transaction has disconnected: " << transactionId  ;
                 return false ;
