@@ -51,6 +51,22 @@ namespace {
         return callIdAndCSeq;
     }
 
+    bool containsCseqUpdate(const std::string& input) {
+      // Regex explanation:
+      // ^ - Beginning of line anchor
+      // (?:^|\n) - Match either start of string or newline character
+      // cseq: - Match the literal "cseq:" text (case insensitive due to std::regex_search flag)
+      // \\s* - Match zero or more whitespace characters
+      // (\\d+) - Match one or more digits
+      // \\s* - Match zero or more whitespace characters
+      // UPDATE - Match the literal "UPDATE" text (case insensitive due to std::regex_search flag)
+      std::regex pattern("(?:^|\\n)cseq:\\s*(\\d+)\\s*UPDATE", 
+                        std::regex_constants::icase);
+      
+      return std::regex_search(input, pattern);
+    }
+  
+
     void cloneRespondToSipRequest(su_root_magic_t* p, su_msg_r msg, void* arg ) {
         drachtio::DrachtioController* pController = reinterpret_cast<drachtio::DrachtioController*>( p ) ;
         drachtio::SipDialogController::SipMessageData* d = reinterpret_cast<drachtio::SipDialogController::SipMessageData*>( arg ) ;
@@ -927,6 +943,7 @@ namespace drachtio {
         bool bClearIIP = false ;
         bool existingDialog = false;
         bool transportGone = false;
+        bool isUpdate = false;
         tagi_t* tags = nullptr;
 
         //decode status 
@@ -943,6 +960,7 @@ namespace drachtio {
         /* search for requests within a dialog first */
         irq = findAndRemoveTransactionIdForIncomingRequest( transactionId ) ;
         if( !irq ) {
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - unable to find transaction id " << transactionId  ;
             if (!IIP_FindByTransactionId(m_invitesInProgress, transactionId, iip)) {
                 /* could be a new incoming request that hasn't been responded to yet */
                 
@@ -1103,11 +1121,56 @@ namespace drachtio {
             bDestroyIrq = true ;                        
         }
         else if( iip ) {
+          std::shared_ptr<SipDialog> dlg = iip->dlg() ;
+
+          // check if this is a response to an UPDATE for an invite in progress
+          if (dlg->getUpdateIrq() && containsCseqUpdate(headers)) {
+            DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - found UPDATE for invite in progress " << std::hex << iip  ;
+            isUpdate = true;
+            bDestroyIrq = true ;
+            irq = dlg->getUpdateIrq();
+            msg_t* msg = nta_incoming_getrequest( irq ) ;   //allocates a reference
+            sip_t *sip = sip_object( msg );
+            tport_t *tp = nta_incoming_transport(m_agent, irq, msg) ;
+            if (!tp || tport_is_shutdown(tp)) {
+              failMsg = "transport for response has been shutdown or closed";
+              DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - unable to forward response as transport has been closed or shutdown "
+                  << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
+              bSentOK = false;
+              transportGone = true;
+              msg_destroy(msg);
+            }
+            else {
+              tport_t *tport = tport_parent( tp ) ;
+
+              pSelectedTransport = SipTransport::findTransport( tport ) ;
+              assert(pSelectedTransport); 
+              pSelectedTransport->getDescription(transportDesc);
+
+              tport_unref( tp ) ;
+              //create tags for headers
+              tags = makeTags( headers, transportDesc,
+                pSelectedTransport->hasExternalIp() ? pSelectedTransport->getExternalIp().c_str() : NULL) ;
+
+              DR_LOG(log_debug) << "Sending " << dec << code << " response to UPDATE on irq " << hex << irq  ;
+              rc = nta_incoming_treply( irq, code, status
+                  ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
+                  ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
+                  ,TAG_NEXT(tags)
+                  ,TAG_END() ) ; 
+              if( 0 != rc ) {
+                  DR_LOG(log_error) << "Error " << dec << rc << " sending response on UPDATE  irq " << hex << irq <<
+                      " - this is usually because the application provided a syntactically-invalid header";
+                  bSentOK = false ;
+                  failMsg = "Unknown server error sending response" ;
+              }
+            }
+          }
+          else {
+            /* invite in progress */
             DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest found invite or subscribe in progress " << std::hex << iip  ;
-           /* invite in progress */
             nta_leg_t* leg = const_cast<nta_leg_t *>(iip->leg()) ;
             irq = const_cast<nta_incoming_t *>(iip->irq()) ;         
-            std::shared_ptr<SipDialog> dlg = iip->dlg() ;
 
             if (dlg->getSipStatus() >= 200) {
                 DR_LOG(log_warning) << "SipDialogController::doRespondToSipRequest: iip " << std::hex << iip  << 
@@ -1254,7 +1317,7 @@ namespace drachtio {
                             DR_LOG(log_error) << "SipDialogController::doRespondToSipRequest - failed sending reliable provisional response; most likely remote endpoint does not support 100rel"  ;
                         } 
                         else {
-                            IIP_SetReliable(m_invitesInProgress, iip, rel);
+                            IIP_AddReliable(m_invitesInProgress, iip, rel);
                         }
                         //TODO: should probably set timer here
                     }
@@ -1324,6 +1387,7 @@ namespace drachtio {
                     if (sessionExpires) su_free(m_pController->getHome(), sessionExpires);
                 }
             }
+          }
         }
         else {
 
@@ -1364,10 +1428,10 @@ namespace drachtio {
 
                 m_pController->getClientController()->route_api_response( clientMsgId, "OK", data) ;
 
-                if( iip && code >= 300 ) {
+                if( iip && code >= 300 && !isUpdate) {
                     Cdr::postCdr( std::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
                 }
-                else if (iip && code == 200) {
+                else if (iip && code == 200 && !isUpdate) {
                     Cdr::postCdr( std::make_shared<CdrStart>( msg, "application", Cdr::uas ) );                
                 }
 
@@ -1381,7 +1445,7 @@ namespace drachtio {
             m_pController->getClientController()->route_api_response( clientMsgId, "NOK", failMsg) ;
         }
         /* tell client controller to flush transaction data on any final response to a non-INVITE */
-        if( sip_method_invite != nta_incoming_method(irq) && code >= 200 ) {
+        if( sip_method_invite != nta_incoming_method(irq) && code >= 200 && !isUpdate) {
             m_pController->getClientController()->removeNetTransaction( transactionId ) ;
         }
         else if( sip_method_invite == nta_incoming_method(irq) && code > 200 ) {
@@ -1591,6 +1655,20 @@ namespace drachtio {
                             DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
                             rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
                             return rc;
+
+                        case sip_method_update:
+                          DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for update request during invite"  ;
+                          
+                          // if we have an update irq then return 500: https://datatracker.ietf.org/doc/html/rfc3311#section-5.2
+                          if (dlg->getUpdateIrq()) {
+                            nta_incoming_treply( irq, SIP_500_INTERNAL_SERVER_ERROR, TAG_END() ) ;
+                            return 0;
+                          }
+                          dlg->setUpdateIrq(irq);
+                          routed = m_pController->getClientController()->route_request_inside_invite( encodedMessage, meta, irq, sip, 
+                            dlg->getTransactionId(), dlg->getDialogId() );
+                          break;
+
                         default:
                         break;
                     }
@@ -1844,12 +1922,13 @@ namespace drachtio {
         }
         return 0 ;
     }
-    int SipDialogController::processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) {
-        DR_LOG(log_debug) << "SipDialogController::processPrack: "  ;
-        std::shared_ptr<IIP> iip  ;
-        if (IIP_FindByReliable(m_invitesInProgress, rel, iip)) {
-            std::string transactionId ;
+    int SipDialogController::processPrack( nta_reliable_t* rel, nta_incoming_t* prack, sip_t const *sip) {
+        DR_LOG(log_debug) << "SipDialogController::processPrack: rel "  << std::hex << (void*) rel ;
+        std::shared_ptr<IIP> iip ;
+        if( IIP_FindByReliable( m_invitesInProgress, rel, iip) ) {
+            string transactionId ;
             generateUuid( transactionId ) ;
+
             std::shared_ptr<SipDialog> dlg = iip->dlg() ;
             assert( dlg ) ;
 
@@ -1863,12 +1942,12 @@ namespace drachtio {
 
             m_pClientController->route_request_inside_dialog( encodedMessage, meta, sip, transactionId, dlg->getDialogId() ) ;
 
-            iip->destroyReliable() ;
+            iip->destroyReliable(rel);
 
             addIncomingRequestTransaction( prack, transactionId) ;
         }
         else {
-            assert(0) ;
+          DR_LOG(log_error) << "SipDialogController::processPrack: unable to find IIP for rel "  << std::hex << (void*) rel ;
         }
         return 0 ;
     }

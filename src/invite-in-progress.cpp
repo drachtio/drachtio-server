@@ -18,19 +18,20 @@ namespace drachtio {
 
   IIP::IIP(nta_leg_t* leg, nta_incoming_t* irq, const std::string& transactionId, std::shared_ptr<SipDialog> dlg) : 
     m_leg(leg), m_irq(irq), m_orq(nullptr), m_strTransactionId(transactionId), m_dlg(dlg),
-    m_role(uas_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerCancel(nullptr) {
+    m_role(uas_role), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerCancel(nullptr) {
       DR_LOG(log_debug) << "adding IIP " << *this;
     }
 
   IIP::IIP(nta_leg_t* leg, nta_outgoing_t* orq, const string& transactionId, std::shared_ptr<SipDialog> dlg) : 
     m_leg(leg), m_irq(nullptr), m_orq(orq), m_strTransactionId(transactionId), m_dlg(dlg),
-    m_role(uac_role),m_rel(nullptr), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerCancel(nullptr) {
+    m_role(uac_role), m_bCanceled(false), m_tmCreated(sip_now()), m_ppSelf(nullptr), m_timerCancel(nullptr) {
       DR_LOG(log_debug) << "adding IIP " << *this;
     }
 
   IIP::~IIP() {
-    stopCancelTimer() ;
-		if( m_ppSelf) delete m_ppSelf ;
+    stopCancelTimer();
+    destroyAllReliables();
+		if( m_ppSelf) delete m_ppSelf;
   }
   
   void IIP::doCancelTimerHandling(void) {
@@ -66,7 +67,11 @@ namespace drachtio {
       " leg:" << iip.leg() << 
       " irq:" << iip.irq() <<
       " orq:" << iip.orq() <<
-      " rel:" << iip.rel() ;
+      " reliables:[";
+    for(auto rel : iip.reliables()) {
+      os << rel << " ";
+    }
+    os << "]";
     return os;
   }
 
@@ -119,12 +124,16 @@ namespace drachtio {
   }
 
   bool IIP_FindByReliable(const InvitesInProgress_t& iips, nta_reliable_t* rel, std::shared_ptr<IIP>& iip) {
-    std::lock_guard<std::mutex> lock(iip_mutex) ;
-    auto &idx = iips.get<RelTag>();
-    auto it = idx.find(rel);
-    if (it == idx.end()) return false;
-    iip = *it;
-    return true;
+    std::lock_guard<std::mutex> lock(iip_mutex);
+    auto &idx = iips.get<TransactionIdTag>();
+    for (auto it = idx.begin(); it != idx.end(); ++it) {
+        const auto& reliables = (*it)->reliables();
+        if (std::find(reliables.begin(), reliables.end(), rel) != reliables.end()) {
+            iip = *it;
+            return true;
+        }
+    }
+    return false;
   }
 
   bool IIP_FindByTransactionId(const InvitesInProgress_t& iips, const std::string& transactionId, std::shared_ptr<IIP>& iip) {
@@ -144,21 +153,20 @@ namespace drachtio {
   }
 
   void IIP_Clear(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip) {
-    std::lock_guard<std::mutex> lock(iip_mutex) ;
+    std::lock_guard<std::mutex> lock(iip_mutex);
 
     nta_incoming_t* irq = const_cast<nta_incoming_t*>(iip->irq());
     nta_outgoing_t* orq = const_cast<nta_outgoing_t*>(iip->orq());
-    nta_reliable_t* rel = const_cast<nta_reliable_t*>(iip->rel());
-    if (irq) nta_incoming_destroy(irq) ;
+    if (irq) nta_incoming_destroy(irq);
 
-        // DH: tmp commented this out as it appears to cause a crash
-        // https://github.com/davehorton/drachtio-server/issues/76#event-2662761148
-        // this needs investigation, because it also causes a memory leak
-        //if( orq ) nta_outgoing_destroy( orq ) ;
-        //
-        // later note: the orq of the uac INVITE (as well as orq of uac ACK) is destroyed in SipDialog destructor
+    // DH: tmp commented this out as it appears to cause a crash
+    // https://github.com/davehorton/drachtio-server/issues/76#event-2662761148
+    // this needs investigation, because it also causes a memory leak
+    //if( orq ) nta_outgoing_destroy( orq ) ;
+    //
+    // later note: the orq of the uac INVITE (as well as orq of uac ACK) is destroyed in SipDialog destructor
 
-    if (rel) nta_reliable_destroy(rel) ;
+    iip->destroyAllReliables();
    
     auto &idx = iips.get<LegTag>();
     idx.erase(iip->leg());
@@ -170,14 +178,23 @@ namespace drachtio {
     return idx.size();
   }
 
-  /* since we are changing a key of the multiindex we need to use modify on the index */
-  void IIP_SetReliable(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip, nta_reliable_t* rel) {
-    std::lock_guard<std::mutex> lock(iip_mutex) ;
+  void IIP_AddReliable(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip, nta_reliable_t* rel) {
+    std::lock_guard<std::mutex> lock(iip_mutex);
     const std::string& transactionId = iip->getTransactionId();
     auto &idx = iips.get<TransactionIdTag>();
     auto it = idx.find(transactionId);
     idx.modify(it, [rel](std::shared_ptr<IIP>& iip) {
-      iip->setReliable(rel);
+        iip->addReliable(rel);
+    });
+  }
+
+  void IIP_DestroyReliable(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip, nta_reliable_t* rel) {
+    std::lock_guard<std::mutex> lock(iip_mutex);
+    const std::string& transactionId = iip->getTransactionId();
+    auto &idx = iips.get<TransactionIdTag>();
+    auto it = idx.find(transactionId);
+    idx.modify(it, [rel](std::shared_ptr<IIP>& iip) {
+        iip->destroyReliable(rel);
     });
   }
  
