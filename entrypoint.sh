@@ -3,11 +3,8 @@ set -e
 
 MYARGS=()
 
-case $CLOUD in 
-  gcp)
-    LOCAL_IP=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
-    PUBLIC_IP=$(curl -s -H "Metadata-Flavor: Google" http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
-    ;;
+case $CLOUD in
+  # Amazon Web Services
   aws)
     if [ -z "$IMDSv2" ]; then
       LOCAL_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
@@ -17,14 +14,6 @@ case $CLOUD in
       PUBLIC_IP=$(TOKEN=`curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` && curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
     fi
     ;;
-  digitalocean)
-    LOCAL_IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/private/0/ipv4/address)
-    PUBLIC_IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
-    ;;
-  scaleway)
-    LOCAL_IP=$(curl -s --local-port 1-1024 http://169.254.42.42/conf | grep PRIVATE_IP | cut -d = -f 2)
-    PUBLIC_IP=$(curl -s --local-port 1-1024 http://169.254.42.42/conf | grep PUBLIC_IP_ADDRESS | cut -d = -f 2)
-    ;;
   azure)
     if [ "$LB_IMDS" = true ]; then
       LOCAL_IP=$(curl -H "Metadata:true" --noproxy "*" "http://169.254.169.254:80/metadata/loadbalancer?api-version=2020-10-01&format=text" | jq -r '.loadbalancer.publicIpAddresses[0].privateIpAddress')
@@ -33,6 +22,28 @@ case $CLOUD in
       LOCAL_IP=$(curl -H Metadata:true "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/privateIpAddress?api-version=2017-08-01&format=text")
       PUBLIC_IP=$(curl -H Metadata:true "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-08-01&format=text")
     fi
+    ;;
+  digitalocean)
+    LOCAL_IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/private/0/ipv4/address)
+    PUBLIC_IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
+    ;;
+  # Google Cloud Platform
+  gcp)
+    LOCAL_IP=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+    PUBLIC_IP=$(curl -s -H "Metadata-Flavor: Google" http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
+    ;;
+  # Open Telekom Cloud
+  otc)
+    LOCAL_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+    PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)    
+    ;;
+  scaleway)
+    LOCAL_IP=$(curl -s --local-port 1-1024 http://169.254.42.42/conf | grep PRIVATE_IP | cut -d = -f 2)
+    PUBLIC_IP=$(curl -s --local-port 1-1024 http://169.254.42.42/conf | grep PUBLIC_IP_ADDRESS | cut -d = -f 2)
+    ;;
+  stackit)
+    LOCAL_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+    PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)    
     ;;
   *)
     ;;
