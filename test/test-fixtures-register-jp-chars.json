@@ -1,0 +1,8 @@
+[ 
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uas", "function": "registerFail"},
+    "uac": {"name": "uac-register-jp-chars.xml", "target": "127.0.0.1:5090"},
+    "message": "handles japanese characters"
+  }
+]
