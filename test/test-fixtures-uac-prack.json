@@ -1,8 +1,8 @@
 [
   {
     "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
-    "script": {"name": "uac", "function": "call5secs", "args": "sip:127.0.0.1:5092"},
-    "uas": {"name": "uas-prack.xml", "port": 5092},
-    "message": "uac: handled reliable provisional response"
+    "script": {"name": "uac-update-during-invite", "function": "call5secs", "args": "sip:127.0.0.1:5092"},
+    "uas": {"name": "uas-success.xml", "port": 5092},
+    "message": "uac: handle update during invite"
   }
 ]

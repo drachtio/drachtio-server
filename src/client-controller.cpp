@@ -337,13 +337,14 @@ namespace drachtio {
         client_ptr client = this->findClientForDialog( dialogId );
         if( !client ) {
             client = this->findClientForNetTransaction( transactionId );
+            if (!client) client = this->findClientForAppTransaction( transactionId );
             if( !client ) {
-                DR_LOG(log_warning) << "ClientController::route_response_inside_invite - client managing transaction has disconnected: " << transactionId  ;
+                DR_LOG(log_warning) << "ClientController::route_request_inside_invite - client managing transaction has disconnected: " << transactionId  ;
                 return false ;
             }
         }
  
-        DR_LOG(log_debug) << "ClientController::route_response_inside_invite - sending response to client"  ;
+        DR_LOG(log_debug) << "ClientController::route_request_inside_invite - sending cancel prack or update to client"  ;
         void (BaseClient::*fn)(const string&, const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
         m_ioservice.post( std::bind(fn, client, transactionId, dialogId, rawSipMsg, meta) ) ;
 
@@ -355,6 +356,7 @@ namespace drachtio {
         client_ptr client = this->findClientForDialog( dialogId );
         string method_name = sip->sip_request->rq_method_name ;
         bool isBye = 0 == method_name.compare("BYE");
+        bool isUpdate = 0 == method_name.compare("UPDATE");
         bool isFinalNotifyForSubscribe = sip_method_notify == sip->sip_request->rq_method && 
             NULL != sip->sip_subscription_state && 
             NULL != sip->sip_subscription_state->ss_substate &&
@@ -362,6 +364,10 @@ namespace drachtio {
             (NULL == sip->sip_event || 
                 (sip->sip_event->o_type && !std::strstr(sip->sip_event->o_type, "refer") && !std::strstr(sip->sip_event->o_type, "REFER"))
             );
+
+        if (isUpdate && !client) {
+          client = this->findClientForNetTransaction( transactionId );
+        }
     
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;

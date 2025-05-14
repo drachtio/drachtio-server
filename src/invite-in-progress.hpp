@@ -23,6 +23,8 @@ THE SOFTWARE.
 #define __SIP_IIP_HPP__
 
 #include <iostream>
+#include <vector>
+#include <algorithm>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -62,18 +64,31 @@ namespace drachtio {
 		const nta_leg_t* leg(void) const { return m_leg; }
 		const nta_incoming_t* irq(void) const { return m_irq; }
 		const nta_outgoing_t* orq(void) const { return m_orq; }
-		const nta_reliable_t* rel(void) const { return m_rel; }
+		const std::vector<nta_reliable_t*>& reliables(void) const { return m_reliables; }
+		const nta_reliable_t* rel(void) const { return m_reliables.empty() ? nullptr : m_reliables.back(); }
 		const string& getTransactionId(void) const { return m_strTransactionId; }
 
     const agent_role role() const { return m_role; }
 
-		void setReliable(nta_reliable_t* rel) { m_rel = rel; }
-		void destroyReliable(void) {
-			if( m_rel ) {
-				nta_reliable_destroy( m_rel ) ;
-				m_rel = NULL ;
+		void addReliable(nta_reliable_t* rel) { 
+			if(rel) m_reliables.push_back(rel); 
+		}
+
+		void destroyReliable(nta_reliable_t* rel) {
+			auto it = std::find(m_reliables.begin(), m_reliables.end(), rel);
+			if (it != m_reliables.end()) {
+				if(*it) nta_reliable_destroy(*it);
+				m_reliables.erase(it);
 			}
 		}
+
+		void destroyAllReliables(void) {
+			for(auto rel : m_reliables) {
+				if(rel) nta_reliable_destroy(rel);
+			}
+			m_reliables.clear();
+		}
+
 		std::shared_ptr<SipDialog> dlg(void) { return m_dlg; }
 
 		void setCanceled(void);
@@ -91,7 +106,7 @@ namespace drachtio {
 		nta_outgoing_t*	m_orq ;
 		nta_leg_t* 		m_leg ;
 		string 			  m_strTransactionId ;
-		nta_reliable_t*	m_rel ;
+		std::vector<nta_reliable_t*> m_reliables;
 		std::shared_ptr<SipDialog> 	m_dlg ;
 		agent_role		m_role ;
 		bool 					m_bCanceled;
@@ -124,10 +139,6 @@ namespace drachtio {
         boost::multi_index::tag<LegTag>,
         boost::multi_index::const_mem_fun<IIP, const nta_leg_t*, &IIP::leg>
       >,
-      hashed_non_unique<
-        boost::multi_index::tag<RelTag>,
-        boost::multi_index::const_mem_fun<IIP, const nta_reliable_t*, &IIP::rel>
-      >,
       hashed_unique<
         boost::multi_index::tag<TransactionIdTag>,
         boost::multi_index::const_mem_fun<IIP, const std::string&, &IIP::getTransactionId>
@@ -146,8 +157,10 @@ namespace drachtio {
   void IIP_Clear(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip);
   void IIP_Clear(InvitesInProgress_t& iips, nta_leg_t* leg);
   size_t IIP_Size(const InvitesInProgress_t& iips);
-  void IIP_SetReliable(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip, nta_reliable_t* rel);
+  void IIP_AddReliable(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip, nta_reliable_t* rel);
+  void IIP_DestroyReliable(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip, nta_reliable_t* rel);
   void IIP_Log(const InvitesInProgress_t& iips, bool full = false);
 }
 
 #endif
+
