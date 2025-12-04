@@ -75,6 +75,8 @@ namespace drachtio {
     void setNetwork(const string& network) { m_network = network;}
     void setNetmask(uint32_t netmask) { m_netmask = netmask;}
     void setRange(uint32_t range) { m_range = range;}
+    uint32_t getNetmask(void) const { return m_netmask; }
+    uint32_t getRange(void) const { return m_range; }
 
     void getDescription(string& s, bool shortVersion = true) ;
     void getHostport(string& s) ;

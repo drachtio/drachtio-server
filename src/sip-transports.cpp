@@ -110,7 +110,13 @@ namespace drachtio {
 
       uint32_t netbits = ::atoi( bits.c_str() ) ;    
       m_netmask = ~(~uint32_t(0) >> netbits);    
+      
+      DR_LOG(log_info) << "SipTransport::init - configured local-net: " << m_strLocalNet 
+        << " (network: " << network << ", bits: " << bits 
+        << ", range: 0x" << std::hex << m_range 
+        << ", netmask: 0x" << m_netmask << std::dec << ")";
     }
+    // Note: Don't log in else branch - logger may not be initialized during early construction
   }
 
   bool SipTransport::shouldAdvertisePublic( const char* address ) const {
@@ -120,14 +126,27 @@ namespace drachtio {
   }
 
   bool SipTransport::isInNetwork(const char* address) const {
-    if (!m_netmask) return false;
+    if (!m_netmask) {
+      DR_LOG(log_debug) << "SipTransport::isInNetwork - no netmask configured (local-net not set), returning false for address: " << address;
+      return false;
+    }
 
     struct sockaddr_in addr;
     inet_pton(AF_INET, address, &(addr.sin_addr));
 
     uint32_t ip = htonl(addr.sin_addr.s_addr) ;
+    bool isInNet = (ip & m_netmask) == (m_range & m_netmask) ;
 
-    return (ip & m_netmask) == (m_range & m_netmask) ;
+    DR_LOG(log_debug) << "SipTransport::isInNetwork - checking address: " << address 
+      << ", local-net: " << m_strLocalNet 
+      << ", range: 0x" << std::hex << m_range 
+      << ", netmask: 0x" << m_netmask 
+      << ", ip: 0x" << ip 
+      << ", (ip & netmask): 0x" << (ip & m_netmask)
+      << ", (range & netmask): 0x" << (m_range & m_netmask)
+      << std::dec << ", result: " << (isInNet ? "IN NETWORK" : "NOT IN NETWORK");
+
+    return isInNet ;
   }
 
   void SipTransport::getDescription(string& s, bool shortVersion) {
@@ -261,10 +280,22 @@ namespace drachtio {
     DR_LOG(log_debug) << "SipTransport::getContactUri - created Contact header: " << contact;
   }
   sip_via_t* SipTransport::makeVia(su_home_t * h, const char* szRemoteHost) {
+    // Safety check: ensure we have a valid tport before proceeding
+    if (!this->hasTport()) {
+      DR_LOG(log_warning) << "SipTransport::makeVia - no valid tport, returning NULL";
+      return NULL;
+    }
+
     bool isInSubnet = szRemoteHost ? this->isInNetwork(szRemoteHost) : false;
     string host = this->getHost();
     if (this->hasExternalIp() && !isInSubnet) {
       host = this->getExternalIp();
+    }
+
+    // Safety check: ensure host is not empty
+    if (host.empty()) {
+      DR_LOG(log_warning) << "SipTransport::makeVia - empty host, returning NULL";
+      return NULL;
     }
 
     string proto = this->getProtocol();
@@ -272,9 +303,11 @@ namespace drachtio {
     boost::to_upper(proto);
 
     string transport = string("SIP/2.0/") + proto;
-    DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << this->getPort() << ", transport " << transport ;
+    const char* port = this->getPort();
+    
+    DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << (port ? port : "5060") << ", transport " << transport ;
 
-    return sip_via_create(h, host.c_str(), this->getPort(), transport.c_str());
+    return sip_via_create(h, host.c_str(), port, transport.c_str());
   }
 
 
@@ -376,6 +409,8 @@ namespace drachtio {
         if (p->getLocalNet().empty()) {
           string network, bits;
           string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();
+          DR_LOG(log_debug) << "SipTransport::addTransports - auto-detecting local-net for host: " << host;
+          
           if(0 == host.compare("127.0.0.1")) {
             network = "127.0.0.1";
             bits = "32";
@@ -402,7 +437,19 @@ namespace drachtio {
             p->setNetmask(~(~uint32_t(0) >> netbits));
             p->setNetwork(network);
             p->setLocalNet(network, bits);
+
+            DR_LOG(log_info) << "SipTransport::addTransports - auto-detected local-net: " << network << "/" << bits 
+              << " for transport " << hex << tp << dec << " (host: " << host 
+              << ", range: 0x" << hex << htonl(range.sin_addr.s_addr) << ", netmask: 0x" << (~(~uint32_t(0) >> netbits)) << dec << ")";
           }
+          else {
+            DR_LOG(log_info) << "SipTransport::addTransports - no auto-detection match for host: " << host 
+              << ", local-net will not be set";
+          }
+        }
+        else {
+          DR_LOG(log_info) << "SipTransport::addTransports - using configured local-net: " << p->getLocalNet() 
+            << " for transport " << hex << tp << dec;
         }
       }
     }

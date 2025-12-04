@@ -357,6 +357,25 @@ namespace drachtio {
                     contact = dlg->getLocalContactHeader();
                     addContact = true ;
                 }
+
+                // Determine the destination IP for Via header selection based on local-net
+                // Use the actual source address (remote peer IP) from the dialog
+                // Only for non-ACK/PRACK methods (REFER, BYE, re-INVITE, etc.)
+                sip_via_t* customVia = NULL;
+                {
+                    const string& destIp = dlg->getSourceAddress();
+                    if (!destIp.empty()) {
+                        std::shared_ptr<SipTransport> pTransport = SipTransport::findAppropriateTransport(destIp.c_str());
+                        if (pTransport && pTransport->hasTport()) {
+                            customVia = pTransport->makeVia(m_pController->getHome(), destIp.c_str());
+                            if (customVia) {
+                                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created custom Via for destination IP " 
+                                    << destIp << ": " << customVia->v_host << ":" << (customVia->v_port ? customVia->v_port : "5060");
+                            }
+                        }
+                    }
+                }
+
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
                     method, name.c_str()
@@ -365,10 +384,24 @@ namespace drachtio {
                     ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_IF(forceTport, NTATAG_TPORT(tp))
+                    ,TAG_IF(customVia, SIPTAG_VIA(customVia))
+                    ,TAG_IF(customVia, NTATAG_USER_VIA(1))
                     ,TAG_NEXT(tags) ) ;
 
                 if( orq ) {
                     DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
+
+                    // Debug: print full SIP message from orq
+                    msg_t* dbgMsg = nta_outgoing_getrequest(orq);  // adds a reference
+                    if (dbgMsg) {
+                        sip_t* dbgSip = sip_object(dbgMsg);
+                        if (dbgSip) {
+                            string dbgEncodedMessage;
+                            EncodeStackMessage(dbgSip, dbgEncodedMessage);
+                            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - Full SIP message from orq:\n" << dbgEncodedMessage;
+                        }
+                        msg_destroy(dbgMsg);  // releases the reference
+                    }
                 }
             }
 
