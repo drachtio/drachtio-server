@@ -143,6 +143,43 @@ namespace drachtio {
     return isInNet ;
   }
 
+  bool SipTransport::isInPrivateNetwork(const char* address) {
+    struct sockaddr_in addr;
+    if (inet_pton(AF_INET, address, &(addr.sin_addr)) != 1) {
+      DR_LOG(log_debug) << "SipTransport::isInPrivateNetwork - invalid IPv4 address: " << address;
+      return false;
+    }
+
+    uint32_t ip = htonl(addr.sin_addr.s_addr);
+
+    // RFC 1918 private address ranges:
+    // 10.0.0.0/8     (10.0.0.0 - 10.255.255.255)
+    // 172.16.0.0/12  (172.16.0.0 - 172.31.255.255)
+    // 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
+
+    // 10.0.0.0/8
+    uint32_t net10 = 0x0A000000;      // 10.0.0.0
+    uint32_t mask8 = 0xFF000000;      // /8
+
+    // 172.16.0.0/12
+    uint32_t net172 = 0xAC100000;     // 172.16.0.0
+    uint32_t mask12 = 0xFFF00000;     // /12
+
+    // 192.168.0.0/16
+    uint32_t net192 = 0xC0A80000;     // 192.168.0.0
+    uint32_t mask16 = 0xFFFF0000;     // /16
+
+    bool isPrivate = ((ip & mask8) == net10) ||
+                     ((ip & mask12) == net172) ||
+                     ((ip & mask16) == net192);
+
+    DR_LOG(log_debug) << "SipTransport::isInPrivateNetwork - checking address: " << address 
+      << ", ip: 0x" << std::hex << ip << std::dec
+      << ", result: " << (isPrivate ? "PRIVATE" : "PUBLIC");
+
+    return isPrivate;
+  }
+
   void SipTransport::getDescription(string& s, bool shortVersion) {
     s = "" ;
     if( hasTport() ) {
@@ -280,9 +317,10 @@ namespace drachtio {
       return NULL;
     }
 
-    bool isInSubnet = szRemoteHost ? this->isInNetwork(szRemoteHost) : false;
+    // Use private IP if destination is in a private network (RFC 1918), otherwise use external IP
+    bool destIsPrivate = szRemoteHost ? isInPrivateNetwork(szRemoteHost) : false;
     string host = this->getHost();
-    if (this->hasExternalIp() && !isInSubnet) {
+    if (this->hasExternalIp() && !destIsPrivate) {
       host = this->getExternalIp();
     }
 
