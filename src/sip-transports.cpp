@@ -307,7 +307,7 @@ namespace drachtio {
     
     DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << (port ? port : "5060") << ", transport " << transport ;
 
-    return sip_via_create(h, host.c_str(), port, transport.c_str());
+    return sip_via_create(h, host.c_str(), port, transport.c_str(), NULL);
   }
 
 
