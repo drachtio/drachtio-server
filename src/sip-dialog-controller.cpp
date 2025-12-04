@@ -366,7 +366,7 @@ namespace drachtio {
                     const string& destIp = dlg->getSourceAddress();
                     if (!destIp.empty()) {
                         std::shared_ptr<SipTransport> pTransport = SipTransport::findAppropriateTransport(destIp.c_str());
-                        if (pTransport && pTransport->hasTport()) {
+                        if (pTransport && pTransport->hasTportAndTpname()) {
                             customVia = pTransport->makeVia(m_pController->getHome(), destIp.c_str());
                             if (customVia) {
                                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created custom Via for destination IP " 

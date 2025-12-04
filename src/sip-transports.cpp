@@ -280,9 +280,9 @@ namespace drachtio {
     DR_LOG(log_debug) << "SipTransport::getContactUri - created Contact header: " << contact;
   }
   sip_via_t* SipTransport::makeVia(su_home_t * h, const char* szRemoteHost) {
-    // Safety check: ensure we have a valid tport before proceeding
-    if (!this->hasTport()) {
-      DR_LOG(log_warning) << "SipTransport::makeVia - no valid tport, returning NULL";
+    // Safety check: ensure we have both valid tport AND tpName before proceeding
+    if (!this->hasTportAndTpname()) {
+      DR_LOG(log_warning) << "SipTransport::makeVia - no valid tport/tpName, returning NULL";
       return NULL;
     }
 
