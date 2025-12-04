@@ -109,14 +109,8 @@ namespace drachtio {
       m_range = htonl(range.sin_addr.s_addr) ;
 
       uint32_t netbits = ::atoi( bits.c_str() ) ;    
-      m_netmask = ~(~uint32_t(0) >> netbits);    
-      
-      DR_LOG(log_info) << "SipTransport::init - configured local-net: " << m_strLocalNet 
-        << " (network: " << network << ", bits: " << bits 
-        << ", range: 0x" << std::hex << m_range 
-        << ", netmask: 0x" << m_netmask << std::dec << ")";
+      m_netmask = ~(~uint32_t(0) >> netbits);
     }
-    // Note: Don't log in else branch - logger may not be initialized during early construction
   }
 
   bool SipTransport::shouldAdvertisePublic( const char* address ) const {
@@ -437,19 +431,7 @@ namespace drachtio {
             p->setNetmask(~(~uint32_t(0) >> netbits));
             p->setNetwork(network);
             p->setLocalNet(network, bits);
-
-            DR_LOG(log_info) << "SipTransport::addTransports - auto-detected local-net: " << network << "/" << bits 
-              << " for transport " << hex << tp << dec << " (host: " << host 
-              << ", range: 0x" << hex << htonl(range.sin_addr.s_addr) << ", netmask: 0x" << (~(~uint32_t(0) >> netbits)) << dec << ")";
           }
-          else {
-            DR_LOG(log_info) << "SipTransport::addTransports - no auto-detection match for host: " << host 
-              << ", local-net will not be set";
-          }
-        }
-        else {
-          DR_LOG(log_info) << "SipTransport::addTransports - using configured local-net: " << p->getLocalNet() 
-            << " for transport " << hex << tp << dec;
         }
       }
     }

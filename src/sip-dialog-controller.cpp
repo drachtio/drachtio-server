@@ -390,18 +390,6 @@ namespace drachtio {
 
                 if( orq ) {
                     DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog - created orq " << std::hex << (void *) orq << " sending " << nta_outgoing_method_name(orq) << " to " << requestUri ;
-
-                    // Debug: print full SIP message from orq
-                    msg_t* dbgMsg = nta_outgoing_getrequest(orq);  // adds a reference
-                    if (dbgMsg) {
-                        sip_t* dbgSip = sip_object(dbgMsg);
-                        if (dbgSip) {
-                            string dbgEncodedMessage;
-                            EncodeStackMessage(dbgSip, dbgEncodedMessage);
-                            DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - Full SIP message from orq:\n" << dbgEncodedMessage;
-                        }
-                        msg_destroy(dbgMsg);  // releases the reference
-                    }
                 }
             }
 
