@@ -1187,6 +1187,7 @@ namespace drachtio {
         m_pClientController->start();
         
         // mtu
+        /*
         if (!m_mtu) m_mtu = m_Config->getMtu();
         if (m_mtu > 0 && m_mtu < 1000) {
             DR_LOG(log_notice) << "DrachtioController::run invalid mtu size provided, must be > 1000: " << m_mtu;
@@ -1195,6 +1196,7 @@ namespace drachtio {
         else if (m_mtu > 0) {
             DR_LOG(log_notice) << "DrachtioController::run mtu size for udp packets: " << m_mtu;            
         }
+        */
         
         string captureServer;
         string captureString;
