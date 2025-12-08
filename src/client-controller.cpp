@@ -370,7 +370,7 @@ namespace drachtio {
         }
     
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;
+            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - unable to find client for dialog (may be invite-in-progress): " << dialogId  ;
             
             // if this is a BYE from the network, it ends the dialog 
             if( isBye || isFinalNotifyForSubscribe) {
