@@ -1667,7 +1667,7 @@ namespace drachtio {
                             return rc;
 
                         case sip_method_update:
-                          DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for update request during invite"  ;
+                          DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog: received UPDATE during invite-in-progress, irq " << std::hex << (void *) irq  ;
 
                           // if we have an update irq then return 500: https://datatracker.ietf.org/doc/html/rfc3311#section-5.2
                           if (dlg->getUpdateIrq()) {
