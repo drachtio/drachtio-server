@@ -1157,14 +1157,24 @@ namespace drachtio {
                   ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                   ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                   ,TAG_NEXT(tags)
-                  ,TAG_END() ) ; 
+                  ,TAG_END() ) ;
               if( 0 != rc ) {
                   DR_LOG(log_error) << "Error " << dec << rc << " sending response on UPDATE  irq " << hex << irq <<
                       " - this is usually because the application provided a syntactically-invalid header";
                   bSentOK = false ;
                   failMsg = "Unknown server error sending response" ;
               }
+              msg_destroy(msg); // release the reference
             }
+
+            // clean up UPDATE transaction - remove from maps to prevent double-free in clearDanglingIncomingRequests
+            string updateTxnId = dlg->getUpdateTransactionId();
+            if (!updateTxnId.empty()) {
+              findAndRemoveTransactionIdForIncomingRequest(updateTxnId);
+              dlg->removeIncomingRequestTransaction(updateTxnId);
+              m_pController->getClientController()->removeNetTransaction(updateTxnId);
+            }
+            dlg->clearUpdateIrq();
           }
           else {
             /* invite in progress */
@@ -1658,14 +1668,14 @@ namespace drachtio {
 
                         case sip_method_update:
                           DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for update request during invite"  ;
-                          
+
                           // if we have an update irq then return 500: https://datatracker.ietf.org/doc/html/rfc3311#section-5.2
                           if (dlg->getUpdateIrq()) {
                             nta_incoming_treply( irq, SIP_500_INTERNAL_SERVER_ERROR, TAG_END() ) ;
                             return 0;
                           }
-                          dlg->setUpdateIrq(irq);
-                          routed = m_pController->getClientController()->route_request_inside_invite( encodedMessage, meta, irq, sip, 
+                          dlg->setUpdateIrq(irq, transactionId);
+                          routed = m_pController->getClientController()->route_request_inside_invite( encodedMessage, meta, irq, sip,
                             dlg->getTransactionId(), dlg->getDialogId() );
                           break;
 
