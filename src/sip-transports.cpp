@@ -425,9 +425,14 @@ namespace drachtio {
       string desc ;
       getTransportDescription( tp, desc ); 
 
+      /*
       if (0 == strcmp(tpn->tpn_proto, "udp") && mtu > 0) {
         tport_set_params(tp, TPTAG_MTU(mtu), TAG_END());   
       }
+      */
+     // DH: there is little value on todays networks for preventatively
+     // switching protocols due to packet size.
+      tport_set_params(tp, TPTAG_MTU(65535), TAG_END());   
 
       mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
       if (it == m_mapTport2SipTransport.end()) {
