@@ -57,12 +57,15 @@ BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 # =============================================================================
 # Unit Tests (src/test/)
 # =============================================================================
-# Tests are built and run automatically after building drachtio
+# Tests run automatically with: make, make check
 # Add new tests: create src/test/test_*.cpp, add to TEST_PROGS below
 TEST_PROGS = test_header_name
 
-# Build and run tests after main build
+.PHONY: check run-tests
+
+# Run tests after 'make' and 'make check'
 all-local: run-tests
+check: run-tests
 
 run-tests: $(TEST_PROGS)
 	@echo ""; echo "Running unit tests..."; echo "====================="
@@ -87,9 +90,11 @@ run-tests: $(TEST_PROGS)
 test_header_name: src/test/test_header_name.cpp
 	$(CXX) $(AM_CXXFLAGS) -o $@ $<
 
-clean-local: clean-tests
+# Don't run tests during install
+install-data-local:
+	@true
 
-clean-tests:
+clean-local:
 	rm -f $(TEST_PROGS)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
