@@ -54,7 +54,28 @@ endif
 BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
+# =============================================================================
+# Unit Tests (src/test/)
+# =============================================================================
+# Run tests with: make check
+# Exit codes: 0 = all tests passed, non-zero = failure (CI/CD compatible)
+TEST_PROGS = test_header_name
+
+.PHONY: check
+
+check: $(TEST_PROGS)
+	@exit_code=0; \
+	for t in $(TEST_PROGS); do \
+		echo "Running $$t..."; \
+		./$$t || exit_code=$$?; \
+	done; \
+	exit $$exit_code
+
+test_header_name: src/test/test_header_name.cpp
+	$(CXX) $(AM_CXXFLAGS) -o $@ $<
+
 clean-local:
+	rm -f $(TEST_PROGS)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE)
