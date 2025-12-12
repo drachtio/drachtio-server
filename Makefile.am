@@ -57,48 +57,25 @@ BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 # =============================================================================
 # Unit Tests (src/test/)
 # =============================================================================
-# Tests run with: make, make check (but NOT make install)
-# Add new tests: create src/test/test_*.cpp, add to TEST_PROGS below
+# Run tests with: make check
+# Exit codes: 0 = all tests passed, non-zero = failure (CI/CD compatible)
 TEST_PROGS = test_header_name
 
-.PHONY: check run-tests
+.PHONY: check
 
-# make check runs tests
-check: run-tests
-
-# make runs tests via all-local, but only once per build
-all-local: .tests-passed
-
-.tests-passed: $(TEST_PROGS)
-	@echo ""; echo "Running unit tests..."; echo "====================="
-	@failed=0; \
+check: $(TEST_PROGS)
+	@exit_code=0; \
 	for t in $(TEST_PROGS); do \
-		echo -n "  $$t: "; \
-		if ./$$t > /dev/null 2>&1; then \
-			echo "PASS"; \
-		else \
-			echo "FAIL"; \
-			failed=1; \
-		fi; \
+		echo "Running $$t..."; \
+		./$$t || exit_code=$$?; \
 	done; \
-	echo "====================="; \
-	if [ $$failed -eq 1 ]; then \
-		echo "Some tests FAILED"; \
-		exit 1; \
-	else \
-		echo "All tests PASSED"; \
-		touch .tests-passed; \
-	fi
-
-run-tests: $(TEST_PROGS)
-	@rm -f .tests-passed
-	@$(MAKE) .tests-passed
+	exit $$exit_code
 
 test_header_name: src/test/test_header_name.cpp
 	$(CXX) $(AM_CXXFLAGS) -o $@ $<
 
 clean-local:
-	rm -f $(TEST_PROGS) .tests-passed
+	rm -f $(TEST_PROGS)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE)
