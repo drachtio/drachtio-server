@@ -56,6 +56,7 @@ namespace drachtio {
     void setLocalNet(const string& network, const string& bits) { m_strLocalNet = network + "/" + bits; }    
     bool shouldAdvertisePublic(const char* address) const ;
     bool isInNetwork(const char* address) const;
+    static bool isInPrivateNetwork(const char* address);
     bool hasTport(void) const { return NULL != m_tp; }
     bool hasTportAndTpname(void) const { return NULL != m_tp && NULL != m_tpName; }
     const tport_t* getTport(void) const { return m_tp; }
@@ -75,6 +76,8 @@ namespace drachtio {
     void setNetwork(const string& network) { m_network = network;}
     void setNetmask(uint32_t netmask) { m_netmask = netmask;}
     void setRange(uint32_t range) { m_range = range;}
+    uint32_t getNetmask(void) const { return m_netmask; }
+    uint32_t getRange(void) const { return m_range; }
 
     void getDescription(string& s, bool shortVersion = true) ;
     void getHostport(string& s) ;
