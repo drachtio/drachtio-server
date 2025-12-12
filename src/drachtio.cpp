@@ -64,6 +64,9 @@ namespace {
     unsigned int json_allocs = 0 ;
     unsigned int json_bytes = 0 ;
     std::mutex  json_lock ;
+
+    // RFC 3261 Section 25.1 token: 1*(alphanum / "-" / "." / "!" / "%" / "*" / "_" / "+" / "`" / "'" / "~")
+    const char* RFC3261_TOKEN_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-._!%*+`'~";
 } ;
 
 namespace drachtio {
@@ -698,7 +701,7 @@ namespace drachtio {
             else {
                 hdrName = (*it).substr(0,pos) ;
                 boost::trim( hdrName );
-                if( string::npos != hdrName.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
+                if( string::npos != hdrName.find_first_not_of(RFC3261_TOKEN_CHARS) ) {
                     bValid = false ;
                 }
                 else {
@@ -795,7 +798,7 @@ namespace drachtio {
             else {
                 hdrName = (*it).substr(0,pos) ;
                 boost::trim( hdrName );
-                if( string::npos != hdrName.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-_") ) {
+                if( string::npos != hdrName.find_first_not_of(RFC3261_TOKEN_CHARS) ) {
                     bValid = false ;
                 }
                 else {

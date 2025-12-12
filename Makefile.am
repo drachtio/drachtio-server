@@ -54,7 +54,43 @@ endif
 BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
-clean-local:
+# =============================================================================
+# Unit Tests (src/test/)
+# =============================================================================
+# Tests are built and run automatically after building drachtio
+# Add new tests: create src/test/test_*.cpp, add to TEST_PROGS below
+TEST_PROGS = test_header_name
+
+# Build and run tests after main build
+all-local: run-tests
+
+run-tests: $(TEST_PROGS)
+	@echo ""; echo "Running unit tests..."; echo "====================="
+	@failed=0; \
+	for t in $(TEST_PROGS); do \
+		echo -n "  $$t: "; \
+		if ./$$t > /dev/null 2>&1; then \
+			echo "PASS"; \
+		else \
+			echo "FAIL"; \
+			failed=1; \
+		fi; \
+	done; \
+	echo "====================="; \
+	if [ $$failed -eq 1 ]; then \
+		echo "Some tests FAILED"; \
+		exit 1; \
+	else \
+		echo "All tests PASSED"; \
+	fi
+
+test_header_name: src/test/test_header_name.cpp
+	$(CXX) $(AM_CXXFLAGS) -o $@ $<
+
+clean-local: clean-tests
+
+clean-tests:
+	rm -f $(TEST_PROGS)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
 	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE)
