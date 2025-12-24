@@ -1576,6 +1576,14 @@ namespace drachtio {
                         }
                     }
                     
+                    /* reject register with invalid Contact header */
+                    if (sip->sip_contact && !sip->sip_contact->m_url[0].url_scheme) {
+                        DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: rejecting REGISTER with invalid Contact header, call-id: " << sip->sip_call_id->i_id ;
+                        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "REGISTER"},{"code", "400"}})
+                        nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
+                        return -1 ;
+                    }
+
                     /* reject register with Contact: * if Expires is not 0 */
                     if (sip->sip_contact && 0 == strcmp(sip->sip_contact->m_url[0].url_scheme, "*") &&
                         sip->sip_expires && sip->sip_expires->ex_delta != 0) {
