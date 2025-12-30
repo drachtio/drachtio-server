@@ -368,7 +368,7 @@ namespace drachtio {
                                   struct curl_sockaddr *address) {
     std::shared_ptr<RequestHandler> p = drachtio::RequestHandler::getInstance() ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
-    boost::asio::io_service& io_service = p->getIOService() ;
+    boost::asio::io_context& io_context = p->getIOContext() ;
 
     curl_socket_t sockfd = CURL_SOCKET_BAD;
 
@@ -376,7 +376,7 @@ namespace drachtio {
     if(purpose == CURLSOCKTYPE_IPCXN && address->family == AF_INET) {
       /* create a tcp socket object */
       boost::asio::ip::tcp::socket *tcp_socket =
-        new boost::asio::ip::tcp::socket(io_service);
+        new boost::asio::ip::tcp::socket(io_context);
 
       /* open it and get the native handle*/
       boost::system::error_code ec;
@@ -422,7 +422,7 @@ namespace drachtio {
   }
 
   RequestHandler::RequestHandler( DrachtioController* pController ) :
-      m_pController( pController ), m_timer(m_ioservice) {
+      m_pController( pController ), m_timer(m_iocontext) {
           
       memset(&m_g, 0, sizeof(GlobalInfo));
       m_g.multi = curl_multi_init();
@@ -449,12 +449,12 @@ namespace drachtio {
   void RequestHandler::threadFunc() {
                
     /* to make sure the event loop doesn't terminate when there is no work to do */
-    boost::asio::io_service::work work(m_ioservice);
+    auto work = boost::asio::make_work_guard(m_iocontext);
     
     for(;;) {
         
       try {
-        m_ioservice.run() ;
+        m_iocontext.run() ;
         break ;
       }
       catch( std::exception& e) {
@@ -593,6 +593,6 @@ namespace drachtio {
   void RequestHandler::makeRequestForRoute(const string& transactionId, const string& httpMethod, 
     const string& httpUrl, const string& body, bool verifyPeer) {
 
-    m_ioservice.post( std::bind(&RequestHandler::startRequest, this, transactionId, httpMethod, httpUrl, body, verifyPeer)) ;
+    boost::asio::post( m_iocontext, std::bind(&RequestHandler::startRequest, this, transactionId, httpMethod, httpUrl, body, verifyPeer)) ;
   }
  }

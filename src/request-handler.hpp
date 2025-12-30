@@ -77,7 +77,7 @@ namespace drachtio {
     GlobalInfo& getGlobal(void) { return m_g; }
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& getSocketMap(void) { return m_socket_map; }
     boost::asio::deadline_timer& getTimer(void) { return m_timer; }
-    boost::asio::io_service& getIOService(void) { return m_ioservice; }
+    boost::asio::io_context& getIOContext(void) { return m_iocontext; }
 
     static std::deque<CURL*>   m_cacheEasyHandles ;
     static boost::object_pool<ConnInfo> m_pool ;
@@ -100,7 +100,7 @@ namespace drachtio {
     DrachtioController*         m_pController ;
     std::thread               m_thread ;
 
-    boost::asio::io_service     m_ioservice;
+    boost::asio::io_context     m_iocontext;
 
     boost::asio::deadline_timer m_timer ;
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *> m_socket_map;
