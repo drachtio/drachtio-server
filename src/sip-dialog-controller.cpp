@@ -1539,7 +1539,7 @@ namespace drachtio {
                   client_ptr client = m_pClientController->findClientForNetTransaction(p->getTransactionId());
                   if(client) {
                       void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
-                      m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta)) ;
+                      boost::asio::post( m_pClientController->getIOContext(), std::bind(fn, client, p->getTransactionId(), encodedMessage, meta)) ;
                   }
 
                   STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "200"}})

@@ -121,7 +121,7 @@ namespace drachtio {
       m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
       void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
-      m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta ) ) ;
+      boost::asio::post( m_pClientController->getIOContext(), std::bind(fn, client, p->getTransactionId(), encodedMessage, meta ) ) ;
     }
     else {
       // using outbound connection for this call
@@ -193,7 +193,7 @@ namespace drachtio {
     m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
 
     void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
-    m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), 
+    boost::asio::post( m_pClientController->getIOContext(), std::bind(fn, client, p->getTransactionId(), 
         p->getEncodedMsg(), p->getMeta() ) ) ;
     return 0 ;
   }
