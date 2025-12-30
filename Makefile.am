@@ -31,7 +31,7 @@ drachtio_LDADD= ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a
 
 if LINUX
 drachtio_CPPFLAGS += -Wno-stringop-overflow
-drachtio_LDADD += -lboost_thread -lboost_system -lboost_log -lboost_filesystem \
+drachtio_LDADD += -lboost_thread -lboost_log -lboost_filesystem \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-pull.a \
 	${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a \
 	-lrt
@@ -39,7 +39,7 @@ endif
 
 if OSX
 drachtio_LDADD += -L/opt/homebrew/opt/openssl@3/lib -lboost_thread-mt \
-    -lboost_system-mt -lboost_log-mt \
+    -lboost_log-mt \
     -lboost_filesystem \
     ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-pull.a  \
     ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
