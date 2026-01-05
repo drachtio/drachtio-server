@@ -524,6 +524,15 @@ namespace drachtio {
                     string proto = tpn->tpn_proto ;
 
                     contact = "<sip:" + host + ":" + port + ";transport=" + proto + ">";
+                    if( "tcp" == proto ) {
+                        pSelectedTransport = SipTransport::findAppropriateTransport( useOutboundProxy ? sipOutboundProxy.c_str() : requestUri.c_str()) ;
+                        if (pSelectedTransport) {
+                            pSelectedTransport->getDescription( desc ) ;
+                            pSelectedTransport->getContactUri( contact, true ) ;
+                            contact = "<" + contact + ">" ;
+                            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - modifying contact " << std::hex << (void*)tp << ": " << desc << " for request-uri " << requestUri << " to " << contact ;
+                        }
+                    }
                }
             }
             if( NULL == tp ) {
