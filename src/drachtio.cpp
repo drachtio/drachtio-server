@@ -829,11 +829,15 @@ namespace drachtio {
                 //well-known header
                 
                 //replace 'localhost' in certain headers with actual sip address:port
-                if( string::npos != hdrValue.find("@localhost") && (0 == hdr.compare("from") || 
-                    0 == hdr.compare("contact") ||
-                    0 == hdr.compare("to") ||
-                    0 == hdr.compare("p_asserted_identity") ) ) {
-
+                if( (
+                    (string::npos != hdrValue.find(":localhost") || string::npos != hdrValue.find("@localhost")) && 0 == hdr.compare("contact")
+                 ) || (
+                    string::npos != hdrValue.find("@localhost") && (
+                        0 == hdr.compare("from") ||
+                        0 == hdr.compare("to") ||
+                        0 == hdr.compare("p_asserted_identity")
+                    ) )
+                ) {
                     DR_LOG(log_debug) << "makeTags - hdr '" << hdrName << "' replacing host with " << host;
                     replaceHostInUri( hdrValue, host.c_str(), port.c_str() ) ;
                 }
