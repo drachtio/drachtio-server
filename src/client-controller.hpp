@@ -77,16 +77,19 @@ namespace drachtio {
     void addDialogForTransaction( const string& transactionId, const string& dialogId ) ;
     void addAppTransaction( client_ptr client, const string& transactionId );
     void addNetTransaction( client_ptr client, const string& transactionId );
+    void addNetTransaction( client_ptr client, const string& transactionId, const string& callId );
     void addApiRequest( client_ptr client, const string& clientMsgId );
     void removeDialog( const string& dialogId ) ;
     void removeAppTransaction( const string& transactionId ) ;
     void removeNetTransaction( const string& transactionId ) ;
+    void removeCallIdMapping( const string& callId ) ;
     void removeApiRequest( const string& clientMsgId ) ;
 
     client_ptr selectClientForRequestOutsideDialog( const char* keyword, const char* tag = NULL ) ;
     client_ptr findClientForDialog( const string& dialogId ) ;
     client_ptr findClientForAppTransaction( const string& transactionId ) ;
     client_ptr findClientForNetTransaction( const string& transactionId ) ;
+    client_ptr findClientByCallId( const string& callId ) ;
     client_ptr findClientForApiRequest( const string& clientMsgId ) ;
 
     void makeOutboundConnection( const string& transactionId, const string& host, const string& port, const string& transport ) ;
@@ -178,6 +181,10 @@ namespace drachtio {
     mapId2Client m_mapAppTransactions ;
     mapId2Client m_mapNetTransactions ;
     mapId2Client m_mapApiRequests ;
+
+    // Map Call-ID to transaction ID for early dialog UPDATE routing
+    typedef std::unordered_map<string,string> mapCallId2TransactionId ;
+    mapCallId2TransactionId m_mapCallId2TransactionId ;
 
     typedef std::unordered_map<string,string> mapDialogId2Appname ;
     mapDialogId2Appname m_mapDialogId2Appname ;

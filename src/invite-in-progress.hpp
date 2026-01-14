@@ -154,6 +154,7 @@ namespace drachtio {
   bool IIP_FindByLeg(const InvitesInProgress_t& iips, nta_leg_t* leg, std::shared_ptr<IIP>& iip);
   bool IIP_FindByReliable(const InvitesInProgress_t& iips, nta_reliable_t* rel, std::shared_ptr<IIP>& iip) ;
   bool IIP_FindByTransactionId(const InvitesInProgress_t& iips, const std::string& transactionId, std::shared_ptr<IIP>& iip) ;
+  bool IIP_FindByCallId(const InvitesInProgress_t& iips, const std::string& callId, std::shared_ptr<IIP>& iip) ;
   void IIP_Clear(InvitesInProgress_t& iips, std::shared_ptr<IIP>& iip);
   void IIP_Clear(InvitesInProgress_t& iips, nta_leg_t* leg);
   size_t IIP_Size(const InvitesInProgress_t& iips);
