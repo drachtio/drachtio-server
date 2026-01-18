@@ -381,21 +381,24 @@ namespace drachtio {
         if (p->getLocalNet().empty()) {
           string network, bits;
           string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();
+
+          std::regex regex172Pattern("^172\\.(1[6-9]|2[0-9]|3[0-1])\\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])\\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])$");
+
           if(0 == host.compare("127.0.0.1")) {
-            network = "127.0.0.1";
-            bits = "32";
+            network = "127.0.0.1" ;
+            bits = "32" ;
           }
-          else if(0 == host.find("192.168.0.")) {
-            network = "192.168.0.0";
-            bits = "24";
+          else if(0 == host.find("192.168.")) {
+            network = "192.168.0.0" ;
+            bits = "16" ;
           }
-          else if(0 == host.find("172.16.")) {
-            network = "172.16.0.0";
-            bits = "16";
+          else if(std::regex_match(host, regex172Pattern)) {
+            network = "172.16.0.0" ;
+            bits = "12" ;
           }
           else if(0 == host.find("10.")) {
-            network = "10.0.0.0";
-            bits = "8";
+            network = "10.0.0.0" ;
+            bits = "8" ;
           }
 
           if (!network.empty()) {
