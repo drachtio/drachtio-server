@@ -25,6 +25,10 @@ case $CLOUD in
     LOCAL_IP=$(curl -s --local-port 1-1024 http://169.254.42.42/conf | grep PRIVATE_IP | cut -d = -f 2)
     PUBLIC_IP=$(curl -s --local-port 1-1024 http://169.254.42.42/conf | grep PUBLIC_IP_ADDRESS | cut -d = -f 2)
     ;;
+  exoscale)
+    LOCAL_IP=$(curl -s http://169.254.169.254/1.0/meta-data/local-ipv4)
+    PUBLIC_IP=$(curl -s http://169.254.169.254/1.0/meta-data/public-ipv4)
+    ;;
   azure)
     if [ "$LB_IMDS" = true ]; then
       LOCAL_IP=$(curl -H "Metadata:true" --noproxy "*" "http://169.254.169.254:80/metadata/loadbalancer?api-version=2020-10-01&format=text" | jq -r '.loadbalancer.publicIpAddresses[0].privateIpAddress')
