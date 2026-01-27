@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<!--
+  UAC scenario for forked INVITE - the branch that gets 401 challenged
+
+  Sends INVITE 2, expects 401, sends ACK, waits 5 seconds, then sends
+  authenticated INVITE 3 (with same From-tag as INVITE 1)
+-->
+
+<scenario name="UAC Fork Auth Branch">
+
+  <!-- INVITE 2: Send initial INVITE (will get 401) -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[service]@sip.jambonz.xyz SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: <sip:01734904798@sip.easybell.de>;tag=5BE094B3-69385E7400071A89-B08DD6C0
+      To: <sip:[service]@sip.jambonz.xyz>
+      Call-ID: [call_id]
+      CSeq: 10 INVITE
+      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=- 1 1 IN IP[local_ip_type] [local_ip]
+      s=sipp
+      c=IN IP[media_ip_type] [media_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+    ]]>
+  </send>
+
+  <!-- Expect 100 Trying (optional) -->
+  <recv response="100" optional="true">
+  </recv>
+
+  <!-- Expect 401 Unauthorized -->
+  <recv response="401" auth="true">
+  </recv>
+
+  <!-- Send ACK for 401 - use [last_Via:] to get correct branch -->
+  <send>
+    <![CDATA[
+      ACK sip:[service]@sip.jambonz.xyz SIP/2.0
+      [last_Via:]
+      From: <sip:01734904798@sip.easybell.de>;tag=5BE094B3-69385E7400071A89-B08DD6C0
+      To: <sip:[service]@sip.jambonz.xyz>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 10 ACK
+      Max-Forwards: 70
+      Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- Wait 3 seconds for the other branch to get 200 OK -->
+  <pause milliseconds="3000"/>
+
+  <!-- INVITE 3: Send authenticated INVITE (same From-tag as INVITE 1) -->
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[service]@sip.jambonz.xyz SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]-auth
+      From: <sip:01734904798@sip.easybell.de>;tag=5BE094B3-69385E7400071A89-B08DD6C0
+      To: <sip:[service]@sip.jambonz.xyz>
+      Call-ID: [call_id]
+      CSeq: 11 INVITE
+      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      [authentication]
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=- 1 1 IN IP[local_ip_type] [local_ip]
+      s=sipp
+      c=IN IP[media_ip_type] [media_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+    ]]>
+  </send>
+
+  <!-- Expect some response to INVITE 3 -->
+  <recv response="100" optional="true">
+  </recv>
+
+  <!-- Expect 200 OK (or possibly 481/other error) -->
+  <recv response="200">
+  </recv>
+
+  <!-- Send ACK for 200 OK -->
+  <send>
+    <![CDATA[
+      ACK sip:[service]@sip.jambonz.xyz SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]-auth-ack
+      From: <sip:01734904798@sip.easybell.de>;tag=5BE094B3-69385E7400071A89-B08DD6C0
+      To: <sip:[service]@sip.jambonz.xyz>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 11 ACK
+      Max-Forwards: 70
+      Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- Wait for BYE from far end (up to 30 seconds) -->
+  <recv request="BYE" timeout="30000">
+  </recv>
+
+  <!-- Send 200 OK to BYE -->
+  <send>
+    <![CDATA[
+
+      SIP/2.0 200 OK
+      [last_Via:]
+      From: <sip:01734904798@sip.easybell.de>;tag=5BE094B3-69385E7400071A89-B08DD6C0
+      To: <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: [cseq] BYE
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+</scenario>
