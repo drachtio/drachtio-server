@@ -867,6 +867,16 @@ namespace drachtio {
                 else {
                     dlg->clearRouteUri();
                 }
+
+                // Check if dialog already exists
+                std::shared_ptr<SipDialog> existingDlg;
+                if (SD_FindByDialogId(m_dialogs, dlg->getDialogId(), existingDlg)) {
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - retransmit 200 OK detected, skipping (dialog already exists): " << dlg->getDialogId();
+                    msg_destroy(msg);  // Release reference to avoid memory leak
+                    return 0;  // Skip all processing for retransmit
+                }
+
+				
                 if (iip->isCanceled()) {
                     DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - ACK/BYE race condition - received 200 OK to INVITE that was previously CANCELED";
                     dlg->doAckBye();
