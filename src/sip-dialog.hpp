@@ -229,19 +229,14 @@ namespace drachtio {
         return std::vector<std::string>(m_incomingRequestTransactionIds.begin(), m_incomingRequestTransactionIds.end());
     }
 
-    void setUpdateIrq(nta_incoming_t* irq, const std::string& transactionId) {
+    void setUpdateIrq(nta_incoming_t* irq) {
       m_irqUpdate = irq;
-      m_updateTransactionId = transactionId;
     }
     nta_incoming_t* getUpdateIrq(void) {
       return m_irqUpdate;
     }
-    const std::string& getUpdateTransactionId(void) {
-      return m_updateTransactionId;
-    }
     void clearUpdateIrq(void) {
       m_irqUpdate = NULL;
-      m_updateTransactionId.clear();
     }
 		
 	protected:
@@ -288,7 +283,6 @@ namespace drachtio {
 
     // for UPDATE we receive while the INVITE is in progress
     nta_incoming_t* m_irqUpdate;
-    std::string m_updateTransactionId;
 
 		std::string 		m_routeUri;
 

@@ -366,11 +366,18 @@ namespace drachtio {
             );
 
         if (isUpdate && !client) {
+          // For early dialog UPDATE, first try transaction ID lookup (unlikely to work as it's UPDATE's txn ID)
           client = this->findClientForNetTransaction( transactionId );
+          if (!client) {
+            // Fall back to Call-ID lookup to find the pending INVITE transaction
+            string callId = sip->sip_call_id->i_id ;
+            client = this->findClientByCallId( callId );
+            DR_LOG(log_debug) << "ClientController::route_request_inside_dialog - UPDATE lookup by Call-ID: " << callId << " client: " << (client ? "found" : "not found") ;
+          }
         }
-    
+
         if( !client ) {
-            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - unable to find client for dialog (may be invite-in-progress): " << dialogId  ;
+            DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - client managing dialog has disconnected: " << dialogId  ;
             
             // if this is a BYE from the network, it ends the dialog 
             if( isBye || isFinalNotifyForSubscribe) {
@@ -592,6 +599,18 @@ namespace drachtio {
         if( m_mapNetTransactions.end() != it ) client = it->second.lock() ;
         return client ;
     }
+    client_ptr ClientController::findClientByCallId( const string& callId ) {
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        client_ptr client ;
+        mapCallId2TransactionId::iterator it = m_mapCallId2TransactionId.find( callId ) ;
+        if( m_mapCallId2TransactionId.end() != it ) {
+            string txnId = it->second ;
+            mapId2Client::iterator it2 = m_mapNetTransactions.find( txnId ) ;
+            if( m_mapNetTransactions.end() != it2 ) client = it2->second.lock() ;
+        }
+        DR_LOG(log_debug) << "ClientController::findClientByCallId - callId: " << callId << " client: " << (client ? "found" : "not found") ;
+        return client ;
+    }
     client_ptr ClientController::findClientForApiRequest( const string& clientMsgId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
@@ -621,8 +640,26 @@ namespace drachtio {
     }
     void ClientController::addNetTransaction( client_ptr client, const string& transactionId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
-        m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;        
+        m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;
         DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+    }
+    void ClientController::addNetTransaction( client_ptr client, const string& transactionId, const string& callId ) {
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        m_mapNetTransactions.insert( make_pair( transactionId, client ) ) ;
+        if( !callId.empty() ) {
+            m_mapCallId2TransactionId.insert( make_pair( callId, transactionId ) ) ;
+            DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << " callId " << callId << "; size: " << m_mapNetTransactions.size()  ;
+        } else {
+            DR_LOG(log_debug) << "ClientController::addNetTransaction: transactionId " << transactionId << "; size: " << m_mapNetTransactions.size()  ;
+        }
+    }
+    void ClientController::removeCallIdMapping( const string& callId ) {
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        mapCallId2TransactionId::iterator it = m_mapCallId2TransactionId.find( callId ) ;
+        if( m_mapCallId2TransactionId.end() != it ) {
+            m_mapCallId2TransactionId.erase( it ) ;
+            DR_LOG(log_debug) << "ClientController::removeCallIdMapping: callId " << callId << " removed; size: " << m_mapCallId2TransactionId.size()  ;
+        }
     }
     void ClientController::addApiRequest( client_ptr client, const string& clientMsgId ) {
         std::lock_guard<std::mutex> l( m_lock ) ;
