@@ -188,6 +188,10 @@ namespace drachtio {
 		TimerEventHandle getTimerH(void) { return m_timerH; }
 		void clearTimerH() { m_timerH = NULL;}
 
+		void setInviteIrq(nta_incoming_t* irq) { m_irqInvite = irq; }
+		nta_incoming_t* getInviteIrq() const { return m_irqInvite; }
+		void clearInviteIrq() { m_irqInvite = nullptr; }
+
 		void setRouteUri(std::string& routeUri) { m_routeUri = routeUri; }
 
 		bool getRouteUri(std::string& routeUri) {
@@ -289,6 +293,9 @@ namespace drachtio {
     // for UPDATE we receive while the INVITE is in progress
     nta_incoming_t* m_irqUpdate;
     std::string m_updateTransactionId;
+
+    // irq for the original INVITE, used to validate Timer G/H callbacks
+    nta_incoming_t* m_irqInvite = nullptr;
 
 		std::string 		m_routeUri;
 

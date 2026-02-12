@@ -367,7 +367,17 @@ namespace drachtio {
       */
      // DH: there is little value on todays networks for preventatively
      // switching protocols due to packet size.
-      tport_set_params(tp, TPTAG_MTU(65535), TAG_END());   
+      tport_set_params(tp, TPTAG_MTU(65535), TAG_END());
+
+      if (0 == strcmp(tpn->tpn_proto, "udp")) {
+        unsigned int bufSize = theOneAndOnlyController->getConfig()->getUdpBufferSize();
+        if (0 == bufSize) bufSize = 4 * 1024 * 1024;  // default 4MB
+        tport_set_params(tp,
+          TPTAG_UDP_WMEM(bufSize),
+          TPTAG_UDP_RMEM(bufSize),
+          TAG_END());
+        DR_LOG(log_info) << "SipTransport::addTransports - set UDP send/recv buffer size to " << bufSize << " bytes";
+      }
 
       mapTport2SipTransport::const_iterator it = m_mapTport2SipTransport.find(tp) ;
       if (it == m_mapTport2SipTransport.end()) {

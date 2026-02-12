@@ -65,6 +65,8 @@ namespace drachtio {
 
         unsigned int getMtu(void);
 
+        unsigned int getUdpBufferSize(void);
+
         bool getAdminAddress( string& address ) ;
         unsigned int getAdminTcpPort( void ) ;
         unsigned int getAdminTlsPort( void ) ;

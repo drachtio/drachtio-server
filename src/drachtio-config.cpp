@@ -41,7 +41,7 @@ namespace drachtio {
      class DrachtioConfig::Impl {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
-        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_bAggressiveNatDetection(false), 
+        m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_udpBufferSize(0), m_bAggressiveNatDetection(false),
         m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45), m_minTlsVersion(0) {
 
             // default timers
@@ -295,7 +295,8 @@ namespace drachtio {
                 m_bGenerateCdrs = ( 0 == cdrs.compare("true") || 0 == cdrs.compare("yes") ) ;
 
                 m_mtu = pt.get<unsigned int>("drachtio.sip.udp-mtu", 0);
-                
+                m_udpBufferSize = pt.get<unsigned int>("drachtio.sip.udp-buffer-size", 0);
+
                 fb.close() ;
                                                
                 m_bIsValid = true ;
@@ -440,6 +441,10 @@ namespace drachtio {
             return m_mtu;
         }
 
+        unsigned int getUdpBufferSize() {
+            return m_udpBufferSize;
+        }
+
         bool isAggressiveNatEnabled() {
             return m_bAggressiveNatDetection;
         }
@@ -518,6 +523,7 @@ namespace drachtio {
         uint32_t m_captureServerAgentId ;
         unsigned int m_captureHepVersion ;
         unsigned int m_mtu;
+        unsigned int m_udpBufferSize;
         bool m_bAggressiveNatDetection;
         string m_prometheusAddress;
         unsigned int m_prometheusPort;
@@ -611,6 +617,9 @@ namespace drachtio {
     }
     unsigned int DrachtioConfig::getMtu() {
         return m_pimpl->getMtu();
+    }
+    unsigned int DrachtioConfig::getUdpBufferSize() {
+        return m_pimpl->getUdpBufferSize();
     }
     bool DrachtioConfig::isAggressiveNatEnabled() {
         return m_pimpl->isAggressiveNatEnabled();

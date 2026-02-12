@@ -1373,6 +1373,7 @@ namespace drachtio {
                                 TimerEventHandle t = m_pTQM->addTimer("timerH",
                                     std::bind(&SipDialogController::endRetransmitFinalResponse, this, irq, tp, dlg), NULL, TIMER_H_MSECS ) ;
                                 dlg->setTimerH(t) ;
+                                dlg->setInviteIrq(irq) ;
                             }
 
                             // stats
@@ -1861,7 +1862,9 @@ namespace drachtio {
                 DR_LOG(log_error) << "Unable to find invite-in-progress for irq " << hex << (void*) irq;
             }
             else {
-                DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP for leg " << hex << (void*) iip->leg();   ;
+                std::shared_ptr<SipDialog> dlg = iip->dlg();
+                DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP for leg " << hex << (void*) iip->leg();
+                clearSipTimers(dlg);
                 IIP_Clear(m_invitesInProgress, iip);
             }
             return -1 ;
@@ -2104,12 +2107,18 @@ namespace drachtio {
     }
         
     void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg) {
-        DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) irq;
-        incoming_retransmit_reply(irq, tp);
+        nta_incoming_t* currentIrq = dlg->getInviteIrq();
+        if (!currentIrq) {
+            DR_LOG(log_info) << "SipDialogController::retransmitFinalResponse - irq no longer valid, stopping retransmissions";
+            clearSipTimers(dlg);
+            return;
+        }
+        DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) currentIrq;
+        incoming_retransmit_reply(currentIrq, tp);
 
         // set next timer
         uint32_t ms = dlg->bumpTimerG() ;
-        TimerEventHandle t = m_pTQM->addTimer("timerG", 
+        TimerEventHandle t = m_pTQM->addTimer("timerG",
             std::bind(&SipDialogController::retransmitFinalResponse, this, irq, tp, dlg), NULL, ms ) ;
         dlg->setTimerG(t) ;
     }
@@ -2131,9 +2140,15 @@ namespace drachtio {
         if (h) {
             dlg->clearTimerH();
         }
+        dlg->clearInviteIrq();
 
         IIP_Clear(m_invitesInProgress, leg);
 
+        if (!leg) {
+            DR_LOG(log_error) << "SipDialogController::endRetransmitFinalResponse - leg is null, cannot send BYE";
+            SD_Clear(m_dialogs, dlg->getDialogId());
+            return;
+        }
 
         // we never got the ACK, so now we should tear down the call by sending a BYE
         // TODO: also need to remove dialog from hash table
@@ -2143,6 +2158,12 @@ namespace drachtio {
                                 NULL,
                                 SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"ACK timeout\""),
                                 TAG_END() ) ;
+
+        if (!orq) {
+            DR_LOG(log_error) << "SipDialogController::endRetransmitFinalResponse - failed to create BYE orq";
+            SD_Clear(m_dialogs, leg);
+            return;
+        }
 
         msg_t* m = nta_outgoing_getrequest(orq) ;  // adds a reference
         sip_t* sip = sip_object( m ) ;
@@ -2212,9 +2233,10 @@ namespace drachtio {
         }
         h = dlg->getTimerH() ;
         if( h ) {
-            m_pTQM->removeTimer( h, "timerH"); 
+            m_pTQM->removeTimer( h, "timerH");
             dlg->clearTimerH();
         }
+        dlg->clearInviteIrq();
     }
 
     bool SipDialogController::stopTimerD(nta_outgoing_t* invite) {
