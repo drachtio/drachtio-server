@@ -266,12 +266,12 @@ namespace drachtio {
 
             DR_LOG(log_notice) << "Blacklist::threadFunc - querying sentinel " << ip << ":" << port ;
             boost::system::error_code ec;
-            boost::asio::ip::address ip_address = boost::asio::ip::address::from_string(ip, ec);
+            boost::asio::ip::address ip_address = boost::asio::ip::make_address(ip, ec);
             if (ec.value() != 0) {
               /* must be a dns name */
               DR_LOG(log_debug) << "Blacklist resolving sentinel dns " << ip ;
 
-              boost::asio::ip::tcp::resolver resolver(m_ioservice);
+              boost::asio::ip::tcp::resolver resolver(m_iocontext);
               boost::asio::ip::tcp::resolver::results_type results = resolver.resolve(
                   ip, 
                   boost::lexical_cast<std::string>(port),
@@ -308,12 +308,12 @@ namespace drachtio {
             auto [ip, port] = parseAddress(address);
             boost::system::error_code ec;
             boost::asio::ip::address ip_address = 
-              boost::asio::ip::address::from_string(ip, ec);
+              boost::asio::ip::make_address(ip, ec);
             if (ec.value() != 0) {
               /* must be a dns name */
               DR_LOG(log_debug) << "Blacklist resolving " << ip ;
 
-              boost::asio::ip::tcp::resolver resolver(m_ioservice);
+              boost::asio::ip::tcp::resolver resolver(m_iocontext);
               boost::asio::ip::tcp::resolver::results_type results = resolver.resolve(
                   ip, 
                   boost::lexical_cast<std::string>(port),

@@ -56,8 +56,8 @@
 /* boost::asio related objects
  * using global variables for simplicity
  */
-boost::asio::io_service io_service;
-boost::asio::deadline_timer timer(io_service);
+boost::asio::io_context io_context;
+boost::asio::deadline_timer timer(io_context);
 std::map<curl_socket_t, boost::asio::ip::tcp::socket *> socket_map;
 
 /* Global information, common to all connections */
@@ -375,7 +375,7 @@ static curl_socket_t opensocket(void *clientp, curlsocktype purpose,
   if(purpose == CURLSOCKTYPE_IPCXN && address->family == AF_INET) {
     /* create a tcp socket object */
     boost::asio::ip::tcp::socket *tcp_socket =
-      new boost::asio::ip::tcp::socket(io_service);
+      new boost::asio::ip::tcp::socket(io_context);
 
     /* open it and get the native handle*/
     boost::system::error_code ec;
@@ -476,8 +476,8 @@ int main(int argc, char **argv)
 
   new_conn((char *)"www.google.com", &g);  /* add a URL */
 
-  /* enter io_service run loop */
-  io_service.run();
+  /* enter io_context run loop */
+  io_context.run();
 
   curl_multi_cleanup(g.multi);
 
