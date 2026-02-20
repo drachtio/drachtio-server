@@ -176,6 +176,7 @@ namespace drachtio {
 		bool sendRequestOutsideDialog( const string& clientMsgId, const string& startLine, const string& headers, const string& body, string& transactionId, string& dialogId, string& routeUrl ) ;
     bool respondToSipRequest( const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;		
 		bool sendCancelRequest( const string& msgId, const string& transactionId, const string& startLine, const string& headers, const string& body ) ;
+		bool isIPv6(const std::string &address);
 
 		//NB: doSendXXX correspond to the above, and are run in the stack thread
 		void doSendRequestInsideDialog( SipMessageData* pData ) ;
