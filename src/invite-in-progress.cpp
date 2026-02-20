@@ -157,7 +157,11 @@ namespace drachtio {
 
     nta_incoming_t* irq = const_cast<nta_incoming_t*>(iip->irq());
     nta_outgoing_t* orq = const_cast<nta_outgoing_t*>(iip->orq());
-    if (irq) nta_incoming_destroy(irq);
+    if (irq) {
+        std::shared_ptr<SipDialog> dlg = iip->dlg();
+        if (dlg) dlg->clearInviteIrq();
+        nta_incoming_destroy(irq);
+    }
 
     // DH: tmp commented this out as it appears to cause a crash
     // https://github.com/davehorton/drachtio-server/issues/76#event-2662761148

@@ -465,6 +465,7 @@ namespace drachtio {
 
         static bool initialized = false ;
         static vector< pair<string, string> > vecLocalUris ;
+        static string localDomain ;
 
         DR_LOG(log_debug) << "isLocalSipUri: checking to see if this is one of mine: " << requestUri ;
 
@@ -496,6 +497,14 @@ namespace drachtio {
             SipTransport::getAllExternalContacts(vecIps) ;
             for(vector< pair<string, string> >::const_iterator it = vecIps.begin(); it != vecIps.end(); ++it) {
                 vecLocalUris.push_back(*it) ;
+            }
+
+            // check for local domain env var
+            const char* envLocalDomain = std::getenv("DRACHTIO_LOCAL_DOMAIN");
+            if (envLocalDomain && strlen(envLocalDomain) > 0) {
+                localDomain = envLocalDomain;
+                std::transform(localDomain.begin(), localDomain.end(), localDomain.begin(), ::tolower);
+                DR_LOG(log_info) << "isLocalSipUri: will reject sends to domain " << localDomain << " and its subdomains";
             }
        }
 
@@ -541,6 +550,15 @@ namespace drachtio {
                 (url->url_port && 0 == port.compare(url->url_port)))
             ) {
                 return true ;
+            }
+        }
+        if (!localDomain.empty() && url->url_host) {
+            string host = url->url_host;
+            std::transform(host.begin(), host.end(), host.begin(), ::tolower);
+            string suffix = "." + localDomain;
+            if (host == localDomain || boost::algorithm::ends_with(host, suffix)) {
+                DR_LOG(log_info) << "isLocalSipUri: rejecting send to " << url->url_host << " - matches local domain " << localDomain;
+                return true;
             }
         }
         return false ;

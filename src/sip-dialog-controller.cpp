@@ -1493,13 +1493,14 @@ namespace drachtio {
                 std::shared_ptr<IIP> iip ;
                 std::shared_ptr<SipDialog> dlg ;       
                 if (!IIP_FindByLeg(m_invitesInProgress, leg, iip)) {
-                    
+
                     /* not a new INVITE, so it should be found as an existing dialog; i.e. a reINVITE */
                     if( !findDialogByLeg( leg, dlg ) ) {
                         DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
                         assert(0) ;
                         return -1 ;
                     }
+                    this->clearSipTimers(dlg);
                 }
                 else {
                     transactionId = iip->getTransactionId() ;
