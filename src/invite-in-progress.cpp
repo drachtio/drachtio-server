@@ -158,6 +158,19 @@ namespace drachtio {
     return false;
   }
 
+  bool IIP_FindByDialogId(const InvitesInProgress_t& iips, const std::string& dialogId, std::shared_ptr<IIP>& iip) {
+    std::lock_guard<std::mutex> lock(iip_mutex) ;
+    auto &idx = iips.get<TransactionIdTag>();
+    for (auto it = idx.begin(); it != idx.end(); ++it) {
+      std::shared_ptr<SipDialog> dlg = (*it)->dlg();
+      if (dlg && dlg->getDialogId() == dialogId) {
+        iip = *it;
+        return true;
+      }
+    }
+    return false;
+  }
+
   void IIP_Clear(InvitesInProgress_t& iips, nta_leg_t* leg) {
     std::shared_ptr<IIP> iip;
     if (IIP_FindByLeg(iips, leg, iip)) {
