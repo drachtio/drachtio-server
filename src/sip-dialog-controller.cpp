@@ -2111,7 +2111,16 @@ namespace drachtio {
         nta_incoming_t* currentIrq = dlg->getInviteIrq();
         if (!currentIrq) {
             DR_LOG(log_info) << "SipDialogController::retransmitFinalResponse - irq no longer valid, stopping retransmissions";
-            clearSipTimers(dlg);
+            // We are inside the timerG callback -- doTimer already dequeued our entry
+            // and will delete it after we return. Just null out the handle.
+            dlg->clearTimerG();
+            // timerH is in a different queue, safe to remove
+            TimerEventHandle h = dlg->getTimerH();
+            if (h) {
+                m_pTQM->removeTimer(h, "timerH");
+                dlg->clearTimerH();
+            }
+            dlg->clearInviteIrq();
             return;
         }
         DR_LOG(log_debug) << "SipDialogController::retransmitFinalResponse irq:" << std::hex << (void*) currentIrq;
