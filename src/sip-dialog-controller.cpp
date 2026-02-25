@@ -2108,6 +2108,14 @@ namespace drachtio {
     }
         
     void SipDialogController::retransmitFinalResponse( nta_incoming_t* irq, tport_t* tp, std::shared_ptr<SipDialog> dlg) {
+        // Clear the stored timerG handle immediately on entry.
+        // When doTimer() fires a timer it dequeues and frees the entry BEFORE
+        // calling this callback, so dlg->m_timerG is already a dangling pointer
+        // at this point.  If an ACK arrives and calls clearSipTimers() before
+        // we set a new timerG below, it must see NULL here or it will call
+        // remove() on the freed entry and crash (SIGSEGV / assert in remove()).
+        dlg->clearTimerG();
+
         nta_incoming_t* currentIrq = dlg->getInviteIrq();
         if (!currentIrq) {
             DR_LOG(log_info) << "SipDialogController::retransmitFinalResponse - irq no longer valid, stopping retransmissions";

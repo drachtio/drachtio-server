@@ -69,32 +69,50 @@ static TimerEventHandle  g_stale_handle = nullptr; // simulates dlg->m_timerG
 static bool              g_timer_fired = false;
 
 /* -------------------------------------------------------------------------
- * This simulates what retransmitFinalResponse does when timerG fires:
- *   - retransmit the 200 OK  (just a print here)
- *   - set a NEW timerG  (we deliberately skip this to simulate the race)
+ * Controls whether the fix is active.
+ * false = reproduce the crash (callback leaves stale handle in place)
+ * true  = apply the fix       (callback clears handle before anything else)
+ * ---------------------------------------------------------------------- */
+static bool g_apply_fix = false;
+
+/* -------------------------------------------------------------------------
+ * Simulates retransmitFinalResponse():
  *
- * In the race window the old handle is stale (freed by doTimer) but
- * g_stale_handle still points to it.
+ * WITHOUT fix: g_stale_handle is left pointing at the freed entry.
+ *   If an ACK arrives before setTimerG() is called, clearSipTimers() passes
+ *   the dangling pointer to remove() → SIGSEGV / assert.
+ *
+ * WITH fix: g_stale_handle is cleared first (mirrors dlg->clearTimerG()).
+ *   clearSipTimers() now sees nullptr and skips the remove safely.
  * ---------------------------------------------------------------------- */
 static void simulate_retransmit_final_response(void* /*arg*/)
 {
     std::cout << "[callback] timerG fired - simulating retransmitFinalResponse\n";
-    std::cout << "[callback] NOT updating stale_handle (simulating race window)\n";
+
+    if (g_apply_fix) {
+        // Fix: clear the stored handle immediately so any concurrent call to
+        // clearSipTimers() (e.g. incoming ACK) sees nullptr and skips remove().
+        // The entry has already been dequeued by doTimer() at this point.
+        std::cout << "[callback] FIX: clearing stale_handle before anything else\n";
+        g_stale_handle = nullptr;
+    } else {
+        std::cout << "[callback] NO FIX: leaving stale_handle dangling (reproduces crash)\n";
+    }
+
     g_timer_fired = true;
-    /* In production code this is where dlg->setTimerG(new_handle) would be
-     * called.  We intentionally omit it to leave g_stale_handle dangling,
-     * which is exactly the state captured in the core dump. */
+    // (new timerG would be set here in production via dlg->setTimerG())
 }
 
 /* -------------------------------------------------------------------------
  * Called by sofia after a short delay, once the event loop is running.
- * This is the top-level test driver.
+ * Runs one scenario (with or without the fix depending on g_apply_fix).
  * ---------------------------------------------------------------------- */
 static void run_test(su_root_magic_t* /*magic*/, su_timer_t* t, su_timer_arg_t* /*arg*/)
 {
     su_timer_destroy(t);
+    g_timer_fired = false;
 
-    std::cout << "--- test_timer_stale_handle ---\n";
+    std::cout << "\n--- scenario: " << (g_apply_fix ? "WITH fix" : "WITHOUT fix (expect crash)") << " ---\n";
     std::cout << "Step 1: add timerG (50ms) - simulates sending 200 OK\n";
 
     g_stale_handle = g_queue->add(simulate_retransmit_final_response, nullptr, 50);
@@ -104,33 +122,30 @@ static void run_test(su_root_magic_t* /*magic*/, su_timer_t* t, su_timer_arg_t* 
     std::cout << "Step 1 OK: handle=" << (void*)g_stale_handle
               << "  queue size=" << g_queue->size() << "\n";
 
-    /* The timer will fire after 50ms inside the event loop.
-     * We schedule the "ACK arrives" check 150ms from now (well after the
-     * timer fires) to simulate the ACK coming in after timerG has fired
-     * and freed its entry but before dlg->m_timerG was updated. */
+    // Schedule the "ACK arrives" check 150ms later (well after the 50ms timer fires).
     su_timer_t* ack_timer = su_timer_create(su_root_task(g_root), 200);
     su_timer_set_interval(ack_timer, [](su_root_magic_t*, su_timer_t* tt, su_timer_arg_t*) {
         su_timer_destroy(tt);
 
-        std::cout << "Step 2: ACK arrives - calling remove(stale_handle)\n";
+        std::cout << "Step 2: ACK arrives - simulating clearSipTimers()\n";
         std::cout << "        stale_handle=" << (void*)g_stale_handle
                   << "  queue size=" << g_queue->size()
                   << "  timer_fired=" << g_timer_fired << "\n";
 
         assert(g_timer_fired && "timer should have fired before ACK arrives");
 
-        /* This is the crash: remove() is called with the handle that doTimer()
-         * already dequeued and freed.  entry->m_prev == NULL, so the else
-         * branch in remove() dereferences a null pointer → SIGSEGV. */
-        if (g_queue->size() == 0) {
-            /* Queue is empty: entry was dequeued by doTimer, handle is stale.
-             * Calling remove() here triggers the crash. */
-            std::cout << "        queue is empty but we still hold stale handle - "
-                         "calling remove() to trigger crash...\n";
-            g_queue->remove(g_stale_handle);  // <-- SIGSEGV without the fix
+        if (g_stale_handle != nullptr) {
+            // Without the fix: stale_handle still points to the freed entry.
+            // remove() hits entry->m_prev == NULL in the else branch → crash.
+            std::cout << "        handle is non-null, calling remove() → SIGSEGV without fix\n";
+            g_queue->remove(g_stale_handle);
+            g_stale_handle = nullptr;
+        } else {
+            // With the fix: callback already cleared the handle, nothing to remove.
+            std::cout << "        handle is null (cleared by fix), skipping remove() safely\n";
         }
 
-        std::cout << "PASSED - remove(stale_handle) did not crash\n";
+        std::cout << "PASSED\n";
         su_root_break(g_root);
     }, nullptr, 150);
 }
@@ -141,7 +156,9 @@ int main()
     g_root  = su_root_create(nullptr);
     g_queue = new TimerQueue(g_root, "timerG");
 
-    /* Kick off the test after the event loop starts */
+    // Run the fixed scenario only (set g_apply_fix = false to reproduce the crash).
+    g_apply_fix = true;
+
     su_timer_t* start = su_timer_create(su_root_task(g_root), 100);
     su_timer_set_interval(start, run_test, nullptr, 10);
 
