@@ -157,6 +157,13 @@ namespace drachtio {
         m_tail->m_next = NULL ;
       }
       else {
+        if (!entry->m_prev && !entry->m_next) {
+#ifndef TEST
+          DR_LOG(log_warning) << m_name << ": remove() called on entry not in queue, ignoring";
+#endif
+          delete entry;
+          return;
+        }
         assert( entry->m_prev ) ;
         assert( entry->m_next ) ;
         entry->m_prev->m_next = entry->m_next ;
