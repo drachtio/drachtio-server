@@ -291,7 +291,7 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
-        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false), 
+        m_minTlsVersion(0), m_bDisableNatDetection(false), m_bDisableSessionTimers(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false),
         m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
         getEnv();
@@ -451,6 +451,7 @@ namespace drachtio {
                 {"tcp-keepalive-interval", required_argument, 0, 'L'},
                 {"min-tls-version", required_argument, 0, 'M'},
                 {"disable-nat-detection", no_argument, 0, 'N'},
+                {"disable-session-timers", no_argument, 0, '@'},
                 {"blacklist-redis-address", required_argument, 0, 'O'},
                 {"blacklist-redis-port", required_argument, 0, 'P'},
                 {"blacklist-redis-key", required_argument, 0, 'Q'},
@@ -666,6 +667,9 @@ namespace drachtio {
 
                 case 'N':
                     m_bDisableNatDetection = true;
+                    break;
+                case '@':
+                    m_bDisableSessionTimers = true;
                     break;
                 case 'O':
                     m_redisAddress = optarg;
@@ -1187,7 +1191,6 @@ namespace drachtio {
         m_pClientController->start();
         
         // mtu
-        /*
         if (!m_mtu) m_mtu = m_Config->getMtu();
         if (m_mtu > 0 && m_mtu < 1000) {
             DR_LOG(log_notice) << "DrachtioController::run invalid mtu size provided, must be > 1000: " << m_mtu;
@@ -1196,7 +1199,6 @@ namespace drachtio {
         else if (m_mtu > 0) {
             DR_LOG(log_notice) << "DrachtioController::run mtu size for udp packets: " << m_mtu;            
         }
-        */
         
         string captureServer;
         string captureString;
@@ -1576,14 +1578,6 @@ namespace drachtio {
                         }
                     }
                     
-                    /* reject register with invalid Contact header */
-                    if (sip->sip_contact && !sip->sip_contact->m_url[0].url_scheme) {
-                        DR_LOG(log_info) << "DrachtioController::processMessageStatelessly: rejecting REGISTER with invalid Contact header, call-id: " << sip->sip_call_id->i_id ;
-                        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "REGISTER"},{"code", "400"}})
-                        nta_msg_treply( m_nta, msg, 400, NULL, TAG_END() ) ;
-                        return -1 ;
-                    }
-
                     /* reject register with Contact: * if Expires is not 0 */
                     if (sip->sip_contact && 0 == strcmp(sip->sip_contact->m_url[0].url_scheme, "*") &&
                         sip->sip_expires && sip->sip_expires->ex_delta != 0) {
@@ -1704,15 +1698,21 @@ namespace drachtio {
         }
         else {
             if( !m_pProxyController->processResponse( msg, sip ) ) {
-                if( sip->sip_via->v_next ) {
+                // Check if this is a response to a pending INVITE that was received statelessly
+                // This can happen when an UPDATE is sent during early dialog, which creates a new
+                // transaction with the same Call-ID, and the sofia-sip library gets confused
+                if( m_pDialogController->processStatelessResponseByCallId( msg, sip ) ) {
+                    DR_LOG(log_info) << "processMessageStatelessly - processed response via Call-ID lookup for pending INVITE" ;
+                }
+                else if( sip->sip_via->v_next ) {
                     DR_LOG(log_error) << "processMessageStatelessly - forwarding response upstream" ;
-                    nta_msg_tsend( m_nta, msg, NULL, TAG_END() ) ; 
+                    nta_msg_tsend( m_nta, msg, NULL, TAG_END() ) ;
                 }
                 else {
                     DR_LOG(log_error) << "processMessageStatelessly - unknown response (possibly late arriving?) - discarding" ;
-                    nta_msg_discard( m_nta, msg ) ;                    
+                    nta_msg_discard( m_nta, msg ) ;
                 }
-            } 
+            }
         }
         return rc ;
     }

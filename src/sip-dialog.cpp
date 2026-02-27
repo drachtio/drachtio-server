@@ -197,15 +197,6 @@ namespace drachtio {
 			delete m_ppSelf ;
 		}
 
-    if (m_leg) {
-      nta_leg_destroy( m_leg ) ;
-      m_leg = nullptr;
-    }
-    /**  DH: This code was causing issues with forked invites.
-     *   We could get two invites with same call-id but different tags
-     *   and thus two dialogs with same call-id trying to destroy the same leg.
-     *   It's not clear what the intent was hre since we always hold onto the leg.
-     
 		nta_leg_t *leg = nta_leg_by_call_id( theOneAndOnlyController->getAgent(), getCallId().c_str() );
         
     DR_LOG(log_debug) << "SipDialog::~SipDialog - I'm holding leg " << std::hex << (void *) m_leg <<
@@ -215,7 +206,6 @@ namespace drachtio {
 		if( leg ) {
 			nta_leg_destroy( leg ) ;
 		}
-    */
     if( NULL != m_tp ) {
       tport_unref( m_tp ) ;
     }

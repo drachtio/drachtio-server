@@ -191,6 +191,9 @@ namespace drachtio {
     int processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) ;
     int processPrack( nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) ;
 
+    // Process a response that was received statelessly but matches a pending INVITE by Call-ID
+    bool processStatelessResponseByCallId( msg_t* msg, sip_t const* sip ) ;
+
     void notifyRefreshDialog( std::shared_ptr<SipDialog> dlg ) ;
     void notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg, bool ackbye = false ) ;
 
