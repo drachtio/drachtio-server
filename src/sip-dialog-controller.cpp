@@ -357,6 +357,25 @@ namespace drachtio {
                     contact = dlg->getLocalContactHeader();
                     addContact = true ;
                 }
+
+                // Determine the destination IP for Via header selection based on local-net
+                // Use the actual source address (remote peer IP) from the dialog
+                // Only for non-ACK/PRACK methods (REFER, BYE, re-INVITE, etc.)
+                sip_via_t* customVia = NULL;
+                {
+                    const string& destIp = dlg->getSourceAddress();
+                    if (!destIp.empty()) {
+                        std::shared_ptr<SipTransport> pTransport = SipTransport::findAppropriateTransport(destIp.c_str());
+                        if (pTransport && pTransport->hasTportAndTpname()) {
+                            customVia = pTransport->makeVia(m_pController->getHome(), destIp.c_str());
+                            if (customVia) {
+                                DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - created custom Via for destination IP " 
+                                    << destIp << ": " << customVia->v_host << ":" << (customVia->v_port ? customVia->v_port : "5060");
+                            }
+                        }
+                    }
+                }
+
                 orq = nta_outgoing_tcreate( leg, response_to_request_inside_dialog, (nta_outgoing_magic_t*) m_pController, 
                     routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),                     
                     method, name.c_str()
@@ -365,6 +384,8 @@ namespace drachtio {
                     ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                     ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                     ,TAG_IF(forceTport, NTATAG_TPORT(tp))
+                    ,TAG_IF(customVia, SIPTAG_VIA(customVia))
+                    ,TAG_IF(customVia, NTATAG_USER_VIA(1))
                     ,TAG_NEXT(tags) ) ;
 
                 if( orq ) {
@@ -611,6 +632,39 @@ namespace drachtio {
             }
             nta_leg_tag( leg, NULL ) ;
 
+            // Create custom Via based on destination for proper local-net handling
+            sip_via_t* customVia = NULL;
+            {
+                // Use outbound proxy host if specified, otherwise extract host from request URI
+                string destHost;
+                if (useOutboundProxy) {
+                    // Extract host from outbound proxy URL
+                    url_t* proxyUrl = url_make(m_pController->getHome(), sipOutboundProxy.c_str());
+                    if (proxyUrl && proxyUrl->url_host) {
+                        destHost = proxyUrl->url_host;
+                    }
+                    su_free(m_pController->getHome(), proxyUrl);
+                } else {
+                    // Extract host from request URI
+                    url_t* reqUrl = url_make(m_pController->getHome(), requestUri.c_str());
+                    if (reqUrl && reqUrl->url_host) {
+                        destHost = reqUrl->url_host;
+                    }
+                    su_free(m_pController->getHome(), reqUrl);
+                }
+                
+                if (!destHost.empty()) {
+                    std::shared_ptr<SipTransport> pViaTransport = SipTransport::findAppropriateTransport(destHost.c_str());
+                    if (pViaTransport && pViaTransport->hasTportAndTpname()) {
+                        customVia = pViaTransport->makeVia(m_pController->getHome(), destHost.c_str());
+                        if (customVia) {
+                            DR_LOG(log_debug) << "SipDialogController::doSendRequestOutsideDialog - created custom Via for destination " 
+                                << destHost << ": " << customVia->v_host << ":" << (customVia->v_port ? customVia->v_port : "5060");
+                        }
+                    }
+                }
+            }
+
             orq = nta_outgoing_tcreate( leg, 
                 response_to_request_outside_dialog, 
                 (nta_outgoing_magic_t*) m_pController, 
@@ -623,6 +677,8 @@ namespace drachtio {
                 ,TAG_IF( body.length(), SIPTAG_PAYLOAD_STR(body.c_str()))
                 ,TAG_IF( contentType.length(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                 ,TAG_IF( forceTport, NTATAG_TPORT(tp))
+                ,TAG_IF(customVia, SIPTAG_VIA(customVia))
+                ,TAG_IF(customVia, NTATAG_USER_VIA(1))
                 ,TAG_NEXT(tags) ) ;
 
             if( NULL == orq ) {

@@ -109,7 +109,7 @@ namespace drachtio {
       m_range = htonl(range.sin_addr.s_addr) ;
 
       uint32_t netbits = ::atoi( bits.c_str() ) ;    
-      m_netmask = ~(~uint32_t(0) >> netbits);    
+      m_netmask = ~(~uint32_t(0) >> netbits);
     }
   }
 
@@ -120,14 +120,64 @@ namespace drachtio {
   }
 
   bool SipTransport::isInNetwork(const char* address) const {
-    if (!m_netmask) return false;
+    if (!m_netmask) {
+      DR_LOG(log_debug) << "SipTransport::isInNetwork - no netmask configured (local-net not set), returning false for address: " << address;
+      return false;
+    }
 
     struct sockaddr_in addr;
     inet_pton(AF_INET, address, &(addr.sin_addr));
 
     uint32_t ip = htonl(addr.sin_addr.s_addr) ;
+    bool isInNet = (ip & m_netmask) == (m_range & m_netmask) ;
 
-    return (ip & m_netmask) == (m_range & m_netmask) ;
+    DR_LOG(log_debug) << "SipTransport::isInNetwork - checking address: " << address 
+      << ", local-net: " << m_strLocalNet 
+      << ", range: 0x" << std::hex << m_range 
+      << ", netmask: 0x" << m_netmask 
+      << ", ip: 0x" << ip 
+      << ", (ip & netmask): 0x" << (ip & m_netmask)
+      << ", (range & netmask): 0x" << (m_range & m_netmask)
+      << std::dec << ", result: " << (isInNet ? "IN NETWORK" : "NOT IN NETWORK");
+
+    return isInNet ;
+  }
+
+  bool SipTransport::isInPrivateNetwork(const char* address) {
+    struct sockaddr_in addr;
+    if (inet_pton(AF_INET, address, &(addr.sin_addr)) != 1) {
+      DR_LOG(log_debug) << "SipTransport::isInPrivateNetwork - invalid IPv4 address: " << address;
+      return false;
+    }
+
+    uint32_t ip = htonl(addr.sin_addr.s_addr);
+
+    // RFC 1918 private address ranges:
+    // 10.0.0.0/8     (10.0.0.0 - 10.255.255.255)
+    // 172.16.0.0/12  (172.16.0.0 - 172.31.255.255)
+    // 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
+
+    // 10.0.0.0/8
+    uint32_t net10 = 0x0A000000;      // 10.0.0.0
+    uint32_t mask8 = 0xFF000000;      // /8
+
+    // 172.16.0.0/12
+    uint32_t net172 = 0xAC100000;     // 172.16.0.0
+    uint32_t mask12 = 0xFFF00000;     // /12
+
+    // 192.168.0.0/16
+    uint32_t net192 = 0xC0A80000;     // 192.168.0.0
+    uint32_t mask16 = 0xFFFF0000;     // /16
+
+    bool isPrivate = ((ip & mask8) == net10) ||
+                     ((ip & mask12) == net172) ||
+                     ((ip & mask16) == net192);
+
+    DR_LOG(log_debug) << "SipTransport::isInPrivateNetwork - checking address: " << address 
+      << ", ip: 0x" << std::hex << ip << std::dec
+      << ", result: " << (isPrivate ? "PRIVATE" : "PUBLIC");
+
+    return isPrivate;
   }
 
   void SipTransport::getDescription(string& s, bool shortVersion) {
@@ -261,10 +311,23 @@ namespace drachtio {
     DR_LOG(log_debug) << "SipTransport::getContactUri - created Contact header: " << contact;
   }
   sip_via_t* SipTransport::makeVia(su_home_t * h, const char* szRemoteHost) {
-    bool isInSubnet = szRemoteHost ? this->isInNetwork(szRemoteHost) : false;
+    // Safety check: ensure we have both valid tport AND tpName before proceeding
+    if (!this->hasTportAndTpname()) {
+      DR_LOG(log_warning) << "SipTransport::makeVia - no valid tport/tpName, returning NULL";
+      return NULL;
+    }
+
+    // Use private IP if destination is in a private network (RFC 1918), otherwise use external IP
+    bool destIsPrivate = szRemoteHost ? isInPrivateNetwork(szRemoteHost) : false;
     string host = this->getHost();
-    if (this->hasExternalIp() && !isInSubnet) {
+    if (this->hasExternalIp() && !destIsPrivate) {
       host = this->getExternalIp();
+    }
+
+    // Safety check: ensure host is not empty
+    if (host.empty()) {
+      DR_LOG(log_warning) << "SipTransport::makeVia - empty host, returning NULL";
+      return NULL;
     }
 
     string proto = this->getProtocol();
@@ -272,9 +335,11 @@ namespace drachtio {
     boost::to_upper(proto);
 
     string transport = string("SIP/2.0/") + proto;
-    DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << this->getPort() << ", transport " << transport ;
+    const char* port = this->getPort();
+    
+    DR_LOG(log_debug) << "SipTransport::makeVia - host " << host << ", port " << (port ? port : "5060") << ", transport " << transport ;
 
-    return sip_via_create(h, host.c_str(), this->getPort(), transport.c_str());
+    return sip_via_create(h, host.c_str(), port, transport.c_str(), NULL);
   }
 
 
@@ -391,6 +456,8 @@ namespace drachtio {
         if (p->getLocalNet().empty()) {
           string network, bits;
           string host = p->hasExternalIp() ? p->getExternalIp() : p->getHost();
+          DR_LOG(log_debug) << "SipTransport::addTransports - auto-detecting local-net for host: " << host;
+          
           if(0 == host.compare("127.0.0.1")) {
             network = "127.0.0.1";
             bits = "32";
