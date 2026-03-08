@@ -1700,7 +1700,16 @@ namespace drachtio {
                     //clear dialog when we send a 200 OK response to BYE
                     SD_Clear(m_dialogs, leg ) ;
                     if( !routed ) {
-                        nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;                
+                        DR_LOG(log_warning) << "SipDialogController::processRequestInsideDialog - "
+                                            << "no client found for BYE, destroying irq for txn " << transactionId;
+                        nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;
+                        findAndRemoveTransactionIdForIncomingRequest( transactionId );
+                        nta_incoming_destroy( irq );
+                    }
+                    else if( sip_method_bye == sip->sip_request->rq_method ) {
+                        // Schedule cleanup in case client never responds to BYE
+                        m_pTQM->addTimer("general-sip",
+                            std::bind(&SipDialogController::timeoutBye, this, transactionId), NULL, 32000);
                     }
                     
                     // check for race condition where we received a BYE with a re-INVITE we sent still outstanding
@@ -1813,7 +1822,11 @@ namespace drachtio {
         }
         std::shared_ptr<SipDialog> dlg ;
         if( !findDialogByLeg( leg, dlg ) ) {
-            assert(0) ;
+            DR_LOG(log_warning) << "SipDialogController::processResponseToRefreshingReinvite: "
+                                << "unable to find dialog for leg " << std::hex << (void*) leg
+                                << ", dialog already removed";
+            nta_outgoing_destroy( orq ) ;
+            return 0;
         }
         if( findRIPByOrq( orq, rip ) ) {
 
@@ -2232,6 +2245,13 @@ namespace drachtio {
             if (irq != nullptr) {
                 nta_incoming_destroy(irq);
             }
+        }
+    }
+    void SipDialogController::timeoutBye(string transactionId) {
+        nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest(transactionId);
+        if (irq) {
+            DR_LOG(log_warning) << "SipDialogController::timeoutBye - destroying orphaned BYE irq, txn " << transactionId;
+            nta_incoming_destroy(irq);
         }
     }
     void SipDialogController::clearSipTimers(std::shared_ptr<SipDialog>& dlg) {
