@@ -124,18 +124,28 @@ namespace {
     }
 }
 
+namespace {
+    string formatSipTime(sip_time_t t) {
+        time_t tt = (time_t)t;
+        struct tm tm;
+        gmtime_r(&tt, &tm);
+        char buf[32];
+        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+        return string(buf);
+    }
+}
 
 namespace drachtio {
-    RIP::RIP( const string& transactionId ) : m_transactionId(transactionId) {
+    RIP::RIP( const string& transactionId ) : m_transactionId(transactionId), m_created(sip_now()) {
             DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId  ;
 
         }
-    RIP::RIP( const string& transactionId, const string& dialogId ) : m_transactionId(transactionId), m_dialogId(dialogId) {
+    RIP::RIP( const string& transactionId, const string& dialogId ) : m_transactionId(transactionId), m_dialogId(dialogId), m_created(sip_now()) {
             DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId << " dialogId " << dialogId  ;
 
         }
     RIP::RIP( const string& transactionId, const string& dialogId,  std::shared_ptr<SipDialog> dlg, bool clearDialogOnResponse) :
-        m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse) {
+        m_transactionId(transactionId), m_dialogId(dialogId), m_dlg(dlg), m_bClearDialogOnResponse(clearDialogOnResponse), m_created(sip_now()) {
             DR_LOG(log_debug) << "RIP::RIP txnId: " << transactionId << " dialogId " << dialogId << " clearDialogOnResponse " << clearDialogOnResponse ;
         }
 
@@ -2212,14 +2222,14 @@ namespace drachtio {
     void SipDialogController::addIncomingRequestTransaction( nta_incoming_t* irq, const string& transactionId) {
         DR_LOG(log_debug) << "SipDialogController::addIncomingRequestTransaction - adding transactionId " << transactionId << " for irq:" << std::hex << (void*) irq;
         std::lock_guard<std::mutex> lock(m_mutex) ;
-        m_mapTransactionId2Irq.insert( mapTransactionId2Irq::value_type(transactionId, irq)) ;
+        m_mapTransactionId2Irq.emplace( transactionId, IrqEntry(irq) ) ;
     }
     bool SipDialogController::findIrqByTransactionId( const string& transactionId, nta_incoming_t*& irq ) {
         std::lock_guard<std::mutex> lock(m_mutex) ;
         mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
         if( m_mapTransactionId2Irq.end() == it ) return false ;
-        irq = it->second ;
-        return true ;                       
+        irq = it->second.irq ;
+        return true ;
     }
     nta_incoming_t* SipDialogController::findAndRemoveTransactionIdForIncomingRequest( const string& transactionId ) {
         DR_LOG(log_debug) << "SipDialogController::findAndRemoveTransactionIdForIncomingRequest - searching transactionId " << transactionId ;
@@ -2227,7 +2237,7 @@ namespace drachtio {
         nta_incoming_t* irq = nullptr ;
         mapTransactionId2Irq::iterator it = m_mapTransactionId2Irq.find( transactionId ) ;
         if( m_mapTransactionId2Irq.end() != it ) {
-            irq = it->second ;
+            irq = it->second.irq ;
             m_mapTransactionId2Irq.erase( it ) ;
         }
         else {
@@ -2372,7 +2382,12 @@ namespace drachtio {
             for (const auto& pair : m_mapOrq2RIP) {
                 nta_outgoing_t* orq = pair.first;
                 std::shared_ptr<RIP> p = pair.second;
-                DR_LOG(log_debug) << "    orq: " << std::hex << (void *) orq << " dialog id " << p->getDialogId() << " txn id " << p->getTransactionId();
+                sip_time_t age = sip_now() - p->getCreated();
+                DR_LOG(log_debug) << "    orq: " << std::hex << (void *) orq
+                    << " dialogId: " << p->getDialogId()
+                    << " txnId: " << p->getTransactionId()
+                    << " created: " << formatSipTime(p->getCreated())
+                    << " alive: " << std::dec << age << "s";
             }
         }
     }
@@ -2385,11 +2400,28 @@ namespace drachtio {
         IIP_Log(m_invitesInProgress, bDetail);
         SD_Log(m_dialogs, bDetail);
 
-        std::lock_guard<std::mutex> lock(m_mutex) ;
-        DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
-        DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
-        DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
-        logRIP(bDetail);
+        {
+            std::lock_guard<std::mutex> lock(m_mutex) ;
+            DR_LOG(bDetail ? log_info : log_debug) << "m_mapTransactionId2Irq size:                                     " << m_mapTransactionId2Irq.size()  ;
+            if (bDetail) {
+                int count = 0;
+                for (const auto& kv : m_mapTransactionId2Irq) {
+                    const char* method = nta_incoming_method_name(kv.second.irq);
+                    sip_time_t age = sip_now() - kv.second.created;
+                    DR_LOG(log_info) << "    txnId: " << kv.first
+                        << " method: " << (method ? method : "unknown")
+                        << " created: " << formatSipTime(kv.second.created)
+                        << " alive: " << age << "s";
+                    if (++count >= 50) {
+                        DR_LOG(log_info) << "    ... and " << (m_mapTransactionId2Irq.size() - 50) << " more";
+                        break;
+                    }
+                }
+            }
+            DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions held for timerD:                 " << m_timerDHandler.countTimerD()  ;
+            DR_LOG(bDetail ? log_info : log_debug) << "number of outgoing transactions waiting for ACK from app:        " << m_timerDHandler.countPending()  ;
+            logRIP(bDetail);
+        }
         m_pTQM->logQueueSizes() ;
 
         // stats
@@ -2400,6 +2432,109 @@ namespace drachtio {
             STATS_GAUGE_SET_NOCHECK(STATS_GAUGE_STABLE_DIALOGS, nUas, {{"type", "inbound"}})
             STATS_GAUGE_SET_NOCHECK(STATS_GAUGE_STABLE_DIALOGS, nUac, {{"type", "outbound"}})
         }
+
+        if (bDetail) {
+            logLeakReport();
+        }
+    }
+
+    void SipDialogController::logLeakReport() {
+        DR_LOG(log_info) << "=== LEAK DETECTION REPORT ===" ;
+
+        sip_time_t now = sip_now();
+
+        // 1. Orphaned client dialogs: in ClientController m_mapDialogs but not in StableDialogs
+        {
+            std::vector<std::string> clientDialogIds;
+            m_pClientController->getDialogIds(clientDialogIds);
+            int orphanCount = 0;
+            for (const auto& dialogId : clientDialogIds) {
+                std::shared_ptr<SipDialog> dlg;
+                if (!SD_FindByDialogId(m_dialogs, dialogId, dlg)) {
+                    if (orphanCount < 50) {
+                        DR_LOG(log_warning) << "  ORPHAN client dialog (not in StableDialogs): " << dialogId;
+                    }
+                    orphanCount++;
+                }
+            }
+            DR_LOG(log_info) << "Client dialogs: " << clientDialogIds.size()
+                << " total, " << orphanCount << " orphaned (not in StableDialogs)";
+        }
+
+        // 2. Orphaned RIPs: dialog no longer exists in StableDialogs
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            int orphanCount = 0;
+            int totalWithDialog = 0;
+            for (const auto& pair : m_mapOrq2RIP) {
+                std::shared_ptr<RIP> rip = pair.second;
+                if (!rip->getDialogId().empty()) {
+                    totalWithDialog++;
+                    std::shared_ptr<SipDialog> dlg;
+                    if (!SD_FindByDialogId(m_dialogs, rip->getDialogId(), dlg)) {
+                        if (orphanCount < 50) {
+                            sip_time_t age = now - rip->getCreated();
+                            DR_LOG(log_warning) << "  ORPHAN RIP (dialog gone): "
+                                << " dialogId: " << rip->getDialogId()
+                                << " txnId: " << rip->getTransactionId()
+                                << " created: " << formatSipTime(rip->getCreated())
+                                << " alive: " << age << "s";
+                        }
+                        orphanCount++;
+                    }
+                }
+            }
+            DR_LOG(log_info) << "RIPs: " << m_mapOrq2RIP.size()
+                << " total, " << totalWithDialog << " with dialogId, "
+                << orphanCount << " orphaned (dialog gone)";
+        }
+
+        // 3. Orphaned net transactions: irq gone from m_mapTransactionId2Irq
+        {
+            std::vector<std::string> netTxnIds;
+            m_pClientController->getNetTransactionIds(netTxnIds);
+            int orphanCount = 0;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                for (const auto& txnId : netTxnIds) {
+                    if (m_mapTransactionId2Irq.find(txnId) == m_mapTransactionId2Irq.end()) {
+                        if (orphanCount < 50) {
+                            DR_LOG(log_warning) << "  ORPHAN net transaction (no irq): " << txnId;
+                        }
+                        orphanCount++;
+                    }
+                }
+            }
+            DR_LOG(log_info) << "Net transactions: " << netTxnIds.size()
+                << " total, " << orphanCount << " orphaned (no matching irq)";
+        }
+
+        // 4. Orphaned irqs: in m_mapTransactionId2Irq but no net transaction in ClientController
+        {
+            std::vector<std::string> netTxnIds;
+            m_pClientController->getNetTransactionIds(netTxnIds);
+            std::unordered_set<std::string> netTxnSet(netTxnIds.begin(), netTxnIds.end());
+
+            std::lock_guard<std::mutex> lock(m_mutex);
+            int orphanCount = 0;
+            for (const auto& kv : m_mapTransactionId2Irq) {
+                if (netTxnSet.find(kv.first) == netTxnSet.end()) {
+                    if (orphanCount < 50) {
+                        const char* method = nta_incoming_method_name(kv.second.irq);
+                        sip_time_t age = now - kv.second.created;
+                        DR_LOG(log_warning) << "  ORPHAN irq (no net transaction): txnId: " << kv.first
+                            << " method: " << (method ? method : "unknown")
+                            << " created: " << formatSipTime(kv.second.created)
+                            << " alive: " << age << "s";
+                    }
+                    orphanCount++;
+                }
+            }
+            DR_LOG(log_info) << "Irqs: " << m_mapTransactionId2Irq.size()
+                << " total, " << orphanCount << " orphaned (no net transaction)";
+        }
+
+        DR_LOG(log_info) << "=== END LEAK REPORT ===" ;
     }
 
 }
