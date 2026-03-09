@@ -34,6 +34,15 @@ THE SOFTWARE.
 
 
 namespace {
+    string formatSipTime(sip_time_t t) {
+        time_t tt = (time_t)t;
+        struct tm tm;
+        gmtime_r(&tt, &tm);
+        char buf[32];
+        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+        return string(buf);
+    }
+
     /* needed to be able to live in a boost unordered container */
     size_t hash_value( const drachtio::SipDialog& d) {
         std::size_t seed = 0;
@@ -243,11 +252,14 @@ namespace drachtio {
 
 	std::ostream& operator<<(std::ostream& os, const SipDialog& dlg) {
     sip_time_t alive = sip_now() - dlg.m_tmArrival;
-    os << "dialogId:" << dlg.dialogId() << std::dec << 
-      " alive:" << alive << "s" << std::hex << 
-      " callid:" << dlg.getCallId() << 
-      " role:" << (dlg.getRole() == SipDialog::we_are_uac ? "UAC" : "UAS") << 
-      " leg:" << dlg.getNtaLeg() ;
+    os << "dialogId:" << dlg.dialogId() << std::dec <<
+      " alive:" << alive << "s" <<
+      " created:" << formatSipTime(dlg.m_tmArrival) <<
+      " callid:" << dlg.getCallId() <<
+      " role:" << (dlg.getRole() == SipDialog::we_are_uac ? "UAC" : "UAS") <<
+      " leg:" << std::hex << dlg.getNtaLeg() <<
+      " sessionTimer:" << (dlg.m_timerSessionRefresh ? "active" : "none") <<
+      std::dec << " pendingIrqs:" << dlg.m_incomingRequestTransactionIds.size() ;
     return os;
   }
 

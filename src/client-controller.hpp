@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
 #include <mutex>
 #include <thread>
 
@@ -118,6 +119,9 @@ namespace drachtio {
     void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
 
     void logStorageCount(bool bDetail = false) ;
+
+    void getDialogIds(std::vector<std::string>& ids) ;
+    void getNetTransactionIds(std::vector<std::string>& ids) ;
 
     boost::asio::io_context& getIOService(void) { return m_ioservice ;}
 

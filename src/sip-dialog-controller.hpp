@@ -62,12 +62,14 @@ namespace drachtio {
 		const string& getTransactionId(void) { return m_transactionId; }
 		const string& getDialogId(void) { return m_dialogId; }
 		bool shouldClearDialogOnResponse(void) { return m_bClearDialogOnResponse;}
+		sip_time_t getCreated(void) const { return m_created; }
 
 	private:
 		string 												m_transactionId ;
 		string												m_dialogId ;
 		bool												m_bClearDialogOnResponse;
 		std::shared_ptr<SipDialog> 	m_dlg ;
+		sip_time_t										m_created ;
 	} ;
 
 	/**
@@ -198,6 +200,7 @@ namespace drachtio {
     void notifyCancelTimeoutReachedIIP( std::shared_ptr<IIP> dlg ) ;
 
 		void logStorageCount(bool bDetail = false)  ;
+		void logLeakReport() ;
 
 		/// IIP helpers 
 		void addIncomingInviteTransaction( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip, const string& transactionId, std::shared_ptr<SipDialog> dlg, const string& tag ) ;
@@ -288,7 +291,12 @@ namespace drachtio {
 		// Requests received from the network
 
 		/* we need to lookup incoming transactions by transaction id when we get a response from the client */
-		typedef std::unordered_map<string, nta_incoming_t*> mapTransactionId2Irq ;
+		struct IrqEntry {
+			nta_incoming_t* irq;
+			sip_time_t created;
+			IrqEntry(nta_incoming_t* i) : irq(i), created(sip_now()) {}
+		};
+		typedef std::unordered_map<string, IrqEntry> mapTransactionId2Irq ;
 		mapTransactionId2Irq m_mapTransactionId2Irq ;
 
 

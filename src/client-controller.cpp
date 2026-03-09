@@ -674,6 +674,17 @@ namespace drachtio {
         STATS_GAUGE_SET(STATS_GAUGE_CLIENT_APP_CONNECTIONS, m_clients.size())
 
     }
+    void ClientController::getDialogIds(std::vector<std::string>& ids) {
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        ids.reserve(m_mapDialogs.size());
+        for (const auto& kv : m_mapDialogs) ids.push_back(kv.first);
+    }
+    void ClientController::getNetTransactionIds(std::vector<std::string>& ids) {
+        std::lock_guard<std::mutex> l( m_lock ) ;
+        ids.reserve(m_mapNetTransactions.size());
+        for (const auto& kv : m_mapNetTransactions) ids.push_back(kv.first);
+    }
+
     std::shared_ptr<SipDialogController> ClientController::getDialogController(void) {
         return m_pController->getDialogController();
     }

@@ -1,7 +1,7 @@
 const test = require('tape');
 const execCmd = require('./utils/exec');
 const delay = require('./utils/delay');
-const {start, stop } = require('./testbed');
+const {start, stop, waitForPort } = require('./testbed');
 const logger = require('pino')({level: 'debug'});
 let configFile, drachtio;
 const manageServer = !process.env.NOSERVER;
@@ -67,6 +67,9 @@ function runFixture(f) {
         let uasPromise, scriptPromise, uacPromise;
         let script;
         if (f.uas) {
+          await waitForPort(f.uas.port).catch((err) => {
+            logger.warn(`port ${f.uas.port} still in use, proceeding anyway: ${err.message}`);
+          });
           let cmd = `sipp -sf ./${f.uas.name} -i 127.0.0.1 -p ${f.uas.port} -m 1`;
           if (f.uas.transport === 'tcp') cmd += ' -t t1';
           logger.debug(`starting UAS scenario: ${cmd}`);
@@ -85,12 +88,15 @@ function runFixture(f) {
             if (f.script.delay) await delay(f.script.delay);
           }
         }
+        // delay to ensure route registration is processed by drachtio before UAC sends
+        if (f.script && f.uac) await delay(1000);
+
         if (f.uac) {
           const cid_str = '-cid_str %u-%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p' +
             '%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p' +
             '%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p@%s';
           let cmd = `sipp -sf ./${f.uac.name} ${f.uac.target} ${f.uac.long_call_id ? cid_str : ''} -m 1`;
-          if (f.uac.transport === 'tcp') cmd += ' -t t1';
+          if (f.uac.transport === 'tcp') cmd += ' -t tn';
           logger.debug(`starting UAC scenario: ${cmd}`);
           uacPromise = execCmd(cmd, {cwd: './scenarios'});
         }
@@ -106,7 +112,7 @@ function runFixture(f) {
           }
         } catch (err) {
           logger.debug({err}, 'caught error in script');
-          if (![err.message, err, '*'].includes(f.script.error)) {
+          if (!f.script || ![err.message, err, '*'].includes(f.script.error)) {
             logger.error('unexpected error in script - rethrowing');
             throw err;
           }
@@ -130,6 +136,11 @@ function runFixture(f) {
         resolve();
       } catch (err) {
         logger.error(err, 'Error in test');
+        // Wait for any sipp processes to finish before moving on
+        try {
+          if (uasPromise) await uasPromise;
+          if (uacPromise) await uacPromise;
+        } catch (e) { /* ignore */ }
         t.end(err);
         reject(err);
       }
