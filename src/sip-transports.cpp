@@ -439,6 +439,7 @@ namespace drachtio {
     vector< pair<string,string> > vecParam ;
     string host = remoteHost ;
     string requestedProto = (NULL == proto ? "" : proto);
+    bool explicitTransport = false;
 
     if( parseSipUri(host, scheme, userpart, hostpart, port, vecParam) ) {
       host = hostpart ;
@@ -447,6 +448,7 @@ namespace drachtio {
     for (vector<pair<string, string> >::const_iterator it = vecParam.begin(); it != vecParam.end(); ++it) {
       if (0 == it->first.compare("transport")) {
         requestedProto = it->second;
+        explicitTransport = true;
         break;
       }
     }
@@ -516,11 +518,11 @@ namespace drachtio {
     }
 #endif
 
-    if (candidates.empty() && m_masterTransport->hasTportAndTpname()) {
+    if (candidates.empty() && !explicitTransport && m_masterTransport->hasTportAndTpname()) {
       m_masterTransport->getDescription(desc) ;
-      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() << 
+      DR_LOG(log_debug) << "SipTransport::findAppropriateTransport: - returning master transport " << hex << m_masterTransport->getTport() <<
         " as we found no better matches: " << desc ;
-      return m_masterTransport ;      
+      return m_masterTransport ;
     }
     else if (candidates.empty()) {
       DR_LOG(log_info) << "SipTransport::findAppropriateTransport: - no transports found ";
