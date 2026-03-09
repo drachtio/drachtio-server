@@ -88,6 +88,9 @@ function runFixture(f) {
             if (f.script.delay) await delay(f.script.delay);
           }
         }
+        // small delay to ensure script handler registration reaches drachtio before UAC sends
+        if (f.script && f.uac) await delay(250);
+
         if (f.uac) {
           const cid_str = '-cid_str %u-%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p' +
             '%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p' +
