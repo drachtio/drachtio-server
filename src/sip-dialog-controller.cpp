@@ -2251,6 +2251,7 @@ namespace drachtio {
         nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest(transactionId);
         if (irq) {
             DR_LOG(log_warning) << "SipDialogController::timeoutBye - destroying orphaned BYE irq, txn " << transactionId;
+            m_pController->getClientController()->removeNetTransaction(transactionId);
             nta_incoming_destroy(irq);
         }
     }
