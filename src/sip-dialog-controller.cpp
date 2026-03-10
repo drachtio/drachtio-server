@@ -1923,7 +1923,8 @@ namespace drachtio {
             //TODO: sofia has already sent 200 OK to cancel and 487 to INVITE.  Do we need to keep this irq around?
             //addIncomingRequestTransaction( irq, transactionId) ;
 
-            DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP "   ;
+            DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - clearing IIP, removing net transaction " << iip->getTransactionId() ;
+            m_pController->getClientController()->removeNetTransaction( iip->getTransactionId() ) ;
             IIP_Clear(m_invitesInProgress, iip);
             DR_LOG(log_debug) << "SipDialogController::processCancelOrAck - done clearing IIP "   ;
 
@@ -2489,7 +2490,7 @@ namespace drachtio {
                 << orphanCount << " orphaned (dialog gone)";
         }
 
-        // 3. Orphaned net transactions: irq gone from m_mapTransactionId2Irq
+        // 3. Orphaned net transactions: not in m_mapTransactionId2Irq and not in invites-in-progress
         {
             std::vector<std::string> netTxnIds;
             m_pClientController->getNetTransactionIds(netTxnIds);
@@ -2497,16 +2498,17 @@ namespace drachtio {
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 for (const auto& txnId : netTxnIds) {
-                    if (m_mapTransactionId2Irq.find(txnId) == m_mapTransactionId2Irq.end()) {
-                        if (orphanCount < 50) {
-                            DR_LOG(log_warning) << "  ORPHAN net transaction (no irq): " << txnId;
-                        }
-                        orphanCount++;
+                    if (m_mapTransactionId2Irq.find(txnId) != m_mapTransactionId2Irq.end()) continue;
+                    std::shared_ptr<IIP> iip;
+                    if (IIP_FindByTransactionId(m_invitesInProgress, txnId, iip)) continue;
+                    if (orphanCount < 50) {
+                        DR_LOG(log_warning) << "  ORPHAN net transaction (no irq or iip): " << txnId;
                     }
+                    orphanCount++;
                 }
             }
             DR_LOG(log_info) << "Net transactions: " << netTxnIds.size()
-                << " total, " << orphanCount << " orphaned (no matching irq)";
+                << " total, " << orphanCount << " orphaned (no matching irq or iip)";
         }
 
         // 4. Orphaned irqs: in m_mapTransactionId2Irq but no net transaction in ClientController
