@@ -2501,14 +2501,16 @@ namespace drachtio {
                     if (m_mapTransactionId2Irq.find(txnId) != m_mapTransactionId2Irq.end()) continue;
                     std::shared_ptr<IIP> iip;
                     if (IIP_FindByTransactionId(m_invitesInProgress, txnId, iip)) continue;
+                    string method;
+                    if (m_pController->getPendingRequestController()->getMethodForRequest(txnId, method)) continue;
                     if (orphanCount < 50) {
-                        DR_LOG(log_warning) << "  ORPHAN net transaction (no irq or iip): " << txnId;
+                        DR_LOG(log_warning) << "  ORPHAN net transaction (no irq, iip, or pending request): " << txnId;
                     }
                     orphanCount++;
                 }
             }
             DR_LOG(log_info) << "Net transactions: " << netTxnIds.size()
-                << " total, " << orphanCount << " orphaned (no matching irq or iip)";
+                << " total, " << orphanCount << " orphaned (no matching irq, iip, or pending request)";
         }
 
         // 4. Orphaned irqs: in m_mapTransactionId2Irq but no net transaction in ClientController
