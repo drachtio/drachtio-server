@@ -1917,7 +1917,7 @@ namespace drachtio {
             DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: found transport for " << uri  ;
         }
         else {
-            DR_LOG(log_info) << "DrachtioController::findTportForSubscription: no transport found for " << uri  ;
+            DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: no transport found for " << uri  ;
         }
         return p ;
     }

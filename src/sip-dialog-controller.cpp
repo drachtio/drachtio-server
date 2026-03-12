@@ -1696,9 +1696,18 @@ namespace drachtio {
                     }
                 }
 
+                if (!routed && dlg->getSipStatus() >= 200 && sip_method_bye != sip->sip_request->rq_method) {
+                    DR_LOG(log_warning) << "SipDialogController::processRequestInsideDialog - "
+                                        << "no client found for " << sip->sip_request->rq_method_name
+                                        << ", destroying irq for txn " << transactionId;
+                    nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;
+                    nta_incoming_destroy( irq );
+                    return 0;
+                }
+
                 addIncomingRequestTransaction( irq, transactionId) ;
-    
-                if( sip_method_bye == sip->sip_request->rq_method || 
+
+                if( sip_method_bye == sip->sip_request->rq_method ||
                     (sip_method_notify == sip->sip_request->rq_method && !dlg->isInviteDialog() &&
                         NULL != sip->sip_subscription_state && 
                         NULL != sip->sip_subscription_state->ss_substate &&
