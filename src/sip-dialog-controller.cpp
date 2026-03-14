@@ -1480,7 +1480,7 @@ namespace drachtio {
             IIP_Clear(m_invitesInProgress, iip);
         }
 
-        if( bDestroyIrq && !transportGone) nta_incoming_destroy(irq) ;    
+        if( bDestroyIrq ) nta_incoming_destroy(irq) ;    
 
         pData->~SipMessageData() ;
 
