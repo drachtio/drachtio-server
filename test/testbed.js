@@ -1,4 +1,5 @@
 const { spawn, execSync } = require('child_process');
+const fs = require('fs');
 const debug = require('debug')('drachtio:server-test');
 const obj = module.exports = {} ;
 
@@ -64,6 +65,28 @@ function waitForPort(port, timeoutMs = 10000) {
   });
 }
 
+// Inverse of waitForPort: poll until something is listening on `port`.
+// Replaces hard-coded delays for sipp UAS startup, which on slow CI runners
+// occasionally took longer than 1s to bind.
+function waitForPortInUse(port, timeoutMs = 10000) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      try {
+        execSync(`lsof -i :${port} -P -t`, {encoding: 'utf8'});
+        resolve();
+      } catch (e) {
+        if (Date.now() - start > timeoutMs) {
+          reject(new Error(`port ${port} not bound after ${timeoutMs}ms`));
+        } else {
+          setTimeout(check, 100);
+        }
+      }
+    };
+    check();
+  });
+}
+
 function forceKill(proc) {
   if (!proc) return;
   try { proc.kill('SIGTERM'); } catch (e) { /* already dead */ }
@@ -85,8 +108,9 @@ process.on('SIGINT', () => { cleanup(); process.exit(1); });
 process.on('SIGTERM', () => { cleanup(); process.exit(1); });
 
 obj.waitForPort = waitForPort;
+obj.waitForPortInUse = waitForPortInUse;
 
-obj.start = async (confPath, extraArgs, tls = false, waitDelay = 500, env = {}) => {
+obj.start = async (confPath, extraArgs, tls = false, waitDelay = 500, env = {}, logPath = null) => {
   confPath = confPath || './drachtio.conf.xml';
   debug(`starting drachtio with config file: ${confPath} and env ${JSON.stringify(env)}`);
 
@@ -104,6 +128,19 @@ obj.start = async (confPath, extraArgs, tls = false, waitDelay = 500, env = {}) 
     await obj.stop().catch(() => {});
   }
 
+  // When logPath is supplied, mirror drachtio + router output to that file so
+  // failures in CI can be inspected even if the job is cancelled before the
+  // workflow's final `cat /tmp/drachtio.log` step has a chance to run.
+  let logStream = null;
+  if (logPath) {
+    try {
+      logStream = fs.createWriteStream(logPath, {flags: 'a'});
+      logStream.write(`\n=== drachtio start: ${new Date().toISOString()} confPath=${confPath} ===\n`);
+    } catch (e) {
+      debug(`failed to open log file ${logPath}: ${e.message}`);
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const args = ['-f', confPath].concat(Array.isArray(extraArgs) ? extraArgs : []);
 
@@ -119,13 +156,16 @@ obj.start = async (confPath, extraArgs, tls = false, waitDelay = 500, env = {}) 
     });
     drachtio.on('exit', (code, signal) => {
       debug(`drachtio exited with code ${code}, signal ${signal}`);
+      if (logStream) try { logStream.end(`=== drachtio exit code=${code} signal=${signal} ===\n`); } catch (e) {}
     });
 
     drachtio.stdout.on('data', (data) => {
       debug(`${data.toString()}`);
+      if (logStream) logStream.write(data);
     });
     drachtio.stderr.on('data', (data) => {
       debug(`${data.toString()}`);
+      if (logStream) logStream.write(data);
     });
 
     const routerArgs = ['./scripts/call-router'];
