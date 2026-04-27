@@ -89,3 +89,43 @@ test('uas sends BYE if session expires without expected UAC refresh', (t) => {
       stop();
     });
 });
+
+test('uas defaults refresher=uac and BYEs when Session-Expires offered without a refresher', (t) => {
+  let uas, p;
+  return start(null, ['--memory-debug'])
+    .then(() => {
+      uas = new Uas();
+      return uas.connect();
+    })
+    .then(() => {
+      p = uas.handleSessionExpired();
+      return;
+    })
+    .then(() => {
+      // The sipp scenario asserts the 200 OK contains "refresher=uac" via an
+      // <ereg check_it="true"> action — sipp will exit non-zero (rejecting the
+      // execCmd promise) if drachtio omits the parameter. It then deliberately
+      // skips refreshing so drachtio must BYE when the session interval expires.
+      return execCmd('sipp -sf ./uac-session-expires-no-refresher.xml 127.0.0.1:5090 -m 1', {cwd: './scenarios'});
+    })
+    .then(() => {
+      return p;
+    })
+    .then(() => {
+      t.pass('200 OK included refresher=uac and drachtio BYEd on session expiry');
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          uas.disconnect();
+          resolve();
+        }, 1000);
+      });
+    })
+    .then(() => {
+      return stop();
+    })
+    .catch((err) => {
+      t.fail(`failed with error ${err}`);
+      if (uas) uas.disconnect();
+      stop();
+    });
+});

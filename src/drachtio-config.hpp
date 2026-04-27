@@ -83,7 +83,9 @@ namespace drachtio {
 
         bool getCaptureServer(string& address, unsigned int& port, uint32_t& agentId, unsigned int& version);
 
-        bool isAggressiveNatEnabled(void);   
+        bool isAggressiveNatEnabled(void);
+
+        const std::string& getSessionTimerDefaultRefresher(void) const;
 
         bool getPrometheusAddress( string& address, unsigned int& port ) const ;
 
