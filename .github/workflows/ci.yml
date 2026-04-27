@@ -42,6 +42,17 @@ jobs:
       - name: run ci tests
         run: |
           cd test
-          npm install 
+          npm install
           npm run test-ci
-          cat /tmp/drachtio.log
+      - name: dump drachtio log
+        if: always()
+        run: |
+          if [ -f /tmp/drachtio.log ]; then cat /tmp/drachtio.log; fi
+      - name: upload per-fixture drachtio logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drachtio-fixture-logs
+          path: /tmp/drachtio-fixture-*.log
+          if-no-files-found: ignore
+          retention-days: 7
