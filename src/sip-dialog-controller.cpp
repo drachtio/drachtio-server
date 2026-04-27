@@ -1304,13 +1304,28 @@ namespace drachtio {
                             dlg->setSessionTimer(interval, who) ;
                             su_free( m_pController->getHome(), se ) ;
                         }
-                        else if (sip->sip_session_expires && sip->sip_session_expires->x_refresher) {
+                        else if (sip->sip_session_expires) {
                             sip_session_expires_t* se = sip->sip_session_expires;
-                            sessionExpires = sip_session_expires_copy(m_pController->getHome(), se);
                             unsigned long interval = std::max((unsigned long) 90, se->x_delta);
-                            SipDialog::SessionRefresher_t who = !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? SipDialog::they_are_refresher : SipDialog::we_are_refresher;
+                            /* RFC 4028 sec 9: the 2xx MUST include a refresher parameter
+                               even if the UAC's offer omitted it. The RFC leaves the
+                               choice of "uac" or "uas" to the UAS when no preference
+                               was expressed; we let the operator pick the default via
+                               drachtio.conf.xml (sip/session-timers/@default-refresher),
+                               and fall back to "uac" — see DrachtioConfig. */
+                            const string& configuredDefault = m_pController->getConfig()->getSessionTimerDefaultRefresher();
+                            const char* refresher = (se->x_refresher && *se->x_refresher) ? se->x_refresher : configuredDefault.c_str();
+                            SipDialog::SessionRefresher_t who = 0 == strcmp(refresher, "uac") ?
+                                SipDialog::they_are_refresher : SipDialog::we_are_refresher;
 
-                            if (who == SipDialog::we_are_refresher) {
+                            ostringstream seHdr;
+                            seHdr << interval << ";refresher=" << refresher;
+                            sessionExpires = sip_session_expires_make(m_pController->getHome(), seHdr.str().c_str());
+
+                            if (!se->x_refresher) {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC offered Session-Expires without refresher, defaulting to refresher=" << refresher << ", interval will be " << interval  ;
+                            }
+                            else if (who == SipDialog::we_are_refresher) {
                                 DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC asked us to refresh, interval will be " << interval  ;
                             }
                             else {

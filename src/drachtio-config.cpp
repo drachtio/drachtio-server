@@ -40,8 +40,9 @@ namespace drachtio {
 
      class DrachtioConfig::Impl {
     public:
-        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized), 
+        Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized),
         m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_udpBufferSize(0), m_bAggressiveNatDetection(false),
+        m_sessionTimerDefaultRefresher("uac"),
         m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45), m_minTlsVersion(0) {
 
             // default timers
@@ -168,12 +169,28 @@ namespace drachtio {
 
                 try {
                     string nat = pt.get<string>("drachtio.sip.aggressive-nat-detection", "no") ;
-                    if (0 == nat.compare("yes") || 0 == nat.compare("YES") || 
+                    if (0 == nat.compare("yes") || 0 == nat.compare("YES") ||
                         0 == nat.compare("true") || 0 == nat.compare("TRUE") ||
                          0 == nat.compare("on") || 0 == nat.compare("ON")) {
                         m_bAggressiveNatDetection = true;
                     }
                 } catch( boost::property_tree::ptree_bad_path& e) {
+                }
+
+                /* default refresher for session timers when the UAC offers
+                   Session-Expires without a 'refresher' parameter (RFC 4028 §9
+                   leaves this to the UAS). Valid values: "uac" or "uas". */
+                try {
+                    string r = pt.get<string>("drachtio.sip.session-timers.<xmlattr>.default-refresher", "uac");
+                    boost::algorithm::to_lower(r);
+                    if (r != "uac" && r != "uas") {
+                        cerr << "invalid drachtio.sip.session-timers.default-refresher value '" << r
+                             << "' — must be 'uac' or 'uas'; defaulting to 'uac'" << endl;
+                        r = "uac";
+                    }
+                    m_sessionTimerDefaultRefresher = r;
+                } catch( boost::property_tree::ptree_bad_path& e) {
+                    m_sessionTimerDefaultRefresher = "uac";
                 }
 
                 m_minTlsVersion = pt.get<float>("drachtio.sip.tls.min-tls-version", 0);
@@ -449,6 +466,10 @@ namespace drachtio {
             return m_bAggressiveNatDetection;
         }
 
+        const string& getSessionTimerDefaultRefresher() const {
+            return m_sessionTimerDefaultRefresher;
+        }
+
         bool getPrometheusAddress( string& address, unsigned int& port ) {
             if (0 == m_prometheusPort) return false;
             address = m_prometheusAddress;
@@ -525,6 +546,7 @@ namespace drachtio {
         unsigned int m_mtu;
         unsigned int m_udpBufferSize;
         bool m_bAggressiveNatDetection;
+        string m_sessionTimerDefaultRefresher;
         string m_prometheusAddress;
         unsigned int m_prometheusPort;
         unsigned int m_tcpKeepalive;
@@ -623,6 +645,9 @@ namespace drachtio {
     }
     bool DrachtioConfig::isAggressiveNatEnabled() {
         return m_pimpl->isAggressiveNatEnabled();
+    }
+    const std::string& DrachtioConfig::getSessionTimerDefaultRefresher() const {
+        return m_pimpl->getSessionTimerDefaultRefresher();
     }
     bool DrachtioConfig::getPrometheusAddress( string& address, unsigned int& port ) const {
         return m_pimpl->getPrometheusAddress(address, port);
