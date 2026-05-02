@@ -118,7 +118,8 @@ namespace drachtio {
     p->setEncodedMsg(encodedMessage);
 
     if( httpUrl.empty() ) {
-      m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+      // Include Call-ID for early dialog UPDATE routing
+      m_pClientController->addNetTransaction( client, p->getTransactionId(), p->getCallId() ) ;
 
       void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
       m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), encodedMessage, meta ) ) ;
@@ -190,10 +191,11 @@ namespace drachtio {
       DR_LOG(log_error) << "PendingRequestController::routeNewRequestToClient: transactionId not found: " << transactionId ;
       return 500 ;
     }
-    m_pClientController->addNetTransaction( client, p->getTransactionId() ) ;
+    // Include Call-ID for early dialog UPDATE routing
+    m_pClientController->addNetTransaction( client, p->getTransactionId(), p->getCallId() ) ;
 
     void (BaseClient::*fn)(const string&, const string&, const SipMsgData_t&) = &BaseClient::sendSipMessageToClient;
-    m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(), 
+    m_pClientController->getIOService().post( std::bind(fn, client, p->getTransactionId(),
         p->getEncodedMsg(), p->getMeta() ) ) ;
     return 0 ;
   }
