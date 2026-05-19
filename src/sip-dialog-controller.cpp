@@ -1521,8 +1521,8 @@ namespace drachtio {
 
                     /* not a new INVITE, so it should be found as an existing dialog; i.e. a reINVITE */
                     if( !findDialogByLeg( leg, dlg ) ) {
-                        DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
-                        assert(0) ;
+                        DR_LOG(log_warning) << "SipDialogController::processRequestInsideDialog - received ACK but no IIP or dialog found for leg (stale or invalid ACK)"  ;
+                        nta_incoming_destroy(irq);
                         return -1 ;
                     }
                     this->clearSipTimers(dlg);
@@ -1689,8 +1689,11 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
-                            rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog: received "
+                                << sip->sip_request->rq_method_name << " during invite-in-progress, routing as out-of-dialog";
+                            dlg->removeIncomingRequestTransaction(transactionId);
+                            rc = m_pController->processMessageStatelessly(msg, (sip_t*)sip);
+                            nta_incoming_destroy(irq);
                             return rc;
 
                         case sip_method_update:
