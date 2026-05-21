@@ -53,6 +53,13 @@ namespace drachtio {
   std::deque<CURL*> RequestHandler::m_cacheEasyHandles ;
   boost::object_pool<RequestHandler::ConnInfo> RequestHandler::m_pool(16, 256) ;
 
+  // Raw pointer to the singleton, set in the ctor and nulled at the top of
+  // the dtor. close_socket() previously copied the static shared_ptr via
+  // getInstance() inside curl_multi_cleanup; during ~RequestHandler that
+  // copy hits a use_count==0 control block and recursively invokes the
+  // deleter. Using a raw pointer (nulled before teardown) avoids that.
+  static RequestHandler* g_rawSingleton = nullptr;
+
   static int multi_timer_cb(CURLM *multi, long timeout_ms, drachtio::RequestHandler::GlobalInfo *g);
   static int sock_cb(CURL *e, curl_socket_t s, int what, void *cbp, void *sockp);
   static void timer_cb(const boost::system::error_code & error, drachtio::RequestHandler::GlobalInfo *g);
@@ -402,7 +409,14 @@ namespace drachtio {
   int close_socket(void *clientp, curl_socket_t item) {
     //DR_LOG(log_debug) <<"close_socket : " << hex << item;
 
-    std::shared_ptr<RequestHandler> p = drachtio::RequestHandler::getInstance() ;
+    // During RequestHandler teardown g_rawSingleton is null; the dtor
+    // has already deleted every asio socket wrapper, so there is nothing
+    // to do here. Avoiding the previous shared_ptr copy of the static
+    // singleton prevents the recursive ~RequestHandler invocation that
+    // used to crash on SIGTERM.
+    RequestHandler* p = g_rawSingleton;
+    if (!p) return 0;
+
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>& socket_map = p->getSocketMap() ;
 
     std::map<curl_socket_t, boost::asio::ip::tcp::socket *>::iterator it =
@@ -423,7 +437,7 @@ namespace drachtio {
 
   RequestHandler::RequestHandler( DrachtioController* pController ) :
       m_pController( pController ), m_timer(m_ioservice) {
-          
+
       memset(&m_g, 0, sizeof(GlobalInfo));
       m_g.multi = curl_multi_init();
 
@@ -434,10 +448,33 @@ namespace drachtio {
       curl_multi_setopt(m_g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
       curl_multi_setopt(m_g.multi, CURLMOPT_TIMERDATA, &m_g);
 
+      g_rawSingleton = this;
+
       std::thread t(&RequestHandler::threadFunc, this) ;
       m_thread.swap( t ) ;
   }
   RequestHandler::~RequestHandler() {
+    // Null first so any curl callbacks (close_socket in particular)
+    // fired during teardown bail out instead of touching the dying
+    // shared_ptr singleton.
+    g_rawSingleton = nullptr;
+
+    // The worker thread is blocked in m_ioservice.run() on a permanent
+    // work object, so it never returns on its own. Stop the service and
+    // join here; otherwise the implicit m_thread destructor runs while
+    // joinable and triggers std::terminate().
+    m_ioservice.stop();
+    if (m_thread.joinable()) {
+      m_thread.join();
+    }
+
+    // Free our asio socket wrappers explicitly so curl_multi_cleanup's
+    // close_socket callback (now a no-op) doesn't need to.
+    for (auto& kv : m_socket_map) {
+      delete kv.second;
+    }
+    m_socket_map.clear();
+
     if (nullptr == m_g.multi) {
       DR_LOG(log_error) << "RequestHandler::~RequestHandler - multi handle is null; this should only happen during shutdown";
     }

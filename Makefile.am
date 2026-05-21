@@ -51,6 +51,19 @@ if TCMALLOC
 drachtio_LDADD += -ltcmalloc
 endif
 
+if ASAN
+# AddressSanitizer + UBSan instrumentation. Use with --enable-asan at
+# configure time (and --enable-tcmalloc=no, since both intercept malloc).
+# -O1 is the ASan-recommended optimization level for usable stack traces;
+# it appears after the -O2 hardcoded in drachtio_CPPFLAGS, and the last
+# -O wins on the gcc command line.
+ASAN_FLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer
+AM_CFLAGS = -g -O1 $(ASAN_FLAGS)
+AM_CXXFLAGS += -g -O1 $(ASAN_FLAGS)
+AM_LDFLAGS += $(ASAN_FLAGS)
+drachtio_CPPFLAGS += -O1
+endif
+
 BUILT_SOURCES=${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a \
 	${srcdir}/deps/jansson/src/.libs/libjansson.a ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a
 
@@ -78,7 +91,7 @@ clean-local:
 	rm -f $(TEST_PROGS)
 
 ${srcdir}/deps/sofia-sip/libsofia-sip-ua/.libs/libsofia-sip-ua.a:
-	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" --with-glib=no && $(MAKE)
+	cd ${srcdir}/deps/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="$(CFLAGS) $(ASAN_FLAGS)" CXXFLAGS="$(CXXFLAGS) $(ASAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(ASAN_FLAGS)" --with-glib=no && $(MAKE)
 
 ${srcdir}/deps/jansson/src/.libs/libjansson.a:
 	cd ${srcdir}/deps/jansson && autoreconf -fi && ./configure && $(MAKE)

@@ -34,6 +34,20 @@ AC_ARG_ENABLE([tcmalloc],
 esac],[tcmalloc=false])
 AM_CONDITIONAL([TCMALLOC], [test x$tcmalloc = xtrue])
 
+# optional AddressSanitizer + UndefinedBehaviorSanitizer build
+AC_ARG_ENABLE([asan],
+[  --enable-asan        Build with -fsanitize=address,undefined (debugging only; incompatible with tcmalloc)],
+[case "${enableval}" in
+  yes) asan=true ;;
+  no)  asan=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-asan]) ;;
+esac],[asan=false])
+AM_CONDITIONAL([ASAN], [test x$asan = xtrue])
+
+if test x$asan = xtrue && test x$tcmalloc = xtrue; then
+  AC_MSG_ERROR([--enable-asan and --enable-tcmalloc are mutually exclusive (both intercept malloc)])
+fi
+
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC

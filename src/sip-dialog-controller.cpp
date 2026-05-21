@@ -1011,7 +1011,12 @@ namespace drachtio {
                     << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
                 bSentOK = false;
                 transportGone = true;
-                msg_destroy(msg);
+                // Do NOT msg_destroy(msg) here — the outer msg_destroy(msg) at the
+                // convergence point below releases the ref taken by
+                // nta_incoming_getrequest() for both branches. Destroying here
+                // over-decrements the request-msg refcount by 1, which crashes
+                // Sofia later in incoming_reclaim (the msg's su_home gets freed
+                // prematurely, then su_free(home, irq) becomes a UAF).
             }
             else {
                 tport_t *tport = tport_parent( tp ) ;
@@ -1495,7 +1500,16 @@ namespace drachtio {
             IIP_Clear(m_invitesInProgress, iip);
         }
 
-        if( bDestroyIrq && !transportGone) nta_incoming_destroy(irq) ;
+        // Destroy the irq even when the transport is gone — otherwise the irq
+        // holds a tport reference and Sofia can never zap the closed secondary
+        // tport. Earlier reverts (PRs #473 / #18, commit 16aab933fa) added a
+        // !transportGone guard here because Sofia crashed in incoming_reclaim;
+        // root cause was a separate request-msg refcount over-decrement in
+        // the transport-gone branch above (a redundant msg_destroy(msg)),
+        // now removed. With the refcount balanced, incoming_reclaim runs
+        // safely and Sofia's normal final_failed -> terminated -> mass_destroy
+        // chain reclaims the irq, releasing its tport ref.
+        if( bDestroyIrq ) nta_incoming_destroy(irq) ;
 
         pData->~SipMessageData() ;
 

@@ -1804,9 +1804,10 @@ namespace drachtio {
 
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
-        assert(false) ;
-
-        return 0 ;
+        DR_LOG(log_warning) << "DrachtioController::processRequestInsideDialog - received "
+            << sip->sip_request->rq_method_name << " but no dialog found for leg (stale request after dialog teardown)";
+        nta_incoming_destroy(irq);
+        return -1;
     }
      sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
         return nta_incoming_received( irq, NULL ) ;
