@@ -75,7 +75,29 @@ Contact from the 200 OK so ACK/BYE go back on the original socket.
 | `--reuse-connection` | `false` | ignore 200 OK Contact, send ACK/BYE on original connection |
 | `--loop` | `1` | run N iterations; each opens a fresh UA/connection. Useful for stress-testing the leak fix. |
 | `--loop-delay` | `2s` | delay between iterations when `--loop > 1` (lets the prior RST + 5s app delay settle before the next call) |
+| `--info-during-iip` | `false` | alt mode: send INFO while INVITE is still in-progress (before 200 OK). Tests the IIP-INFO crash fix — see "INFO during IIP scenario" below. |
 | `--quiet` | `false` | suppress sipgo internal logging |
+
+## INFO during IIP scenario
+
+When `--info-during-iip` is set, the client runs a different sequence: send INVITE, wait for the first provisional response (the INVITE is in-progress), send an INFO on the same dialog (matching Call-ID + From-tag, no To-tag since the dialog isn't established), and assert that drachtio sends back exactly one 5xx response. This reproduces the crash signature observed in production when an INFO arrives before the INVITE is answered and no client is connected to handle it out-of-dialog.
+
+```
+./leak-tester --drachtio host:port --transport udp --callee 15083084809 \
+              --info-during-iip --loop 50
+```
+
+The wire-level failure modes the in-process test detects:
+
+- No response received → test FAIL
+- More than one final response received → test FAIL (double-response bug)
+- Final response is not 5xx → test FAIL
+
+The crash itself fires ~30s **after** the bad INFO (when Sofia's Timer J reclaims the over-decremented irq). To verify the fix end-to-end, the runner should:
+
+1. Run `./leak-tester --info-during-iip --loop 50` (or higher)
+2. Sleep ~35s after the loop finishes
+3. Check drachtio is still running (`systemctl is-active drachtio`) and that the journal contains no `SIGABRT` / `assert(sub)` lines from that window
 
 ## Verifying a leak
 

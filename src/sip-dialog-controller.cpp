@@ -1703,10 +1703,19 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
+                            // Pass irq so processMessageStatelessly sends any rejection
+                            // (e.g. 503 when no client/route is available) on the irq via
+                            // nta_incoming_treply rather than via the stateless
+                            // nta_msg_mreply path. mreply destroys the request msg
+                            // internally (sofia nta.c:3950-3951), which over-decrements
+                            // the refcount the irq still relies on; that caused SIGABRT
+                            // later in incoming_reclaim's su_free. Responding via the
+                            // irq also advances its state, preventing the
+                            // nta_incoming_destroy below from auto-firing a second 500.
                             DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog: received "
                                 << sip->sip_request->rq_method_name << " during invite-in-progress, routing as out-of-dialog";
                             dlg->removeIncomingRequestTransaction(transactionId);
-                            rc = m_pController->processMessageStatelessly(msg, (sip_t*)sip);
+                            rc = m_pController->processMessageStatelessly(msg, (sip_t*)sip, irq);
                             nta_incoming_destroy(irq);
                             return rc;
 

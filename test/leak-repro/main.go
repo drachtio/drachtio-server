@@ -53,6 +53,7 @@ func main() {
 		reuseConnection = flag.Bool("reuse-connection", false, "send ACK/BYE on the original connection (ignore 200 OK Contact)")
 		loop            = flag.Int("loop", 1, "number of iterations to run (each uses a fresh UA/connection)")
 		loopDelay       = flag.Duration("loop-delay", 2*time.Second, "delay between iterations when --loop > 1")
+		infoDuringIIP   = flag.Bool("info-during-iip", false, "alt mode: send INFO while INVITE is still in-progress (before 200 OK), assert single 5xx response. Tests the IIP-INFO crash fix.")
 		quiet           = flag.Bool("quiet", false, "suppress sipgo internal logging")
 	)
 	flag.Parse()
@@ -81,7 +82,12 @@ func main() {
 		if n > 1 {
 			slog.Info("iteration start", "i", i, "of", n)
 		}
-		err := run(*drachtioAddr, tp, *insecure, *callee, *fromUser, *bindAddr, *callDuration, *reuseConnection)
+		var err error
+		if *infoDuringIIP {
+			err = runInfoDuringIIP(*drachtioAddr, tp, *insecure, *callee, *fromUser, *bindAddr)
+		} else {
+			err = run(*drachtioAddr, tp, *insecure, *callee, *fromUser, *bindAddr, *callDuration, *reuseConnection)
+		}
 		if err != nil {
 			failed++
 			fmt.Fprintf(os.Stderr, "FAIL iter %d/%d: %v\n", i, n, err)
@@ -89,6 +95,8 @@ func main() {
 			passed++
 			if n > 1 {
 				fmt.Printf("OK iter %d/%d\n", i, n)
+			} else if *infoDuringIIP {
+				fmt.Println("OK: INFO during IIP got single 5xx response")
 			} else {
 				fmt.Println("OK: BYE sent and socket closed immediately")
 			}
@@ -303,4 +311,186 @@ func userOf(s string) string {
 		}
 	}
 	return s
+}
+
+// runInfoDuringIIP exercises the IIP-INFO crash path. It sends an INVITE,
+// waits for the first provisional response (so the call is in
+// invite-in-progress state on drachtio), then sends an INFO on the same
+// dialog (matching Call-ID + From-tag, no To-tag — since the dialog isn't
+// established). The test passes if:
+//   - the INFO receives exactly one final response
+//   - that response is 5xx
+//   - drachtio is still running afterwards (the actual crash fires ~30s later
+//     when Sofia's Timer J reclaims the over-decremented irq; the caller
+//     should sleep > 32s after the test loop and check process liveness
+//     out-of-band, e.g. via systemctl/journalctl)
+func runInfoDuringIIP(drachtioAddr, transport string, insecure bool, callee, fromUser, bindAddr string) error {
+	var uaOpts []sipgo.UserAgentOption
+	if transport == "wss" {
+		uaOpts = append(uaOpts, sipgo.WithUserAgenTLSConfig(&tls.Config{
+			InsecureSkipVerify: insecure,
+		}))
+	}
+	ua, err := sipgo.NewUA(uaOpts...)
+	if err != nil {
+		return fmt.Errorf("NewUA: %w", err)
+	}
+	defer ua.Close()
+
+	var clientOpts []sipgo.ClientOption
+	if bindAddr != "" {
+		clientOpts = append(clientOpts, sipgo.WithClientConnectionAddr(bindAddr))
+	}
+	cli, err := sipgo.NewClient(ua, clientOpts...)
+	if err != nil {
+		return fmt.Errorf("NewClient: %w", err)
+	}
+
+	contactHost := hostOf(bindAddr)
+	if contactHost == "" {
+		contactHost = "127.0.0.1"
+	}
+	contactHdr := sip.ContactHeader{
+		Address: sip.Uri{User: fromUser, Host: contactHost},
+	}
+	dlgCli := sipgo.NewDialogClientCache(cli, contactHdr)
+
+	host, port := splitHostPort(drachtioAddr)
+	uriParams := sip.NewParams()
+	uriParams.Add("transport", transport)
+	target := sip.Uri{
+		User:      userOf(callee),
+		Host:      host,
+		Port:      port,
+		UriParams: uriParams,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// --- INVITE; sipgo's dlgCli.Invite returns IMMEDIATELY after sending the
+	//    INVITE (doesn't wait for any response). To detect provisionals we
+	//    install a WaitAnswer goroutine with OnResponse callback. ---
+	slog.Info("sending INVITE (info-during-iip mode)", "to", target.String())
+	sdp := minimalSDP(hostOf(bindAddr))
+	sess, err := dlgCli.Invite(ctx, target, sdp,
+		sip.NewHeader("Content-Type", "application/sdp"))
+	if err != nil {
+		return fmt.Errorf("Invite: %w", err)
+	}
+	defer sess.Close()
+
+	earlyDialog := make(chan *sip.Response, 1)
+	go func() {
+		_ = sess.WaitAnswer(ctx, sipgo.AnswerOptions{
+			OnResponse: func(res *sip.Response) error {
+				// We need an EARLY-DIALOG response — one with a To-tag — not
+				// just 100 Trying. Sofia only creates a leg when drachtio
+				// sends an 18x with a tag (typically 180 Ringing or 183
+				// Session Progress from the feature server). Without a leg,
+				// an in-dialog INFO doesn't match anything and gets routed
+				// as plain out-of-dialog (different code path, not the bug
+				// we're trying to trigger).
+				if !res.IsProvisional() {
+					return nil
+				}
+				to := res.To()
+				if to == nil || to.Params == nil {
+					return nil
+				}
+				if tag, ok := to.Params.Get("tag"); ok && tag != "" {
+					select {
+					case earlyDialog <- res:
+					default: // already notified
+					}
+				}
+				return nil
+			},
+		})
+	}()
+
+	// Wait up to 8s for an 18x-with-tag (feature server's first response).
+	var firstProv *sip.Response
+	select {
+	case firstProv = <-earlyDialog:
+	case <-time.After(8 * time.Second):
+		return fmt.Errorf("no early-dialog 18x response within 8s — cannot enter IIP window")
+	}
+	slog.Info("got early-dialog 18x, sending INFO during IIP",
+		"status", firstProv.StatusCode,
+		"callid", sess.InviteRequest.CallID().Value())
+
+	// --- Build INFO matching the IIP dialog: same Call-ID and From-tag, no To-tag ---
+	infoReq := sip.NewRequest(sip.INFO, target)
+	infoReq.AppendHeader(sip.HeaderClone(sess.InviteRequest.CallID()))
+	infoReq.AppendHeader(sip.HeaderClone(sess.InviteRequest.From()))
+	// To: clone without tag (IIP — no dialog established yet)
+	toCopy, ok := sip.HeaderClone(sess.InviteRequest.To()).(*sip.ToHeader)
+	if !ok || toCopy == nil {
+		return fmt.Errorf("failed to clone To header from INVITE")
+	}
+	if toCopy.Params != nil {
+		toCopy.Params.Remove("tag")
+	}
+	infoReq.AppendHeader(toCopy)
+	// CSeq: new sequence number, method INFO
+	cseq := &sip.CSeqHeader{
+		SeqNo:      sess.InviteRequest.CSeq().SeqNo + 1,
+		MethodName: sip.INFO,
+	}
+	infoReq.AppendHeader(cseq)
+	maxFwd := sip.MaxForwardsHeader(70)
+	infoReq.AppendHeader(&maxFwd)
+	infoReq.SetBody(nil)
+
+	infoTx, err := cli.TransactionRequest(ctx, infoReq)
+	if err != nil {
+		return fmt.Errorf("send INFO: %w", err)
+	}
+	defer infoTx.Terminate()
+
+	// Collect responses to the INFO for up to 2 seconds. We expect exactly one
+	// final 5xx. Before the fix, drachtio sent 503 statelessly then auto-fired
+	// 500; either the transaction layer collapses these to one (still 5xx, so
+	// test passes the wire-level assert) or both come through (test fails on
+	// the count). The reliable failure mode is the SIGABRT ~30s later, which
+	// must be checked out-of-band by the runner.
+	var finalCodes []int
+	collectDeadline := time.After(2 * time.Second)
+collectLoop:
+	for {
+		select {
+		case resp, ok := <-infoTx.Responses():
+			if !ok {
+				break collectLoop
+			}
+			if resp.StatusCode >= 200 {
+				finalCodes = append(finalCodes, int(resp.StatusCode))
+				// keep looping briefly to catch a possible double-response
+			} else {
+				slog.Debug("provisional INFO response", "status", resp.StatusCode)
+			}
+		case <-collectDeadline:
+			break collectLoop
+		}
+	}
+
+	if len(finalCodes) == 0 {
+		return fmt.Errorf("no final response received for INFO within 2s")
+	}
+	if len(finalCodes) > 1 {
+		return fmt.Errorf("expected exactly 1 final response to INFO, got %d (codes: %v) — possible double-response bug",
+			len(finalCodes), finalCodes)
+	}
+	if finalCodes[0] < 500 || finalCodes[0] >= 600 {
+		return fmt.Errorf("expected 5xx response to INFO during IIP, got %d", finalCodes[0])
+	}
+	slog.Info("INFO got expected single 5xx response", "code", finalCodes[0])
+
+	// Cleanup: sipgo's DialogClientSession has no public Cancel. The deferred
+	// sess.Close() and the parent ctx (which we'll let expire) will terminate
+	// the INVITE transaction; drachtio will see Timer F / a CANCEL from a
+	// real UA in production, or just timer expiry here. Either is fine — we
+	// only care about whether the INFO crashed the server.
+	return nil
 }

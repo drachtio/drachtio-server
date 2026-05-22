@@ -133,8 +133,13 @@ namespace drachtio {
     /* network --> client messages */
     int processRequestInsideDialog( nta_leg_t* leg, nta_incoming_t* irq, sip_t const *sip) ;
 
-    /* stateless callback for messages not associated with a leg */
-    int processMessageStatelessly( msg_t* msg, sip_t* sip ) ;
+    /* stateless callback for messages not associated with a leg.
+       If irq is provided, status>0 rejections are sent stateful (via
+       nta_incoming_treply on irq) instead of stateless (nta_msg_mreply),
+       which avoids over-decrementing the request msg's refcount when the
+       caller still owns the irq. See sip-dialog-controller.cpp's IIP
+       fallback for the only current irq-providing caller. */
+    int processMessageStatelessly( msg_t* msg, sip_t* sip, nta_incoming_t* irq = nullptr ) ;
 
     bool setupLegForIncomingRequest( const string& transactionId, const string& tag ) ;
 
