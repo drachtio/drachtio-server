@@ -1427,7 +1427,7 @@ namespace drachtio {
 
         
     }
-    int DrachtioController::processMessageStatelessly( msg_t* msg, sip_t* sip ) {
+    int DrachtioController::processMessageStatelessly( msg_t* msg, sip_t* sip, nta_incoming_t* irq ) {
         int rc = 0 ;
         if (m_pBlacklist) {
             string host;
@@ -1643,14 +1643,32 @@ namespace drachtio {
                         //reject message if necessary, write stop record
                         if( status > 0  ) {
                             bool isInvite = sip->sip_request->rq_method == sip_method_invite;
-                            msg_t* reply = nta_msg_create(m_nta, 0) ;
-                            msg_ref_create(reply) ;
-                            nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
-
-                            if( isInvite ) {
-                                Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                            if (irq != nullptr) {
+                                // Stateful rejection: the caller owns this irq (e.g. the IIP
+                                // fallback in SipDialogController::processRequestInsideDialog)
+                                // and we must NOT use Sofia's stateless nta_msg_mreply path —
+                                // mreply destroys the request msg internally (sofia
+                                // nta.c:3950-3951), over-decrementing the refcount the irq
+                                // still relies on and causing SIGABRT later in
+                                // incoming_reclaim's su_free. Responding on the irq also
+                                // advances its state machine so the caller's subsequent
+                                // nta_incoming_destroy() does not auto-fire a second
+                                // response (which previously put 503+500 on the wire).
+                                nta_incoming_treply( irq, status, NULL, TAG_END() );
+                                if( isInvite ) {
+                                    Cdr::postCdr( std::make_shared<CdrStop>( msg, "application", Cdr::call_rejected ) );
+                                }
                             }
-                            msg_destroy(reply) ;
+                            else {
+                                msg_t* reply = nta_msg_create(m_nta, 0) ;
+                                msg_ref_create(reply) ;
+                                nta_msg_mreply( m_nta, reply, sip_object(reply), status, NULL, msg, TAG_END() ) ;
+
+                                if( isInvite ) {
+                                    Cdr::postCdr( std::make_shared<CdrStop>( reply, "application", Cdr::call_rejected ) );
+                                }
+                                msg_destroy(reply) ;
+                            }
                            return 0;
                         }
                     }
@@ -1804,9 +1822,10 @@ namespace drachtio {
 
             return m_pDialogController->processRequestInsideDialog( leg, irq, sip ) ;
         }
-        assert(false) ;
-
-        return 0 ;
+        DR_LOG(log_warning) << "DrachtioController::processRequestInsideDialog - received "
+            << sip->sip_request->rq_method_name << " but no dialog found for leg (stale request after dialog teardown)";
+        nta_incoming_destroy(irq);
+        return -1;
     }
      sip_time_t DrachtioController::getTransactionTime( nta_incoming_t* irq ) {
         return nta_incoming_received( irq, NULL ) ;

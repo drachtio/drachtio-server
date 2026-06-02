@@ -1011,7 +1011,12 @@ namespace drachtio {
                     << sip->sip_call_id->i_id << " " << sip->sip_cseq->cs_seq;
                 bSentOK = false;
                 transportGone = true;
-                msg_destroy(msg);
+                // Do NOT msg_destroy(msg) here — the outer msg_destroy(msg) at the
+                // convergence point below releases the ref taken by
+                // nta_incoming_getrequest() for both branches. Destroying here
+                // over-decrements the request-msg refcount by 1, which crashes
+                // Sofia later in incoming_reclaim (the msg's su_home gets freed
+                // prematurely, then su_free(home, irq) becomes a UAF).
             }
             else {
                 tport_t *tport = tport_parent( tp ) ;
@@ -1495,7 +1500,16 @@ namespace drachtio {
             IIP_Clear(m_invitesInProgress, iip);
         }
 
-        if( bDestroyIrq && !transportGone) nta_incoming_destroy(irq) ;
+        // Destroy the irq even when the transport is gone — otherwise the irq
+        // holds a tport reference and Sofia can never zap the closed secondary
+        // tport. Earlier reverts (PRs #473 / #18, commit 16aab933fa) added a
+        // !transportGone guard here because Sofia crashed in incoming_reclaim;
+        // root cause was a separate request-msg refcount over-decrement in
+        // the transport-gone branch above (a redundant msg_destroy(msg)),
+        // now removed. With the refcount balanced, incoming_reclaim runs
+        // safely and Sofia's normal final_failed -> terminated -> mass_destroy
+        // chain reclaims the irq, releasing its tport ref.
+        if( bDestroyIrq ) nta_incoming_destroy(irq) ;
 
         pData->~SipMessageData() ;
 
@@ -1521,8 +1535,8 @@ namespace drachtio {
 
                     /* not a new INVITE, so it should be found as an existing dialog; i.e. a reINVITE */
                     if( !findDialogByLeg( leg, dlg ) ) {
-                        DR_LOG(log_error) << "SipDialogController::processRequestInsideDialog - unable to find Dialog for leg"  ;
-                        assert(0) ;
+                        DR_LOG(log_warning) << "SipDialogController::processRequestInsideDialog - received ACK but no IIP or dialog found for leg (stale or invalid ACK)"  ;
+                        nta_incoming_destroy(irq);
                         return -1 ;
                     }
                     this->clearSipTimers(dlg);
@@ -1689,8 +1703,20 @@ namespace drachtio {
                         case sip_method_message:
                         case sip_method_publish:
                         case sip_method_subscribe:
-                            DR_LOG(log_debug) << "SipDialogController::processRequestInsideDialog: received irq " << std::hex << (void *) irq << " for out-of-dialog request"  ;
-                            rc = m_pController->processMessageStatelessly( msg, (sip_t*) sip);
+                            // Pass irq so processMessageStatelessly sends any rejection
+                            // (e.g. 503 when no client/route is available) on the irq via
+                            // nta_incoming_treply rather than via the stateless
+                            // nta_msg_mreply path. mreply destroys the request msg
+                            // internally (sofia nta.c:3950-3951), which over-decrements
+                            // the refcount the irq still relies on; that caused SIGABRT
+                            // later in incoming_reclaim's su_free. Responding via the
+                            // irq also advances its state, preventing the
+                            // nta_incoming_destroy below from auto-firing a second 500.
+                            DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog: received "
+                                << sip->sip_request->rq_method_name << " during invite-in-progress, routing as out-of-dialog";
+                            dlg->removeIncomingRequestTransaction(transactionId);
+                            rc = m_pController->processMessageStatelessly(msg, (sip_t*)sip, irq);
+                            nta_incoming_destroy(irq);
                             return rc;
 
                         case sip_method_update:
