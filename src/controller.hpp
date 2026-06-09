@@ -186,6 +186,7 @@ namespace drachtio {
     bool isNatDetectionDisabled(void) { return m_bDisableNatDetection; }
 
     unsigned int getTcpKeepaliveInterval() { return m_tcpKeepaliveSecs; }
+    unsigned int getTportQueuesize() { return m_tportQueuesize; }
 
 	private:
 
@@ -289,6 +290,7 @@ namespace drachtio {
 
     bool m_bMemoryDebug;
     unsigned int m_tcpKeepaliveSecs;
+    unsigned int m_tportQueuesize;
 
     bool m_bDumpMemory;
 
