@@ -290,8 +290,8 @@ namespace drachtio {
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
-        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_bDumpMemory(false),
-        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false), 
+        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_tportQueuesize(64), m_bDumpMemory(false),
+        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false),
         m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
         getEnv();
@@ -833,6 +833,15 @@ namespace drachtio {
         if (p && ::atoi(p) > 0) m_mtu = ::atoi(p);
         p = std::getenv("DRACHTIO_TCP_KEEPALIVE_INTERVAL");
         if (p && ::atoi(p) >= 0) m_tcpKeepaliveSecs = ::atoi(p);
+        // listen backlog for tcp/tls/ws/wss. Default stays at sofia's 64 to
+        // preserve legacy behavior; only raised when this env var is set,
+        // clamped to sofia's hard maximum of 1000 (tport.c).
+        p = std::getenv("DRACHTIO_TPORT_QUEUESIZE");
+        if (p && ::atoi(p) > 0) {
+            int q = ::atoi(p);
+            if (q > 1000) q = 1000; // sofia-sip caps tpp_qsize at 1000 (tport.c)
+            m_tportQueuesize = (unsigned int) q;
+        }
         p = std::getenv("DRACHTIO_SECRET");
         if (p) m_secret = p;
         p = std::getenv("DRACHTIO_CONSOLE_LOGGING");
@@ -1281,6 +1290,9 @@ namespace drachtio {
             DR_LOG(log_notice) << "tcp keep alives will be sent to clients every " << m_tcpKeepaliveSecs << " seconds";
         }
 
+        // listen backlog / per-connection send queue depth for tcp/tls/ws/wss transports
+        DR_LOG(log_notice) << "transport listen backlog (TPTAG_QUEUESIZE) set to " << m_tportQueuesize;
+
         int rv = su_init() ;
         if( rv < 0 ) {
             DR_LOG(log_error) << "Error calling su_init: " << rv ;
@@ -1343,9 +1355,10 @@ namespace drachtio {
          NTATAG_CLIENT_RPORT(true), //add rport on Via headers for requests we send
          NTATAG_PASS_408(true), //pass 408s to application
          TPTAG_PONG2PING(1), // if we get a 2-byte ping, respond with CRLF pong
+         TPTAG_QUEUESIZE(m_tportQueuesize), // listen backlog for tcp/tls/ws/wss (sofia default is only 64)
          TAG_NULL(),
          TAG_END() ) ;
-        
+
         if( NULL == m_nta ) {
             DR_LOG(log_error) << "DrachtioController::run: Error calling nta_agent_create"  ;
             return ;
@@ -1379,6 +1392,7 @@ namespace drachtio {
                     TPTAG_TLS_VERSION( tlsVersionTagValue )),
                  TAG_IF( tlsTransport && hasTlsFiles && m_tlsCipherList.length() > 0, TPTAG_TLS_CIPHERS(m_tlsCipherList.c_str())),
                  TPTAG_PONG2PING(1), // if we get a 2-byte ping, respond with CRLF pong
+                 TPTAG_QUEUESIZE(m_tportQueuesize), // listen backlog for tcp/tls/ws/wss (sofia default is only 64)
                  TAG_NULL(),
                  TAG_END() ) ;
 
