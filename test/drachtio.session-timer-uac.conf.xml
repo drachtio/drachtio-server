@@ -1,0 +1,61 @@
+<drachtio>
+
+    <!-- Variant of drachtio.conf.xml used by the session-timer opt-in test:
+         sets default-refresher="uac" so that a UAC offering Session-Expires
+         WITHOUT a refresher parameter causes drachtio to nominate the UAC as
+         refresher and BYE the call if it never refreshes. -->
+
+    <!-- udp port to listen on for client connections (default 8022), and shared secret used to authenticate clients -->
+    <admin port="9022" secret="cymru">127.0.0.1</admin>
+
+    <!-- sip configuration -->
+    <sip>
+        <contacts>
+            <contact>sip:127.0.0.1:5090;transport=udp,tcp</contact>
+        </contacts>
+
+        <user-agent-options-auto-respond>JsSIP 3.8.2</user-agent-options-auto-respond>
+
+        <spammers action="reject" tcp-action="discard">
+            <header name="User-Agent">
+                <value>sip-cli</value>
+                <value>sipcli</value>
+                <value>friendly-scanner</value>
+            </header>
+            <header>
+                <value>sipvicious</value>
+            </header>
+        </spammers>
+
+        <session-timers default-refresher="uac"/>
+
+        <udp-mtu>4096</udp-mtu>
+    </sip>
+
+    <cdrs>true</cdrs>
+
+    <monitoring>
+        <prometheus port="9999">127.0.0.1</prometheus>
+    </monitoring>
+
+    <!-- logging configuration -->
+    <logging>
+
+        <console/>
+
+        <file>
+            <name>/tmp/drachtio.log</name>
+            <archive>/tmp/archive</archive>
+            <maxSize>5120</maxSize>
+            <minSize>10240</minSize>
+            <auto-flush>true</auto-flush>
+        </file>
+
+        <!-- sofia internal log level, from 0 (minimal) to 9 (verbose) -->
+        <sofia-loglevel>9</sofia-loglevel>
+
+        <!-- notice, warning, error, info, debug.  Default: info -->
+        <loglevel>debug</loglevel>
+    </logging>
+
+</drachtio>
