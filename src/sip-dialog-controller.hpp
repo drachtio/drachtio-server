@@ -235,6 +235,9 @@ namespace drachtio {
 			}
 			return true;
 		}
+		bool findDialogById( const std::string& dialogId, std::shared_ptr<SipDialog>& dlg ) {
+			return SD_FindByDialogId(m_dialogs, dialogId, dlg) ;
+		}
 
 		/// RIP helpers
 		void addRIP( nta_outgoing_t* orq, std::shared_ptr<RIP> rip) ;

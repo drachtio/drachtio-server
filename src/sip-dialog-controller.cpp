@@ -1312,31 +1312,38 @@ namespace drachtio {
                         else if (sip->sip_session_expires) {
                             sip_session_expires_t* se = sip->sip_session_expires;
                             unsigned long interval = std::max((unsigned long) 90, se->x_delta);
-                            /* RFC 4028 sec 9: the 2xx MUST include a refresher parameter
-                               even if the UAC's offer omitted it. The RFC leaves the
-                               choice of "uac" or "uas" to the UAS when no preference
-                               was expressed; we let the operator pick the default via
-                               drachtio.conf.xml (sip/session-timers/@default-refresher),
-                               and fall back to "uac" — see DrachtioConfig. */
+                            /* RFC 4028 sec 9 leaves the choice of refresher to the UAS when the
+                               UAC's offer omits a 'refresher' parameter. If the UAC specified one
+                               we honor it; otherwise we fall back to the operator-configured
+                               default (sip/session-timers/@default-refresher). A default of "none"
+                               means we decline to run a session timer for refresher-less offers:
+                               we neither echo Session-Expires nor arm a timer, restoring the
+                               pre-session-timer-default behavior. */
                             const string& configuredDefault = m_pController->getConfig()->getSessionTimerDefaultRefresher();
                             const char* refresher = (se->x_refresher && *se->x_refresher) ? se->x_refresher : configuredDefault.c_str();
-                            SipDialog::SessionRefresher_t who = 0 == strcmp(refresher, "uac") ?
-                                SipDialog::they_are_refresher : SipDialog::we_are_refresher;
 
-                            ostringstream seHdr;
-                            seHdr << interval << ";refresher=" << refresher;
-                            sessionExpires = sip_session_expires_make(m_pController->getHome(), seHdr.str().c_str());
-
-                            if (!se->x_refresher) {
-                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC offered Session-Expires without refresher, defaulting to refresher=" << refresher << ", interval will be " << interval  ;
-                            }
-                            else if (who == SipDialog::we_are_refresher) {
-                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC asked us to refresh, interval will be " << interval  ;
+                            if (0 == strcmp(refresher, "none")) {
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC offered Session-Expires without a refresher and default-refresher is 'none'; not arming a session timer"  ;
                             }
                             else {
-                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC is refresher, interval will be " << interval  ;
+                                SipDialog::SessionRefresher_t who = 0 == strcmp(refresher, "uac") ?
+                                    SipDialog::they_are_refresher : SipDialog::we_are_refresher;
+
+                                ostringstream seHdr;
+                                seHdr << interval << ";refresher=" << refresher;
+                                sessionExpires = sip_session_expires_make(m_pController->getHome(), seHdr.str().c_str());
+
+                                if (!se->x_refresher) {
+                                    DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC offered Session-Expires without refresher, defaulting to refresher=" << refresher << ", interval will be " << interval  ;
+                                }
+                                else if (who == SipDialog::we_are_refresher) {
+                                    DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC asked us to refresh, interval will be " << interval  ;
+                                }
+                                else {
+                                    DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC is refresher, interval will be " << interval  ;
+                                }
+                                dlg->setSessionTimer(interval, who) ;
                             }
-                            dlg->setSessionTimer(interval, who) ;
                         }
                     }
 
@@ -1871,58 +1878,100 @@ namespace drachtio {
     }
     int SipDialogController::processResponseToRefreshingReinvite( nta_outgoing_t* orq, sip_t const* sip ) {
         DR_LOG(log_debug) << "SipDialogController::processResponseToRefreshingReinvite: "  ;
-        ostringstream o ;
         std::shared_ptr<RIP> rip  ;
 
-        nta_leg_t* leg = nta_leg_by_call_id(m_pController->getAgent(), sip->sip_call_id->i_id);
-        if (!leg) {
-            DR_LOG(log_warning) << "SipDialogController::processResponseToRefreshingReinvite: unable to find leg for call-id "
-                                << sip->sip_call_id->i_id << ", probably glare condition with BYE and re-INVITE";
-            return 0;
-        }
-        std::shared_ptr<SipDialog> dlg ;
-        if( !findDialogByLeg( leg, dlg ) ) {
+        if( !findRIPByOrq( orq, rip ) ) {
             DR_LOG(log_warning) << "SipDialogController::processResponseToRefreshingReinvite: "
-                                << "unable to find dialog for leg " << std::hex << (void*) leg
-                                << ", dialog already removed";
+                                << "unable to find RIP for orq " << std::hex << (void*) orq;
             nta_outgoing_destroy( orq ) ;
             return 0;
         }
-        if( findRIPByOrq( orq, rip ) ) {
 
-            if( sip->sip_status->st_status != 200 ) {
-                DR_LOG(log_info) << "SipDialogController::processResponseToRefreshingReinvite: reinvite failed (status="
-                                 << sip->sip_status->st_status << ") - clearing dialog";
+        if( NULL == sip || NULL == sip->sip_status ) {
+            /* no response - transaction timed out */
+            std::shared_ptr<SipDialog> dlg ;
+            if( findDialogById( rip->getDialogId(), dlg ) ) {
+                DR_LOG(log_error) << "SipDialogController::processResponseToRefreshingReinvite: "
+                                  << "refresh re-INVITE timed out for dialog " << rip->getDialogId() << ", tearing down";
                 notifyTerminateStaleDialog( dlg );
-                clearRIP( orq );
-                return 0;
             }
-            else {
-                /* reset session expires timer, if provided */
-                sip_session_expires_t* se = sip_session_expires(sip) ;
-                if( se ) {                
-                    //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header    
-                    dlg->setSessionTimer( se->x_delta, 
-                        !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ? 
-                            SipDialog::we_are_refresher : 
-                            SipDialog::they_are_refresher ) ;
-                }
-             }
-
-            nta_outgoing_t* ack_request = nta_outgoing_tcreate(leg, NULL, NULL, NULL,
-                   SIP_METHOD_ACK,
-                   (url_string_t*) sip->sip_contact->m_url ,
-                   TAG_END());
-
-            nta_outgoing_destroy( ack_request ) ;
-            clearRIP( orq ) ;
-
-            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "ACK"}})
+            clearRIP( orq );
             return 0;
         }
-        nta_outgoing_destroy( orq ) ;
-        return 0 ;
-        
+
+        int status = sip->sip_status->st_status ;
+        if( status < 200 ) {
+            /* ignore provisional responses to the refresh re-INVITE; keep the RIP around */
+            return 0;
+        }
+
+        std::shared_ptr<SipDialog> dlg ;
+        if( !findDialogById( rip->getDialogId(), dlg ) ) {
+            DR_LOG(log_warning) << "SipDialogController::processResponseToRefreshingReinvite: "
+                                << "unable to find dialog " << rip->getDialogId() << ", dialog already removed";
+            clearRIP( orq ) ;
+            return 0;
+        }
+
+        if( 200 == status ) {
+            /* reset session expires timer, if provided */
+            sip_session_expires_t* se = sip_session_expires(sip) ;
+            if( se ) {
+                //TODO: if session-expires value is less than min-se ACK and then BYE with Reason header
+                dlg->setSessionTimer( se->x_delta,
+                    !se->x_refresher || 0 == strcmp( se->x_refresher, "uac") ?
+                        SipDialog::we_are_refresher :
+                        SipDialog::they_are_refresher ) ;
+            }
+
+            if( sip->sip_contact ) {
+                string routeUri ;
+                dlg->getRouteUri( routeUri ) ;
+                tport_t* tp = dlg->getTport() ; // borrowed pointer; do not unref
+
+                nta_outgoing_t* ack_request = nta_outgoing_tcreate(const_cast<nta_leg_t*>(dlg->getNtaLeg()), NULL, NULL,
+                       routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
+                       SIP_METHOD_ACK,
+                       (url_string_t*) sip->sip_contact->m_url ,
+                       TAG_IF(tp, NTATAG_TPORT(tp)),
+                       TAG_END());
+
+                nta_outgoing_destroy( ack_request ) ;
+                STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "ACK"}})
+            }
+            else {
+                DR_LOG(log_error) << "SipDialogController::processResponseToRefreshingReinvite: "
+                                  << "200 OK to refresh re-INVITE for " << rip->getDialogId() << " has no Contact header, unable to send ACK";
+            }
+
+            clearRIP( orq ) ;
+            return 0;
+        }
+        else if( 491 == status ) {
+            /* glare: remote also sent a re-INVITE.  Don't tear down, just re-arm the timer so we retry next interval */
+            sip_session_expires_t* reqSe = nullptr ;
+            msg_t* reqMsg = nta_outgoing_getrequest( orq ) ;  // adds a reference
+            if( reqMsg ) {
+                sip_t* reqSip = sip_object( reqMsg ) ;
+                if( reqSip && reqSip->sip_session_expires ) reqSe = reqSip->sip_session_expires ;
+            }
+            unsigned long secs = reqSe ? reqSe->x_delta : dlg->getSessionExpiresSecs() ;
+            if( secs ) dlg->setSessionTimer( secs, SipDialog::we_are_refresher ) ;
+            if( reqMsg ) msg_destroy( reqMsg ) ;   // releases reference
+
+            DR_LOG(log_info) << "SipDialogController::processResponseToRefreshingReinvite: "
+                             << "refresh re-INVITE got 491 (glare) for " << rip->getDialogId() << ", re-armed timer";
+
+            clearRIP( orq ) ;
+            return 0;
+        }
+        else {
+            DR_LOG(log_info) << "SipDialogController::processResponseToRefreshingReinvite: reinvite failed (status="
+                             << status << ") - clearing dialog";
+            notifyTerminateStaleDialog( dlg );
+            clearRIP( orq );
+            return 0;
+        }
     }
 
     int SipDialogController::processCancelOrAck( nta_incoming_magic_t* p, nta_incoming_t* irq, sip_t const *sip ) {
@@ -2040,49 +2089,68 @@ namespace drachtio {
         return 0 ;
     }
     void SipDialogController::notifyRefreshDialog( std::shared_ptr<SipDialog> dlg ) {
-        nta_leg_t *leg = nta_leg_by_call_id( m_pController->getAgent(), dlg->getCallId().c_str() );
-        if( leg ) {
-            string strSdp = dlg->getLocalEndpoint().m_strSdp ;
-            string strContentType = dlg->getLocalEndpoint().m_strContentType ;
-
-            assert( dlg->getSessionExpiresSecs() ) ;
-            ostringstream o,v ;
-            o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
-            v << dlg->getMinSE() ;
-
-            nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
-                                            NULL,
-                                            SIP_METHOD_INVITE,
-                                            NULL,
-                                            SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
-                                            SIPTAG_MIN_SE_STR(v.str().c_str()),
-                                            SIPTAG_CONTACT_STR( dlg->getLocalContactHeader().c_str() ),
-                                            SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
-                                            SIPTAG_PAYLOAD_STR(strSdp.c_str()),
-                                            TAG_END() ) ;
-            
-            string transactionId ;
-            generateUuid( transactionId ) ;
-
-            std::shared_ptr<RIP> p = std::make_shared<RIP>( transactionId ) ; 
-            addRIP( orq, p ) ;
-
-            DR_LOG(log_info) << "SipDialogController::notifyRefreshDialog - created orq " << std::hex << (void *) orq;
-
-            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "INVITE"}})
-
-            //m_pClientController->route_event_inside_dialog( "{\"eventName\": \"refresh\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
+        nta_leg_t *leg = const_cast<nta_leg_t *>(dlg->getNtaLeg()) ;
+        if( !leg ) {
+            DR_LOG(log_error) << "SipDialogController::notifyRefreshDialog - no leg for dialog " << dlg->getCallId() << ", tearing down" ;
+            notifyTerminateStaleDialog( dlg ) ;
+            return ;
         }
+
+        string strSdp = dlg->getLocalEndpoint().m_strSdp ;
+        string strContentType = dlg->getLocalEndpoint().m_strContentType ;
+
+        assert( dlg->getSessionExpiresSecs() ) ;
+        ostringstream o,v ;
+        o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
+        v << dlg->getMinSE() ;
+
+        string routeUri ;
+        dlg->getRouteUri( routeUri ) ;
+        tport_t* tp = dlg->getTport() ; // borrowed pointer; do not unref
+
+        nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
+                                        routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
+                                        SIP_METHOD_INVITE,
+                                        NULL,
+                                        SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
+                                        SIPTAG_MIN_SE_STR(v.str().c_str()),
+                                        SIPTAG_CONTACT_STR( dlg->getLocalContactHeader().c_str() ),
+                                        SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
+                                        SIPTAG_PAYLOAD_STR(strSdp.c_str()),
+                                        TAG_IF(tp, NTATAG_TPORT(tp)),
+                                        TAG_END() ) ;
+        if( NULL == orq ) {
+            DR_LOG(log_error) << "SipDialogController::notifyRefreshDialog - failed to create refresh re-INVITE for " << dlg->getCallId() << ", tearing down" ;
+            notifyTerminateStaleDialog( dlg ) ;
+            return ;
+        }
+
+        string transactionId ;
+        generateUuid( transactionId ) ;
+
+        std::shared_ptr<RIP> p = std::make_shared<RIP>( transactionId, dlg->getDialogId() ) ;
+        addRIP( orq, p ) ;
+
+        DR_LOG(log_info) << "SipDialogController::notifyRefreshDialog - created orq " << std::hex << (void *) orq;
+
+        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_OUT, {{"method", "INVITE"}})
+
+        //m_pClientController->route_event_inside_dialog( "{\"eventName\": \"refresh\"}",dlg->getTransactionId(), dlg->getDialogId() ) ;
     }
     void SipDialogController::notifyTerminateStaleDialog( std::shared_ptr<SipDialog> dlg, bool ackbye ) {
         nta_leg_t* leg = const_cast<nta_leg_t *>(dlg->getNtaLeg()) ;
         const char* reason = ackbye ? "SIP ;cause=200 ;text=\"ACK-BYE due to cancel race condition\"" : "SIP ;cause=200 ;text=\"Session timer expired\"";
         if( leg ) {
+            string routeUri ;
+            dlg->getRouteUri( routeUri ) ;
+            tport_t* tp = dlg->getTport() ; // borrowed pointer; do not unref
+
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
-                                            NULL,
+                                            routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                                             SIP_METHOD_BYE,
                                             NULL,
                                             SIPTAG_REASON_STR(reason),
+                                            TAG_IF(tp, NTATAG_TPORT(tp)),
                                             TAG_END() ) ;
             msg_t* m = nta_outgoing_getrequest(orq) ;    // adds a reference
             sip_t* sip = sip_object( m ) ;
@@ -2236,11 +2304,16 @@ namespace drachtio {
 
         // we never got the ACK, so now we should tear down the call by sending a BYE
         // TODO: also need to remove dialog from hash table
+        string routeUri ;
+        dlg->getRouteUri( routeUri ) ;
+        tport_t* dlgTp = dlg->getTport() ; // borrowed pointer; do not unref
+
         nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
-                                NULL,
+                                routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                                 SIP_METHOD_BYE,
                                 NULL,
                                 SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"ACK timeout\""),
+                                TAG_IF(dlgTp, NTATAG_TPORT(dlgTp)),
                                 TAG_END() ) ;
 
         if (!orq) {

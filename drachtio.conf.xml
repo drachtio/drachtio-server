@@ -135,16 +135,20 @@
         -->
 
         <!-- session timer (RFC 4028) defaults.
-             default-refresher controls which side drachtio nominates as the
-             refresher when the UAC offers Session-Expires without a 'refresher'
-             parameter. RFC 4028 §9 leaves the choice to the UAS.
-                 "uac" (default) - the UAC must refresh; if it stops, we BYE.
-                                   Useful for B2BUA/SBC roles where you want
-                                   dead-peer detection on the calling side
-                                   (e.g. WebRTC clients).
-                 "uas"           - drachtio refreshes; matches endpoint-style
-                                   stacks (sofia, jsSIP, asterisk default).
-        <session-timers default-refresher="uac"/>
+             default-refresher controls what drachtio does when the UAC offers
+             Session-Expires WITHOUT a 'refresher' parameter (RFC 4028 §9 leaves
+             the choice to the UAS). If the UAC supplies a refresher parameter,
+             drachtio always honors it and this setting does not apply.
+                 "none" (default) - decline the session timer: drachtio neither
+                                    echoes Session-Expires nor arms a timer, so
+                                    the call is never torn down for lack of a
+                                    refresh. Safe for arbitrary upstream SBCs.
+                 "uac"            - the UAC must refresh; if it stops, we BYE.
+                                    Opt-in dead-peer detection on the calling
+                                    side (e.g. WebRTC clients).
+                 "uas"            - drachtio refreshes; matches endpoint-style
+                                    stacks (sofia, jsSIP, asterisk default).
+        <session-timers default-refresher="none"/>
         -->
 
         <!-- uncommenting this will cause all outbound new requests (i.e. requests outside of a dialog) to go through the specified proxy -->

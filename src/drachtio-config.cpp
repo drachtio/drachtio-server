@@ -42,7 +42,7 @@ namespace drachtio {
     public:
         Impl( const char* szFilename, bool isDaemonized) : m_bIsValid(false), m_adminTcpPort(0), m_adminTlsPort(0), m_bDaemon(isDaemonized),
         m_bConsoleLogger(false), m_captureHepVersion(3), m_mtu(0), m_udpBufferSize(0), m_bAggressiveNatDetection(false),
-        m_sessionTimerDefaultRefresher("uac"),
+        m_sessionTimerDefaultRefresher("none"),
         m_prometheusPort(0), m_prometheusAddress("0.0.0.0"), m_tcpKeepalive(45), m_minTlsVersion(0) {
 
             // default timers
@@ -179,18 +179,21 @@ namespace drachtio {
 
                 /* default refresher for session timers when the UAC offers
                    Session-Expires without a 'refresher' parameter (RFC 4028 §9
-                   leaves this to the UAS). Valid values: "uac" or "uas". */
+                   leaves this to the UAS). Valid values: "none" (default),
+                   "uac" or "uas". "none" means we decline to run a session
+                   timer for refresher-less offers (no Session-Expires echoed,
+                   no timer armed). */
                 try {
-                    string r = pt.get<string>("drachtio.sip.session-timers.<xmlattr>.default-refresher", "uac");
+                    string r = pt.get<string>("drachtio.sip.session-timers.<xmlattr>.default-refresher", "none");
                     boost::algorithm::to_lower(r);
-                    if (r != "uac" && r != "uas") {
+                    if (r != "uac" && r != "uas" && r != "none") {
                         cerr << "invalid drachtio.sip.session-timers.default-refresher value '" << r
-                             << "' — must be 'uac' or 'uas'; defaulting to 'uac'" << endl;
-                        r = "uac";
+                             << "' — must be 'none', 'uac' or 'uas'; defaulting to 'none'" << endl;
+                        r = "none";
                     }
                     m_sessionTimerDefaultRefresher = r;
                 } catch( boost::property_tree::ptree_bad_path& e) {
-                    m_sessionTimerDefaultRefresher = "uac";
+                    m_sessionTimerDefaultRefresher = "none";
                 }
 
                 m_minTlsVersion = pt.get<float>("drachtio.sip.tls.min-tls-version", 0);
