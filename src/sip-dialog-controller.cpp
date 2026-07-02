@@ -1918,9 +1918,15 @@ namespace drachtio {
             }
 
             if( sip->sip_contact ) {
-                nta_outgoing_t* ack_request = nta_outgoing_tcreate(const_cast<nta_leg_t*>(dlg->getNtaLeg()), NULL, NULL, NULL,
+                string routeUri ;
+                dlg->getRouteUri( routeUri ) ;
+                tport_t* tp = dlg->getTport() ; // borrowed pointer; do not unref
+
+                nta_outgoing_t* ack_request = nta_outgoing_tcreate(const_cast<nta_leg_t*>(dlg->getNtaLeg()), NULL, NULL,
+                       routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                        SIP_METHOD_ACK,
                        (url_string_t*) sip->sip_contact->m_url ,
+                       TAG_IF(tp, NTATAG_TPORT(tp)),
                        TAG_END());
 
                 nta_outgoing_destroy( ack_request ) ;
@@ -2091,8 +2097,12 @@ namespace drachtio {
         o << dlg->getSessionExpiresSecs() << "; refresher=uac" ;
         v << dlg->getMinSE() ;
 
+        string routeUri ;
+        dlg->getRouteUri( routeUri ) ;
+        tport_t* tp = dlg->getTport() ; // borrowed pointer; do not unref
+
         nta_outgoing_t* orq = nta_outgoing_tcreate( leg,  response_to_refreshing_reinvite, (nta_outgoing_magic_t *) m_pController,
-                                        NULL,
+                                        routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                                         SIP_METHOD_INVITE,
                                         NULL,
                                         SIPTAG_SESSION_EXPIRES_STR(o.str().c_str()),
@@ -2100,6 +2110,7 @@ namespace drachtio {
                                         SIPTAG_CONTACT_STR( dlg->getLocalContactHeader().c_str() ),
                                         SIPTAG_CONTENT_TYPE_STR(strContentType.c_str()),
                                         SIPTAG_PAYLOAD_STR(strSdp.c_str()),
+                                        TAG_IF(tp, NTATAG_TPORT(tp)),
                                         TAG_END() ) ;
         if( NULL == orq ) {
             DR_LOG(log_error) << "SipDialogController::notifyRefreshDialog - failed to create refresh re-INVITE for " << dlg->getCallId() << ", tearing down" ;
@@ -2123,11 +2134,16 @@ namespace drachtio {
         nta_leg_t* leg = const_cast<nta_leg_t *>(dlg->getNtaLeg()) ;
         const char* reason = ackbye ? "SIP ;cause=200 ;text=\"ACK-BYE due to cancel race condition\"" : "SIP ;cause=200 ;text=\"Session timer expired\"";
         if( leg ) {
+            string routeUri ;
+            dlg->getRouteUri( routeUri ) ;
+            tport_t* tp = dlg->getTport() ; // borrowed pointer; do not unref
+
             nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
-                                            NULL,
+                                            routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                                             SIP_METHOD_BYE,
                                             NULL,
                                             SIPTAG_REASON_STR(reason),
+                                            TAG_IF(tp, NTATAG_TPORT(tp)),
                                             TAG_END() ) ;
             msg_t* m = nta_outgoing_getrequest(orq) ;    // adds a reference
             sip_t* sip = sip_object( m ) ;
@@ -2281,11 +2297,16 @@ namespace drachtio {
 
         // we never got the ACK, so now we should tear down the call by sending a BYE
         // TODO: also need to remove dialog from hash table
+        string routeUri ;
+        dlg->getRouteUri( routeUri ) ;
+        tport_t* dlgTp = dlg->getTport() ; // borrowed pointer; do not unref
+
         nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
-                                NULL,
+                                routeUri.empty() ? NULL : URL_STRING_MAKE(routeUri.c_str()),
                                 SIP_METHOD_BYE,
                                 NULL,
                                 SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"ACK timeout\""),
+                                TAG_IF(dlgTp, NTATAG_TPORT(dlgTp)),
                                 TAG_END() ) ;
 
         if (!orq) {
