@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM debian:12.6-slim
 
 ARG BUILD_CPUS=4
 ARG DETECTED_TAG=main
