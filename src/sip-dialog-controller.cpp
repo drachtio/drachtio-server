@@ -870,6 +870,12 @@ namespace drachtio {
                     else {
                       url_t const * url = nta_outgoing_route_uri(orq);
                       string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                      if (sip->sip_contact && sip->sip_contact->m_url->url_params) {
+                        char transport[32];
+                        if (url_param(sip->sip_contact->m_url->url_params, "transport", transport, sizeof(transport)) > 0) {
+                          routeUri += string(";transport=") + transport;
+                        }
+                      }
                       dlg->setRouteUri(routeUri);
                       DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
                     }
