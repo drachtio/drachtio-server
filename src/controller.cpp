@@ -965,6 +965,48 @@ namespace drachtio {
         return new src::severity_logger_mt< severity_levels >(keywords::severity = log_info);
    }
 
+    void DrachtioController::handleSigUsr1( int signal ) {
+        if( !m_sinkTextFile ) return;
+
+        DR_LOG(log_notice) << "SIGUSR1 handled - resetting file sink to rebuild collector state from disk";
+
+        // Remove the existing file sink (destroys the collector and its inflated in-memory state)
+        logging::core::get()->remove_sink( m_sinkTextFile );
+        m_sinkTextFile.reset();
+
+        // Recreate with a fresh collector that has accurate bookkeeping
+        string name, archiveDirectory;
+        unsigned int rotationSize, maxSize, minSize, maxFiles;
+        bool autoFlush;
+        if( m_Config->getFileLogTarget( name, archiveDirectory, rotationSize, autoFlush, maxSize, minSize, maxFiles ) ) {
+            m_sinkTextFile.reset(
+                new sinks::synchronous_sink< sinks::text_file_backend >(
+                    keywords::file_name = name,
+                    keywords::rotation_size = rotationSize * 1000000,
+                    keywords::auto_flush = autoFlush,
+                    keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
+                    keywords::open_mode = (std::ios::out | std::ios::app)
+                )
+            );
+
+            m_sinkTextFile->set_formatter( &my_formatter );
+
+            m_sinkTextFile->locked_backend()->set_file_collector(sinks::file::make_collector(
+                keywords::target = archiveDirectory,
+                keywords::max_size = maxSize * 1000000,
+                keywords::min_free_space = minSize * 1000000,
+                keywords::max_files = maxFiles
+            ));
+
+            // Scan archive directory to build accurate file list and set counter
+            m_sinkTextFile->locked_backend()->scan_for_files(sinks::file::scan_matching, true);
+
+            logging::core::get()->add_sink(m_sinkTextFile);
+
+            DR_LOG(log_notice) << "File sink reset complete - collector state rebuilt from disk";
+        }
+    }
+
     void DrachtioController::deinitializeLogging() {
         if( m_sinkSysLog ) {
            logging::core::get()->remove_sink( m_sinkSysLog ) ;
