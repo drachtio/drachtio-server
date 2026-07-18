@@ -868,8 +868,18 @@ namespace drachtio {
                       nat = false;
                     }
                     else {
+                      // Preserve the dialog transport when building the NAT route. meta.getProtocol()
+                      // is the transport the response was received on ("tls"/"tcp"/"udp"). Building a
+                      // bare "sip:<ip>:<port>" here drops TLS/TCP, so the in-dialog ACK (and later
+                      // requests) default to UDP even though the INVITE was sent over TLS -- the remote
+                      // then never sees the ACK on the TLS dialog and clears the call with 408.
                       url_t const * url = nta_outgoing_route_uri(orq);
-                      string routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                      const string& proto = meta.getProtocol();
+                      string scheme = url && url->url_scheme ? url->url_scheme : (proto == "tls" ? "sips" : "sip");
+                      string routeUri = scheme + ":" + meta.getAddress() + ":" + meta.getPort();
+                      if (proto == "tls" || proto == "tcp") {
+                        routeUri += ";transport=" + proto;
+                      }
                       dlg->setRouteUri(routeUri);
                       DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
                     }
