@@ -187,6 +187,7 @@ namespace drachtio {
 
     unsigned int getTcpKeepaliveInterval() { return m_tcpKeepaliveSecs; }
     unsigned int getTportQueuesize() { return m_tportQueuesize; }
+    unsigned int getTportMaxConsecutiveTimeouts() { return m_tportMaxConsecutiveTimeouts; }
 
 	private:
 
@@ -291,6 +292,9 @@ namespace drachtio {
     bool m_bMemoryDebug;
     unsigned int m_tcpKeepaliveSecs;
     unsigned int m_tportQueuesize;
+    // opt-in dead-connection detection: max consecutive request timeouts on a
+    // connection-oriented tport before it is force-closed. 0 = disabled (legacy).
+    unsigned int m_tportMaxConsecutiveTimeouts;
 
     bool m_bDumpMemory;
 
