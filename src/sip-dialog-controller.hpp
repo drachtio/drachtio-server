@@ -263,6 +263,7 @@ namespace drachtio {
 	protected:
  		bool searchForHeader( tagi_t* tags, tag_type_t header, string& value ) ;
 		void bindIrq( nta_incoming_t* irq ) ;
+		void trackTportLiveness(nta_outgoing_t* orq, sip_t const* sip);
 
 
 	private:
@@ -305,6 +306,9 @@ namespace drachtio {
 
 		// timers for dialogs and leg that we can remove after suitable timeout period waiting for retransmissions
     std::shared_ptr<TimerQueueManager> m_pTQM ;
+
+		// per-tport count of consecutive internally-generated request timeouts (408s); accessed only on the su_root thread
+		std::unordered_map<std::string, unsigned int> m_mapTportConsecutiveTimeouts;
 	} ;
 
 }

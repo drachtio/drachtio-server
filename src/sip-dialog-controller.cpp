@@ -28,6 +28,7 @@ THE SOFTWARE.
 #include <boost/algorithm/string/replace.hpp>
 
 #include <sofia-sip/su_alloc.h>
+#include <sofia-sip/tport.h>
 
 namespace drachtio {
     class SipDialogController ;
@@ -770,7 +771,61 @@ namespace drachtio {
         deleteTags(tags);
    }
 
+    void SipDialogController::trackTportLiveness(nta_outgoing_t* orq, sip_t const* sip) {
+        unsigned int N = m_pController->getTportMaxConsecutiveTimeouts();
+        if (0 == N) return; // feature disabled: no map access, no tport calls
+
+        // Classify this response's evidence about the transport:
+        //  - timeout: NULL sip (in-dialog / refresh re-INVITE timeout) or an nta-fabricated internal
+        //    408 (out-of-dialog timeout). Counts as "no response" -> increment.
+        //  - alive: a real response received off the wire (not internally generated) -> reset, since
+        //    bytes actually came back over the connection.
+        //  - neither: an nta-fabricated non-408 failure (e.g. internal 503 "No transport", 410) is a
+        //    send-side error, not proof of liveness and not a peer timeout -> leave the counter as-is.
+        bool isInternal = nta_sip_is_internal(sip); // true when sip == NULL
+        bool isTimeout = isInternal &&
+            (NULL == sip || (sip->sip_status && 408 == sip->sip_status->st_status));
+        bool isAlive = !isInternal; // a genuine wire response proves the transport is alive
+
+        // hot healthy path: nothing tracked yet and this response won't change any counter
+        if (!isTimeout && m_mapTportConsecutiveTimeouts.empty()) return;
+
+        tport_t* tp = nta_outgoing_transport(orq); // new reference
+        if (nullptr == tp) return; // DNS-delayed orq; nothing to track yet
+
+        if (!tport_is_secondary(tp) || tport_is_udp(tp)) {
+            // never track/close a primary (listening) transport or a UDP (connectionless) transport
+            tport_unref(tp);
+            return;
+        }
+
+        tp_name_t const* tpn = tport_name(tp);
+        if (!tpn || !tpn->tpn_proto || !tpn->tpn_host || !tpn->tpn_port) {
+            tport_unref(tp);
+            return;
+        }
+        string key = string(tpn->tpn_proto) + "/" + tpn->tpn_host + ":" + tpn->tpn_port;
+
+        if (isTimeout) {
+            unsigned int c = ++m_mapTportConsecutiveTimeouts[key];
+            DR_LOG(log_info) << "SipDialogController::trackTportLiveness - " << key << " consecutive request timeout #" << c << " (threshold " << N << ")";
+            if (c >= N) {
+                DR_LOG(log_warning) << "SipDialogController::trackTportLiveness - " << key << " reached " << N << " consecutive request timeouts; closing transport so the next request reconnects";
+                tport_shutdown(tp, 2);
+                m_mapTportConsecutiveTimeouts.erase(key);
+            }
+        }
+        else if (isAlive) {
+            // a genuine wire response proves the transport is alive; clear any timeout streak.
+            // (internally-generated non-408 failures fall through and leave the counter unchanged)
+            m_mapTportConsecutiveTimeouts.erase(key);
+        }
+
+        tport_unref(tp);
+    }
+
     int SipDialogController::processResponseOutsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
+        trackTportLiveness(orq, sip);
         DR_LOG(log_debug) << "SipDialogController::processResponseOutsideDialog"  ;
         string transactionId ;
         std::shared_ptr<SipDialog> dlg ;
@@ -1815,6 +1870,7 @@ namespace drachtio {
         return rc ;
     }
     int SipDialogController::processResponseInsideDialog( nta_outgoing_t* orq, sip_t const* sip )  {
+        trackTportLiveness(orq, sip);
         DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: "  ;
     	ostringstream o ;
         std::shared_ptr<RIP> rip  ;
@@ -1887,6 +1943,7 @@ namespace drachtio {
 		return 0 ;
     }
     int SipDialogController::processResponseToRefreshingReinvite( nta_outgoing_t* orq, sip_t const* sip ) {
+        trackTportLiveness(orq, sip);
         DR_LOG(log_debug) << "SipDialogController::processResponseToRefreshingReinvite: "  ;
         std::shared_ptr<RIP> rip  ;
 

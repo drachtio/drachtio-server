@@ -290,7 +290,8 @@ namespace drachtio {
         m_configFilename(DEFAULT_CONFIG_FILENAME), m_adminTcpPort(0), m_adminTlsPort(0), m_bNoConfig(false), 
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
-        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_tportQueuesize(64), m_bDumpMemory(false),
+        m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_tportQueuesize(64),
+        m_tportMaxConsecutiveTimeouts(0), m_bDumpMemory(false),
         m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false),
         m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
@@ -842,6 +843,18 @@ namespace drachtio {
             if (q > 1000) q = 1000; // sofia-sip caps tpp_qsize at 1000 (tport.c)
             m_tportQueuesize = (unsigned int) q;
         }
+        // opt-in dead-connection detection: after N consecutive request timeouts on a
+        // connection-oriented tport, drachtio force-closes it so the next request reconnects; 0 = disabled.
+        // floored at 2 (a value of 1 would risk closing a freshly-rebuilt connection on the
+        // trailing 408s of requests that were already queued on the transport being torn down)
+        // and clamped at 1000 to keep the log/behavior sane, matching the DRACHTIO_TPORT_QUEUESIZE convention.
+        p = std::getenv("DRACHTIO_TPORT_MAX_CONSECUTIVE_TIMEOUTS");
+        if (p && ::atoi(p) > 0) {
+            int n = ::atoi(p);
+            if (n < 2) n = 2;
+            if (n > 1000) n = 1000;
+            m_tportMaxConsecutiveTimeouts = (unsigned int) n;
+        }
         p = std::getenv("DRACHTIO_SECRET");
         if (p) m_secret = p;
         p = std::getenv("DRACHTIO_CONSOLE_LOGGING");
@@ -1292,6 +1305,14 @@ namespace drachtio {
 
         // listen backlog / per-connection send queue depth for tcp/tls/ws/wss transports
         DR_LOG(log_notice) << "transport listen backlog (TPTAG_QUEUESIZE) set to " << m_tportQueuesize;
+
+        if (0 == m_tportMaxConsecutiveTimeouts) {
+            DR_LOG(log_notice) << "tport dead-connection detection is disabled (set DRACHTIO_TPORT_MAX_CONSECUTIVE_TIMEOUTS to enable)";
+        }
+        else {
+            DR_LOG(log_notice) << "tport dead-connection detection: a connection-oriented transport will be closed and rebuilt after "
+                << m_tportMaxConsecutiveTimeouts << " consecutive request timeouts";
+        }
 
         int rv = su_init() ;
         if( rv < 0 ) {
