@@ -1014,8 +1014,8 @@ namespace drachtio {
  
         m_time.assign( time ) ;
         if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;   // check tls before tcp: a TLS tport is also a TCP tport
         else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
 
         tport_unref( tport ) ;
 
@@ -1036,8 +1036,8 @@ namespace drachtio {
         m_time.assign( time ) ;
 
         if( tport_is_udp(tport ) ) m_protocol = "udp" ;
+        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;   // check tls before tcp: a TLS tport is also a TCP tport
         else if( tport_is_tcp( tport)  ) m_protocol = "tcp" ;
-        else if( tport_has_tls( tport ) ) m_protocol = "tls" ;
         else m_protocol = "unknown";
 
         init( msg ) ;
