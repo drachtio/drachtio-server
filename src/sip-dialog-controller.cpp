@@ -923,18 +923,26 @@ namespace drachtio {
                       nat = false;
                     }
                     else {
-                      // Preserve the dialog transport when building the NAT route. meta.getProtocol()
-                      // is the transport the response was received on ("tls"/"tcp"/"udp"). Building a
-                      // bare "sip:<ip>:<port>" here drops TLS/TCP, so the in-dialog ACK (and later
-                      // requests) default to UDP even though the INVITE was sent over TLS -- the remote
-                      // then never sees the ACK on the TLS dialog and clears the call with 408.
                       url_t const * url = nta_outgoing_route_uri(orq);
-                      const string& proto = meta.getProtocol();
-                      string scheme = url && url->url_scheme ? url->url_scheme : (proto == "tls" ? "sips" : "sip");
-                      string routeUri = scheme + ":" + meta.getAddress() + ":" + meta.getPort();
-                      if (proto == "tls" || proto == "tcp") {
-                        routeUri += ";transport=" + proto;
+                      // Preserve TLS on the in-dialog route. When the INVITE was sent over TLS,
+                      // a bare "sip:<ip>:<port>" here makes the ACK (and later in-dialog requests)
+                      // default to UDP, so the remote never sees the ACK on the TLS dialog and
+                      // clears the call with 408. Read the transport the request was actually sent
+                      // on (tpn_proto: udp/tcp/tls/ws/wss) and only rewrite the TLS case; every
+                      // other transport keeps the historical bare route unchanged. tpn_proto is
+                      // used instead of meta.getProtocol() because the latter classifies wss/ws as
+                      // "tcp" (tport_has_tls is set only by the TLS transport type), which would
+                      // otherwise stamp ;transport=tcp onto WebSocket/WebRTC NAT routes.
+                      tport_t* tp = nta_outgoing_transport(orq); // takes a reference
+                      const char* proto = tp ? tport_name(tp)->tpn_proto : NULL;
+                      string routeUri;
+                      if (proto && 0 == strcmp(proto, "tls")) {
+                        routeUri = "sips:" + meta.getAddress() + ":" + meta.getPort() + ";transport=tls";
                       }
+                      else {
+                        routeUri = string((url ? url->url_scheme : "sip")) + ":" + meta.getAddress() + ":" + meta.getPort();
+                      }
+                      if (tp) tport_unref(tp);
                       dlg->setRouteUri(routeUri);
                       DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - (UAC) detected nat setting route to: " <<   routeUri;
                     }
