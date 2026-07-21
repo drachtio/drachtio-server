@@ -36,7 +36,10 @@ void handleSigTerm( int signal ) {
   theOneAndOnlyController->handleSigTerm( signal ) ;  
 }
 void handleSigPipe( int signal ) {
-  theOneAndOnlyController->handleSigPipe( signal ) ;  
+  theOneAndOnlyController->handleSigPipe( signal ) ;
+}
+void handleSigUsr1( int signal ) {
+  theOneAndOnlyController->handleSigUsr1( signal ) ;
 }
 
 int main( int argc, char *argv[] ) {
@@ -47,6 +50,7 @@ int main( int argc, char *argv[] ) {
 		signal( SIGHUP, handleSigHup ) ;
     signal( SIGTERM, handleSigTerm ) ;
     signal( SIGPIPE, handleSigPipe ) ;
+    signal( SIGUSR1, handleSigUsr1 ) ;
 		theOneAndOnlyController->run() ;
 	} catch( std::runtime_error& err ) {
 		cerr << "Uncaught exception: " << err.what() << endl ;
