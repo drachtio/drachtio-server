@@ -291,7 +291,7 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_tportQueuesize(64),
-        m_tportMaxConsecutiveTimeouts(0), m_bDumpMemory(false),
+        m_tportMaxConsecutiveTimeouts(0), m_clientWriteTimeoutSecs(0), m_bDumpMemory(false),
         m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false),
         m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
@@ -855,6 +855,18 @@ namespace drachtio {
             if (n > 1000) n = 1000;
             m_tportMaxConsecutiveTimeouts = (unsigned int) n;
         }
+        // opt-in wedged-client detection: if writes to an app connection are outstanding and
+        // none completes within this many seconds (the client stopped reading, so its tcp
+        // receive window closed and never re-opened), the client is evicted and its socket
+        // closed; 0 = disabled. floored at 2 to avoid hair-trigger evictions of a briefly
+        // stalled but healthy client, clamped at 3600 to keep the behavior sane.
+        p = std::getenv("DRACHTIO_CLIENT_WRITE_TIMEOUT");
+        if (p && ::atoi(p) > 0) {
+            int n = ::atoi(p);
+            if (n < 2) n = 2;
+            if (n > 3600) n = 3600;
+            m_clientWriteTimeoutSecs = (unsigned int) n;
+        }
         p = std::getenv("DRACHTIO_SECRET");
         if (p) m_secret = p;
         p = std::getenv("DRACHTIO_CONSOLE_LOGGING");
@@ -1312,6 +1324,14 @@ namespace drachtio {
         else {
             DR_LOG(log_notice) << "tport dead-connection detection: a connection-oriented transport will be closed and rebuilt after "
                 << m_tportMaxConsecutiveTimeouts << " consecutive request timeouts";
+        }
+
+        if (0 == m_clientWriteTimeoutSecs) {
+            DR_LOG(log_notice) << "client write watchdog is disabled (set DRACHTIO_CLIENT_WRITE_TIMEOUT to enable)";
+        }
+        else {
+            DR_LOG(log_notice) << "client write watchdog: an application connection will be evicted if none of its pending writes completes within "
+                << m_clientWriteTimeoutSecs << " seconds";
         }
 
         int rv = su_init() ;
