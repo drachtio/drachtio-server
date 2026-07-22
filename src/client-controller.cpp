@@ -128,6 +128,11 @@ namespace drachtio {
         DR_LOG(log_info) << "ClientController::join - Added client, count of connected clients is now: " << m_clients.size()  ;       
     }
     void ClientController::leave( client_ptr client ) {
+        /* remove any request registrations the client still holds, so that
+           round-robin dispatch cannot select a client that is gone; an entry
+           whose weak_ptr is kept alive by a never-completing write would
+           otherwise linger in the pool black-holing requests */
+        no_longer_wants_requests( client, "" ) ;
         m_clients.erase( client ) ;
         time_t duration = client->getConnectionDuration();
         DR_LOG(log_info) << "ClientController::leave - Removed client, connection duration " << std::dec << 
@@ -228,21 +233,20 @@ namespace drachtio {
 
 
     bool ClientController::no_longer_wants_requests( client_ptr client, const string& verb ) {
-        RequestSpecifier spec( client ) ;
         std::lock_guard<std::mutex> l( m_lock ) ;
-        // Remove all instances of this client for this verb
+        // Remove this client's registrations: all of them if verb is empty, otherwise only that verb's
         for (map_of_request_types::iterator it = m_request_types.begin(); it != m_request_types.end(); ) {
-            if (it->second.client() == client) {
+            if (it->second.client() == client && (verb.empty() || 0 == verb.compare(it->first))) {
                 it = m_request_types.erase(it);
             }
             else {
                 ++it;
             }
         }
-        DR_LOG(log_debug) << "Removed client for " << verb << " requests"  ;
+        DR_LOG(log_debug) << "Removed client for " << (verb.empty() ? "all" : verb.c_str()) << " requests"  ;
 
         //TODO: validate the verb is supported
-        return true ;  
+        return true ;
     }
 
     client_ptr ClientController::selectClientForRequestOutsideDialog(const char* keyword, const char* tag) {
