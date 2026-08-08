@@ -152,9 +152,11 @@ namespace drachtio {
 
       m_transportAddress = tpn->tpn_host ;
       m_transportPort = tpn->tpn_port ;
-      m_protocol = tpn->tpn_proto ;      
+      m_protocol = tpn->tpn_proto ;
     }
     else {
+      /* no tport yet (DNS pending): describes our own local transport, not the peer -- but
+         m_tp is NULL too, so nothing keyed on the peer address can reach this */
       parseTransportDescription(transport, m_protocol, m_transportAddress, m_transportPort ) ;
     }
 
@@ -278,9 +280,9 @@ namespace drachtio {
 
     m_transportAddress = tpn->tpn_host ;
     m_transportPort = tpn->tpn_port ;
-    m_protocol = tpn->tpn_proto ;      
+    m_protocol = tpn->tpn_proto ;
   }
-	tport_t* SipDialog::getTport(void) { 
+	tport_t* SipDialog::getTport(void) {
 		tport_t* tp = nullptr;
 
     checkTportState();
@@ -294,7 +296,7 @@ namespace drachtio {
         }
         else {
           DR_LOG(log_debug) << "SipDialog::getTport: retrieving tport from delayed orq " << std::hex << (void *) m_orqAck << ": " << (void *) tp;
-          m_tp = tp;
+          setTport(tp); tport_unref(tp);   // setTport takes its own ref; keeps m_transportAddress in step
         }
         nta_outgoing_destroy(m_orqAck);
         m_orqAck = nullptr; 

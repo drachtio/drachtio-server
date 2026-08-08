@@ -189,6 +189,23 @@ namespace drachtio {
         return true ;
     }
     ///client-initiated outgoing messages (stack thread)
+    tport_t* SipDialogController::currentTportForDialog( std::shared_ptr<SipDialog>& dlg,
+            const sip_contact_t* remoteTarget, const char* method ) {
+        tport_t* tp = dlg->getTport() ;
+        if (nullptr == tp || nullptr == remoteTarget || nullptr == remoteTarget->m_url->url_host) return tp ;
+        if (!dlg->getTransportAddress().length()) return tp ;
+
+        tport_t* current = m_pController->getTportForContactAlias( tp, dlg->getProtocol().c_str(),
+            dlg->getTransportAddress().c_str(), remoteTarget->m_url->url_host, remoteTarget->m_url->url_port ) ;
+        if (nullptr == current || current == tp) return tp ;
+
+        DR_LOG(log_info) << "SipDialogController::currentTportForDialog - peer advertising "
+            << remoteTarget->m_url->url_host << " moved from tport " << std::hex << (void *) tp
+            << " to " << (void *) current << "; sending " << method << " there" ;
+        dlg->setTport(current) ;
+        return current ;
+    }
+
     void SipDialogController::doSendRequestInsideDialog( SipMessageData* pData ) {                
         nta_leg_t* leg = NULL ;
         nta_outgoing_t* orq = NULL ;
@@ -224,14 +241,37 @@ namespace drachtio {
             tags = makeTags( pData->getHeaders(), transport) ;
 
             tport_t* tp = dlg->getTport() ; //DH: this does NOT take out a reference
-            bool forceTport = NULL != tp ;  
+            bool forceTport = NULL != tp ;
 
             nta_leg_t *leg = const_cast<nta_leg_t *>(dlg->getNtaLeg());
             if( !leg ) {
                 assert( leg ) ;
                 throw std::runtime_error("unable to find active leg for dialog") ;
             }
-            
+
+            const sip_contact_t *remoteTarget = NULL ;
+            if( nta_leg_get_route( leg, NULL, &remoteTarget ) < 0 ) remoteTarget = NULL ;
+
+            /* a registered peer is tracked per-AOR and that binding wins: unlike the alias
+               table it survives the peer changing source address (mid-call handoff) */
+            std::shared_ptr<UaInvalidData> pRegBinding ;
+            if( remoteTarget && remoteTarget->m_url->url_host ) {
+                pRegBinding = m_pController->findTportForSubscription(
+                    remoteTarget->m_url->url_user, remoteTarget->m_url->url_host ) ;
+            }
+
+            /* The pin taken at dialog creation is never revisited, so a peer that silently
+               abandoned that connection (no FIN/RST) swallows this request until Timer F.
+               Follow it to its current connection if the alias table knows one; a miss leaves
+               the pin alone. See DrachtioController::cacheContactAlias. */
+            if (!pRegBinding) {
+                tport_t* current = currentTportForDialog(dlg, remoteTarget, name.c_str()) ;
+                if (current != tp) {
+                    tp = current ;
+                    forceTport = true ;
+                }
+            }
+
             /* race condition: we are sending a BYE during a re-invite transaction.  Generate a cancel first */
             if (sip_method_bye == method) {
                 std::shared_ptr<IIP> iip;
@@ -270,14 +310,14 @@ namespace drachtio {
                 DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - defaulting request uri to " << requestUri  ;
 
                 // we need to check if there was a mid-call network handoff, where this client jumped networks
-                std::shared_ptr<UaInvalidData> pData = m_pController->findTportForSubscription( target->m_url->url_user, target->m_url->url_host ) ;
-                if( NULL != pData ) {
-                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog found cached tport for this client " << std::hex << (void *) pData->getTport();
+                // (pRegBinding was resolved above, from this same remote target)
+                if( pRegBinding ) {
+                    DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog found cached tport for this client " << std::hex << (void *) pRegBinding->getTport();
                     //DH: I am now holding a tport that I did not take out a reference for
                     //what if while I am holding it the registration expires and the tport is destroyed?
-                    if (pData->getTport() != tp) {
-                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pData->getTport();
-                        tp = pData->getTport();
+                    if (pRegBinding->getTport() != tp) {
+                        DR_LOG(log_info) << "SipDialogController::doSendRequestInsideDialog client has done a mid-call handoff; tp is now " << std::hex << (void *) pRegBinding->getTport();
+                        tp = pRegBinding->getTport();
                         forceTport = true ;
                     }
                }
@@ -1684,12 +1724,24 @@ namespace drachtio {
                 // 481 to the CANCEL
                 nta_incoming_treply( irq, SIP_481_NO_TRANSACTION, TAG_END() ) ;  
 
-                // BYE to the far end
+                /* BYE to the far end. drachtio generates this one itself, so it does not pass
+                   through doSendRequestInsideDialog and needs the same check: if the peer
+                   reconnected, the pin points at a socket this teardown would vanish into,
+                   leaving the far end with a call nobody hangs up. */
+                const sip_contact_t* byeTarget = NULL ;
+                if (nta_leg_get_route( leg, NULL, &byeTarget ) < 0) byeTarget = NULL ;
+                tport_t* byeTport = dlg->getTport() ;
+                if (byeTarget && byeTarget->m_url->url_host &&
+                        !m_pController->findTportForSubscription(
+                            byeTarget->m_url->url_user, byeTarget->m_url->url_host )) {
+                    byeTport = currentTportForDialog(dlg, byeTarget, "BYE") ;
+                }
+
                 nta_outgoing_t* orq = nta_outgoing_tcreate( leg, NULL, NULL,
                                         NULL,
                                         SIP_METHOD_BYE,
                                         NULL,
-                                        TAG_IF(dlg->getTport(), NTATAG_TPORT(dlg->getTport())),
+                                        TAG_IF(byeTport, NTATAG_TPORT(byeTport)),
                                         SIPTAG_REASON_STR("SIP ;cause=200 ;text=\"CANCEL after 200 OK\""),
                                         TAG_END() ) ;
 

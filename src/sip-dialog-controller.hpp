@@ -265,6 +265,13 @@ namespace drachtio {
 		void bindIrq( nta_incoming_t* irq ) ;
 		void trackTportLiveness(nta_outgoing_t* orq, sip_t const* sip);
 
+		/* The connection this dialog's peer is currently reachable on: the tport pinned at
+		   dialog creation, unless the peer has since reconnected and the alias table knows
+		   where to. Re-pins the dialog when it moves; returns the pin unchanged on any miss.
+		   A registration binding outranks this and is the caller's business -- callers that
+		   have one must not call here. */
+		tport_t* currentTportForDialog( std::shared_ptr<SipDialog>& dlg,
+			const sip_contact_t* remoteTarget, const char* method ) ;
 
 	private:
 		DrachtioController* m_pController ;

@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include <assert.h>
 #include <pwd.h>
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <regex>
 #include <cstdlib>
@@ -291,7 +292,7 @@ namespace drachtio {
         m_current_severity_threshold(log_none), m_nSofiaLoglevel(-1), m_bIsOutbound(false), m_bConsoleLogging(false),
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_tportQueuesize(64),
-        m_tportMaxConsecutiveTimeouts(0), m_bDumpMemory(false),
+        m_tportMaxConsecutiveTimeouts(0), m_bContactAlias(false), m_bDumpMemory(false),
         m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false),
         m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
@@ -855,6 +856,9 @@ namespace drachtio {
             if (n > 1000) n = 1000;
             m_tportMaxConsecutiveTimeouts = (unsigned int) n;
         }
+        p = std::getenv("DRACHTIO_TPORT_CONTACT_ALIAS");
+        if (p && ::atoi(p) == 1) m_bContactAlias = true;
+
         p = std::getenv("DRACHTIO_SECRET");
         if (p) m_secret = p;
         p = std::getenv("DRACHTIO_CONSOLE_LOGGING");
@@ -1314,6 +1318,10 @@ namespace drachtio {
                 << m_tportMaxConsecutiveTimeouts << " consecutive request timeouts";
         }
 
+        DR_LOG(log_notice) << (m_bContactAlias ?
+            "tport contact-alias tracking enabled: in-dialog requests follow a peer that reconnects" :
+            "tport contact-alias tracking disabled (set DRACHTIO_TPORT_CONTACT_ALIAS=1 to enable)");
+
         int rv = su_init() ;
         if( rv < 0 ) {
             DR_LOG(log_error) << "Error calling su_init: " << rv ;
@@ -1340,7 +1348,8 @@ namespace drachtio {
         su_log_set_level(NULL, m_nSofiaLoglevel >= 0 ? (unsigned int) m_nSofiaLoglevel : m_Config->getSofiaLogLevel() ) ;
         setenv("TPORT_LOG", "1", 1) ;
         
-        /* this causes su_clone_start to start a new thread */
+        /* no clone thread: nta callbacks and su_msg_send work all run on this root's one
+           thread, which is why m_mapContactAlias / m_mapTportConsecutiveTimeouts take no lock */
         su_root_threading( m_root, 0 ) ;
         rv = su_clone_start( m_root, m_clone, this, clone_init, clone_destroy ) ;
         if( rv < 0 ) {
@@ -1570,6 +1579,9 @@ namespace drachtio {
                     }
                 }
             }
+
+            /* deliberately after the reject paths: a port scanner must not churn the table */
+            cacheContactAlias( tp_incoming, sip );
 
             if( sip->sip_route && sip->sip_to->a_tag != NULL && url_has_param(sip->sip_route->r_url, "lr") ) {
 
@@ -1846,7 +1858,17 @@ namespace drachtio {
         if( 0 != rc ) {
             return rc ;
         }
-         
+
+        /* in-dialog arrivals are matched by Call-ID, not connection: they are our evidence of
+           which of the peer's connections is alive */
+        if (m_bContactAlias) {
+            tport_t* tp_incoming = nta_incoming_transport( m_nta, irq, NULL );   // irq set: returns irq_tport
+            if (tp_incoming) {
+                cacheContactAlias( tp_incoming, sip );
+                tport_unref( tp_incoming );
+            }
+        }
+
         std::shared_ptr<SipDialog> dlg ;
         if( m_pDialogController->findDialogByLeg( leg, dlg ) ) {
             if( sip->sip_request->rq_method == sip_method_invite && !sip->sip_to->a_tag && dlg->getSipStatus() >= 200 ) {
@@ -1940,6 +1962,109 @@ namespace drachtio {
                 ", tport:" << (void *) tp << ", expires: " << expires << ", count is now: " << m_mapUri2InvalidData.size();
         }
     }
+    /* Key: "proto|srcAddress|advertisedHost:advertisedPort", lowercased because proto arrives
+       lowercase from tport_name() but uppercase from nta_incoming_protocol(). The advertised
+       Contact tells two peers behind one NAT apart; srcAddress tells apart two peers behind
+       different NATs advertising the same private address. */
+    static std::string makeContactAliasKey( const char* proto, const char* srcAddress,
+            const char* advertisedHost, const char* advertisedPort ) {
+        std::string key(proto);
+        key.append("|");
+        key.append(srcAddress);
+        key.append("|");
+        key.append(advertisedHost);
+        key.append(":");
+        key.append(advertisedPort && *advertisedPort ? advertisedPort : "0");
+        std::transform(key.begin(), key.end(), key.begin(),
+            [](unsigned char c){ return std::tolower(c); });
+        return key;
+    }
+
+    void DrachtioController::cacheContactAlias( tport_t* tp, sip_t const* sip ) {
+        if (!m_bContactAlias || nullptr == tp || nullptr == sip) return;
+
+        /* a primary is our own listening socket, and a connectionless transport has no
+           connection to go stale -- neither can be the subject of an alias */
+        if (!tport_is_secondary(tp) || tport_is_udp(tp)) return;
+        if (!sip->sip_contact || !sip->sip_contact->m_url || !sip->sip_contact->m_url->url_host) return;
+
+        /* This table maps dialog remote targets to connections, so only cache a Contact that
+           can become one. A REGISTER's Contact cannot: it is a registration binding, consumed
+           by the registrar and already kept separately by cacheTportForSubscription. Two
+           namespaces that happen to share a header name.
+
+           Not a theoretical distinction. A UA typically registers as "user@1.2.3.4:5060" --
+           the default port, not the one it is on -- while putting its real port in the Contact
+           of its INVITE. Since the key ignores the user part (it must: a trunk's Contact user
+           is the calling number and changes every call), every client behind one address would
+           collide on the single key "1.2.3.4:5060" and overwrite each other on every
+           registration refresh.
+
+           OPTIONS is deliberately still cached even though it forms no dialog: a trunk's
+           OPTIONS carries the same Contact as its INVITEs, and for a trunk whose calls are all
+           silent it is the only thing that would tell us it has reconnected. */
+        if (sip->sip_request && sip_method_register == sip->sip_request->rq_method) return;
+
+        const tp_name_t* tpn = tport_name(tp);
+        if (!tpn || !tpn->tpn_proto || !tpn->tpn_host || !tpn->tpn_port) return;
+
+        const url_t* url = sip->sip_contact->m_url;
+        std::string key = makeContactAliasKey(tpn->tpn_proto, tpn->tpn_host, url->url_host, url->url_port);
+
+        auto it = m_mapContactAlias.find(key);
+        if (it != m_mapContactAlias.end()) {
+            if (it->second.host == tpn->tpn_host && it->second.port == tpn->tpn_port) return;
+            DR_LOG(log_info) << "DrachtioController::cacheContactAlias - " << key
+                << " has moved to " << tpn->tpn_host << ":" << tpn->tpn_port
+                << " (was " << it->second.host << ":" << it->second.port << ")";
+            it->second.host = tpn->tpn_host;
+            it->second.port = tpn->tpn_port;
+            return;
+        }
+
+        /* it is only a cache: rather than manage its size, throw it away on the off chance it
+           fills. Every entry is relearned from the next message its peer sends. */
+        if (m_mapContactAlias.size() >= 10000) {
+            DR_LOG(log_info) << "DrachtioController::cacheContactAlias - clearing table at 10000 entries";
+            m_mapContactAlias.clear();
+        }
+        DR_LOG(log_debug) << "DrachtioController::cacheContactAlias - tracking " << key
+            << " at " << tpn->tpn_host << ":" << tpn->tpn_port;
+        m_mapContactAlias.emplace(key, ContactAliasTarget{ tpn->tpn_host, tpn->tpn_port });
+    }
+
+    tport_t* DrachtioController::getTportForContactAlias( tport_t* pinned, const char* proto,
+            const char* srcAddress, const char* advertisedHost, const char* advertisedPort ) {
+        if (!m_bContactAlias) return nullptr;
+        if (nullptr == pinned || nullptr == proto || nullptr == srcAddress || nullptr == advertisedHost) return nullptr;
+
+        auto it = m_mapContactAlias.find(
+            makeContactAliasKey(proto, srcAddress, advertisedHost, advertisedPort));
+        if (it == m_mapContactAlias.end()) return nullptr;
+
+        /* Re-fetch the connection from sofia by its remote address: this is the same exact
+           host:port match that fails for the ADVERTISED address, succeeding here because we
+           recorded the connection's real name. tport_by_name searches only open, registered,
+           non-shutdown secondaries, so whatever comes back is live -- no remembered pointer
+           that could have gone stale. */
+        const tp_name_t* ptpn = tport_name(pinned);
+        tp_name_t tpn = {};
+        tpn.tpn_proto = ptpn->tpn_proto;
+        tpn.tpn_canon = it->second.host.c_str();
+        tpn.tpn_host  = it->second.host.c_str();
+        tpn.tpn_port  = it->second.port.c_str();
+
+        tport_t* tp = tport_by_name(pinned, &tpn);
+        if (nullptr == tp || !tport_is_secondary(tp)) {   // that connection is gone
+            m_mapContactAlias.erase(it);
+            return nullptr;
+        }
+        /* scope to the dialog's own interface: a connection on another local address would
+           leave from a source a source-checking peer rejects */
+        if (tport_parent(tp) != tport_parent(pinned)) return nullptr;
+        return tp;
+    }
+
     void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
         if (host == nullptr) return;
         string uri = "" ;

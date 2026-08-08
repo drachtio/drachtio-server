@@ -174,6 +174,28 @@ namespace drachtio {
     void flushTportForSubscription( const char* user, const char* host ) ; 
     std::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
 
+    /**
+     * Contact alias table: (protocol, peer source address, advertised Contact host:port) ->
+     * the remote host:port of the connection that peer last sent a message on, recorded on
+     * every inbound message.
+     *
+     * sofia matches connections on the full host:port, so an inbound-only peer's advertised
+     * Contact never matches the connection it opened from an ephemeral port; drachtio pins the
+     * tport at dialog creation and never revisits it, so a silently abandoned connection (no
+     * FIN/RST -- tport_is_closed() stays false) swallows in-dialog requests until Timer F.
+     * This lets the send side follow the peer to its current connection instead.
+     *
+     * The table stores names, never tport pointers or references: the connection is re-fetched
+     * from sofia by name (tport_by_name) at send time, so sofia remains the sole owner of
+     * every connection's lifetime -- nothing here can leak or dangle, and nothing needs
+     * sweeping.
+     */
+    void cacheContactAlias( tport_t* tp, sip_t const* sip ) ;
+    /* pinned scopes the lookup to the interface the dialog's own connection was accepted on.
+       Returns NULL on any miss, leaving the caller on its existing pin (legacy behaviour). */
+    tport_t* getTportForContactAlias( tport_t* pinned, const char* proto, const char* srcAddress,
+        const char* advertisedHost, const char* advertisedPort ) ;
+
     RequestRouter& getRequestRouter(void) { return m_requestRouter; }
     StatsCollector& getStatsCollector(void) { return m_statsCollector; }
     std::unordered_set<std::string>& getPreservedHeaderNames(void) { return m_preservedHeaderNames; }
@@ -295,6 +317,15 @@ namespace drachtio {
     // opt-in dead-connection detection: max consecutive request timeouts on a
     // connection-oriented tport before it is force-closed. 0 = disabled (legacy).
     unsigned int m_tportMaxConsecutiveTimeouts;
+
+    bool m_bContactAlias;
+    struct ContactAliasTarget {
+        std::string host;   // remote address of the peer's current connection, as sofia names it
+        std::string port;
+    };
+    // key "proto|srcAddress|advertisedHost:advertisedPort" (lowercased). Names only --
+    // resolved back to a live tport at send time. See cacheContactAlias().
+    std::unordered_map<std::string, ContactAliasTarget> m_mapContactAlias;
 
     bool m_bDumpMemory;
 
