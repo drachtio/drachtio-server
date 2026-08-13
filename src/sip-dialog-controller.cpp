@@ -1366,7 +1366,13 @@ namespace drachtio {
 
                     /* set session timer if required */
                     sip_session_expires_t *sessionExpires = nullptr;
+                    bool bAddRequireTimer = false;
                     if( 200 == code && sip->sip_request->rq_method == sip_method_invite ) {
+                        /* RFC 4028 sec 9: the 2xx MUST carry Require: timer when the refresher is
+                           the UAC, and SHOULD when the refresher is the UAS and the request
+                           advertised Supported: timer. */
+                        const bool bReqSupportsTimer =
+                            sip->sip_supported && sip_has_supported(sip->sip_supported, "timer");
                         string strSessionExpires ;
                         if( searchForHeader( tags, siptag_session_expires_str, strSessionExpires ) ) {
                             sip_session_expires_t* se = sip_session_expires_make(m_pController->getHome(), strSessionExpires.c_str() );
@@ -1380,6 +1386,7 @@ namespace drachtio {
                                 DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - per app UAC is refresher, interval will be " << interval  ;
                             }
                             dlg->setSessionTimer(interval, who) ;
+                            bAddRequireTimer = (who == SipDialog::they_are_refresher) || bReqSupportsTimer;
                             su_free( m_pController->getHome(), se ) ;
                         }
                         else if (sip->sip_session_expires) {
@@ -1416,6 +1423,7 @@ namespace drachtio {
                                     DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest - UAC is refresher, interval will be " << interval  ;
                                 }
                                 dlg->setSessionTimer(interval, who) ;
+                                bAddRequireTimer = (who == SipDialog::they_are_refresher) || bReqSupportsTimer;
                             }
                         }
                     }
@@ -1428,6 +1436,7 @@ namespace drachtio {
                             ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                             ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                             ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
+                            ,TAG_IF(bAddRequireTimer, SIPTAG_REQUIRE_STR("timer"))
                             ,TAG_NEXT(tags)
                             ,TAG_END() ) ;
 
@@ -1448,8 +1457,9 @@ namespace drachtio {
                             ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                             ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                             ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
+                            ,TAG_IF(bAddRequireTimer, SIPTAG_REQUIRE_STR("timer"))
                             ,TAG_NEXT(tags)
-                            ,TAG_END() ) ; 
+                            ,TAG_END() ) ;
                         if( 0 != rc ) {
                             DR_LOG(log_error) << "Error " << dec << rc << " sending response on irq " << hex << irq <<
                                 " - this is usually because the application provided a syntactically-invalid header";
