@@ -252,9 +252,20 @@ namespace drachtio {
         /* round robin select a client that has registered for this request type (and, optionally, tag)*/
         std::lock_guard<std::mutex> l( m_lock ) ;
         client_ptr client ;
-        string matchId ;
-        pair<map_of_request_types::iterator,map_of_request_types::iterator> pair = m_request_types.equal_range(method_name) ;
-        unsigned int nPossibles = std::distance(pair.first, pair.second) ;
+
+        /* count the clients that can take this request, pruning any that have disconnected */
+        unsigned int nPossibles = 0 ;
+        pair<map_of_request_types::iterator,map_of_request_types::iterator> range = m_request_types.equal_range(method_name) ;
+        for( map_of_request_types::iterator it = range.first ; it != range.second ; ) {
+            client_ptr c = it->second.client() ;
+            if( !c ) {
+                DR_LOG(log_debug) << "ClientController::selectClientForRequestOutsideDialog - removing disconnected client while iterating"  ;
+                it = m_request_types.erase( it ) ;
+                continue ;
+            }
+            if( !tag || c->hasTag(tag) ) nPossibles++ ;
+            it++ ;
+        }
         if( 0 == nPossibles ) {
             if( 0 == method_name.find("cdr") ) {
                 DR_LOG(log_debug) << "No connected clients found to handle incoming " << method_name << " request"  ;
@@ -262,54 +273,28 @@ namespace drachtio {
             else {
                 DR_LOG(log_info) << "No connected clients found to handle incoming " << method_name << " request"  ;
             }
-           return client ;           
-        }
-
-        unsigned int nOffset = 0 ;
-        map_of_request_type_offsets::const_iterator itOffset = m_map_of_request_type_offsets.find(method_name) ;
-        if( m_map_of_request_type_offsets.end() != itOffset ) {
-            unsigned int i = itOffset->second;
-            if( i < nPossibles ) nOffset = i ;
-            else nOffset = 0;
-        }
-        DR_LOG(log_debug) << "ClientController::selectClientForRequestOutsideDialog - there are " << nPossibles << 
-            " possible clients, we are starting with offset " << nOffset  ;
-
-        m_map_of_request_type_offsets.erase(itOffset) ;
-        m_map_of_request_type_offsets.insert(map_of_request_type_offsets::value_type(method_name, nOffset + 1)) ;
-
-        unsigned int nTries = 0 ;
-        map_of_request_types::iterator it = pair.first ;
-        std::advance(it, nOffset) ;
-        do {
-            if (it == pair.second) it = pair.first;
-    
-            RequestSpecifier& spec = it->second ;
-            client = spec.client() ;
-            if (!client) {
-                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Removing disconnected client while iterating"  ;
-                it = m_request_types.erase( it ) ;
-                //pair = m_request_types.equal_range(method_name) ;
-                //nOffset = 0 ;
-                //nPossibles = std::distance( pair.first, pair.second ) ;
-            }
-            else if (tag && !client->hasTag(tag)) {
-                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - client at offset " << nOffset << " does not support tag " << tag;
-                client = NULL;
-                it++;
-            }
-            else {
-                DR_LOG(log_debug) << "ClientController::route_request_outside_dialog - Selected client at offset " << nOffset  ;                
-            }
-            nPossibles--;
-        } while( !client && nPossibles > 0 ) ;
-
-        if( !client ) {
-            DR_LOG(log_info) << "ClientController::route_request_outside_dialog - No clients found to handle incoming " << method_name << " request"  ;
             return client ;
         }
- 
-        return client ;
+
+        /* The offset must count only the clients matching the tag, and be tracked per tag.  Indexing
+           into the full list and then scanning forward to the first tag match handed the leading
+           client of each tag group every offset that landed on another tag's clients - with 4
+           sbc-inbound and 4 sbc-outbound clients that was 5/8 of each tag's traffic. */
+        string offsetKey = tag ? method_name + ":" + tag : method_name ;
+        unsigned int nOffset = m_map_of_request_type_offsets[offsetKey] % nPossibles ;
+        m_map_of_request_type_offsets[offsetKey] = nOffset + 1 ;
+
+        DR_LOG(log_debug) << "ClientController::selectClientForRequestOutsideDialog - there are " << nPossibles <<
+            " possible clients for " << offsetKey << ", selecting offset " << nOffset  ;
+
+        range = m_request_types.equal_range(method_name) ;  // re-acquire: pruning may have erased range.first
+        for( map_of_request_types::iterator it = range.first ; it != range.second ; it++ ) {
+            client = it->second.client() ;
+            if( !client || (tag && !client->hasTag(tag)) ) continue ;
+            if( 0 == nOffset ) return client ;
+            nOffset-- ;
+        }
+        return client_ptr() ;
     }
     bool ClientController::route_ack_request_inside_dialog( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, 
         sip_t const *sip, const string& transactionId, const string& inviteTransactionId, const string& dialogId ) {
