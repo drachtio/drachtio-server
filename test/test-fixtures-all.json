@@ -171,5 +171,12 @@
     "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
     "uac": {"name": "uac-options-expect-200.xml", "target": "127.0.0.1:5090"},
     "message": "connection tests: 200 OK automatically generated for OPTIONS"
+  },
+  {
+    "server": {"config": "drachtio.conf.xml", "args": ["--memory-debug"]},
+    "script": {"name": "subscription-failover", "function": "handleSubscriptionFailover"},
+    "uac": {"name": "uac-subscribe-failover.xml", "target": "127.0.0.1:5090"},
+    "message": "subscription: fail over an in-dialog refresh after the owning app disconnects",
+    "timeout": 15000
   }
 ]
