@@ -1691,11 +1691,14 @@ namespace drachtio {
             }
             case sip_method_cancel:
             {
-                // Two cases:
+                // Three cases:
                 //    (1) A race condition, where we've sent the 200 OK but not yet received an ACK
                 //           => send 481 to Cancel and then BYE
                 //    (2) A forking INVITE, where one fork was answered and the other was cancelled
                 //           => find in pending request controller and send 200 OK to the CANCEL and 487 to INVITE
+                //    (3) A CANCEL for an INVITE we have only answered provisionally, which nta did not match to
+                //        the INVITE because its Via sent-by differs (e.g. a NAT'd UAC that changed its address)
+                //           => send 200 OK to the CANCEL and 487 to INVITE, as nta does for a matched CANCEL
 
                 std::shared_ptr<PendingRequest_t> p = theOneAndOnlyController->getPendingRequestController()->findInviteByCallIdAndBranch( sip ) ;
                 if (p) {
@@ -1719,6 +1722,49 @@ namespace drachtio {
                   STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "INVITE"},{"code", "487"}})
                   nta_msg_treply( theOneAndOnlyController->getAgent(), msg_dup(p->getMsg()), 487, NULL, TAG_END() );
                   break;
+                }
+
+                std::shared_ptr<IIP> iip ;
+                if (IIP_FindByLeg(m_invitesInProgress, leg, iip) && iip->irq() && nta_incoming_status(iip->irq()) < 200) {
+                  nta_incoming_t* inviteIrq = const_cast<nta_incoming_t*>(iip->irq()) ;
+                  msg_t* inviteMsg = nta_incoming_getrequest( inviteIrq ) ; // adds a reference
+                  sip_t const* inviteSip = sip_object( inviteMsg ) ;
+                  bool matchesInvite = sip->sip_cseq->cs_seq == inviteSip->sip_cseq->cs_seq &&
+                    sip->sip_via && sip->sip_via->v_branch && inviteSip->sip_via && inviteSip->sip_via->v_branch &&
+                    boost::iequals( sip->sip_via->v_branch, inviteSip->sip_via->v_branch ) ;
+                  msg_destroy( inviteMsg ) ;      // releases the reference
+
+                  if (matchesInvite) {
+                    std::shared_ptr<SipDialog> dlg = iip->dlg() ;
+                    if( !dlg ) {
+                        DR_LOG(log_error) << "No dialog exists for invite-in-progress for CANCEL with call-id " << sip->sip_call_id->i_id  ;
+                        return 481 ;
+                    }
+                    DR_LOG(log_info) << "SipDialogController::processRequestInsideDialog - received CANCEL whose Via does not match the INVITE; canceling INVITE for call-id " << sip->sip_call_id->i_id ;
+
+                    STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", sip->sip_request->rq_method_name},{"code", "200"}})
+                    nta_incoming_treply( irq, SIP_200_OK, TAG_END() ) ;
+                    // a final response flushes unacknowledged reliable provisionals through uasPrack with a null
+                    // PRACK, so release them first, as IIP_Clear does before nta sends 487 to a matched CANCEL
+                    iip->destroyAllReliables();
+                    // before IIP_Clear: destroying an INVITE irq that has no final response makes nta send a 500
+                    STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_RESPONSES_OUT, {{"method", "INVITE"},{"code", "487"}})
+                    nta_incoming_treply( inviteIrq, SIP_487_REQUEST_CANCELLED, TAG_END() ) ;
+
+                    string encodedMessage ;
+                    msg_t* msg = nta_incoming_getrequest( irq ) ;   // adds a reference
+                    EncodeStackMessage( sip, encodedMessage ) ;
+                    SipMsgData_t meta( msg, irq ) ;
+                    Cdr::postCdr( std::make_shared<CdrStop>( msg, "network", Cdr::call_canceled ) );
+                    msg_destroy(msg);                               // releases reference
+
+                    m_pClientController->route_request_inside_invite( encodedMessage, meta, irq, sip, iip->getTransactionId(), dlg->getDialogId() ) ;
+
+                    m_pController->getClientController()->removeNetTransaction( iip->getTransactionId() ) ;
+                    IIP_Clear(m_invitesInProgress, iip);
+                    nta_incoming_destroy(irq) ;
+                    break;
+                  }
                 }
 
                 std::shared_ptr<SipDialog> dlg ;
