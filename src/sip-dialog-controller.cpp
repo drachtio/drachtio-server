@@ -355,6 +355,11 @@ namespace drachtio {
                     memset(cseq, 0, 32);
                     uint32_t seq = dlg->getSeq();
                     dlg->clearSeq();
+                    if (0 == seq) {
+                        // reINVITE: the ACK takes the CSeq of the INVITE, not of any PRACK sent since
+                        std::shared_ptr<IIP> iip;
+                        if (IIP_FindByLeg(m_invitesInProgress, leg, iip) && iip->orq()) seq = nta_outgoing_cseq(iip->orq());
+                    }
                     if (seq > 0) {
                         snprintf(cseq, 31, "%u ACK", seq);
                         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - setting CSeq to  " << seq ;
