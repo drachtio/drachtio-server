@@ -355,6 +355,11 @@ namespace drachtio {
                     memset(cseq, 0, 32);
                     uint32_t seq = dlg->getSeq();
                     dlg->clearSeq();
+                    if (0 == seq) {
+                        // reINVITE: the ACK takes the CSeq of the INVITE, not of any PRACK sent since
+                        std::shared_ptr<IIP> iip;
+                        if (IIP_FindByLeg(m_invitesInProgress, leg, iip) && iip->orq()) seq = nta_outgoing_cseq(iip->orq());
+                    }
                     if (seq > 0) {
                         snprintf(cseq, 31, "%u ACK", seq);
                         DR_LOG(log_debug) << "SipDialogController::doSendRequestInsideDialog - setting CSeq to  " << seq ;
@@ -1988,7 +1993,8 @@ namespace drachtio {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: no session expires header found";
                 }
             }
-            if (rip->shouldClearDialogOnResponse()) {
+            // as with the RIP below, a provisional response (e.g. 1xx to a BYE) must not clear the dialog
+            if (statusCode >= 200 && rip->shouldClearDialogOnResponse()) {
                 string dialogId = rip->getDialogId() ;
                 if (sip->sip_cseq->cs_method == sip_method_bye && (sip->sip_status->st_status == 407 || sip->sip_status->st_status == 401)) {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: NOT clearing dialog after receiving 401/407 response to BYE"  ;

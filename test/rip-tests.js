@@ -78,6 +78,7 @@ const run = (name, scenario, inCall) => {
       const dlgP = answer(srf);
       sippP = execCmd(`sipp -sf ./${scenario}.xml 127.0.0.1:5090 -m 1 -timeout 20s -timeout_error`,
         {cwd: './scenarios'});
+      sippP.catch(() => {}); // awaited below; don't let an early sipp failure crash the run
       const dlg = await dlgP;
       await withTimeout(inCall(t, dlg), 10000);
       await dlg.destroy();
