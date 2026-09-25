@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<!-- expects drachtio to have replaced the 'localhost' host in a Contact with no user part -->
+<scenario name="uas-options-contact-localhost">
+  <recv request="OPTIONS">
+    <action>
+      <ereg regexp="localhost" search_in="hdr" header="Contact:" check_it_inverse="true" assign_to="c1" />
+      <ereg regexp="sip:[0-9.]+:[0-9]+" search_in="hdr" header="Contact:" check_it="true" assign_to="c2" />
+      <assign assign_to="c1" variable="c1" />
+      <assign assign_to="c2" variable="c2" />
+    </action>
+  </recv>
+
+  <send>
+    <![CDATA[
+
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag01[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+</scenario>

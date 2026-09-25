@@ -426,14 +426,22 @@ namespace drachtio {
         char const *comment = NULL;
         int rc ;
 
+        if( uri.length() >= MAX_SIP_URI_LEN ) return false ;
+
         // buf gets passed into sip_name_addr_d which puts NULs in various locations so the url_t members can point to their bits
-        s = strncpy( buf, uri.c_str(), 255 ) ;
+        s = strcpy( buf, uri.c_str() ) ;
 
         // first we decode the string
         rc = sip_name_addr_d(home, &s, &display, url, &params, &comment) ;
         if( rc < 0 ) {  
             // no go: if we can't decode it then we have an invalid input
             return false ;
+        }
+
+        // only a host of exactly 'localhost' is a placeholder, e.g. not 'localhost.example.com'
+        if( !url->url_host || 0 != strcasecmp( url->url_host, "localhost" ) ) {
+            if( params ) su_free(home, (void *) params) ;
+            return true ;
         }
 
         // now we repoint host and port
@@ -847,15 +855,11 @@ namespace drachtio {
                 //well-known header
                 
                 //replace 'localhost' in certain headers with actual sip address:port
-                if( (
-                    (string::npos != hdrValue.find(":localhost") || string::npos != hdrValue.find("@localhost")) && 0 == hdr.compare("contact")
-                 ) || (
-                    string::npos != hdrValue.find("@localhost") && (
-                        0 == hdr.compare("from") ||
-                        0 == hdr.compare("to") ||
-                        0 == hdr.compare("p_asserted_identity")
-                    ) )
-                ) {
+                if( string::npos != hdrValue.find("localhost") && (0 == hdr.compare("from") || 
+                    0 == hdr.compare("contact") ||
+                    0 == hdr.compare("to") ||
+                    0 == hdr.compare("p_asserted_identity") ) ) {
+
                     DR_LOG(log_debug) << "makeTags - hdr '" << hdrName << "' replacing host with " << host;
                     replaceHostInUri( hdrValue, host.c_str(), port.c_str() ) ;
                 }

@@ -25,10 +25,11 @@ class App extends Emitter {
     });
   }
 
-  options(uri) {
+  options(uri, opts = {}) {
     return this.srf.request({
       uri,
-      method: 'OPTIONS'
+      method: 'OPTIONS',
+      headers: opts.headers
     });
   }
 
