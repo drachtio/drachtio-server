@@ -35,6 +35,18 @@
   },
   {
     "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uac", "function": "options", "args": "sip:127.0.0.1:5091", "opts": {"headers": {"Contact": "<sip:localhost>"}}},
+    "uas": {"name": "uas-options-contact-localhost.xml", "port": 5091},
+    "message": "uac: replaces localhost in a Contact with no user part"
+  },
+  {
+    "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
+    "script": {"name": "uac", "function": "options", "args": "sip:127.0.0.1:5091", "opts": {"headers": {"Contact": "<sip:foo@localhost.example.com>"}}},
+    "uas": {"name": "uas-options-contact-localhost-domain.xml", "port": 5091},
+    "message": "uac: does not replace a host that only starts with localhost"
+  },
+  {
+    "server": {"config": "drachtio.conf4.xml", "args": ["--memory-debug"]},
     "script": {"name": "uac", "function": "invite", "args": "sip:127.0.0.1:5092"},
     "uas": {"name": "uas-invite-delay.xml", "port": 5092},
     "message": "uac: handled delayed INVITE response"
