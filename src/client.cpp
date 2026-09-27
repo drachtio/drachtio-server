@@ -504,40 +504,33 @@ read_again:
 
     template<>
     void Client<socket_t>::async_connect() {
-        boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
         boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
-        tcp::resolver::iterator endpointIterator = resolver.resolve(query);
-        tcp::endpoint endpoint = *endpointIterator;
+        auto endpoints = resolver.resolve(m_host, m_port);
 
-        m_sock.async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
+        boost::asio::async_connect(m_sock, endpoints,
+            std::bind(&BaseClient::connect_handler, shared_from_this(),
+                std::placeholders::_1, std::placeholders::_2));
     }
 
     template<>
-    void Client<socket_t>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
+    void Client<socket_t>::connect_handler(const boost::system::error_code& ec, const tcp::endpoint& endpoint) {
         if( !ec ) {
             DR_LOG(log_debug) << "Client::connect_handler tcp - successfully connected to " <<
-            endpoint_address() << ":" << endpoint_port() ;
+            endpoint.address().to_string() << ":" << endpoint.port() ;
 
         m_controller.join( shared_from_this() ) ;
 
         setTcpKeepAlive(m_sock.native_handle());
 
         m_sock.async_read_some(boost::asio::buffer(m_readBuf),
-            std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1, 
+            std::bind( &BaseClient::read_handler, shared_from_this(), std::placeholders::_1,
             std::placeholders::_2 ) ) ;
 
         //TODO: set a timeout of 2 secs or so for remote side to authenticate
 
         }
-        else if( endpointIterator != tcp::resolver::iterator() ) {
-            DR_LOG(log_debug) << "Client::connect_handler tcp - failed to connecte to " <<
-            endpoint_address() << ":" << endpoint_port() ;
-            m_sock.close() ;
-            tcp::endpoint endpoint = *endpointIterator;
-            m_sock.async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
-        }
         else {
-            // final failure
+            // all endpoints exhausted
             DR_LOG(log_warning) << "Client::connect_handler tcp - unable to connect to " << m_host << ":" << m_port ;
             m_controller.outboundFailed(m_transactionId);
         }
@@ -575,32 +568,25 @@ read_again:
 
     template<>
     void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::async_connect() {
-        boost::asio::ip::tcp::resolver::query query(m_host, m_port) ;
         boost::asio::ip::tcp::resolver resolver(m_controller.getIOService());
-        tcp::resolver::iterator endpointIterator = resolver.resolve(query);
-        tcp::endpoint endpoint = *endpointIterator;
+        auto endpoints = resolver.resolve(m_host, m_port);
 
-        m_sock.lowest_layer().async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
+        boost::asio::async_connect(m_sock.lowest_layer(), endpoints,
+            std::bind(&BaseClient::connect_handler, shared_from_this(),
+                std::placeholders::_1, std::placeholders::_2));
     }
 
     template<>
-    void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::connect_handler(const boost::system::error_code& ec, tcp::resolver::iterator endpointIterator) {
+    void Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::connect_handler(const boost::system::error_code& ec, const tcp::endpoint& endpoint) {
         if( !ec ) {
-            DR_LOG(log_debug) << "Client::connect_handler tls - successfully connected to " << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
-                ":" << m_sock.lowest_layer().remote_endpoint().port() ;
+            DR_LOG(log_debug) << "Client::connect_handler tls - successfully connected to " <<
+                endpoint.address().to_string() << ":" << endpoint.port() ;
 
             m_controller.join( shared_from_this() ) ;
             m_sock.async_handshake(boost::asio::ssl::stream_base::client, std::bind(&BaseClient::handle_handshake, shared_from_this(), std::placeholders::_1));
         }
-        else if( endpointIterator != tcp::resolver::iterator() ) {
-            DR_LOG(log_debug) << "Client::connect_handler tls - failed to connect to "  << m_sock.lowest_layer().remote_endpoint().address().to_string() << 
-                ":" << m_sock.lowest_layer().remote_endpoint().port() ;
-            m_sock.lowest_layer().close() ;
-            tcp::endpoint endpoint = *endpointIterator;
-            m_sock.lowest_layer().async_connect(endpoint, std::bind(&BaseClient::connect_handler, shared_from_this(), std::placeholders::_1, ++endpointIterator));
-        }
         else {
-            // final failure
+            // all endpoints exhausted
             DR_LOG(log_warning) << "Client::connect_handler tls - unable to connect to " << m_host << ":" << m_port ;
             m_controller.outboundFailed(m_transactionId);
         }
