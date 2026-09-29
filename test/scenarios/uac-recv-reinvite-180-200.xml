@@ -12,7 +12,7 @@
       To: [service] <sip:[service]@[remote_ip]:[remote_port]>
       Call-ID: [call_id]
       CSeq: 1 INVITE
-      Contact: sip:sipp@[local_ip]:[local_port]
+      Contact: <sip:sipp@[local_ip]:[local_port];transport=[transport]>
       Max-Forwards: 70
       Subject: uac-recv-reinvite-180-200
       Content-Type: application/sdp
@@ -44,7 +44,7 @@
       To: [service] <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
       Call-ID: [call_id]
       CSeq: 1 ACK
-      Contact: sip:sipp@[local_ip]:[local_port]
+      Contact: <sip:sipp@[local_ip]:[local_port];transport=[transport]>
       Max-Forwards: 70
       Content-Length: 0
 
@@ -55,6 +55,7 @@
     <action>
       <ereg regexp=".*" search_in="hdr" header="Via:" assign_to="1" />
       <ereg regexp=".*" search_in="hdr" header="CSeq:" assign_to="2" />
+      <ereg regexp="[0-9]+" search_in="hdr" header="CSeq:" assign_to="reinvite_cseq" />
     </action>
   </recv>
 
@@ -81,7 +82,7 @@
       [last_To:]
       [last_Call-ID:]
       CSeq: [$2]
-      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Contact: <sip:sipp@[local_ip]:[local_port];transport=[transport]>
       Content-Length: [len]
 
     ]]>
@@ -96,7 +97,7 @@
       [last_To:]
       [last_Call-ID:]
       CSeq: [$2]
-      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Contact: <sip:sipp@[local_ip]:[local_port];transport=[transport]>
       Content-Type: application/sdp
       Content-Length: [len]
 
@@ -111,8 +112,17 @@
     ]]>
   </send>
 
+  <!-- the ACK must carry the re-INVITE's CSeq number (not that of a PRACK sent since) -->
   <recv request="ACK">
+    <action>
+      <ereg regexp="[0-9]+" search_in="hdr" header="CSeq:" assign_to="ack_cseq" />
+      <strcmp assign_to="cseq_cmp" variable="reinvite_cseq" variable2="ack_cseq" />
+      <test assign_to="cseq_mismatch" variable="cseq_cmp" compare="not_equal" value="0" />
+    </action>
   </recv>
+
+  <!-- a mismatch fails at the end: no recv may come before the BYE, sipp matches a message to the next recv -->
+  <nop test="cseq_mismatch" next="ack_cseq_mismatch" />
 
   <recv request="BYE">
   </recv>
@@ -130,5 +140,12 @@
 
     ]]>
   </send>
+
+  <nop next="done" />
+
+  <label id="ack_cseq_mismatch" />
+  <nop><action><exec int_cmd="stop_now" /></action></nop>
+
+  <label id="done" />
 
 </scenario>

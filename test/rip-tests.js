@@ -67,7 +67,7 @@ const lastCount = (log, label) => {
   return v;
 };
 
-const run = (name, scenario, inCall) => {
+const run = (name, scenario, inCall, {transport = 'u1'} = {}) => {
   if (process.env.ONLY && !name.includes(process.env.ONLY)) return;
   test(name, async(t) => {
     let srf, sippP;
@@ -76,13 +76,13 @@ const run = (name, scenario, inCall) => {
       await start(null, []);
       srf = await connect();
       const dlgP = answer(srf);
-      sippP = execCmd(`sipp -sf ./${scenario}.xml 127.0.0.1:5090 -m 1 -timeout 20s -timeout_error`,
+      sippP = execCmd(`sipp -sf ./${scenario}.xml 127.0.0.1:5090 -t ${transport} -m 1 -timeout 20s -timeout_error`,
         {cwd: './scenarios'});
       sippP.catch(() => {}); // awaited below; don't let an early sipp failure crash the run
       const dlg = await dlgP;
       await withTimeout(inCall(t, dlg), 10000);
-      await dlg.destroy();
-      await sippP;
+      await withTimeout(dlg.destroy(), 5000);
+      await withTimeout(sippP, 25000);
       t.pass('sipp scenario completed');
     } catch (err) {
       t.fail(`failed with error ${err}`);
@@ -102,6 +102,12 @@ run('re-INVITE answered 100, 180, 200 completes', 'uac-recv-reinvite-180-200', a
   const sdp = await dlg.modify(newSdp(dlg));
   t.ok(sdp, 'app gets the 200 OK after the 180');
 });
+
+// over TCP the re-INVITE's transaction is freed as soon as its 200 OK arrives, before the app's ACK
+run('re-INVITE over TCP answered 100, 180, 200 completes', 'uac-recv-reinvite-180-200', async(t, dlg) => {
+  const sdp = await dlg.modify(newSdp(dlg));
+  t.ok(sdp, 'app gets the 200 OK after the 180');
+}, {transport: 't1'});
 
 run('re-INVITE answered 100, 183 with SDP, 200 completes', 'uac-recv-reinvite-183-sdp-200', async(t, dlg) => {
   const sdp = await dlg.modify(newSdp(dlg));

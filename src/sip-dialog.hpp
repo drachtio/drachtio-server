@@ -221,6 +221,7 @@ namespace drachtio {
 		}
 
 		uint32_t getSeq(void) { return m_seq; }
+		void setSeq(uint32_t seq) { m_seq = seq; }
 		void clearSeq(void) {m_seq = 0;}
         
     void addIncomingRequestTransaction(std::string& txnId) {
