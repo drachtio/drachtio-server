@@ -353,6 +353,16 @@ namespace drachtio {
         if (isUpdate && !client) {
           client = this->findClientForNetTransaction( transactionId );
         }
+        if (sip_method_subscribe == sip->sip_request->rq_method && !client) {
+            client = this->selectClientForRequestOutsideDialog( method_name.c_str() ) ;
+            if (client) {
+                std::lock_guard<std::mutex> l( m_lock ) ;
+                m_mapDialogs.erase( dialogId ) ;
+                m_mapDialogs.insert( mapId2Client::value_type(dialogId, client_weak_ptr(client) ) ) ;
+                DR_LOG(log_info) << "ClientController::route_request_inside_dialog - rebound subscription dialog " <<
+                    dialogId << " to a new client for " << method_name ;
+            }
+        }
     
         if( !client ) {
             DR_LOG(log_warning) << "ClientController::route_request_inside_dialog - unable to find client for dialog (may be invite-in-progress): " << dialogId  ;
