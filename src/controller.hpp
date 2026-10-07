@@ -170,9 +170,9 @@ namespace drachtio {
     void setLastRecvStackMessage(shared_ptr<StackMsg> msg) { m_lastRecvMsg = msg; }
 
     bool isDaemonized(void) { return m_bDaemonize; }
-    void cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) ; 
-    void flushTportForSubscription( const char* user, const char* host ) ; 
-    std::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host ) ;
+    void cacheTportForSubscription( const char* user, const char* host, const char* port, int expires, tport_t* tp ) ;
+    void flushTportForSubscription( const char* user, const char* host, const char* port ) ;
+    std::shared_ptr<UaInvalidData> findTportForSubscription( const char* user, const char* host, const char* port ) ;
 
     /**
      * Contact alias table: (protocol, peer source address, advertised Contact host:port) ->

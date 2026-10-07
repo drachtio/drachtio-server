@@ -16,7 +16,7 @@ namespace drachtio {
 
   class UaInvalidData {
     public: 
-      UaInvalidData(const char* szUser, const char* szHost, int expires, tport_t* tp ) : m_tp(tp) {
+      UaInvalidData(const char* szUser, const char* szHost, const char* szPort, int expires, tport_t* tp ) : m_port(szPort ? szPort : ""), m_tp(tp) {
         memset(m_szUser, 0, URI_LEN);
         memset(m_szHost, 0, URI_LEN);
         if (szUser) memcpy( m_szUser, szUser, std::min(URI_LEN - 1, (int) strlen(szUser))) ;
@@ -34,6 +34,7 @@ namespace drachtio {
         memset(m_szHost, 0, URI_LEN);
         if (::strlen(ua.m_szUser)) strcpy(m_szUser, ua.m_szUser) ;
         strcpy(m_szHost, ua.m_szHost) ;
+        m_port = ua.m_port ;
         m_expires = ua.m_expires ;
         tport_ref(m_tp) ;   
         return *this ;       
@@ -46,6 +47,11 @@ namespace drachtio {
           uri.append( "@" ) ;
         }
         uri.append( m_szHost ) ;
+        // Accounts on one device can share user and host while advertising different ports.
+        if (!m_port.empty()) {
+          uri.append("|") ;
+          uri.append(m_port) ;
+        }
       }
       tport_t* getTport(void) { return m_tp; }
       void setTport(tport_t* tp);
@@ -59,6 +65,7 @@ namespace drachtio {
 
       char m_szUser[URI_LEN] ;
       char m_szHost[URI_LEN] ;
+      string m_port ;
       time_t m_expires ;
       tport_t* m_tp ;
   } ;

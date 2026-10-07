@@ -1940,10 +1940,10 @@ namespace drachtio {
         return parseTransportDescription( desc, p, host, port ) ;
     }
 
-    void DrachtioController::cacheTportForSubscription( const char* user, const char* host, int expires, tport_t* tp ) {
+    void DrachtioController::cacheTportForSubscription( const char* user, const char* host, const char* port, int expires, tport_t* tp ) {
         if (host == nullptr) return;
         string uri ;
-        std::shared_ptr<UaInvalidData> pUa = std::make_shared<UaInvalidData>(user, host, expires, tp) ;
+        std::shared_ptr<UaInvalidData> pUa = std::make_shared<UaInvalidData>(user, host, port, expires, tp) ;
         pUa->getUri( uri ) ;
 
         std::pair<mapUri2InvalidData::iterator, bool> ret = m_mapUri2InvalidData.insert( mapUri2InvalidData::value_type( uri, pUa) );  
@@ -2065,7 +2065,7 @@ namespace drachtio {
         return tp;
     }
 
-    void DrachtioController::flushTportForSubscription( const char* user, const char* host ) {
+    void DrachtioController::flushTportForSubscription( const char* user, const char* host, const char* port ) {
         if (host == nullptr) return;
         string uri = "" ;
         if (user) {
@@ -2073,6 +2073,10 @@ namespace drachtio {
             uri.append("@") ;
         }
         uri.append(host) ;
+        if (port && *port) {
+            uri.append("|") ;
+            uri.append(port) ;
+        }
 
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
         if( m_mapUri2InvalidData.end() != it ) {
@@ -2080,7 +2084,7 @@ namespace drachtio {
         }
         DR_LOG(log_info) << "DrachtioController::flushTportForSubscription "  << uri <<  ", count is now: " << m_mapUri2InvalidData.size();
     }
-    std::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host ) {
+    std::shared_ptr<UaInvalidData> DrachtioController::findTportForSubscription( const char* user, const char* host, const char* port ) {
         std::shared_ptr<UaInvalidData> p ;
         string uri = "" ;
 
@@ -2089,6 +2093,10 @@ namespace drachtio {
             uri.append("@") ;
         }
         uri.append(host) ;
+        if (port && *port) {
+            uri.append("|") ;
+            uri.append(port) ;
+        }
 
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
         if( m_mapUri2InvalidData.end() != it ) {

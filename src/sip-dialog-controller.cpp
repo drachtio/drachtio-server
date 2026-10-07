@@ -257,7 +257,7 @@ namespace drachtio {
             std::shared_ptr<UaInvalidData> pRegBinding ;
             if( remoteTarget && remoteTarget->m_url->url_host ) {
                 pRegBinding = m_pController->findTportForSubscription(
-                    remoteTarget->m_url->url_user, remoteTarget->m_url->url_host ) ;
+                    remoteTarget->m_url->url_user, remoteTarget->m_url->url_host, remoteTarget->m_url->url_port ) ;
             }
 
             /* The pin taken at dialog creation is never revisited, so a peer that silently
@@ -561,7 +561,7 @@ namespace drachtio {
                 !tport_is_dgram(tp) /*&& NULL != strstr( sip_request->rq_url->url_host, ".invalid")*/ ) {
 
                 std::shared_ptr<UaInvalidData> pData = 
-                    m_pController->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host ) ;
+                    m_pController->findTportForSubscription( sip_request->rq_url->url_user, sip_request->rq_url->url_host, sip_request->rq_url->url_port ) ;
 
                 if( NULL != pData ) {
                     forceTport = true ;
@@ -1210,10 +1210,10 @@ namespace drachtio {
                                 
                                 add = expires > 0 ;
                                 if( add ) {
-                                    theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, tp ) ;
+                                    theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, contact->m_url->url_port, expires, tp ) ;
                                 }
                                 else if (contact->m_url->url_host) {
-                                    theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                                    theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, contact->m_url->url_port ) ;
                                 }
                             }
                             else {
@@ -1745,7 +1745,7 @@ namespace drachtio {
                 tport_t* byeTport = dlg->getTport() ;
                 if (byeTarget && byeTarget->m_url->url_host &&
                         !m_pController->findTportForSubscription(
-                            byeTarget->m_url->url_user, byeTarget->m_url->url_host )) {
+                            byeTarget->m_url->url_user, byeTarget->m_url->url_host, byeTarget->m_url->url_port )) {
                     byeTport = currentTportForDialog(dlg, byeTarget, "BYE") ;
                 }
 
