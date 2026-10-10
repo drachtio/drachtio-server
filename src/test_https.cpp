@@ -22,7 +22,7 @@ class client
 public:
   client(boost::asio::io_service& io_service,
       boost::asio::ssl::context& context,
-      boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
+      const boost::asio::ip::tcp::resolver::results_type& endpoints,
       const char* servername)
     : socket_(io_service, context)
   {
@@ -32,7 +32,7 @@ public:
     socket_.set_verify_callback(
         std::bind(&client::verify_certificate, this, std::placeholders::_1, std::placeholders::_2));
 
-    boost::asio::async_connect(socket_.lowest_layer(), endpoint_iterator, std::bind(&client::handle_connect, this, std::placeholders::_1));
+    boost::asio::async_connect(socket_.lowest_layer(), endpoints, std::bind(&client::handle_connect, this, std::placeholders::_1));
   }
 
   bool verify_certificate(bool preverified,
@@ -131,15 +131,14 @@ int main(int argc, char* argv[])
     boost::asio::io_service io_service;
 
     boost::asio::ip::tcp::resolver resolver(io_service);
-    boost::asio::ip::tcp::resolver::query query(argv[1], argv[2]);
-    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
+    auto endpoints = resolver.resolve(argv[1], argv[2]);
 
     boost::asio::ssl::context ctx(boost::asio::ssl::context::sslv23);
 
     //ctx.load_verify_file("ca.pem");
     ctx.set_default_verify_paths() ;
 
-    client c(io_service, ctx, iterator, argv[1]);
+    client c(io_service, ctx, endpoints, argv[1]);
 
     io_service.run();
   }
