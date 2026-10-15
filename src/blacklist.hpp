@@ -52,7 +52,7 @@ namespace drachtio {
   private:
 
     std::thread                     m_thread ;
-    boost::asio::io_context         m_ioservice;
+    boost::asio::io_context         m_iocontext;
     std::string                     m_masterName;
     std::string                     m_sentinels;
     std::string                     m_redisAddress;

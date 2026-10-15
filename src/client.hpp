@@ -55,7 +55,7 @@ namespace drachtio {
         virtual void start() = 0;
 
         virtual void async_connect() = 0;
-        virtual void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator) = 0;
+        virtual void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::results_type::iterator endpointIterator) = 0;
         virtual void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) = 0;
         virtual void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) = 0;
 
@@ -124,7 +124,7 @@ namespace drachtio {
         ~Client() {}
 
         void async_connect();
-        void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::iterator endpointIterator);
+        void connect_handler(const boost::system::error_code& ec, boost::asio::ip::tcp::resolver::results_type::iterator endpointIterator);
         void read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
         void write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred );
 
