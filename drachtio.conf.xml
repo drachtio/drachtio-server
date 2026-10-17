@@ -1,6 +1,6 @@
 <drachtio>
 
-    <!-- udp port to listen on for client connections (default 9022), and shared secret used to authenticate clients -->
+    <!-- tcp port to listen on for client connections (default 9022), and shared secret used to authenticate clients -->
 	<admin port="9022" secret="cymru">127.0.0.1</admin>
 
     <!-- the server can either accept inbound connections from node apps, or make outbound requests
@@ -38,7 +38,7 @@
             example responses:
 
             {
-                "action": "reject":
+                "action": "reject",
                 "data": {
                     "status": 503,
                     "reason": "Max Calls Exceeded"
@@ -46,33 +46,33 @@
             }
 
             {
-                "action": "redirect":
+                "action": "redirect",
                 "data": {
-                    "contacts": [
+                    "contact": [
                         "sip:foo@bar.com"
                     ]
                 }
             }
 
             {
-                "action": "proxy":
+                "action": "proxy",
                 "data": {
                     "destination": [
                         "sip:foo@bar.com"
                     ],
-                    recordRoute: true
+                    "recordRoute": true
                 }
             }
 
             {
-                "action": "route":
+                "action": "route",
                 "data": {
-                    "url": "call-recording.default.svc.cluster.local:4000"
+                    "uri": "call-recording.default.svc.cluster.local:4000"
                 }
             }
 
             {
-                "action": "route":
+                "action": "route",
                 "data": {
                     "tag": "my-conferencing-app"
                 }
@@ -130,8 +130,9 @@
         </tls>
         -->
 
-        <!-- if you want to increase the default mtu size for udp packets; stack will force tcp when sending larger packets
-        <mtu-size>4096</mtu-size>
+        <!-- to increase the default mtu size for udp packets, start drachtio with --mtu 4096
+             or set DRACHTIO_UDP_MTU=4096. This setting is not currently read from XML.
+             The stack will force tcp when sending larger packets.
         -->
 
         <!-- session timer (RFC 4028) defaults.
