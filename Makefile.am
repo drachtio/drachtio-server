@@ -14,7 +14,7 @@ drachtio_SOURCES= src/main.cpp src/controller.cpp src/drachtio-config.cpp \
 	src/sip-dialog-controller.cpp src/sip-proxy-controller.cpp src/pending-request-controller.cpp \
 	src/timer-queue.cpp src/cdr.cpp src/timer-queue-manager.cpp src/sip-transports.cpp \
 	src/request-handler.cpp src/request-router.cpp src/stats-collector.cpp \
-	src/invite-in-progress.cpp src/blacklist.cpp src/ua-invalid.cpp
+	src/invite-in-progress.cpp src/blacklist.cpp src/ua-invalid.cpp src/sighup.cpp
 
 drachtio_CPPFLAGS= -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/su -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/nta \
  -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/sip -I${srcdir}/deps/sofia-sip/libsofia-sip-ua/msg \
