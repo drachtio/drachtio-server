@@ -97,6 +97,7 @@ namespace drachtio {
 
 #include "cdr.hpp"
 #include "controller.hpp"
+#include "sighup.hpp"
 
 /* clone static functions, used to post a message into the main su event loop from the worker client controller thread */
 namespace {
@@ -1457,6 +1458,8 @@ namespace drachtio {
         /* start a timer */
         m_timer = su_timer_create( su_root_task(m_root), 30000) ;
         su_timer_set_for_ever(m_timer, watchdogTimerHandler, this) ;
+
+        Sighup::start(m_root, m_nta) ;
  
         su_root_run( m_root ) ;
         DR_LOG(log_notice) << "Sofia event loop ended"  ;

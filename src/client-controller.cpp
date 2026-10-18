@@ -58,36 +58,61 @@ namespace drachtio {
         m_acceptor_tcp(m_ioservice, m_endpoint_tcp), 
         m_endpoint_tls(boost::asio::ip::make_address(address.c_str()), tlsPort),
         m_acceptor_tls(m_ioservice, m_endpoint_tls), 
-        m_context(boost::asio::ssl::context::sslv23),
+        m_chainFile(chainFile), m_certFile(certFile), m_keyFile(keyFile), m_dhFile(dhFile),
         m_tcpPort(tcpPort), m_tlsPort(tlsPort) {
 
-        if (0 != tlsPort) {
-            m_context.set_options(
+        m_context = makeTlsContext();
+        DR_LOG(log_debug) << "ClientController::ClientController done setting tls options: ";
+    }
+
+    // throws boost::system::system_error if a file cannot be loaded or the key does not match the certificate
+    std::shared_ptr<boost::asio::ssl::context> ClientController::makeTlsContext() {
+        auto context = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23);
+
+        if (0 != m_tlsPort) {
+            context->set_options(
                 boost::asio::ssl::context::default_workarounds | 
                 boost::asio::ssl::context::no_sslv2 | 
                 boost::asio::ssl::context::single_dh_use
             );
             
-            if (!chainFile.empty()) {
-                DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << chainFile  ;
-                m_context.use_certificate_chain_file(chainFile.c_str());
-                if (!certFile.empty()) {
-                    DR_LOG(log_debug) << "ClientController::ClientController setting tls cert file: " << certFile  ;
-                    m_context.use_certificate_file(certFile.c_str(), boost::asio::ssl::context::pem);
+            if (!m_chainFile.empty()) {
+                DR_LOG(log_debug) << "ClientController::makeTlsContext setting tls chain file: " << m_chainFile  ;
+                context->use_certificate_chain_file(m_chainFile.c_str());
+                if (!m_certFile.empty()) {
+                    DR_LOG(log_debug) << "ClientController::makeTlsContext setting tls cert file: " << m_certFile  ;
+                    context->use_certificate_file(m_certFile.c_str(), boost::asio::ssl::context::pem);
                 }
             }
             else {
-                DR_LOG(log_debug) << "ClientController::ClientController setting tls chain file: " << certFile  ;
-                m_context.use_certificate_chain_file(certFile.c_str());
+                DR_LOG(log_debug) << "ClientController::makeTlsContext setting tls chain file: " << m_certFile  ;
+                context->use_certificate_chain_file(m_certFile.c_str());
             }
-            DR_LOG(log_debug) << "ClientController::ClientController setting tls dh file: " << dhFile  ;
-            m_context.use_tmp_dh_file(dhFile.c_str());
-            DR_LOG(log_debug) << "ClientController::ClientController setting tls private key file: " << keyFile  ;
-            m_context.use_private_key_file(keyFile.c_str(), boost::asio::ssl::context::pem);
+            DR_LOG(log_debug) << "ClientController::makeTlsContext setting tls dh file: " << m_dhFile  ;
+            context->use_tmp_dh_file(m_dhFile.c_str());
+            DR_LOG(log_debug) << "ClientController::makeTlsContext setting tls private key file: " << m_keyFile  ;
+            context->use_private_key_file(m_keyFile.c_str(), boost::asio::ssl::context::pem);
 
-            //m_context.set_verify_mode(boost::asio::ssl::verify_none);
+            //context->set_verify_mode(boost::asio::ssl::verify_none);
         }
-        DR_LOG(log_debug) << "ClientController::ClientController done setting tls options: ";
+        return context;
+    }
+
+    void ClientController::reloadTlsFiles() {
+        if (0 == m_tlsPort) return;
+
+        // on the io thread, which owns the tls acceptor; outbound connections may read m_context from elsewhere
+        boost::asio::post(m_ioservice, [self = shared_from_this()]() {
+            try {
+                std::atomic_store(&self->m_context, self->makeTlsContext());
+            } catch (const boost::system::system_error& e) {
+                DR_LOG(log_error) << "ClientController::reloadTlsFiles - keeping the old admin port certificate: " << e.what();
+                return;
+            }
+            // the pending accept was set up with the old context: start it again with the new one
+            self->m_acceptor_tls.cancel();
+            DR_LOG(log_notice) << "ClientController::reloadTlsFiles - reloaded the admin port tls certificate";
+        });
     }
 
     void ClientController::start() {
@@ -168,7 +193,7 @@ namespace drachtio {
 
 	void ClientController::start_accept_tls() {
         DR_LOG(log_debug) << "ClientController::start_accept_tls"   ;
-        Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p = new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>(m_ioservice, m_context, *this);
+        Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p = new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>(m_ioservice, *std::atomic_load(&m_context), *this);
 		client_ptr new_session(p) ;
 		m_acceptor_tls.async_accept( p->socket().lowest_layer(), std::bind(&ClientController::accept_handler_tls, shared_from_this(), new_session, std::placeholders::_1));
     }
@@ -180,7 +205,7 @@ namespace drachtio {
 
     void ClientController::makeOutboundConnection( const string& transactionId, const string& host, const string& port, const string& transport ) {
         if (0 == transport.compare("tls")) {
-            Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p =  new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>( m_ioservice, m_context, *this, transactionId, host, port ) ;
+            Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>* p =  new Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>( m_ioservice, *std::atomic_load(&m_context), *this, transactionId, host, port ) ;
             client_ptr new_session(p) ;
             p->async_connect() ;
         }

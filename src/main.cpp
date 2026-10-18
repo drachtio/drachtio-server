@@ -24,13 +24,14 @@ THE SOFTWARE.
 #define DRACHTIO_MAIN
 
 #include "controller.hpp"
+#include "sighup.hpp"
 #include <stdlib.h>
 #include <time.h>
 
 using namespace drachtio ;
 
 void handleSigHup( int signal ) {
-	theOneAndOnlyController->handleSigHup( signal ) ;
+	drachtio::Sighup::notify() ;   /* the work runs on the sofia thread */
 }
 void handleSigTerm( int signal ) {
   theOneAndOnlyController->handleSigTerm( signal ) ;  

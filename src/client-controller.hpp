@@ -127,6 +127,9 @@ namespace drachtio {
 
     std::shared_ptr<SipDialogController> getDialogController(void) ;
 
+    // re-read the admin port's TLS certificate and key; connections already open keep theirs
+    void reloadTlsFiles(void) ;
+
     //void sendSipMessageToClient( client_ptr client, const string& transactionId, const string& rawSipMsg, const SipMsgData_t& meta );
 
   protected:
@@ -150,6 +153,7 @@ namespace drachtio {
     void accept_handler_tcp( client_ptr session, const boost::system::error_code& ec) ;
     void accept_handler_tls( client_ptr session, const boost::system::error_code& ec) ;
     void stop() ;
+    std::shared_ptr<boost::asio::ssl::context> makeTlsContext(void) ;
 
     client_ptr findClientForDialog_nolock( const string& dialogId ) ;
 
@@ -162,7 +166,8 @@ namespace drachtio {
     boost::asio::ip::tcp::acceptor  m_acceptor_tcp ;
     boost::asio::ip::tcp::endpoint  m_endpoint_tls;
     boost::asio::ip::tcp::acceptor  m_acceptor_tls ;
-    boost::asio::ssl::context m_context;
+    std::shared_ptr<boost::asio::ssl::context> m_context;
+    string m_chainFile, m_certFile, m_keyFile, m_dhFile;
     unsigned int m_tcpPort, m_tlsPort;
 
     typedef std::unordered_set<client_ptr> set_of_clients ;
