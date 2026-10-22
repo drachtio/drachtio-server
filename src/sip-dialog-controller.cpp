@@ -1406,8 +1406,21 @@ namespace drachtio {
                     }
                     else {
                         DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
+                        // Contact is required on a 2xx and on the 1xx that establishes the
+                        // dialog (RFC 3261 12.1.1), including an unreliable 180/183. Do not
+                        // add it again on a later 1xx once an early dialog exists. 100
+                        // Trying must not carry one. Reliable 1xx already adds Contact above.
+                        bool bAddContact = code >= 200 && code < 300;
+                        if (!bAddContact && code > 100 && code < 200 &&
+                            sip->sip_request->rq_method == sip_method_invite) {
+                            msg_t* prev = nta_incoming_getresponse(irq);
+                            sip_t* prevSip = prev ? sip_object(prev) : NULL;
+                            bool prevHadContact = prevSip && prevSip->sip_contact;
+                            if (prev) msg_destroy(prev);
+                            bAddContact = !prevHadContact;
+                        }
                         rc = nta_incoming_treply( irq, code, status
-                            ,TAG_IF( code >= 200 && code < 300 && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
+                            ,TAG_IF( bAddContact && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
                             ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
                             ,TAG_IF(!contentType.empty(), SIPTAG_CONTENT_TYPE_STR(contentType.c_str()))
                             ,TAG_IF(sessionExpires, SIPTAG_SESSION_EXPIRES(sessionExpires))
