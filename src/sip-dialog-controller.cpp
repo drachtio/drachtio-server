@@ -1406,19 +1406,16 @@ namespace drachtio {
                     }
                     else {
                         DR_LOG(log_debug) << "Sending " << dec << code << " response (not reliably)  on irq " << hex << irq  ;
-                        // Contact is required on a 2xx and on the 1xx that establishes the
-                        // dialog (RFC 3261 12.1.1), including an unreliable 180/183. Do not
-                        // add it again on a later 1xx once an early dialog exists. 100
-                        // Trying must not carry one. Reliable 1xx already adds Contact above.
-                        bool bAddContact = code >= 200 && code < 300;
-                        if (!bAddContact && code > 100 && code < 200 &&
-                            sip->sip_request->rq_method == sip_method_invite) {
-                            msg_t* prev = nta_incoming_getresponse(irq);
-                            sip_t* prevSip = prev ? sip_object(prev) : NULL;
-                            bool prevHadContact = prevSip && prevSip->sip_contact;
-                            if (prev) msg_destroy(prev);
-                            bAddContact = !prevHadContact;
-                        }
+                        // Contact is required on a 2xx and on every 1xx that can be the
+                        // message nta_incoming_getresponse echoes back (RFC 3261 12.1.1).
+                        // The client builds Dialog from that echoed message, which is the
+                        // latest response, not the first 1xx. A reliable 183 already has
+                        // Contact; a later unreliable 180 often does not, and that 180 is
+                        // what gets echoed. 100 Trying must not carry one. Reliable 1xx
+                        // already adds Contact above.
+                        bool bAddContact = (code >= 200 && code < 300) ||
+                            (code > 100 && code < 200 &&
+                             sip->sip_request->rq_method == sip_method_invite);
                         rc = nta_incoming_treply( irq, code, status
                             ,TAG_IF( bAddContact && !hasCustomContact, SIPTAG_CONTACT_STR(contact.c_str()))
                             ,TAG_IF(!body.empty(), SIPTAG_PAYLOAD_STR(body.c_str()))
