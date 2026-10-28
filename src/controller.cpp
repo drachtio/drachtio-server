@@ -1653,6 +1653,10 @@ namespace drachtio {
                     case sip_method_notify:
                     case sip_method_subscribe:
                     case sip_method_publish:
+                    // out-of-dialog REFER (RFC 7647 §4: a REFER that may create an implicit subscription is sent
+                    // outside of any dialog and identifies the target dialog with Target-Dialog, RFC 4538). A UA
+                    // accepting REFER MUST be able to process it, so route it to the application like SUBSCRIBE.
+                    case sip_method_refer:
                     {
                         if( m_pPendingRequestController->isRetransmission( sip ) ||
                             m_pProxyController->isRetransmission( sip ) ) {
@@ -1804,7 +1808,10 @@ namespace drachtio {
             return false;
         }
 
-        if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ) {
+        // REFER creates an implicit subscription (RFC 3515 §2.4.4, RFC 6665 §4.5) — set up a leg like SUBSCRIBE so the
+        // application can send NOTIFYs within the dialog its 2xx creates.
+        if( sip_method_invite == sip->sip_request->rq_method || sip_method_subscribe == sip->sip_request->rq_method ||
+            sip_method_refer == sip->sip_request->rq_method ) {
 
             nta_incoming_t* irq = nta_incoming_create( m_nta, NULL, msg, sip, NTATAG_TPORT(tp), TAG_END() ) ;
             if( NULL == irq ) {
