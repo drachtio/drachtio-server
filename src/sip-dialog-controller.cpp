@@ -1519,6 +1519,15 @@ namespace drachtio {
                                 this->addDialog( dlg ) ;
                                 }
                             }
+                            else if( sip_method_invite == nta_incoming_method(irq) && code >= 300 ) {
+                                /* A non-2xx final response ends the INVITE without creating a dialog
+                                   (RFC 3261 12.1, 17.2.1); the stack absorbs the ACK and retransmits the
+                                   response on its own. Retire the leg now: left in place it would match
+                                   a new INVITE with the same Call-ID and From tag and no To tag, e.g. a
+                                   retry with credentials after a 401/407 that overtakes the ACK, which
+                                   would then be rejected with 491 */
+                                bClearIIP = true ;
+                            }
 
                             // sofia handles retransmits for us for final failures, but not for success
                             // TODO: figure out why this is
