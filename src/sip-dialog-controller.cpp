@@ -1509,12 +1509,13 @@ namespace drachtio {
                             failMsg = "Unknown server error sending response" ;
                         }
                         else {
-                            if( sip_method_subscribe == nta_incoming_method(irq) ) {
+                            if( sip_method_subscribe == nta_incoming_method(irq) || sip_method_refer == nta_incoming_method(irq) ) {
                                 bClearIIP = true ;
 
-                                // add dialog for SUBSCRIBE dialogs
+                                // add dialog for SUBSCRIBE dialogs, and for the implicit subscription of an out-of-dialog
+                                // REFER (RFC 7647 §5: a REFER is accepted with 200; a 202 is still treated as success)
                                 if( 202 == code || 200 == code ) {
-                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe with dialog id " <<  dlg->getDialogId()  ;
+                                DR_LOG(log_debug) << "SipDialogController::doRespondToSipRequest: adding dialog for subscribe/refer with dialog id " <<  dlg->getDialogId()  ;
                                 this->addDialog( dlg ) ;
                                 }
                             }
@@ -1999,6 +2000,11 @@ namespace drachtio {
                 else if( dialogId.length() > 0 ) {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: clearing dialog after receiving response to BYE or notify w/ subscription-state terminated"  ;
                     SD_Clear(m_dialogs, dialogId ) ;
+                    // a NOTIFY we sent ended the subscription (SUBSCRIBE, or the implicit one of a REFER): the client
+                    // controller only drops its dialog mapping on BYE responses, so drop it here as well
+                    if (sip->sip_cseq->cs_method == sip_method_notify) {
+                        m_pController->getClientController()->removeDialog( dialogId ) ;
+                    }
                 }
                 else {
                     DR_LOG(log_debug) << "SipDialogController::processResponseInsideDialog: got 200 OK to BYE but don't have dialog id"  ;
