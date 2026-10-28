@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<!-- out-of-dialog REFER identifying its dialog with Target-Dialog (RFC 7647 §4, RFC 4538).
+     Expects 200 (RFC 7647 §5) and then the NOTIFYs of the implicit subscription inside the
+     dialog the 200 created: From tag = To tag of the 200, ending with Subscription-State: terminated. -->
+<scenario name="uac out-of-dialog REFER">
+
+  <send retrans="500">
+    <![CDATA[
+
+      REFER sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
+      To: [service] <sip:[service]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 REFER
+      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Refer-To: <sip:transfer-target@[local_ip]:[local_port]>
+      Referred-By: <sip:sipp@[local_ip]:[local_port]>
+      Target-Dialog: original-call@[local_ip];local-tag=sipp-local;remote-tag=app-remote
+      Content-Length: 0
+
+      ]]>
+  </send>
+
+  <recv response="200" rtd="true">
+    <action>
+      <ereg regexp="tag=([^;>[:space:]]+)" search_in="hdr" header="To:" check_it="true" assign_to="m0,totag" />
+    </action>
+  </recv>
+
+  <recv request="NOTIFY">
+    <action>
+      <ereg regexp="tag=([^;>[:space:]]+)" search_in="hdr" header="From:" check_it="true" assign_to="m1,fromtag1" />
+      <ereg regexp="refer" search_in="hdr" header="Event:" check_it="true" assign_to="m2" />
+      <ereg regexp="SIP/2.0 100" search_in="body" check_it="true" assign_to="m3" />
+      <strcmp assign_to="cmp1" variable="totag" variable2="fromtag1" />
+      <test assign_to="bad1" variable="cmp1" compare="not_equal" value="0" />
+    </action>
+  </recv>
+
+  <send>
+    <![CDATA[
+
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <nop test="bad1" next="mismatch" />
+
+  <recv request="NOTIFY">
+    <action>
+      <ereg regexp="tag=([^;>[:space:]]+)" search_in="hdr" header="From:" check_it="true" assign_to="m4,fromtag2" />
+      <ereg regexp="terminated" search_in="hdr" header="Subscription-State:" check_it="true" assign_to="m5" />
+      <ereg regexp="SIP/2.0 200" search_in="body" check_it="true" assign_to="m6" />
+      <strcmp assign_to="cmp2" variable="totag" variable2="fromtag2" />
+      <test assign_to="bad2" variable="cmp2" compare="not_equal" value="0" />
+    </action>
+  </recv>
+
+  <send>
+    <![CDATA[
+
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <nop test="bad2" next="mismatch" />
+  <nop next="done" />
+
+  <!-- a NOTIFY outside the REFER's dialog: wait for something that never comes so the call fails -->
+  <label id="mismatch" />
+  <recv request="NOTIFY_TAG_MISMATCH" timeout="200" />
+
+  <label id="done" />
+
+  <Reference variables="m0,m1,m2,m3,m4,m5,m6" />
+
+</scenario>

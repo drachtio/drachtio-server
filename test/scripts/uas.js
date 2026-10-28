@@ -275,6 +275,42 @@ class App extends Emitter {
     });
   }
 
+  // out-of-dialog REFER (RFC 7647 §4): answer 200 (RFC 7647 §5) and send the NOTIFYs of the implicit
+  // subscription inside the dialog that 200 created. srf.createUAS would answer 202, so build the Dialog here.
+  acceptOutOfDialogRefer() {
+    return new Promise((resolve, reject) => {
+      this.srf.refer((req, res) => {
+        if (!req.has('Target-Dialog')) {
+          res.send(400);
+          return reject(new Error('REFER without Target-Dialog'));
+        }
+        res.send(200, (err, sent) => {
+          if (err) return reject(err);
+          const dlg = new Srf.Dialog(this.srf, 'uas', {req, res, sent});
+          this.srf.addDialog(dlg);
+          const notify = (state, frag) => dlg.request({
+            method: 'NOTIFY',
+            headers: {
+              'Event': 'refer',
+              'Subscription-State': state,
+              'Content-Type': 'message/sipfrag;version=2.0'
+            },
+            body: `${frag}\r\n`
+          });
+          notify('active;expires=60', 'SIP/2.0 100 Trying')
+            .then((r) => assert.equal(r.status, 200))
+            .then(() => notify('terminated;reason=noresource', 'SIP/2.0 200 OK'))
+            .then((r) => {
+              assert.equal(r.status, 200);
+              this.srf.removeDialog(dlg);
+              resolve();
+            })
+            .catch(reject);
+        });
+      });
+    });
+  }
+
   disconnect() {
     this.srf.disconnect();
     return this;
