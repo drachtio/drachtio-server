@@ -95,7 +95,10 @@ namespace {
         return pController->getDialogController()->processCancelOrAck( p, irq, sip) ;
     }
     int uasPrack( drachtio::SipDialogController *pController, nta_reliable_t *rel, nta_incoming_t *prack, sip_t const *sip) {
-        STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", "PRACK"}})
+        // sofia calls with no PRACK when it drops an unacknowledged reliable response
+        if (prack) {
+            STATS_COUNTER_INCREMENT(STATS_COUNTER_SIP_REQUESTS_IN, {{"method", "PRACK"}})
+        }
         return pController->processPrack( rel, prack, sip) ;
     }
    int response_to_request_outside_dialog( nta_outgoing_magic_t* p, nta_outgoing_t* request, sip_t const* sip ) {  
@@ -2212,6 +2215,16 @@ namespace drachtio {
         DR_LOG(log_debug) << "SipDialogController::processPrack: rel "  << std::hex << (void*) rel ;
         std::shared_ptr<IIP> iip ;
         if( IIP_FindByReliable( m_invitesInProgress, rel, iip) ) {
+            if( !prack ) {
+                /* no PRACK came: sofia flushes an unacknowledged reliable provisional response,
+                   with no request, when a final response goes out first or when the PRACK never
+                   comes (64*T1). Nothing to route to the client; only the response to forget. */
+                DR_LOG(log_info) << "SipDialogController::processPrack: reliable provisional response for transaction "
+                    << iip->getTransactionId() << " ended without a PRACK" ;
+                iip->destroyReliable(rel);
+                return 0 ;
+            }
+
             string transactionId ;
             generateUuid( transactionId ) ;
 
