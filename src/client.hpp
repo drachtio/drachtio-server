@@ -148,6 +148,7 @@ namespace drachtio {
         boost::asio::steady_timer m_writeTimer;
         unsigned int m_nWritesOutstanding;
         uint64_t m_writeTimerGen;
+        bool m_bClosed;   /* set once by forceClose(); makes eviction idempotent and drops late sends */
 
     private:
         Client();  // prohibited

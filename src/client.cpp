@@ -350,6 +350,8 @@ namespace drachtio {
     void Client<T,S>::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
 
         if( ec ) {
+            /* already evicted by forceClose(); don't leave() a second time */
+            if( m_bClosed ) return ;
             DR_LOG(log_debug) << "Client::read_handler - bouncing client due to error reading: " << ec ;
             m_controller.leave( shared_from_this() ) ;
             return ;
@@ -439,7 +441,7 @@ read_again:
         if( m_nWritesOutstanding > 0 ) m_nWritesOutstanding-- ;
         if( ec ) {
             /* operation_aborted means we are already tearing this client down */
-            if( boost::asio::error::operation_aborted == ec ) return ;
+            if( boost::asio::error::operation_aborted == ec || m_bClosed ) return ;
             DR_LOG(log_error) << "Client::write_handler - error writing to client " << m_strRemoteAddress << ":" <<
                 std::dec << m_nRemotePort << ", disconnecting: " << ec ;
             forceClose() ;
@@ -474,6 +476,11 @@ read_again:
 
     template<typename T, typename S>
     void Client<T,S>::forceClose() {
+        /* idempotent: closing the socket fails the pending read (-> leave()),
+           and any late send() to the closed socket fails its write with
+           bad_descriptor (-> forceClose()); neither may evict us twice */
+        if( m_bClosed ) return ;
+        m_bClosed = true ;
         m_writeTimerGen++ ;
         m_writeTimer.cancel() ;
         m_controller.leave( shared_from_this() ) ;
@@ -483,6 +490,12 @@ read_again:
 
     template<typename T, typename S>
     void Client<T,S>::send( const string& str ) {
+        if( m_bClosed ) {
+            DR_LOG(log_debug) << "Client::send - dropping message to evicted client " << m_strRemoteAddress << ":" <<
+                std::dec << m_nRemotePort ;
+            return ;
+        }
+
         int len = std::size(str);
 
         if (0 == len) {
@@ -508,7 +521,7 @@ read_again:
     template<>
     Client<socket_t>::Client(boost::asio::io_context& io_context, ClientController& controller) :
         BaseClient(controller),
-        m_sock(io_context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0) {
+        m_sock(io_context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
     }
 
     template<>
@@ -516,7 +529,7 @@ read_again:
         const string& transactionId, const string& host,
         const string& port ) :
         BaseClient(controller, transactionId, host, port),
-        m_sock(io_context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0) {
+        m_sock(io_context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
 
     }
 
@@ -581,14 +594,14 @@ read_again:
     template<>
     Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client(boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller) :
         BaseClient(controller),
-        m_sock(io_context, context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0) {
+        m_sock(io_context, context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
     }
 
     template<>
     Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client( boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller,
         const string& transactionId, const string& host, const string& port ) :
         BaseClient(controller, transactionId, host, port),
-        m_sock(io_context, context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0) {
+        m_sock(io_context, context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
 
         m_sock.set_verify_mode(boost::asio::ssl::verify_none);
     }
