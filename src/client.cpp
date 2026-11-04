@@ -350,6 +350,8 @@ namespace drachtio {
     void Client<T,S>::read_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
 
         if( ec ) {
+            /* already evicted by forceClose(); don't leave() a second time */
+            if( m_bClosed ) return ;
             DR_LOG(log_debug) << "Client::read_handler - bouncing client due to error reading: " << ec ;
             m_controller.leave( shared_from_this() ) ;
             return ;
@@ -393,17 +395,7 @@ namespace drachtio {
 
             /* send response if indicated */
             if( !msgResponse.empty() ) {
-                int len = std::size(msgResponse);
-                auto forthelifeofsend = std::make_shared<std::string>(
-                    std::to_string(len) + std::string("#") + msgResponse
-                );
-
-                auto self(shared_from_this());
-                DR_LOG(log_debug) << "Sending response: " << *forthelifeofsend << endl ;
-                boost::asio::async_write( m_sock, boost::asio::buffer( *forthelifeofsend ), 
-                    [self, forthelifeofsend](const boost::system::error_code& ec, std::size_t bytes_transferred) {
-                        DR_LOG(log_debug) << "Client::read_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
-                    } );
+                send( msgResponse ) ;
             }
             if( !bContinue ) {
                  DR_LOG(log_error) << "Client::read_handler - disconnecting client due to error processing client message" ;
@@ -446,15 +438,68 @@ read_again:
 
     template<typename T, typename S>
     void Client<T,S>::write_handler( const boost::system::error_code& ec, std::size_t bytes_transferred ) {
-        DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes: " << ec  ;
+        if( m_nWritesOutstanding > 0 ) m_nWritesOutstanding-- ;
+        if( ec ) {
+            /* operation_aborted means we are already tearing this client down */
+            if( boost::asio::error::operation_aborted == ec || m_bClosed ) return ;
+            DR_LOG(log_error) << "Client::write_handler - error writing to client " << m_strRemoteAddress << ":" <<
+                std::dec << m_nRemotePort << ", disconnecting: " << ec ;
+            forceClose() ;
+            return ;
+        }
+        DR_LOG(log_debug) << "Client::write_handler - wrote " << bytes_transferred << " bytes"  ;
+        if( 0 == m_nWritesOutstanding ) {
+            m_writeTimerGen++ ;
+            m_writeTimer.cancel() ;
+        }
+        else {
+            /* forward progress was made; give the remaining writes a fresh deadline */
+            startWriteTimer() ;
+        }
+    }
+
+    template<typename T, typename S>
+    void Client<T,S>::startWriteTimer() {
+        unsigned int secs = theOneAndOnlyController->getClientWriteTimeout() ;
+        if( 0 == secs ) return ;
+        uint64_t gen = ++m_writeTimerGen ;
+        m_writeTimer.expires_after( std::chrono::seconds(secs) ) ;
+        auto self( shared_from_this() ) ;
+        m_writeTimer.async_wait( [this, self, gen, secs]( const boost::system::error_code& ec ) {
+            if( ec || gen != m_writeTimerGen ) return ;
+            DR_LOG(log_error) << "Client::startWriteTimer - no write to client " << m_strRemoteAddress << ":" <<
+                std::dec << m_nRemotePort << " has completed in " << secs << " seconds with " <<
+                m_nWritesOutstanding << " writes outstanding; evicting unresponsive client" ;
+            forceClose() ;
+        } ) ;
+    }
+
+    template<typename T, typename S>
+    void Client<T,S>::forceClose() {
+        /* idempotent: closing the socket fails the pending read (-> leave()),
+           and any late send() to the closed socket fails its write with
+           bad_descriptor (-> forceClose()); neither may evict us twice */
+        if( m_bClosed ) return ;
+        m_bClosed = true ;
+        m_writeTimerGen++ ;
+        m_writeTimer.cancel() ;
+        m_controller.leave( shared_from_this() ) ;
+        boost::system::error_code ec ;
+        m_sock.lowest_layer().close( ec ) ;
     }
 
     template<typename T, typename S>
     void Client<T,S>::send( const string& str ) {
+        if( m_bClosed ) {
+            DR_LOG(log_debug) << "Client::send - dropping message to evicted client " << m_strRemoteAddress << ":" <<
+                std::dec << m_nRemotePort ;
+            return ;
+        }
+
         int len = std::size(str);
 
         if (0 == len) {
-            DR_LOG(log_info) << "Client::send - we are unable to send this message back to client" << str; 
+            DR_LOG(log_info) << "Client::send - we are unable to send this message back to client" << str;
             return;
         }
 
@@ -464,9 +509,10 @@ read_again:
 
         auto self(shared_from_this());
         DR_LOG(log_debug) << "Sending: " << *forthelifeofsend << endl ;
-        boost::asio::async_write( m_sock, boost::asio::buffer( *forthelifeofsend ), 
-            [self, forthelifeofsend](const boost::system::error_code& ec, std::size_t bytes_transferred) {
-                DR_LOG(log_debug) << "Client::send - wrote " << bytes_transferred << " bytes: " << ec  ;
+        if( 0 == m_nWritesOutstanding++ ) startWriteTimer() ;
+        boost::asio::async_write( m_sock, boost::asio::buffer( *forthelifeofsend ),
+            [this, self, forthelifeofsend](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+                write_handler( ec, bytes_transferred ) ;
             } );
     }
 
@@ -475,15 +521,15 @@ read_again:
     template<>
     Client<socket_t>::Client(boost::asio::io_context& io_context, ClientController& controller) :
         BaseClient(controller),
-        m_sock(io_context) {
+        m_sock(io_context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
     }
 
     template<>
     Client<socket_t>::Client( boost::asio::io_context& io_context, ClientController& controller,
-        const string& transactionId, const string& host, 
+        const string& transactionId, const string& host,
         const string& port ) :
         BaseClient(controller, transactionId, host, port),
-        m_sock(io_context) {
+        m_sock(io_context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
 
     }
 
@@ -548,14 +594,14 @@ read_again:
     template<>
     Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client(boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller) :
         BaseClient(controller),
-        m_sock(io_context, context) {
+        m_sock(io_context, context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
     }
 
     template<>
     Client<ssl_socket_t, ssl_socket_t::lowest_layer_type>::Client( boost::asio::io_context& io_context, boost::asio::ssl::context& context, ClientController& controller,
         const string& transactionId, const string& host, const string& port ) :
         BaseClient(controller, transactionId, host, port),
-        m_sock(io_context, context) {
+        m_sock(io_context, context), m_writeTimer(io_context), m_nWritesOutstanding(0), m_writeTimerGen(0), m_bClosed(false) {
 
         m_sock.set_verify_mode(boost::asio::ssl::verify_none);
     }

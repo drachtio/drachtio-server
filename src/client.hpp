@@ -135,9 +135,20 @@ namespace drachtio {
         T& socket() { return m_sock; }
 
     protected:
-        void send( const string& str );  
+        void send( const string& str );
+        void startWriteTimer();
+        void forceClose();
 
         T m_sock;
+
+        /* watchdog for wedged clients: if writes are outstanding and none
+           completes within the deadline, the client is evicted and its
+           socket closed.  m_writeTimerGen guards against a stale timer
+           handler that was already queued when the timer was re-armed. */
+        boost::asio::steady_timer m_writeTimer;
+        unsigned int m_nWritesOutstanding;
+        uint64_t m_writeTimerGen;
+        bool m_bClosed;   /* set once by forceClose(); makes eviction idempotent and drops late sends */
 
     private:
         Client();  // prohibited

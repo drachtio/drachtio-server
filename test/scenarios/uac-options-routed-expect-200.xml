@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<!-- Like uac-options-expect-200.xml, but with a User-Agent that does NOT   -->
+<!-- match the user-agent-options-auto-respond setting in drachtio.conf.xml -->
+<!-- so the OPTIONS must be routed to a connected client to get a 200.      -->
+
+<scenario name="Basic Sipstone UAC">
+
+  <send retrans="500">
+    <![CDATA[
+
+      OPTIONS sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
+      To: [service] <sip:[service]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 OPTIONS
+      Subject: uac-options-routed-expect-200
+      User-Agent: health-checker
+      Content-Length: 0
+
+      ]]>
+  </send>
+
+  <recv response="200" rtd="true">
+  </recv>
+
+</scenario>

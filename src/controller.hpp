@@ -210,6 +210,7 @@ namespace drachtio {
     unsigned int getTcpKeepaliveInterval() { return m_tcpKeepaliveSecs; }
     unsigned int getTportQueuesize() { return m_tportQueuesize; }
     unsigned int getTportMaxConsecutiveTimeouts() { return m_tportMaxConsecutiveTimeouts; }
+    unsigned int getClientWriteTimeout() { return m_clientWriteTimeoutSecs; }
 
 	private:
 
@@ -317,6 +318,10 @@ namespace drachtio {
     // opt-in dead-connection detection: max consecutive request timeouts on a
     // connection-oriented tport before it is force-closed. 0 = disabled (legacy).
     unsigned int m_tportMaxConsecutiveTimeouts;
+    // opt-in wedged-client detection: seconds that writes to an app connection
+    // may go without a single completion before the client is evicted and its
+    // socket closed. 0 = disabled (legacy).
+    unsigned int m_clientWriteTimeoutSecs;
 
     bool m_bContactAlias;
     struct ContactAliasTarget {
