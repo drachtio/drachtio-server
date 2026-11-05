@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<scenario name="Unanswered NOTIFY after BYE">
+  <send>
+    <![CDATA[
+      INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag[call_number]
+      To: <sip:[service]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=sipp 1 1 IN IP4 [local_ip]
+      s=-
+      c=IN IP4 [local_ip]
+      t=0 0
+      m=audio 15000 RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+    ]]>
+  </send>
+  <recv response="100" optional="true"/>
+  <recv response="200"/>
+  <send>
+    <![CDATA[
+      ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag[call_number]
+      To: <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 1 ACK
+      Max-Forwards: 70
+      Content-Length: 0
+    ]]>
+  </send>
+  <send start_txn="pending">
+    <![CDATA[
+      NOTIFY sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag[call_number]
+      To: <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 2 NOTIFY
+      Contact: <sip:sipp@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Event: refer
+      Subscription-State: terminated;reason=noresource
+      Content-Type: message/sipfrag
+      Content-Length: [len]
+
+      SIP/2.0 200 OK
+    ]]>
+  </send>
+
+  <send start_txn="bye">
+    <![CDATA[
+      BYE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]SIPpTag[call_number]
+      To: <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
+      Call-ID: [call_id]
+      CSeq: 3 BYE
+      Max-Forwards: 70
+      Content-Length: 0
+    ]]>
+  </send>
+  <recv response="200" response_txn="bye" timeout="5000"/>
+  <recv response="500" response_txn="pending" timeout="35000"/>
+</scenario>

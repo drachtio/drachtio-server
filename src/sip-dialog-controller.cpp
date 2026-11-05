@@ -1797,8 +1797,8 @@ namespace drachtio {
                 /* we are relying on the client to eventually respond. Clients should be treated as unreliable in this sense.
                  Store txnId with dlg so we can clear them if client has not responded by the time we tear down the dialog. 
                  
-                  BYE is an exception: it has its own cleanup timer below, because we clear the dialog
-                  when we receive BYE rather than when the application sends its response.
+                 BYE is an exception: it has its own cleanup timer below, because we clear the dialog
+                 when we receive BYE rather than when the application sends its response.
                  */
                 if (sip_method_bye != sip->sip_request->rq_method) {
                   dlg->addIncomingRequestTransaction(transactionId);
@@ -2522,11 +2522,19 @@ namespace drachtio {
         for (const std::string& txnId : txnIds) {
             nta_incoming_t* irq = nullptr;
             if (findIrqByTransactionId(txnId, irq)) {
+                if (nta_incoming_method(irq) == sip_method_invite) {
+                    // A re-INVITE must not outlive its dialog: late 2xx/ACK or PRACK needs the leg.
+                    findAndRemoveTransactionIdForIncomingRequest(txnId);
+                    m_pController->getClientController()->removeNetTransaction(txnId);
+                    nta_incoming_destroy(irq);
+                    continue;
+                }
                 // Dialog lifetime is not transaction lifetime. In particular, a final REFER NOTIFY
                 // may be followed immediately by BYE while the app is still responding to NOTIFY.
                 // Destroying its unanswered irq here would generate a spurious 500. Keep it routable
                 // for the same bounded interval as BYE; a normal response removes it from the map.
                 // Capture only the transaction ID, never an irq that the app may free in the meantime.
+                DR_LOG(log_debug) << "SipDialogController::clearDanglingIncomingRequests - deferring irq, txn " << txnId;
                 m_pTQM->addTimer("general-sip",
                     std::bind(&SipDialogController::timeoutIncomingRequest, this, txnId), NULL, 32000);
             }
