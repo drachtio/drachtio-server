@@ -1797,9 +1797,8 @@ namespace drachtio {
                 /* we are relying on the client to eventually respond. Clients should be treated as unreliable in this sense.
                  Store txnId with dlg so we can clear them if client has not responded by the time we tear down the dialog. 
                  
-                 BYE is an exception, because we clear the dialog when we receive the BYE (not when we send the 200 OK)
-                 and as a result if we added it below we would immediately delete the irq and generate a 500 before
-                 the client had a chance to respond.
+                  BYE is an exception: it has its own cleanup timer below, because we clear the dialog
+                  when we receive BYE rather than when the application sends its response.
                  */
                 if (sip_method_bye != sip->sip_request->rq_method) {
                   dlg->addIncomingRequestTransaction(transactionId);
@@ -1914,7 +1913,7 @@ namespace drachtio {
                     else if( sip_method_bye == sip->sip_request->rq_method ) {
                         // Schedule cleanup in case client never responds to BYE
                         m_pTQM->addTimer("general-sip",
-                            std::bind(&SipDialogController::timeoutBye, this, transactionId), NULL, 32000);
+                            std::bind(&SipDialogController::timeoutIncomingRequest, this, transactionId), NULL, 32000);
                     }
                     
                     // check for race condition where we received a BYE with a re-INVITE we sent still outstanding
@@ -2520,20 +2519,23 @@ namespace drachtio {
         return irq ;
     }
     void SipDialogController::clearDanglingIncomingRequests(std::vector<std::string> txnIds) {
-        auto count = txnIds.size();
         for (const std::string& txnId : txnIds) {
-            auto* irq = findAndRemoveTransactionIdForIncomingRequest(txnId);
-            DR_LOG(log_info) << "SipDialogController::clearDanglingIncomingRequests txn / irq: " << txnId << std::hex << " : " << (void *) irq;
-            m_pController->getClientController()->removeNetTransaction(txnId);
-            if (irq != nullptr) {
-                nta_incoming_destroy(irq);
+            nta_incoming_t* irq = nullptr;
+            if (findIrqByTransactionId(txnId, irq)) {
+                // Dialog lifetime is not transaction lifetime. In particular, a final REFER NOTIFY
+                // may be followed immediately by BYE while the app is still responding to NOTIFY.
+                // Destroying its unanswered irq here would generate a spurious 500. Keep it routable
+                // for the same bounded interval as BYE; a normal response removes it from the map.
+                // Capture only the transaction ID, never an irq that the app may free in the meantime.
+                m_pTQM->addTimer("general-sip",
+                    std::bind(&SipDialogController::timeoutIncomingRequest, this, txnId), NULL, 32000);
             }
         }
     }
-    void SipDialogController::timeoutBye(string transactionId) {
+    void SipDialogController::timeoutIncomingRequest(string transactionId) {
         nta_incoming_t* irq = findAndRemoveTransactionIdForIncomingRequest(transactionId);
         if (irq) {
-            DR_LOG(log_warning) << "SipDialogController::timeoutBye - destroying orphaned BYE irq, txn " << transactionId;
+            DR_LOG(log_warning) << "SipDialogController::timeoutIncomingRequest - destroying orphaned irq, txn " << transactionId;
             m_pController->getClientController()->removeNetTransaction(transactionId);
             nta_incoming_destroy(irq);
         }
