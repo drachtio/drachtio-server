@@ -316,6 +316,22 @@ class App extends Emitter {
     return this;
   }
 
+  // challenge the first INVITE with 407, answer the retry that carries credentials
+  challengeThenAccept(sdp) {
+    this.srf.invite((req, res) => {
+      if (!req.has('Proxy-Authorization')) {
+        return res.send(407, {
+          headers: {'Proxy-Authenticate': 'Digest realm="drachtio.test", nonce="5d0b7e6f2c8e4a1b", algorithm=MD5'}
+        });
+      }
+      const localSdp = sdp || req.body.replace(/m=audio\s+(\d+)/, 'm=audio 15000');
+      this.srf.createUAS(req, res, {localSdp})
+        .then((uas) => uas.on('destroy', () => debug('received BYE from uac')))
+        .catch((err) => console.error(`Uas: failed to connect: ${err}`));
+    });
+    return this;
+  }
+
   // bogus things an app could do
   answerTwice(sdp, delay) {
     this.srf.invite((req, res) => {
