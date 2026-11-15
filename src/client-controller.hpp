@@ -116,14 +116,12 @@ namespace drachtio {
 
     bool route_request_inside_invite( const string& rawSipMsg, const SipMsgData_t& meta, nta_incoming_t* prack, sip_t const *sip, const string& transactionId, const string& dialogId  = "" ) ;
 
-    void onTimer( const boost::system::error_code& e, boost::asio::deadline_timer* t ) ;
-
     void logStorageCount(bool bDetail = false) ;
 
     void getDialogIds(std::vector<std::string>& ids) ;
     void getNetTransactionIds(std::vector<std::string>& ids) ;
 
-    boost::asio::io_context& getIOService(void) { return m_ioservice ;}
+    boost::asio::io_context& getIOContext(void) { return m_iocontext ;}
 
     std::shared_ptr<SipDialogController> getDialogController(void) ;
 
@@ -161,7 +159,7 @@ namespace drachtio {
     std::thread                 m_thread ;
     std::mutex                m_lock ;
 
-    boost::asio::io_context m_ioservice;
+    boost::asio::io_context m_iocontext;
     boost::asio::ip::tcp::endpoint  m_endpoint_tcp;
     boost::asio::ip::tcp::acceptor  m_acceptor_tcp ;
     boost::asio::ip::tcp::endpoint  m_endpoint_tls;
