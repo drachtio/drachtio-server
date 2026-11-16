@@ -55,8 +55,6 @@
     ]]>
   </send>
 
-  <nop test="bad1" next="mismatch" />
-
   <recv request="NOTIFY">
     <action>
       <ereg regexp="tag=([^;>[:space:]]+)" search_in="hdr" header="From:" check_it="true" assign_to="m4,fromtag2" />
@@ -81,6 +79,9 @@
     ]]>
   </send>
 
+  <!-- tag checks only once both NOTIFYs are answered: sipp treats a message that arrives while
+       the scenario still sits on a nop as unexpected, and the NOTIFYs are sent back to back -->
+  <nop test="bad1" next="mismatch" />
   <nop test="bad2" next="mismatch" />
   <nop next="done" />
 
