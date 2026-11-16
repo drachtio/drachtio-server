@@ -899,6 +899,23 @@ namespace drachtio {
             transactionId = iip->getTransactionId() ;   
             dlg = iip->dlg() ;   
 
+            /* A UAS retransmits its 2xx until the ACK arrives, over reliable transports too
+               (RFC 3261 13.3.1.4). On UDP m_timerDHandler absorbs it above, but on TCP/TLS a
+               copy that arrives before the application has sent the ACK would re-run dialog
+               creation below: the duplicate insert fails, the app transaction (removed on the
+               first 2xx) can no longer be found, and the dialog is dropped from the client
+               controller, so the peer's later BYE gets a 481. The ACK the app is about to send
+               answers every copy, so drop it. */
+            if (sip->sip_cseq->cs_method == sip_method_invite && 200 == sip->sip_status->st_status &&
+                200 == dlg->getSipStatus()) {
+                const char* rtag = nta_leg_get_rtag(iip->leg()) ;
+                if (rtag && sip->sip_to->a_tag && 0 == strcmp(rtag, sip->sip_to->a_tag)) {
+                    DR_LOG(log_info) << "SipDialogController::processResponseOutsideDialog - discarding 200 OK retransmitted before the ACK was sent, callid: " <<
+                        sip->sip_call_id->i_id ;
+                    msg_destroy( msg ) ;
+                    return 0 ;
+                }
+            }
 
             //update dialog variables            
             dlg->setSipStatus( sip->sip_status->st_status ) ;
