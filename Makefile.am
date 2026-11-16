@@ -102,4 +102,4 @@ ${srcdir}/deps/prometheus-cpp/build/lib/libprometheus-cpp-core.a ${srcdir}/deps/
 	$(MAKE) && make install
 
 ${srcdir}/deps/hiredis/libhiredis.a:
-	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON . && $(MAKE)
+	cd ${srcdir}/deps/hiredis && cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_SSL=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 . && $(MAKE)
