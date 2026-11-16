@@ -2102,6 +2102,16 @@ namespace drachtio {
 
         mapUri2InvalidData::iterator it = m_mapUri2InvalidData.find( uri ) ;
         if( m_mapUri2InvalidData.end() != it ) {
+            tport_t* tp = it->second->getTport() ;
+            /* the connection the subscription or registration arrived on may have been closed
+               since; forcing requests onto it would make them fail, so drop the stale entry and
+               let the caller resolve the target normally */
+            if( !tp || tport_is_shutdown(tp) ) {
+                DR_LOG(log_info) << "DrachtioController::findTportForSubscription: removing cached transport for " << uri <<
+                    " because it has been closed, tport: " << (void *) tp ;
+                m_mapUri2InvalidData.erase( it ) ;
+                return p ;
+            }
             p = it->second ;
             DR_LOG(log_debug) << "DrachtioController::findTportForSubscription: found transport for " << uri  ;
         }
