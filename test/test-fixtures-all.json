@@ -1,5 +1,23 @@
 [
   {
+    "server": {"config": "drachtio.conf5.xml", "args": ["--memory-debug"]},
+    "script": {"name": "registration-transport", "function": "run"},
+    "message": "registration transport: isolate Contact ports and preserve reconnect/removal"
+  },
+  {
+    "server": {"config": "drachtio.conf5.xml", "args": ["--memory-debug"]},
+    "script": {"name": "registration-transport", "function": "run", "args": {"omitPort": true}},
+    "message": "registration transport: preserve portless Contact bindings"
+  },
+  {
+    "server": {"config": "drachtio.conf5.xml", "args": [
+      "--contact", "sips:127.0.0.1:5090;transport=tls",
+      "--key-file", "tls/server.key", "--cert-file", "tls/server.crt", "--chain-file", "tls/server.crt"
+    ]},
+    "script": {"name": "registration-transport", "function": "run", "args": {"tls": true}},
+    "message": "registration transport: isolate TLS accounts by Contact port"
+  },
+  {
     "server": {
       "config": "drachtio.conf.xml",
       "args": ["--memory-debug"],

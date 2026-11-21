@@ -220,10 +220,10 @@ namespace drachtio {
                     }
                     
                     if( add ) {
-                        theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, expires, pCore->getTport() ) ;
+                        theOneAndOnlyController->cacheTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, contact->m_url->url_port, expires, pCore->getTport() ) ;
                     }
                     else {
-                        theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host ) ;                        
+                        theOneAndOnlyController->flushTportForSubscription( contact->m_url->url_user, contact->m_url->url_host, contact->m_url->url_port ) ;
                     }
                 }
             }
@@ -1394,7 +1394,7 @@ namespace drachtio {
         bool forceTport = false ;
         const tport_t* tp = NULL ;
         if( NULL != sip->sip_request && NULL != strstr( sip->sip_request->rq_url->url_host, ".invalid") ) {
-            std::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host ) ;
+            std::shared_ptr<UaInvalidData> pData = theOneAndOnlyController->findTportForSubscription( sip->sip_request->rq_url->url_user, sip->sip_request->rq_url->url_host, sip->sip_request->rq_url->url_port ) ;
             if( NULL != pData ) {
                 tp = pData->getTport() ;
                 forceTport = true ;
