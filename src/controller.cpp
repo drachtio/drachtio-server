@@ -294,7 +294,7 @@ namespace drachtio {
         m_nHomerPort(0), m_nHomerId(0), m_mtu(0), m_bAggressiveNatDetection(false), m_bMemoryDebug(false),
         m_nPrometheusPort(0), m_strPrometheusAddress("0.0.0.0"), m_tcpKeepaliveSecs(UINT16_MAX), m_tportQueuesize(64),
         m_tportMaxConsecutiveTimeouts(0), m_bContactAlias(false), m_bDumpMemory(false),
-        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_bAlwaysSend180(false),
+        m_minTlsVersion(0), m_bDisableNatDetection(false), m_pBlacklist(nullptr), m_redisPort(0), m_redisRefreshSecs(0), m_bAlwaysSend180(false),
         m_bGloballyReadableLogs(false), m_bTlsVerifyClientCert(false), m_bRejectRegisterWithNoRealm(false) {
 
         getEnv();
