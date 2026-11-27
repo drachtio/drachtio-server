@@ -172,10 +172,9 @@ namespace drachtio {
 
         if (redisPassword.length()) {
           redisReply *reply = (redisReply *) redisCommand(c, "AUTH %s", redisPassword.c_str());
-          if (reply->type == REDIS_REPLY_ERROR) {
-            DR_LOG(log_error) << "Blacklist::QueryRedis - AUTH failed to " << endpoint.address() << 
-              " with password " << redisPassword << " :" << reply->str ;
-            freeReplyObject(reply);
+          if (reply == nullptr || reply->type == REDIS_REPLY_ERROR) {
+            DR_LOG(log_error) << "Blacklist::QueryRedis - AUTH failed to " << endpoint.address() << " :" << (reply ? reply->str : c->errstr) ;
+            if (reply) freeReplyObject(reply);
             redisFree(c);
             return false;
           }
@@ -248,11 +247,11 @@ namespace drachtio {
         stop() ;
     }
     void Blacklist::threadFunc() {
-      bool initialized = false;
+      const unsigned int refreshSecs = m_refreshSecs > 0 ? m_refreshSecs : 3600;
       DR_LOG(log_debug) << "Blacklist thread id: " << std::this_thread::get_id()  ;
 
       while (true) {
-        unsigned int interval = m_refreshSecs;
+        bool refreshed = false;
 
        /**
         * @brief If we are using redis sentinels, query the sentinels for the read replicas
@@ -303,6 +302,8 @@ namespace drachtio {
             std::list<std::string>{m_redisAddress + ":" + std::to_string(m_redisPort)};
 
           for (const auto& address : addresses) {
+            std::unordered_set<std::string> ips;
+
             /* get redis endpoint */
             DR_LOG(log_notice) << " querying redis at " << address ;
             auto [ip, port] = parseAddress(address);
@@ -320,24 +321,30 @@ namespace drachtio {
                   ec);
               for (boost::asio::ip::tcp::endpoint const& endpoint : results) {
                 DR_LOG(log_debug) << "Blacklist resolved to " << endpoint.address() ;
-                if (QueryRedis(m_redisPassword, m_redisKey, endpoint, m_ips)) initialized = true;
+                refreshed = QueryRedis(m_redisPassword, m_redisKey, endpoint, ips);
                 break;
               }
             }
             else {
               boost::asio::ip::tcp::endpoint endpoint(ip_address, port);
               DR_LOG(log_debug) << "Connecting to redis at " << ip << ":" << port ;
-              if (QueryRedis(m_redisPassword, m_redisKey, endpoint, m_ips)) initialized = true;
+              refreshed = QueryRedis(m_redisPassword, m_redisKey, endpoint, ips);
+            }
+            if (refreshed) {
+              std::lock_guard<std::mutex> lock(m_mutex);
+              m_ips.swap(ips);
+              break;
             }
           }
-          if (initialized) break;
         }
         else {
-          DR_LOG(log_error) << "Blacklist::threadFunc - Error: no redis address or sentinels configured" ;
-          break;
+          if (m_sentinels.empty()) {
+            DR_LOG(log_error) << "Blacklist::threadFunc - Error: no redis address or sentinels configured" ;
+            break;
+          }
+          DR_LOG(log_error) << "Blacklist::threadFunc - Error: no redis replicas found from sentinels, will retry" ;
         }
-        if (!initialized) interval = 60;
-        std::this_thread::sleep_for (std::chrono::seconds(interval));
+        std::this_thread::sleep_for (std::chrono::seconds(refreshed ? refreshSecs : 60));
       }
    }
 

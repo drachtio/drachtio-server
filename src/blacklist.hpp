@@ -27,6 +27,7 @@ THE SOFTWARE.
 
 #include <unordered_set>
 #include <thread>
+#include <mutex>
 #include <list>
 
 #include "drachtio.h"
@@ -46,6 +47,7 @@ namespace drachtio {
   	void threadFunc(void) ;
 
     bool isBlackListed(const char* srcAddress) {
+      std::lock_guard<std::mutex> lock(m_mutex);
       return m_ips.end() != m_ips.find(srcAddress);
     }
 
@@ -60,6 +62,7 @@ namespace drachtio {
     unsigned int                    m_redisPort;
     std::string&                    m_redisKey; 
     unsigned int                    m_refreshSecs;
+    std::mutex                      m_mutex;    // guards m_ips: written by the refresh thread, read on the sofia thread
     std::unordered_set<std::string> m_ips ;      
     std::unordered_set<std::string> m_replicas ;      
   } ;
